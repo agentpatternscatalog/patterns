@@ -35,6 +35,7 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 - **[`INDEX.md`](INDEX.md)** — every pattern grouped by category.
 - **[`patterns/`](patterns/)** — one Markdown page per pattern.
 - **[`patterns-src/`](patterns-src/)** — source of truth: 13 per-category JSON shards, each entry validated against [`schema.json`](schema.json).
+- **[`framework-coverage.json`](framework-coverage.json)** — which patterns each agent framework (LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy, n8n, Temporal, Vercel AI SDK, Claude Agent SDK, Google ADK, Letta, …) provides as `fully` / `limited` / `none` / `unknown`. Hand-curated, conservative; carries a `last_analysis_date` plus per-row `last_analyzed`.
 
 ## Find a pattern
 

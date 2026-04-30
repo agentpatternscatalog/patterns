@@ -544,6 +544,34 @@ def rule_a10(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
 # ---------- runner -----------------------------------------------------------
 
 
+def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A11 Framework coverage: pattern ids in framework-coverage.json must resolve."""
+    out: list[Violation] = []
+    cov_path = ROOT / "framework-coverage.json"
+    if not cov_path.exists():
+        return out
+    try:
+        cov = json.loads(cov_path.read_text())
+    except json.JSONDecodeError as e:
+        out.append(Violation("A11.1", "framework-coverage.json", f"invalid JSON: {e}"))
+        return out
+
+    pattern_ids = {p["id"] for p in patterns}
+    fw_ids: set[str] = set()
+    for fw in cov.get("frameworks", []):
+        fid = fw.get("id", "<no-id>")
+        if fid in fw_ids:
+            out.append(Violation("A11.2", f"framework-coverage::{fid}", "duplicate framework id"))
+        fw_ids.add(fid)
+        for pid in (fw.get("coverage") or {}):
+            if pid not in pattern_ids:
+                out.append(Violation(
+                    "A11.3", f"framework-coverage::{fid}",
+                    f"coverage references unknown pattern id {pid!r}",
+                ))
+    return out
+
+
 RULES = {
     "A1": ("schema/structure", lambda P, W, N: rule_a1(P, W)),
     "A2": ("repo hygiene", lambda P, W, N: rule_a2()),
@@ -555,6 +583,7 @@ RULES = {
     "A8": ("vocabulary", lambda P, W, N: rule_a8(P, W)),
     "A9": ("tone", lambda P, W, N: rule_a9(P, W)),
     "A10": ("naming", lambda P, W, N: rule_a10(P, W)),
+    "A11": ("framework coverage refs", lambda P, W, N: rule_a11(P, W)),
 }
 
 
