@@ -262,6 +262,8 @@ def rule_a2() -> list[Violation]:
         "framework-coverage.schema.json",
         "recipes.json",
         "recipes.schema.json",
+        "glossary.json",
+        "glossary.schema.json",
     }
     allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
     for f in root_files:
@@ -389,6 +391,13 @@ def rule_a6(patterns: list[dict], where: dict[str, str], check_urls: bool) -> li
             url = r.get("url")
             if url:
                 urls_to_check.append((url, f"{loc} ({r.get('title') or r.get('type')})"))
+            else:
+                # A6.4 (hard fail): every reference must have a URL.
+                # If a reference can't be linked to a verifiable source,
+                # remove it rather than ship an unlinked entry.
+                out.append(Violation(
+                    "A6.4", loc,
+                    f"reference {r.get('title') or r.get('type')!r} has no url (URL is mandatory)"))
 
     if check_urls and urls_to_check:
         out.extend(_check_urls(urls_to_check))
@@ -559,9 +568,17 @@ def rule_a10(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
 
 
 def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
-    """A11 Framework coverage: pattern ids in framework-coverage.json must resolve."""
+    """A11 Framework coverage: schema-valid, pattern ids resolve, vendor required.
+
+    A11.1 invalid JSON
+    A11.2 duplicate framework id
+    A11.3 coverage references unknown pattern id
+    A11.4 framework missing vendor (team / company that builds it)
+    A11.5 framework fails framework-coverage.schema.json validation
+    """
     out: list[Violation] = []
     cov_path = ROOT / "framework-coverage.json"
+    cov_schema_path = ROOT / "framework-coverage.schema.json"
     if not cov_path.exists():
         return out
     try:
@@ -570,6 +587,18 @@ def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
         out.append(Violation("A11.1", "framework-coverage.json", f"invalid JSON: {e}"))
         return out
 
+    # Schema validation (catches missing vendor + any other required-field gap).
+    if cov_schema_path.exists():
+        try:
+            import jsonschema  # type: ignore
+            schema = json.loads(cov_schema_path.read_text())
+            validator = jsonschema.Draft202012Validator(schema)
+            for err in validator.iter_errors(cov):
+                path = "/".join(str(x) for x in err.absolute_path) or "<root>"
+                out.append(Violation("A11.5", f"framework-coverage::{path}", err.message))
+        except ImportError:
+            out.append(Violation("A11.5", "lint env", "jsonschema not installed; skipping framework-coverage schema validation"))
+
     pattern_ids = {p["id"] for p in patterns}
     fw_ids: set[str] = set()
     for fw in cov.get("frameworks", []):
@@ -577,6 +606,15 @@ def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
         if fid in fw_ids:
             out.append(Violation("A11.2", f"framework-coverage::{fid}", "duplicate framework id"))
         fw_ids.add(fid)
+        # Vendor must be present and non-empty: every framework needs a clear
+        # owner (team or company). Schema enforces it too; this gives a
+        # nicer message for the common case.
+        vendor = fw.get("vendor")
+        if not isinstance(vendor, str) or not vendor.strip():
+            out.append(Violation(
+                "A11.4", f"framework-coverage::{fid}",
+                "missing or empty `vendor` (team / company that builds the framework)",
+            ))
         for pid in (fw.get("coverage") or {}):
             if pid not in pattern_ids:
                 out.append(Violation(

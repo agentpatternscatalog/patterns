@@ -111,6 +111,8 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
     parts.append(f'<p class="meta">{" &middot; ".join(meta_bits)}</p>')
 
     parts.append(f"<h2>Intent</h2><p>{esc(p['intent'])}</p>")
+    if p.get("example_scenario"):
+        parts.append(f"<h2>Example scenario</h2><p class='example-scenario'>{esc(p['example_scenario'])}</p>")
     parts.append(f"<h2>Context</h2><p>{esc(p['context'])}</p>")
     parts.append(f"<h2>Problem</h2><p>{esc(p['problem'])}</p>")
 
