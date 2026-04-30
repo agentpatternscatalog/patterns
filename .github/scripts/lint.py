@@ -366,7 +366,7 @@ def rule_a5(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
 
 
 def rule_a6(patterns: list[dict], where: dict[str, str], check_urls: bool) -> list[Violation]:
-    """A6 Evidence: known_uses non-empty, references typed, URLs live."""
+    """A6 Evidence: known_uses non-empty, references typed, URLs live (refs + known_uses)."""
     out: list[Violation] = []
     urls_to_check: list[tuple[str, str]] = []  # (url, location)
 
@@ -375,6 +375,10 @@ def rule_a6(patterns: list[dict], where: dict[str, str], check_urls: bool) -> li
         ku = p.get("known_uses") or []
         if not ku:
             out.append(Violation("A6.1", loc, "known_uses is empty"))
+        for k in ku:
+            url = k.get("url")
+            if url:
+                urls_to_check.append((url, f"{loc} known_uses({k.get('system','')})"))
         refs = p.get("references") or []
         if not refs:
             out.append(Violation("A6.2", loc, "references is empty (need at least one paper/product/repo)"))
