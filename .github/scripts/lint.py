@@ -264,6 +264,8 @@ def rule_a2() -> list[Violation]:
         "recipes.schema.json",
         "glossary.json",
         "glossary.schema.json",
+        "verification-todo.json",
+        "verification-todo.schema.json",
     }
     allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
     for f in root_files:
@@ -398,6 +400,17 @@ def rule_a6(patterns: list[dict], where: dict[str, str], check_urls: bool) -> li
                 out.append(Violation(
                     "A6.4", loc,
                     f"reference {r.get('title') or r.get('type')!r} has no url (URL is mandatory)"))
+
+    # Also probe URLs that live outside patterns-src/.
+    cov_path = ROOT / "framework-coverage.json"
+    if cov_path.exists():
+        try:
+            cov = json.loads(cov_path.read_text())
+            for fw in cov.get("frameworks", []):
+                if fw.get("url"):
+                    urls_to_check.append((fw["url"], f"framework-coverage::{fw.get('id', '?')}"))
+        except json.JSONDecodeError:
+            pass
 
     if check_urls and urls_to_check:
         out.extend(_check_urls(urls_to_check))
@@ -633,6 +646,62 @@ DIAGRAM_KEYWORDS = {
 }
 
 
+def rule_a15(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A15 Verification-TODO refs: every entry must point to a real pattern/framework."""
+    out: list[Violation] = []
+    todo_path = ROOT / "verification-todo.json"
+    if not todo_path.exists():
+        return out
+    try:
+        todo = json.loads(todo_path.read_text())
+    except json.JSONDecodeError as e:
+        out.append(Violation("A15.1", "verification-todo.json", f"invalid JSON: {e}"))
+        return out
+
+    pattern_ids = {p["id"] for p in patterns}
+    cov_path = ROOT / "framework-coverage.json"
+    framework_ids: set[str] = set()
+    if cov_path.exists():
+        try:
+            cov = json.loads(cov_path.read_text())
+            framework_ids = {fw["id"] for fw in cov.get("frameworks", [])}
+        except json.JSONDecodeError:
+            pass
+
+    seen_p: set[str] = set()
+    for entry in todo.get("patterns", []):
+        pid = entry.get("id", "")
+        if pid in seen_p:
+            out.append(Violation("A15.2", f"verification-todo.patterns::{pid}", "duplicate id"))
+        seen_p.add(pid)
+        if pid not in pattern_ids:
+            out.append(Violation(
+                "A15.3", f"verification-todo.patterns::{pid}",
+                f"references unknown pattern id"))
+    seen_f: set[str] = set()
+    for entry in todo.get("frameworks", []):
+        fid = entry.get("id", "")
+        if fid in seen_f:
+            out.append(Violation("A15.2", f"verification-todo.frameworks::{fid}", "duplicate id"))
+        seen_f.add(fid)
+        if framework_ids and fid not in framework_ids:
+            out.append(Violation(
+                "A15.4", f"verification-todo.frameworks::{fid}",
+                f"references unknown framework id"))
+    # Also catch the inverse drift: catalog entry that has no TODO row.
+    missing_patterns = pattern_ids - seen_p
+    missing_frameworks = framework_ids - seen_f
+    if missing_patterns:
+        out.append(Violation(
+            "A15.5", "verification-todo.json",
+            f"{len(missing_patterns)} pattern(s) have no TODO entry: {sorted(missing_patterns)[:5]}{'...' if len(missing_patterns) > 5 else ''}"))
+    if missing_frameworks:
+        out.append(Violation(
+            "A15.6", "verification-todo.json",
+            f"{len(missing_frameworks)} framework(s) have no TODO entry: {sorted(missing_frameworks)[:5]}{'...' if len(missing_frameworks) > 5 else ''}"))
+    return out
+
+
 def rule_a14(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A14 Variant sanity: unique names within a pattern; see_also refs resolve;
     variant name must not duplicate an existing first-class pattern's id."""
@@ -741,6 +810,7 @@ RULES = {
     "A12": ("recipe pattern refs", lambda P, W, N: rule_a12(P, W)),
     "A13": ("diagram sanity", lambda P, W, N: rule_a13(P, W)),
     "A14": ("variant sanity", lambda P, W, N: rule_a14(P, W)),
+    "A15": ("verification-todo refs", lambda P, W, N: rule_a15(P, W)),
 }
 
 

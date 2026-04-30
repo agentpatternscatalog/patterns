@@ -52,6 +52,8 @@ def build(out_dir: Path) -> None:
         "recipes.schema.json",
         "glossary.json",
         "glossary.schema.json",
+        "verification-todo.json",
+        "verification-todo.schema.json",
     ):
         src = ROOT / extra
         if src.exists():
