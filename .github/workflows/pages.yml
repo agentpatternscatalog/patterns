@@ -1,0 +1,73 @@
+name: Publish patterns.json
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "patterns-src/**"
+      - "schema.json"
+      - ".github/workflows/pages.yml"
+      - ".github/scripts/build_patterns_json.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build patterns.json + schema.json into dist/
+        run: python3 .github/scripts/build_patterns_json.py dist
+
+      - name: Write landing page
+        run: |
+          cat > dist/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>Agentic Patterns Catalog</title>
+            <style>
+              body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; }
+              code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 3px; }
+              a { color: #0366d6; }
+            </style>
+          </head>
+          <body>
+            <h1>Agentic Patterns Catalog</h1>
+            <p>Machine-readable reference of agentic design patterns in GoF/POSA form.</p>
+            <ul>
+              <li><a href="patterns.json"><code>patterns.json</code></a> &mdash; the full catalog (single file)</li>
+              <li><a href="schema.json"><code>schema.json</code></a> &mdash; JSON Schema for one pattern</li>
+            </ul>
+            <p>Source: <a href="https://github.com/nissen-consulting/agentic-patterns">github.com/nissen-consulting/agentic-patterns</a></p>
+          </body>
+          </html>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
