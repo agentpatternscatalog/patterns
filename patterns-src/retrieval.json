@@ -1,0 +1,744 @@
+{
+  "category": "retrieval",
+  "label": "Retrieval & RAG",
+  "patterns": [
+    {
+      "id": "agentic-rag",
+      "name": "Agentic RAG",
+      "aliases": [
+        "Iterative RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Replace static retrieve-then-generate with autonomous agents that plan, choose sources, retrieve iteratively, reflect, and re-query.",
+      "context": "Multi-hop, ambiguous, or evolving information needs where single-shot retrieval is insufficient.",
+      "problem": "Naive RAG cannot decide whether to retrieve, which source to use, when to stop retrieving, or how to recover from poor retrievals.",
+      "forces": [
+        "Agentic loops cost more than single-shot retrieval.",
+        "Source selection requires capability descriptions.",
+        "Loop bounds must prevent runaway retrieval."
+      ],
+      "solution": "Treat retrieval as a tool. The agent decides whether to retrieve, formulates and reformulates the query, picks among multiple retrievers (vector, graph, keyword, web), evaluates retrieved evidence, and re-queries on insufficient results. Composes naturally with reflection, planning, and tool-use patterns.",
+      "consequences": {
+        "benefits": [
+          "Handles multi-hop and adaptive queries.",
+          "Source diversity (multi-store retrieval) becomes feasible."
+        ],
+        "liabilities": [
+          "Cost and latency rise with loop iterations.",
+          "Loop quality depends on agent self-evaluation."
+        ]
+      },
+      "constrains": "Retrieval is one tool among many; the agent decides invocation, but each retrieval is bounded by the step budget.",
+      "known_uses": [
+        {
+          "system": "Self-RAG, CRAG implementations",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph Agentic RAG tutorials",
+          "status": "available"
+        },
+        {
+          "system": "Perplexity",
+          "status": "available"
+        },
+        {
+          "system": "ChatGPT Search",
+          "status": "available"
+        },
+        {
+          "system": "Glean",
+          "status": "available"
+        },
+        {
+          "system": "Notion AI",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "react",
+          "relation": "uses"
+        },
+        {
+          "pattern": "reflection",
+          "relation": "uses"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "uses",
+          "note": "Retrieval is exposed as a tool the agent decides to invoke."
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with",
+          "note": "Reranking is a near-universal RAG companion."
+        },
+        {
+          "pattern": "self-rag",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "crag",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG",
+          "authors": "Singh, Ehtesham, Kumar, Khoei",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2501.09136"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "agentic",
+        "iterative"
+      ]
+    },
+    {
+      "id": "contextual-retrieval",
+      "name": "Contextual Retrieval",
+      "aliases": [
+        "Chunk Contextualisation",
+        "Anthropic Contextual Embeddings"
+      ],
+      "category": "retrieval",
+      "intent": "Prepend a short LLM-generated description to each chunk before embedding so the chunk carries its situating context.",
+      "context": "Chunks that lose context at split boundaries (pronouns, 'the company', time references) embed far from queries that name the entity explicitly.",
+      "problem": "Naive chunking destroys context; queries that name entities by full name miss chunks that refer to them by pronoun.",
+      "forces": [
+        "An LLM call per chunk is expensive.",
+        "Prompt caching of the parent document amortises the cost.",
+        "Context generation must be deterministic enough to keep the index stable."
+      ],
+      "solution": "For each chunk, prompt an LLM with the parent document and the chunk; receive a short description that situates the chunk. Prepend that description to the chunk. Embed the prepended chunk. Store BM25 over both prepended chunks (Contextual BM25) and dense vectors (Contextual Embeddings). Compose with reranking for further gains.",
+      "consequences": {
+        "benefits": [
+          "Reported retrieval-failure reductions: 35% (embeddings), 49% (+BM25), 67% (+reranking).",
+          "Fully compatible with existing RAG pipelines."
+        ],
+        "liabilities": [
+          "Indexing cost per chunk; only worth it for stable corpora.",
+          "Chunk re-indexing required when context model changes."
+        ]
+      },
+      "constrains": "Chunks enter the index only after contextualisation; raw chunks are not indexed.",
+      "known_uses": [
+        {
+          "system": "Anthropic Contextual Retrieval blog post",
+          "status": "available",
+          "url": "https://www.anthropic.com/news/contextual-retrieval"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "prompt-caching",
+          "relation": "uses"
+        },
+        {
+          "pattern": "raft",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Introducing Contextual Retrieval",
+          "authors": "Anthropic",
+          "year": 2024,
+          "url": "https://www.anthropic.com/news/contextual-retrieval"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "contextual",
+        "anthropic"
+      ]
+    },
+    {
+      "id": "crag",
+      "name": "CRAG",
+      "aliases": [
+        "Corrective RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Add a lightweight retrieval evaluator that grades each retrieved document and triggers corrective web search on poor retrievals.",
+      "context": "Production RAG where retrieval quality varies and the system must recover gracefully from low-quality retrievals.",
+      "problem": "Naive RAG passes every retrieval into the generator; bad retrievals corrupt outputs without any correction step.",
+      "forces": [
+        "Evaluator quality bounds correction accuracy.",
+        "Web fallback adds latency and external dependency.",
+        "Three-way grading (correct / ambiguous / incorrect) needs calibration."
+      ],
+      "solution": "After retrieval, a lightweight evaluator (T5-based or similar) grades each document as Correct, Ambiguous, or Incorrect. Correct documents go forward as-is. Ambiguous documents trigger a web search for additional evidence. Incorrect documents are discarded and replaced via web search. The generator receives the corrected document set.",
+      "consequences": {
+        "benefits": [
+          "Robustness to poor retrievals.",
+          "Plug-and-play with existing RAG."
+        ],
+        "liabilities": [
+          "Two-stage retrieval increases latency.",
+          "Web fallback has its own correctness questions."
+        ]
+      },
+      "constrains": "The generator sees only retrieval-graded-Correct documents, optionally augmented with corrective-search results.",
+      "known_uses": [
+        {
+          "system": "CRAG paper baseline",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph Corrective-RAG tutorial",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agentic-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Corrective Retrieval Augmented Generation",
+          "authors": "Yan, Gui, Xiao, Mei, Liu, Shang, Sun, Wang",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2401.15884"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "corrective",
+        "evaluator"
+      ]
+    },
+    {
+      "id": "cross-encoder-reranking",
+      "name": "Cross-Encoder Reranking",
+      "aliases": [
+        "Reranker",
+        "Two-Stage Retrieval",
+        "Retrieve-Then-Rerank"
+      ],
+      "category": "retrieval",
+      "intent": "After cheap bi-encoder or BM25 retrieval, rescore top-N candidates with a cross-encoder that jointly attends over (query, candidate).",
+      "context": "Bi-encoders compress query and document independently and lose fine-grained interaction; ANN-search top-k is recall-oriented.",
+      "problem": "Top-k from cheap retrieval contains both relevant and irrelevant candidates; the generator wastes context on the latter.",
+      "forces": [
+        "Cross-encoder cost is one model call per candidate.",
+        "Latency budget caps N (typically 20-100).",
+        "Fine-tuning a custom reranker is a separate effort."
+      ],
+      "solution": "Two-stage retrieval. Stage 1: cheap retrieve (BM25, dense, hybrid) returns top-N. Stage 2: cross-encoder scores each (query, candidate) jointly. Return top-K << N to the generator.",
+      "consequences": {
+        "benefits": [
+          "Largest single quality win on top of contextual embeddings (Anthropic ablation).",
+          "Reranker can be swapped without re-indexing."
+        ],
+        "liabilities": [
+          "Latency adds one call per candidate.",
+          "Reranker calibration on out-of-domain content."
+        ]
+      },
+      "constrains": "The generator sees only the reranker's top-K; pre-rerank candidates are not used.",
+      "known_uses": [
+        {
+          "system": "Cohere Rerank",
+          "status": "available"
+        },
+        {
+          "system": "BGE-reranker (open-source)",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Contextual Retrieval",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "agentic-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hyde",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Passage Re-ranking with BERT",
+          "authors": "Nogueira, Cho",
+          "year": 2019,
+          "url": "https://arxiv.org/abs/1901.04085"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "rerank",
+        "two-stage"
+      ]
+    },
+    {
+      "id": "graphrag",
+      "name": "GraphRAG",
+      "aliases": [
+        "Graph-Based RAG",
+        "Knowledge Graph RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Build an LLM-extracted entity-and-relation knowledge graph plus hierarchical community summaries, then answer global queries via map-reduce over those summaries.",
+      "context": "Sensemaking and corpus-level questions ('what are the main themes?') that naive top-k retrieval cannot answer because they require seeing the whole.",
+      "problem": "Naive RAG retrieves local chunks and cannot answer global queries; chunk-level retrieval is mismatched to corpus-level questions.",
+      "forces": [
+        "Indexing cost is high (LLM calls per entity, relation, community).",
+        "Graph quality depends on extraction prompts.",
+        "Local-search vs global-search modes serve different query types and must be routed."
+      ],
+      "solution": "Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.",
+      "consequences": {
+        "benefits": [
+          "Answers corpus-level sensemaking questions naive RAG cannot.",
+          "Communities are inspectable artefacts of the corpus."
+        ],
+        "liabilities": [
+          "High indexing cost (orders of magnitude more LLM calls).",
+          "Entity extraction errors cascade through the graph."
+        ]
+      },
+      "constrains": "Global queries operate only on community summaries, not raw chunks; local queries operate only on entity-anchored neighbourhoods.",
+      "known_uses": [
+        {
+          "system": "Microsoft GraphRAG (open source)",
+          "status": "available",
+          "url": "https://github.com/microsoft/graphrag"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "map-reduce",
+          "relation": "uses"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "From Local to Global: A Graph RAG Approach to Query-Focused Summarization",
+          "authors": "Edge, Trinh, Cheng, Bradley, Chao, Mody, Truitt, Metropolitansky, Ness, Larson",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2404.16130"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "graph",
+        "sensemaking"
+      ]
+    },
+    {
+      "id": "hybrid-search",
+      "name": "Hybrid Search",
+      "aliases": [
+        "BM25 + Dense",
+        "Lexical + Semantic Retrieval"
+      ],
+      "category": "retrieval",
+      "intent": "Combine sparse lexical retrieval (BM25) with dense vector retrieval and fuse the results.",
+      "context": "Queries vary: some are keyword-matchable (exact identifiers, names), others are semantic; pure dense or pure sparse retrieval misses one or the other.",
+      "problem": "Dense retrieval misses exact matches; sparse retrieval misses paraphrase. Each alone leaves recall on the table.",
+      "forces": [
+        "Score fusion (RRF, weighted sum, learned) is a design choice.",
+        "Two indexes mean two pipelines to maintain.",
+        "Tuning fusion weights is empirical and corpus-specific."
+      ],
+      "solution": "Index the corpus twice: BM25 for sparse, dense embeddings for semantic. At query time, retrieve top-k from each, fuse with Reciprocal Rank Fusion or weighted aggregation. Pass the fused top-N forward (typically into a reranker). Do not weight raw scores directly; use rank-based fusion (RRF) or score-normalised aggregation, since BM25 and dense scores live on incompatible scales.",
+      "consequences": {
+        "benefits": [
+          "Recall improvement over either alone, especially for mixed-vocabulary corpora.",
+          "Robust to embedding model weaknesses on rare terms."
+        ],
+        "liabilities": [
+          "Two indexes to keep in sync.",
+          "Fusion tuning is empirical."
+        ]
+      },
+      "constrains": "The retrieval set is the fusion of sparse and dense top-k; neither alone is the input to downstream stages.",
+      "known_uses": [
+        {
+          "system": "Anthropic Contextual Retrieval",
+          "status": "available"
+        },
+        {
+          "system": "Most production RAG (Pinecone, Weaviate, Elastic Hybrid)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods",
+          "authors": "Cormack, Clarke, Buettcher",
+          "year": 2009
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "hybrid",
+        "bm25"
+      ]
+    },
+    {
+      "id": "hyde",
+      "name": "HyDE",
+      "aliases": [
+        "Hypothetical Document Embeddings"
+      ],
+      "category": "retrieval",
+      "intent": "Have the LLM write a hypothetical answer document, embed it, and use it as the retrieval query.",
+      "context": "Short or underspecified queries embed far from long-form passages in dense vector space; supervised relevance data is absent.",
+      "problem": "Query-document length and style asymmetry hurts dense retrieval recall on short queries.",
+      "forces": [
+        "Hallucinated documents that miss the topic redirect retrieval badly.",
+        "Adds an LLM call per query.",
+        "Often paired with reranking to recover from off-topic hallucinations."
+      ],
+      "solution": "On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.",
+      "consequences": {
+        "benefits": [
+          "Zero-shot improvement; no encoder fine-tuning.",
+          "Particularly strong on short, underspecified queries."
+        ],
+        "liabilities": [
+          "Off-topic hallucinations cause retrieval drift.",
+          "One extra LLM call per query."
+        ]
+      },
+      "constrains": "Retrieval queries the index with the hypothetical answer's embedding, not the user query's embedding.",
+      "known_uses": [
+        {
+          "system": "LangChain HyDE retriever",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Precise Zero-Shot Dense Retrieval without Relevance Labels",
+          "authors": "Gao, Ma, Lin, Callan",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2212.10496"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "retrieval",
+        "embedding"
+      ]
+    },
+    {
+      "id": "naive-rag",
+      "name": "Naive RAG",
+      "aliases": [
+        "Retrieval-Augmented Generation",
+        "Top-K Retrieve-and-Stuff"
+      ],
+      "category": "retrieval",
+      "intent": "Condition the generator on top-k chunks retrieved from an external dense index so knowledge lives outside parameters.",
+      "context": "The agent needs information that lives in a corpus too large to fit in context, and that may change without retraining.",
+      "problem": "Parametric LMs hallucinate, cannot cite, and cannot be updated without retraining; query-time external knowledge is needed.",
+      "forces": [
+        "Chunk size trades context loss for retrieval recall.",
+        "Embedding choice constrains retrieval quality.",
+        "Single-shot retrieval misses multi-hop questions."
+      ],
+      "solution": "Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed the query, retrieve top-k by similarity, prepend chunks to the prompt, generate. The simplest production RAG pipeline.",
+      "consequences": {
+        "benefits": [
+          "Knowledge updates without retraining.",
+          "Citations become possible."
+        ],
+        "liabilities": [
+          "Chunk boundaries destroy context.",
+          "Top-k retrieval is recall-oriented; precision suffers without reranking.",
+          "No iterative retrieval; multi-hop fails."
+        ]
+      },
+      "constrains": "The generator may use only retrieved chunks plus its parametric memory; the retrieval set is the boundary.",
+      "known_uses": [
+        {
+          "system": "LangChain / LlamaIndex default RAG",
+          "status": "available"
+        },
+        {
+          "system": "Most enterprise document-QA deployments",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "hyde",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "graphrag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "agentic-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "naive-rag-first",
+          "relation": "conflicts-with",
+          "note": "Naive RAG is fine; treating it as the only answer is the anti-pattern."
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "vector-memory",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "citation-streaming",
+          "relation": "complements"
+        },
+        {
+          "pattern": "raft",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "hallucinated-citations",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "app-exploration-phase",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+          "authors": "Lewis, Perez, Piktus, Petroni, Karpukhin, Goyal, Küttler, Lewis, Yih, Rocktäschel, Riedel, Kiela",
+          "year": 2020,
+          "url": "https://arxiv.org/abs/2005.11401"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "retrieval",
+        "vector"
+      ]
+    },
+    {
+      "id": "raft",
+      "name": "RAFT",
+      "aliases": [
+        "Retrieval-Augmented Fine-Tuning",
+        "Distractor-Robust RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Train the model to be robust to irrelevant retrieved documents (distractors) in a domain-specific RAG setting.",
+      "context": "Domain-specific RAG where retrieval inevitably mixes relevant and irrelevant documents; the off-the-shelf model is over-confident on distractors.",
+      "problem": "Generic RAG models are fooled by topically-similar distractors; the answer drifts to the loudest irrelevant source.",
+      "forces": [
+        "Training data construction (oracle docs + distractors) is its own pipeline.",
+        "Domain shift between training and serving distractors.",
+        "Trade-off between generalisation and domain specialisation."
+      ],
+      "solution": "Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.",
+      "consequences": {
+        "benefits": [
+          "Robustness to distractor documents in domain RAG.",
+          "Citation discipline improves."
+        ],
+        "liabilities": [
+          "Training data effort.",
+          "Domain-specific; transfer between domains is partial."
+        ]
+      },
+      "constrains": "Cited claims must come from documents marked oracle in training; distractor citations are penalised.",
+      "known_uses": [
+        {
+          "system": "RAFT paper experiments",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "RAFT: Adapting Language Model to Domain Specific RAG",
+          "authors": "Zhang, Patil, Jain, Shen, Zaharia, Stoica, Gonzalez",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2403.10131"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "training",
+        "domain"
+      ]
+    },
+    {
+      "id": "self-rag",
+      "name": "Self-RAG",
+      "aliases": [
+        "Self-Reflective RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Fine-tune the model to emit reflection tokens that decide when to retrieve, evaluate retrieved relevance, and assess generated support.",
+      "context": "Retrieval-augmented generation where the model needs to reason about whether to retrieve, whether retrieved evidence is relevant, and whether the generation is supported.",
+      "problem": "Static retrieve-then-generate retrieves regardless of need and generates regardless of evidence quality; both wastes calls and admits hallucination.",
+      "forces": [
+        "Token vocabulary expansion adds training complexity.",
+        "Reflection tokens must be enforced at inference, not just trained.",
+        "Self-evaluation correlates with the model's blind spots."
+      ],
+      "solution": "A critic model is first trained to label data with reflection tokens. The generator is then fine-tuned on the labeled data to emit four reflection tokens inline at inference: [Retrieve], [IsRel] (is retrieved evidence relevant?), [IsSup] (is generation supported?), [IsUse] (is generation useful?). The host enforces the reflection grammar and uses tokens to control flow.",
+      "consequences": {
+        "benefits": [
+          "Adaptive retrieval: skip when not needed.",
+          "Inline self-evaluation grounds generation."
+        ],
+        "liabilities": [
+          "Requires fine-tuning; not zero-shot.",
+          "Reflection-token quality bounded by training data."
+        ]
+      },
+      "constrains": "Generation steps are gated by the reflection grammar; the model cannot generate freely without emitting the appropriate reflection tokens.",
+      "known_uses": [
+        {
+          "system": "Self-RAG paper baseline",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agentic-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "reflection",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection",
+          "authors": "Asai, Wu, Wang, Sil, Hajishirzi",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2310.11511"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "self-reflection",
+        "fine-tuning"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1618 @@
+{
+  "category": "multi-agent",
+  "label": "Multi-Agent",
+  "patterns": [
+    {
+      "id": "agent-as-tool-embedding",
+      "name": "Agent-as-Tool Embedding",
+      "aliases": [
+        "Sub-Agent as Function",
+        "Nested Agent",
+        "Agent Wrapped in a Tool Signature"
+      ],
+      "category": "multi-agent",
+      "intent": "Wrap a sub-agent (with its own loop, prompt, and tool palette) behind a single function-shaped tool signature, so the parent agent calls it like any other tool and never sees the sub-agent's internal turns.",
+      "context": "A parent agent that benefits from delegating bounded sub-tasks (\"search the web for X and summarise\", \"plan a multi-day itinerary\") to a specialised loop without inheriting the sub-agent's turn-level context.",
+      "problem": "Letting the parent observe the sub-agent's turns either bloats parent context or couples parent reasoning to sub-agent intermediate state. Hand-rolled multi-agent broadcast bus is over-engineering for this case.",
+      "forces": [
+        "Nested loops add abstraction; parent shouldn't care about how sub solves it.",
+        "The function-shaped tool signature is already the agent's native composition unit.",
+        "Sub-agent failure has to surface cleanly to the parent.",
+        "Cost attribution across nesting depth is non-trivial."
+      ],
+      "solution": "Define the sub-agent as `def sub_agent(task: str, ...) -> Result`. The parent calls it like any other tool. Inside the function: a fresh agent loop with its own model, tool palette, and step budget runs to completion or failure, returning a structured result. Parent context records only the call and the return value. Step budget and timeout are enforced by the wrapper, not by the sub-agent's prompt.",
+      "structure": "Parent agent -> tool_call(sub_agent, task) -> [hidden: sub-agent loop] -> Result -> Parent agent.",
+      "consequences": {
+        "benefits": [
+          "Composition without ad-hoc multi-agent infrastructure.",
+          "Parent context stays small and stable.",
+          "Sub-agent can be replaced or upgraded behind the same signature."
+        ],
+        "liabilities": [
+          "Hidden costs: sub-agent failures or timeouts surprise the parent.",
+          "Debugging requires traceability across the boundary (parent sees only the return).",
+          "Recursive nesting can spiral cost if the sub-agent itself spawns more."
+        ]
+      },
+      "constrains": "The parent may not access the sub-agent's intermediate turns; only the return value crosses the boundary.",
+      "known_uses": [
+        {
+          "system": "Hugging Face Transformers Agents (multi-agent)",
+          "note": "ReactCodeAgent embeds sub-agents as callable Python functions.",
+          "status": "available",
+          "url": "https://huggingface.co/docs/transformers/v4.47.1/agents_advanced"
+        },
+        {
+          "system": "smolagents",
+          "note": "Same pattern; sub-agents exposed as ordinary tool functions to a CodeAgent.",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI Agents SDK / handoffs",
+          "note": "Adjacent pattern with explicit handoff semantics rather than function-call nesting.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "uses"
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Hugging Face Transformers — Agents Advanced (Multi-Agents)",
+          "url": "https://huggingface.co/docs/transformers/v4.47.1/agents_advanced"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "composition",
+        "france-origin",
+        "huggingface",
+        "smolagents"
+      ]
+    },
+    {
+      "id": "autogen-conversational",
+      "name": "Conversational Multi-Agent",
+      "aliases": [
+        "AutoGen Conversation",
+        "Two-Agent Conversation"
+      ],
+      "category": "multi-agent",
+      "intent": "Have agents converse turn by turn until a completion criterion fires; agent roles drive the conversation forward.",
+      "context": "Tasks that benefit from back-and-forth between specialists (a coder agent and a reviewer agent; a teacher agent and a student agent).",
+      "problem": "Single-agent loops cannot represent dialogue-shaped collaboration; rigid orchestration patterns over-prescribe the flow.",
+      "forces": [
+        "Turn allocation across agents.",
+        "Termination criterion definition.",
+        "Conversation can drift without supervision."
+      ],
+      "solution": "Define agents with system prompts and allowed actions. Implement a conversation manager that selects which agent speaks next (round-robin, condition-based, model-decided). Each agent reads the conversation and emits a turn. Continue until termination criterion (task complete, max turns, explicit handoff to user).",
+      "consequences": {
+        "benefits": [
+          "Natural way to model peer collaboration.",
+          "Each agent has a clean role definition."
+        ],
+        "liabilities": [
+          "Conversation drift is real.",
+          "Hard to reason about correctness of the multi-agent flow."
+        ]
+      },
+      "constrains": "Each agent's outputs must conform to its role's allowed action set; agents may not act outside their role's vocabulary.",
+      "known_uses": [
+        {
+          "system": "Microsoft AutoGen",
+          "status": "available",
+          "url": "https://microsoft.github.io/autogen/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "role-assignment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "camel-role-playing",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation",
+          "authors": "Wu, Bansal, Zhang, Wu, Zhang, Zhu, Li, Jiang, Zhang, Wang",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2308.08155"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "conversation",
+        "autogen"
+      ]
+    },
+    {
+      "id": "blackboard",
+      "name": "Blackboard",
+      "aliases": [
+        "Shared Workspace",
+        "Collaboration Whiteboard"
+      ],
+      "category": "multi-agent",
+      "intent": "Give multiple agents a shared, queryable workspace they can read from and write to as they collaborate.",
+      "context": "Coordinated multi-agent work where agents need to see each other's progress and contribute to a shared artefact.",
+      "problem": "Agents working in isolation miss each other's progress; explicit messaging requires a protocol; shared mutable state without discipline races.",
+      "forces": [
+        "Concurrent writes need conflict resolution.",
+        "Blackboard contents grow; pruning is needed.",
+        "Read latency: pulling vs subscribing."
+      ],
+      "solution": "Establish a shared store (file, database, in-memory). Each agent reads the relevant slice and writes its contribution under structured keys. Optional event notification when keys change. Conflict resolution is policy-driven (last-write-wins, version-vector, append-only).",
+      "consequences": {
+        "benefits": [
+          "Loose coupling: agents do not know about each other directly.",
+          "Inspectable shared state."
+        ],
+        "liabilities": [
+          "Race conditions under concurrent writes.",
+          "Blackboard bloat without pruning."
+        ]
+      },
+      "constrains": "Cross-agent communication happens only via the blackboard; out-of-band agent-to-agent calls are forbidden.",
+      "known_uses": [
+        {
+          "system": "Classical AI blackboard architectures",
+          "status": "available"
+        },
+        {
+          "system": "Multi-agent code review with shared scratchpad",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "swarm",
+          "relation": "complements"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "complements"
+        },
+        {
+          "pattern": "graph-of-thoughts",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "sop-encoded-multi-agent",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Blackboard Systems (Engelmore, Morgan)",
+          "year": 1988
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "multi-agent",
+        "blackboard",
+        "shared-state"
+      ]
+    },
+    {
+      "id": "camel-role-playing",
+      "name": "CAMEL Role-Playing",
+      "aliases": [
+        "Inception Prompting",
+        "AI-User AI-Assistant"
+      ],
+      "category": "multi-agent",
+      "intent": "Have two agents role-play a user-assistant interaction to autonomously complete a task neither could solve alone.",
+      "context": "Tasks where a user-style agent and an assistant-style agent productively elaborate a task through their interaction.",
+      "problem": "Single agents miss the turn-taking dynamics that human collaboration relies on; pure debate is adversarial when collaboration is what is wanted.",
+      "forces": [
+        "Roles drift toward sameness without inception prompting.",
+        "Conversation length must be bounded.",
+        "Tasks need to be specified as something the role-play can converge on."
+      ],
+      "solution": "Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with their roles fixed and the task specified. They converse until the task is completed or budget exhausted. The output is the final assistant message; the conversation log is debugging artefact.",
+      "consequences": {
+        "benefits": [
+          "Synthetic task-solving without human-in-the-loop.",
+          "Useful for generating training data."
+        ],
+        "liabilities": [
+          "Cost: 2x inference per task.",
+          "Role drift over long conversations."
+        ]
+      },
+      "constrains": "The AI-User role may only ask, never answer; AI-Assistant may only answer, never ask user-style questions.",
+      "known_uses": [
+        {
+          "system": "CAMEL framework",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "autogen-conversational",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "CAMEL: Communicative Agents for \"Mind\" Exploration of Large Language Model Society",
+          "authors": "Li, Hammoud, Itani, Khizbullin, Ghanem",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2303.17760"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "multi-agent",
+        "role-play"
+      ]
+    },
+    {
+      "id": "chat-chain",
+      "name": "Chat Chain",
+      "aliases": [
+        "Phased Multi-Agent Pipeline",
+        "Sequential Role-Pair Chats",
+        "Communicative Phase Chain"
+      ],
+      "category": "multi-agent",
+      "intent": "Decompose a long, multi-disciplinary task into ordered phases; within each phase, run a paired-role chat between two agents until the phase artefact is signed off; pass the artefact to the next phase.",
+      "context": "A task (build a small program, write a brief, prepare a report) requires several disciplines in sequence and is too long for a single agent loop or a flat multi-agent broadcast.",
+      "problem": "A single agent loop loses focus; broadcast multi-agent chat produces tangled context; flat prompt-chaining cannot host the back-and-forth a discipline needs.",
+      "forces": [
+        "Each discipline benefits from focused two-agent dialogue.",
+        "Context windows blow up if every agent sees every chat.",
+        "Phase-to-phase hand-off needs a clean artefact contract.",
+        "Termination of a phase has to be explicit, not vibes-based."
+      ],
+      "solution": "Define an ordered chain of phases. Each phase has (a) a defined input artefact, (b) two role-paired agents (e.g. designer + coder, coder + tester), (c) a phase-specific completion predicate, (d) a defined output artefact. Within a phase, the two agents converse multi-turn; the completion predicate ends the phase; the artefact moves to the next phase. The chain is the macro-control; the chat is the micro-control.",
+      "structure": "Phase_1 (Role_A <-> Role_B) -> artefact_1 -> Phase_2 (Role_B <-> Role_C) -> artefact_2 -> ... -> final_artefact.",
+      "consequences": {
+        "benefits": [
+          "Clear macro-progression with chat-level flexibility inside each phase.",
+          "Keeps each phase's context tight; only the artefact crosses the boundary.",
+          "Auditable artefact trail per phase."
+        ],
+        "liabilities": [
+          "Designing the chain (phases + completion predicates) is the architecture problem.",
+          "Sequential by construction; parallelism inside a phase requires extra design.",
+          "Wrong phase decomposition forces agents into awkward role pairings."
+        ]
+      },
+      "constrains": "Agents may not skip phases or address agents outside the current phase; phase output must satisfy the completion predicate before transition.",
+      "known_uses": [
+        {
+          "system": "ChatDev",
+          "note": "Software-development chain: design → coding → testing → documentation, each as a paired-role chat.",
+          "status": "available",
+          "url": "https://github.com/OpenBMB/ChatDev"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "prompt-chaining",
+          "relation": "generalises",
+          "note": "Prompt chaining is a single-agent special case."
+        },
+        {
+          "pattern": "sop-encoded-multi-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "pipes-and-filters",
+          "relation": "uses"
+        },
+        {
+          "pattern": "stop-hook",
+          "relation": "uses",
+          "note": "Phase completion predicate is a stop hook scoped to a phase."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "ChatDev: Communicative Agents for Software Development",
+          "authors": "Qian et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2307.07924"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "pipeline",
+        "china-origin",
+        "chatdev"
+      ]
+    },
+    {
+      "id": "communicative-dehallucination",
+      "name": "Communicative Dehallucination",
+      "aliases": [
+        "Instructor-Reversal Clarification",
+        "Inter-Agent Clarifying Question"
+      ],
+      "category": "multi-agent",
+      "intent": "When an instructed agent would have to invent missing context to comply, have it reverse roles and ask the instructor for the missing detail before answering.",
+      "context": "Two agents communicate (instructor → assistant) and the instruction is under-specified in a way that would force the assistant to fabricate (e.g. a missing class name, an unspecified API version, an ambiguous unit).",
+      "problem": "Without a clarification channel between agents, the assistant fabricates the missing detail; the fabrication propagates and is hard to detect at the artefact boundary.",
+      "forces": [
+        "Speed of completion vs. fidelity of context.",
+        "Adding a clarification round costs latency and tokens.",
+        "Asking too eagerly degrades into chatter; not asking at all produces hallucinated outputs."
+      ],
+      "solution": "Define an explicit role-reversal protocol: when the assistant detects that the instruction is missing a deciding piece of context, it pivots and emits a focused question back to the instructor (\"the precise name of the dependency, please\"). The instructor answers, and only then does the assistant produce its conclusion. Bound the depth (one or two reversals) to prevent infinite ping-pong.",
+      "structure": "Instructor -> instruction -> Assistant; if context_gap_detected: Assistant -> question -> Instructor -> answer -> Assistant -> conclusion.",
+      "consequences": {
+        "benefits": [
+          "Targets the specific dehallucination point instead of after-the-fact verification.",
+          "Cheaper than full multi-agent debate; the question is scoped.",
+          "Produces a more faithful artefact at the next hand-off."
+        ],
+        "liabilities": [
+          "Adds latency for every clarification round.",
+          "Detecting the gap is itself a model judgement and can fail.",
+          "Risk of infinite ping-pong without a depth bound."
+        ]
+      },
+      "constrains": "The assistant may not produce a final answer when a designated context slot is unfilled; it must instead emit a clarifying question.",
+      "known_uses": [
+        {
+          "system": "ChatDev",
+          "note": "Original demonstration; assistant reverses to instructor role to request missing detail before delivering a conclusive response.",
+          "status": "available",
+          "url": "https://github.com/OpenBMB/ChatDev"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "disambiguation",
+          "relation": "specialises",
+          "note": "Same shape, but agent-to-agent rather than agent-to-user."
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "infinite-debate",
+          "relation": "conflicts-with",
+          "note": "Requires a depth bound to avoid this anti-pattern."
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "ChatDev: Communicative Agents for Software Development",
+          "authors": "Qian et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2307.07924"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "verification",
+        "china-origin",
+        "chatdev"
+      ]
+    },
+    {
+      "id": "cross-domain-agent-network",
+      "name": "Cross-Domain Enterprise Agent Network",
+      "aliases": [
+        "Domain-Specialised Agent Mesh",
+        "Joule-Style Agent Collaboration",
+        "Per-Function Agent Network"
+      ],
+      "category": "multi-agent",
+      "intent": "Decompose enterprise agency into a set of domain-specialised agents (finance, supply chain, HR, service), each grounded in its own system of record, and orchestrate cross-functional workflows by routing artefacts between them through a standardised inter-agent protocol.",
+      "context": "Large enterprises whose business processes already live across many backing systems (ERP, CRM, HR, ticketing) and where end-to-end workflows (e.g. dispute → cash collection → finance close) cross domain boundaries.",
+      "problem": "A single mega-agent grounded against every system has bad recall, no clear ownership, and no domain-specific guardrails; flat tool-use agents over a flat tool catalogue degrade as the catalogue grows.",
+      "forces": [
+        "Each domain has its own data model, vocabulary, and compliance rules.",
+        "End-to-end workflows must cross domains.",
+        "A single agent over all systems blows up the tool catalogue and the prompt.",
+        "Domain teams want ownership and lifecycle of their own agents."
+      ],
+      "solution": "Build one specialised agent per business domain, each with its own grounded data, tool palette, and acceptance criteria. Define a standardised inter-agent protocol for handoffs (e.g. A2A, MCP). When a task crosses domains, the source agent routes to the target via the protocol, passing a typed artefact. An optional supervisor or role-based assistant fronts the user and dispatches to the right entry agent.",
+      "structure": "User -> Role Assistant -> Domain Agent A (own data + tools) -- protocol message --> Domain Agent B -- ... --> outcome.",
+      "consequences": {
+        "benefits": [
+          "Each domain agent stays small, grounded, and ownable.",
+          "Cross-domain workflows are auditable per agent.",
+          "Domain teams ship and update their agents independently."
+        ],
+        "liabilities": [
+          "Protocol design is the core engineering problem; bad protocol fossilises mistakes.",
+          "Routing decisions become a second-order problem (who does what).",
+          "Failure attribution across the chain is harder than for a monolith."
+        ]
+      },
+      "constrains": "An agent may only call across domains via the standardised protocol; ad-hoc backdoor integrations between domain agents are forbidden.",
+      "known_uses": [
+        {
+          "system": "SAP Joule",
+          "note": "Per-domain Joule Agents (finance, HR, supply chain, service) collaborating via SAP's collaborative agent architecture; A2A and MCP support announced 2025.",
+          "status": "available",
+          "url": "https://www.sap.com/products/artificial-intelligence/ai-agents.html"
+        },
+        {
+          "system": "ServiceNow Now Assist",
+          "note": "Comparable pattern in ITSM/HR/CSM domain agents.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "uses"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "uses"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "uses"
+        },
+        {
+          "pattern": "mcp",
+          "relation": "uses"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "uses"
+        },
+        {
+          "pattern": "hero-agent",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Joule Agents: How SAP Uniquely Delivers AI Agents That Truly Mean Business",
+          "url": "https://news.sap.com/2025/02/joule-sap-uniquely-delivers-ai-agents/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "enterprise",
+        "germany-origin",
+        "sap",
+        "joule"
+      ]
+    },
+    {
+      "id": "debate",
+      "name": "Debate",
+      "aliases": [
+        "Multi-Agent Debate",
+        "Adversarial Debate"
+      ],
+      "category": "multi-agent",
+      "intent": "Have multiple agents argue different positions on a question and converge through structured exchange.",
+      "context": "The answer is contested or the user wants the strongest case for and against.",
+      "problem": "Single-agent answers hide reasoning blind spots; the same model giving both answer and critique reinforces them.",
+      "forces": [
+        "Genuinely independent positions are hard to engineer with one model.",
+        "Debate length must be bounded.",
+        "A judge is needed to decide; the judge has its own biases."
+      ],
+      "solution": "Two or more agents are given different positions. They exchange arguments over N rounds. A judge agent (or a tie-break rule) selects the answer or synthesises a position from both.",
+      "consequences": {
+        "benefits": [
+          "Surfaces counterarguments the user can read.",
+          "Higher answer quality on contested questions in benchmarks."
+        ],
+        "liabilities": [
+          "N-x cost over single-agent.",
+          "Position assignment is itself a prompt-engineering problem."
+        ]
+      },
+      "constrains": "Each debater may only argue its assigned position until the judge step.",
+      "known_uses": [
+        {
+          "system": "Anthropic AI Safety via Debate research",
+          "status": "available"
+        },
+        {
+          "system": "MIT CSAIL multi-agent debate work",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "inner-committee",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "complements"
+        },
+        {
+          "pattern": "swarm",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "infinite-debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "communicative-dehallucination",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Improving Factuality and Reasoning in Language Models through Multiagent Debate",
+          "authors": "Du, Li, Torralba, Tenenbaum, Mordatch",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.14325"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "debate",
+        "multi-agent"
+      ]
+    },
+    {
+      "id": "dynamic-expert-recruitment",
+      "name": "Dynamic Expert Recruitment",
+      "aliases": [
+        "Recruiter Agent",
+        "Run-Time Team Assembly",
+        "Adaptive Role Generation"
+      ],
+      "category": "multi-agent",
+      "intent": "Generate the agent team — role descriptions and instances — at run time based on the specific task, then adjust team composition between iterations based on evaluation feedback.",
+      "context": "The task arrives without a known type; a fixed pool of pre-assigned roles either over-provisions (expensive, noisy) or under-covers (missing the right specialist).",
+      "problem": "Hard-coded role lists are brittle: the right team for \"draft a regulatory filing\" is not the right team for \"refactor a Python module\"; both tasks share an entry point.",
+      "forces": [
+        "Pre-specified roles are stable but mis-fit;",
+        "Run-time generation costs an extra LLM call before any work begins;",
+        "Adaptive composition risks instability: the team that solves step 1 may not solve step 5."
+      ],
+      "solution": "Add a recruiter agent (or a meta-agent committee: planner + agent observer + plan observer). Stage 1 — Drafting: recruiter receives the goal, generates role descriptions matched to that goal, instantiates the team and an execution plan. Stage 2 — Execution: the team works. Stage 3 — Evaluation: a reviewer scores progress; if unsatisfactory, the recruiter adjusts the team (add, remove, replace roles) and the next iteration runs. The recruiter is the only meta-agent that mutates team composition.",
+      "structure": "goal -> Recruiter -> [role descriptions] -> instantiated agents -> joint execution -> Evaluator -> feedback -> Recruiter (adjust team) -> ...",
+      "consequences": {
+        "benefits": [
+          "Team matches the task instead of the task being squeezed into a fixed team.",
+          "Adaptive composition closes the gap as the task evolves.",
+          "Recruiter prompt is the only place the meta-policy lives."
+        ],
+        "liabilities": [
+          "Recruiter quality is the bottleneck; a bad recruiter produces bad teams.",
+          "Run-time team generation is non-deterministic; reproducibility suffers.",
+          "Adjustment between iterations can churn (replace too aggressively)."
+        ]
+      },
+      "constrains": "No role may be instantiated outside the recruiter; agents may not unilaterally co-opt or invent peers.",
+      "known_uses": [
+        {
+          "system": "AgentVerse",
+          "note": "Recruiter agent generates expert descriptions per goal; team composition adjusted across iterations.",
+          "status": "available",
+          "url": "https://github.com/OpenBMB/AgentVerse"
+        },
+        {
+          "system": "AutoAgents",
+          "note": "Drafting stage with three meta-agents (Planner, Agent Observer, Plan Observer) synthesises the team.",
+          "status": "available",
+          "url": "https://github.com/Link-AGI/AutoAgents"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "generalises",
+          "note": "Role assignment is the design-time special case."
+        },
+        {
+          "pattern": "mixture-of-experts-routing",
+          "relation": "alternative-to",
+          "note": "MoE routes to a fixed expert pool; this constructs the experts."
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "complements"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "uses",
+          "note": "Evaluation step drives team adjustment."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "AgentVerse: Facilitating Multi-Agent Collaboration and Exploring Emergent Behaviors",
+          "authors": "Chen et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2308.10848"
+        },
+        {
+          "type": "paper",
+          "title": "AutoAgents: A Framework for Automatic Agent Generation",
+          "authors": "Chen et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2309.17288"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "multi-agent",
+        "dynamic",
+        "china-origin",
+        "agentverse",
+        "autoagents"
+      ]
+    },
+    {
+      "id": "handoff",
+      "name": "Handoff",
+      "aliases": [
+        "Agent Handoff",
+        "Transfer",
+        "Routine Switch"
+      ],
+      "category": "multi-agent",
+      "intent": "Transfer the active conversation from one agent to another, carrying context across the switch.",
+      "context": "A specialist agent realises it is the wrong agent for the current request and needs to pass control to another specialist.",
+      "problem": "Without a handoff primitive, mid-conversation reroutes either restart context or stay stuck with the wrong specialist.",
+      "forces": [
+        "Context transfer is lossy; what travels?",
+        "Handoff loops (A→B→A→B) are a real failure.",
+        "User experience must signal the change without disorienting."
+      ],
+      "solution": "Define a handoff tool. The current agent invokes it with target agent and a context summary. The target agent receives the summary plus the original conversation and continues from there. Loop detection prevents thrash.",
+      "consequences": {
+        "benefits": [
+          "Specialisation without supervisor overhead on every turn.",
+          "User-visible continuity."
+        ],
+        "liabilities": [
+          "Context summary fidelity bounds quality.",
+          "Loop detection is its own code path."
+        ]
+      },
+      "constrains": "Handoffs happen only via the registered tool; out-of-band agent switches are forbidden.",
+      "known_uses": [
+        {
+          "system": "OpenAI Swarm primitives",
+          "status": "available",
+          "url": "https://github.com/openai/swarm"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "conversation-handoff",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "cross-domain-agent-network",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "openai/swarm",
+          "url": "https://github.com/openai/swarm"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "handoff"
+      ]
+    },
+    {
+      "id": "hierarchical-agents",
+      "name": "Hierarchical Agents",
+      "aliases": [
+        "Manager-Worker Tree",
+        "Agent Hierarchy"
+      ],
+      "category": "multi-agent",
+      "intent": "Organise agents in a tree where higher-level agents decompose tasks for lower-level agents, recursively.",
+      "context": "Tasks decomposable across multiple levels of granularity (project → epic → ticket → step); a flat supervisor would have too many direct reports.",
+      "problem": "Flat supervisor patterns scale poorly: one supervisor with N specialists has prompt complexity that grows with N.",
+      "forces": [
+        "Tree depth trades latency for clarity.",
+        "Inter-level communication needs a contract.",
+        "Failure recovery: which level retries?"
+      ],
+      "solution": "Each non-leaf agent receives a task, decomposes it, and dispatches sub-tasks to its children. Children may be specialists (leaves) or further managers. Results bubble up; each manager synthesises its children's outputs. Bounded depth and breadth prevent runaway hierarchies.",
+      "consequences": {
+        "benefits": [
+          "Scales to deep decomposition.",
+          "Each level has clear responsibility."
+        ],
+        "liabilities": [
+          "Latency multiplies with depth.",
+          "Coordination bugs become hard to localise."
+        ]
+      },
+      "constrains": "An agent communicates only with its parent and children; cross-tree communication is forbidden.",
+      "known_uses": [
+        {
+          "system": "AutoGen GroupChat with nested groups",
+          "status": "available"
+        },
+        {
+          "system": "CrewAI hierarchical processes",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "goal-decomposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "AutoGen multi-agent docs",
+          "url": "https://microsoft.github.io/autogen/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "hierarchy"
+      ]
+    },
+    {
+      "id": "inner-committee",
+      "name": "Inner Committee",
+      "aliases": [
+        "Multi-Persona Single Model",
+        "Self-as-Multiple-Roles"
+      ],
+      "category": "multi-agent",
+      "intent": "Run one model under several distinct personas (executor, critic, planner) within a single agent loop.",
+      "context": "The agent benefits from review or planning split off from execution, but spinning up genuine separate model instances is overkill.",
+      "problem": "Mono-persona prompts conflate roles and produce muddled outputs that are neither plans nor critiques nor execution.",
+      "forces": [
+        "Persona switching costs a prompt and a context reset.",
+        "The model has the same blind spots in each persona; true diversity is limited.",
+        "Persona drift in long conversations dilutes the role separation."
+      ],
+      "solution": "Define explicit personas (system prompts) for each role: planner, executor, critic. The agent loop steps through personas at fixed points. Each persona sees only the inputs its role needs, not the full context of the others.",
+      "consequences": {
+        "benefits": [
+          "Cheaper than running multiple model instances.",
+          "Surprisingly effective for self-critique and self-modification gating."
+        ],
+        "liabilities": [
+          "Same model means correlated errors; reflexion suffers from this.",
+          "Persona prompts add up to a non-trivial token budget."
+        ]
+      },
+      "constrains": "Each persona may only act within its declared role; cross-persona reasoning is forbidden in a single prompt.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Executor + critic + planner; one model worn three ways.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "inner-critic",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Marco Nissen, Working with the models",
+          "year": 2026
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-persona",
+        "single-model"
+      ]
+    },
+    {
+      "id": "inter-agent-communication",
+      "name": "Inter-Agent Communication",
+      "aliases": [
+        "A2A",
+        "Agent-to-Agent Protocol"
+      ],
+      "category": "multi-agent",
+      "intent": "Define a protocol for agents to exchange tasks, capabilities, and results across process or vendor boundaries.",
+      "context": "Agents from different teams or vendors need to cooperate but speak different internal shapes.",
+      "problem": "Bespoke point-to-point integrations do not scale; each new agent pair requires fresh glue.",
+      "forces": [
+        "Capability discovery: how does agent A know what agent B can do?",
+        "Auth and trust across organisational boundaries.",
+        "Versioning: protocols evolve faster than legacy agents."
+      ],
+      "solution": "Adopt a protocol (Google A2A, Anthropic MCP, in-house equivalents) that covers capability advertisement, task delegation, result return, and auth. Agents advertise capabilities; clients discover and invoke; results round-trip in typed envelopes.",
+      "consequences": {
+        "benefits": [
+          "Cross-team and cross-vendor reuse.",
+          "Capability inventory becomes inspectable."
+        ],
+        "liabilities": [
+          "Protocol overhead.",
+          "Schema versioning becomes everyone's problem."
+        ]
+      },
+      "constrains": "Agents may only invoke each other through the advertised protocol; out-of-band calls are forbidden.",
+      "known_uses": [
+        {
+          "system": "Google A2A Protocol",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "mcp",
+          "relation": "complements"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "complements"
+        },
+        {
+          "pattern": "communicative-dehallucination",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "cross-domain-agent-network",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Google A2A Protocol",
+          "year": 2025,
+          "url": "https://google.github.io/A2A/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "a2a",
+        "protocol",
+        "interop"
+      ]
+    },
+    {
+      "id": "lead-researcher",
+      "name": "Lead Researcher",
+      "aliases": [
+        "Research Orchestrator",
+        "Lead-and-Subagents"
+      ],
+      "category": "multi-agent",
+      "intent": "A lead agent writes a research plan and dispatches parallel sub-agents that fan out for breadth-first information gathering, then merges results.",
+      "context": "Open-ended research tasks where breadth-first exploration across many sources beats depth-first single-thread reasoning.",
+      "problem": "Single-agent research is bottlenecked on serial token generation; generic orchestrator-workers under-specifies how to handle research-shaped tasks (parallelism, source diversity, synthesis).",
+      "forces": [
+        "Sub-agent count vs cost.",
+        "Synthesis quality bounded by lead agent's reasoning over fragmented results.",
+        "Information overlap across sub-agents is wasted compute."
+      ],
+      "solution": "Lead agent receives the user query, plans a set of parallel research questions, and dispatches each to a sub-agent. Each sub-agent searches independently and returns structured findings to the lead. The lead reads the returned findings and synthesises the answer; if synthesis reveals gaps, the lead spawns additional sub-agents.",
+      "consequences": {
+        "benefits": [
+          "Breadth-first parallelism cuts wall-clock time.",
+          "Inspectable scratchpad makes the research auditable."
+        ],
+        "liabilities": [
+          "Sub-agent overlap and redundancy.",
+          "Synthesis is the new bottleneck."
+        ]
+      },
+      "constrains": "Sub-agents return findings only to the lead; peer-to-peer communication is forbidden.",
+      "known_uses": [
+        {
+          "system": "Anthropic Multi-Agent Research",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/multi-agent-research-system"
+        },
+        {
+          "system": "OpenAI Deep Research",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "uses"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "How we built our multi-agent research system",
+          "authors": "Anthropic",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/multi-agent-research-system"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "research",
+        "lead-subagent"
+      ]
+    },
+    {
+      "id": "orchestrator-workers",
+      "name": "Orchestrator-Workers",
+      "aliases": [
+        "Dynamic Decomposition",
+        "Orchestrator-Subagents"
+      ],
+      "category": "multi-agent",
+      "intent": "An orchestrator dynamically breaks a task into subtasks at runtime and delegates each to a worker LLM, then synthesises results.",
+      "context": "The subtasks needed are not known in advance and depend on the task; coding tasks where the number of files to change varies are the canonical example.",
+      "problem": "Static decomposition (Plan-and-Execute, Prompt Chaining) cannot handle tasks whose shape is data-dependent.",
+      "forces": [
+        "The orchestrator must reason at a higher level than any worker.",
+        "Workers should not have to know they are workers.",
+        "Synthesis must reconcile conflicting worker outputs."
+      ],
+      "solution": "Orchestrator agent receives the task, decides at runtime what subtasks to spawn, hands each to a worker (often via tool call), collects results, and synthesises the final output. Worker count and roles can vary per task.",
+      "consequences": {
+        "benefits": [
+          "Handles tasks with data-dependent decomposition.",
+          "Workers stay simple; complexity lives in the orchestrator."
+        ],
+        "liabilities": [
+          "Orchestrator failure is unrecoverable without retry logic.",
+          "Token cost scales with worker count; budget awareness matters."
+        ]
+      },
+      "constrains": "Workers see only their assigned subtask; only the orchestrator has the global view.",
+      "known_uses": [
+        {
+          "system": "Anthropic Building Effective Agents (Workflow #4)",
+          "status": "available"
+        },
+        {
+          "system": "Claude Code subagents",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Multi-Agent Research",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI Deep Research",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "lead-researcher",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "dynamic-expert-recruitment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Anthropic: Building Effective Agents",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "orchestrator"
+      ]
+    },
+    {
+      "id": "role-assignment",
+      "name": "Role Assignment",
+      "aliases": [
+        "Persona Roles",
+        "Agent Crew",
+        "Specialist Roles"
+      ],
+      "category": "multi-agent",
+      "intent": "Assign each agent a named role (researcher, writer, critic, planner) with a role-specific prompt, tool palette, and acceptance criteria.",
+      "context": "Multi-agent systems where personas need to be distinct enough that the user (and the system) can reason about who did what.",
+      "problem": "Generic agents drift toward similarity; without explicit roles, contributions blur and review becomes hard.",
+      "forces": [
+        "Role definitions can ossify into bureaucracy.",
+        "Cross-role handoffs need typed contracts.",
+        "Role count multiplies prompt-engineering effort."
+      ],
+      "solution": "Define each role with a system prompt naming its responsibility and constraints, a tool palette scoped to its role, and acceptance criteria for outputs it produces. Workflow assigns tasks to roles. Outputs are evaluated against the role's acceptance criteria.",
+      "consequences": {
+        "benefits": [
+          "Outputs are attributable and reviewable per role.",
+          "Specialisation improves quality on each role's task."
+        ],
+        "liabilities": [
+          "Bureaucratic overhead.",
+          "Role drift over long sessions."
+        ]
+      },
+      "constrains": "An agent operates only within its role's constraints and tool palette; cross-role action is forbidden.",
+      "known_uses": [
+        {
+          "system": "CrewAI",
+          "status": "available"
+        },
+        {
+          "system": "AutoGen named agents",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inner-committee",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mixture-of-experts-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "autogen-conversational",
+          "relation": "complements"
+        },
+        {
+          "pattern": "camel-role-playing",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "sop-encoded-multi-agent",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "dynamic-expert-recruitment",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "cross-domain-agent-network",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "CrewAI docs",
+          "url": "https://docs.crewai.com"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "roles",
+        "crew"
+      ]
+    },
+    {
+      "id": "sop-encoded-multi-agent",
+      "name": "SOP-Encoded Multi-Agent Workflow",
+      "aliases": [
+        "Standard Operating Procedure Multi-Agent",
+        "Assembly-Line Agents",
+        "Software-Company Agents"
+      ],
+      "category": "multi-agent",
+      "intent": "Encode a human Standard Operating Procedure (roles, ordered phases, standardised hand-off artefacts) into a multi-agent pipeline so that agents communicate through structured documents rather than free-form chat.",
+      "context": "A complex, repeatable task (software development, document production, regulatory submission) already has a well-known human procedure with named roles and defined deliverables between them.",
+      "problem": "Free-form multi-agent chat hallucinates context, drifts off-task, and produces no auditable trail; without a procedure, agents redo each other's work or skip steps.",
+      "forces": [
+        "The model is good at playing a role; it is bad at inventing the workflow that connects roles.",
+        "Free chat between agents is cheap to write but expensive to debug.",
+        "Defined artefacts (PRD, design doc, test plan) compress context across role hand-offs.",
+        "Rigid SOPs lose the model's ability to adapt; the SOP has to leave room for the role to think."
+      ],
+      "solution": "Encode the SOP as: (a) a fixed set of named roles each with role-specific prompt and tool palette, (b) an ordered sequence of phases, (c) a typed artefact contract for each phase boundary (e.g. PRD → design doc → code → test plan → user manual). Agents communicate via the artefacts; a shared message pool plus a subscription filter routes only relevant context to each role.",
+      "structure": "Role_A -- artefact_1 --> Role_B -- artefact_2 --> Role_C ... ; shared message pool; per-role subscription filter.",
+      "consequences": {
+        "benefits": [
+          "Auditable trail of artefacts at every phase boundary.",
+          "Specialised role prompts beat one mega-prompt on long tasks.",
+          "Standardised artefact schemas catch ambiguity at the hand-off, not at the end."
+        ],
+        "liabilities": [
+          "Designing the artefact contract is the real work; bad contracts propagate to every role.",
+          "Procedure rigidity makes the system brittle when the task does not match the SOP.",
+          "Token cost scales with the number of phases."
+        ]
+      },
+      "constrains": "Agents may not communicate outside the artefact contract; a role's output that does not conform to the next role's expected schema is rejected at the phase boundary.",
+      "known_uses": [
+        {
+          "system": "MetaGPT",
+          "note": "Five roles (Product Manager, Architect, Project Manager, Engineer, QA) producing standardised artefacts in an assembly-line pipeline.",
+          "status": "available",
+          "url": "https://github.com/geekan/MetaGPT"
+        },
+        {
+          "system": "ChatDev",
+          "note": "CEO/CTO/Programmer/Reviewer/Tester roles in a phased pipeline with artefact hand-offs.",
+          "status": "available",
+          "url": "https://github.com/OpenBMB/ChatDev"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "role-assignment",
+          "relation": "uses"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "uses",
+          "note": "Shared message pool plus subscription filter is a blackboard variant."
+        },
+        {
+          "pattern": "spec-first-agent",
+          "relation": "complements",
+          "note": "The SOP is itself a spec for the multi-agent system."
+        },
+        {
+          "pattern": "hero-agent",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "chat-chain",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework",
+          "authors": "Hong et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2308.00352"
+        },
+        {
+          "type": "paper",
+          "title": "ChatDev: Communicative Agents for Software Development",
+          "authors": "Qian et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2307.07924"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "workflow",
+        "china-origin",
+        "metagpt",
+        "chatdev"
+      ]
+    },
+    {
+      "id": "subagent-isolation",
+      "name": "Subagent Isolation",
+      "aliases": [
+        "Worktree Subagent",
+        "Parallel Subagent",
+        "Isolated Worker"
+      ],
+      "category": "multi-agent",
+      "intent": "Run subagents in isolated workspaces so their writes do not collide and parallelism is safe.",
+      "context": "Coding agents that delegate to multiple subagents for parallel work; without isolation, subagents fight over the same files.",
+      "problem": "Subagents writing to the same workspace race each other; one's edits are clobbered by another's.",
+      "forces": [
+        "Isolation has setup cost (new worktree, branch, container).",
+        "Reconciling work back to the main workspace is its own problem.",
+        "Excessive isolation prevents subagents from seeing each other's progress when that would help."
+      ],
+      "solution": "Each subagent runs in its own workspace (git worktree, container, branch, sandbox). The supervisor reconciles results back to the main workspace on completion (merge, cherry-pick, replay). Only one workspace can land changes at a time.",
+      "consequences": {
+        "benefits": [
+          "True parallelism without write collisions.",
+          "Failed subagents leave their workspace as evidence."
+        ],
+        "liabilities": [
+          "Setup latency.",
+          "Reconciliation conflicts."
+        ]
+      },
+      "constrains": "Subagents may only write to their own isolated workspace; cross-workspace writes are forbidden.",
+      "known_uses": [
+        {
+          "system": "Claude Code subagent + git worktree",
+          "status": "available"
+        },
+        {
+          "system": "Devin sessions",
+          "status": "available"
+        },
+        {
+          "system": "Cursor parallel agents",
+          "status": "available"
+        },
+        {
+          "system": "OpenHands",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Mastering Git Worktrees with Claude Code",
+          "year": 2025,
+          "url": "https://medium.com/@dtunai/mastering-git-worktrees-with-claude-code-for-parallel-development-workflow-41dc91e645fe"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "isolation",
+        "parallel"
+      ]
+    },
+    {
+      "id": "supervisor",
+      "name": "Supervisor",
+      "aliases": [
+        "Multi-Agent Supervisor",
+        "Lane Supervisor"
+      ],
+      "category": "multi-agent",
+      "intent": "Place a coordinating agent above a set of specialised agents and route work to them.",
+      "context": "Different request types benefit from different system prompts, tool palettes, and models; routing alone is too coarse because the lanes themselves want their own loop.",
+      "problem": "A single agent that handles everything has either too few tools (limiting capability) or too many (confusing the model).",
+      "forces": [
+        "Adding a supervisor layer adds a model call.",
+        "Inter-agent communication needs a protocol.",
+        "Specialisation reduces transfer learning across requests."
+      ],
+      "solution": "A supervisor classifies requests and dispatches them to a specialised agent. Each specialist has its own prompt, tools, and possibly its own model. The supervisor may receive results back and decide whether to escalate or respond.",
+      "consequences": {
+        "benefits": [
+          "Each lane can be tuned and tested in isolation.",
+          "Capability grows by adding lanes, not by enlarging one prompt."
+        ],
+        "liabilities": [
+          "Multi-agent before simpler patterns are running is decoration.",
+          "Coordination failures are often invisible until production."
+        ]
+      },
+      "constrains": "Specialists may only act within their declared scope; the supervisor owns dispatch and aggregation.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "agent_v2.py + supervisor.py implement the lane-supervisor pattern.",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph Supervisor",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "uses"
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "lead-researcher",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "complements"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "swarm",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hero-agent",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "mixture-of-experts-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "autogen-conversational",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sop-encoded-multi-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chat-chain",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "dynamic-expert-recruitment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "outer-inner-agent-loop",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cross-domain-agent-network",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangGraph Multi-Agent Supervisor",
+          "url": "https://langchain-ai.github.io/langgraph/tutorials/multi_agent/agent_supervisor/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "supervisor"
+      ]
+    },
+    {
+      "id": "swarm",
+      "name": "Swarm",
+      "aliases": [
+        "Society of Mind",
+        "Peer Agents",
+        "Decentralised Multi-Agent"
+      ],
+      "category": "multi-agent",
+      "intent": "Run many peer agents that interact directly without a central supervisor, achieving emergent coordination.",
+      "context": "Tasks where centralised coordination is a bottleneck or where the problem benefits from many independent attempts (simulation, exploration).",
+      "problem": "Centralised supervisors become bottlenecks at scale; some tasks (negotiation, simulation, exploration) need agent-to-agent dynamics.",
+      "forces": [
+        "Emergent behaviour can surprise designers; debugging is hard.",
+        "Communication topology (broadcast? gossip? pub/sub?) is a design choice.",
+        "Termination is non-trivial without a supervisor."
+      ],
+      "solution": "Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).",
+      "consequences": {
+        "benefits": [
+          "Scales horizontally.",
+          "Suits negotiation, market simulation, exploration."
+        ],
+        "liabilities": [
+          "Hard to debug; emergent failures are global.",
+          "Cost can balloon without supervision."
+        ]
+      },
+      "constrains": "Agents communicate only via the shared channel; out-of-band coordination is forbidden.",
+      "known_uses": [
+        {
+          "system": "OpenAI Swarm (deprecated; succeeded by OpenAI Agents SDK)",
+          "status": "deprecated"
+        },
+        {
+          "system": "Stanford Generative Agents simulation",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "debate",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "openai/swarm",
+          "url": "https://github.com/openai/swarm"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "multi-agent",
+        "swarm",
+        "emergent"
+      ]
+    }
+  ]
+}

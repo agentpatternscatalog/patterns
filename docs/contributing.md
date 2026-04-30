@@ -18,7 +18,7 @@ No pattern is admitted on speculation alone. The Known Uses slot exists for a re
 
 ## 3. Every pattern declares what it constrains
 
-The `constrains` slot in the schema is required-by-convention even though the schema marks it optional. A pattern that does not constrain the LLM's freedom is decoration. Examples of valid constraints:
+The `constrains` slot is required-by-convention even though the schema marks it optional. A pattern that does not constrain the LLM's freedom is decoration. Examples of valid constraints:
 
 - "JSON Schema rejects edits the model invents outside the toolkit."
 - "Charter is read-only at the tool layer; the agent cannot rewrite it."
@@ -30,7 +30,7 @@ The `constrains` slot in the schema is required-by-convention even though the sc
 1. Open an issue with a one-paragraph statement of the problem and at least one Known Use.
 2. If accepted, open a PR adding:
    - an entry in `patterns.json` validating against `schema.json`,
-   - a `patterns/<id>.md` page generated from the entry,
+   - a corresponding `patterns/<id>.md` page,
    - any new related-pattern edges in existing entries.
 3. Maintainer review focuses on the three rules above and on naming. We prefer the canonical literature name where one exists, with the alternative as an alias.
 
@@ -47,4 +47,4 @@ PRs welcome. Schema changes and category renames go through an issue first.
 
 ## License
 
-By contributing you agree the contribution is licensed under CC BY 4.0 (content) and MIT (schema/tooling), matching the repository.
+By contributing you agree the contribution is licensed under CC BY 4.0, matching the repository.

@@ -1,0 +1,795 @@
+{
+  "category": "reasoning",
+  "label": "Reasoning",
+  "patterns": [
+    {
+      "id": "chain-of-thought",
+      "name": "Chain of Thought",
+      "aliases": [
+        "CoT",
+        "Step-by-Step Prompting"
+      ],
+      "category": "reasoning",
+      "intent": "Elicit multi-step reasoning by prompting the model to produce intermediate steps before its final answer.",
+      "context": "The task is compositional, arithmetic, or otherwise requires working through several inferences a human would write down.",
+      "problem": "LLMs given only (input, output) exemplars fail at problems whose answers depend on a sequence of intermediate inferences.",
+      "forces": [
+        "Longer outputs cost more.",
+        "Wrong reasoning chains can produce confidently wrong answers.",
+        "Few-shot exemplars are dataset-specific; zero-shot triggers generalise but lose accuracy."
+      ],
+      "solution": "Prompt the model with exemplars showing intermediate reasoning, or use a zero-shot trigger ('Let's think step by step') before answering. The reasoning trace is visible and parseable.",
+      "consequences": {
+        "benefits": [
+          "Substantial accuracy gains on reasoning benchmarks.",
+          "Reasoning trace is inspectable for debugging."
+        ],
+        "liabilities": [
+          "Single linear trace; no branching or self-correction.",
+          "Cost scales with trace length."
+        ]
+      },
+      "constrains": "The model is required to emit reasoning before the final answer; one-shot answer-only generation is forbidden by prompt design.",
+      "known_uses": [
+        {
+          "system": "OpenAI Reasoning prompts",
+          "status": "available"
+        },
+        {
+          "system": "Most production agents (CoT inside system prompts)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "self-consistency",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "least-to-most",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "extended-thinking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "zero-shot-cot",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "scratchpad",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "star-bootstrapping",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+          "authors": "Wei, Wang, Schuurmans, Bosma, Ichter, Xia, Chi, Le, Zhou",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2201.11903"
+        },
+        {
+          "type": "paper",
+          "title": "Large Language Models are Zero-Shot Reasoners",
+          "authors": "Kojima, Gu, Reid, Matsuo, Iwasawa",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2205.11916"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reasoning",
+        "cot",
+        "prompting"
+      ]
+    },
+    {
+      "id": "chain-of-verification",
+      "name": "Chain of Verification",
+      "aliases": [
+        "CoVe",
+        "Factored Verification",
+        "Verify Before Answering"
+      ],
+      "category": "reasoning",
+      "intent": "Reduce hallucination by drafting an answer, generating independent verification questions, answering them in isolation, and revising.",
+      "context": "Long-form factual generation (biographies, summaries, recommendations) where plausible-sounding errors creep into the draft.",
+      "problem": "When the model verifies its own draft in the same context, the draft biases follow-up checks; errors persist.",
+      "forces": [
+        "Verification questions must be independently answerable.",
+        "Joint verification (all questions in one prompt) underperforms factored.",
+        "Verification cost scales with question count."
+      ],
+      "solution": "Four-step pipeline. Draft: produce initial answer. Plan: generate verification questions covering claims in the draft. Execute: answer each question in isolation, without seeing the original draft. Revise: rewrite the draft using the verification answers.",
+      "consequences": {
+        "benefits": [
+          "Substantial hallucination reduction without retrieval.",
+          "Composes with retrieval naturally (retrieve evidence per question)."
+        ],
+        "liabilities": [
+          "4x baseline cost.",
+          "Verification quality depends on question coverage."
+        ]
+      },
+      "constrains": "Verification answers are produced without the draft in context; coupled verification is not permitted.",
+      "known_uses": [
+        {
+          "system": "Meta AI implementation",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "reflection",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "complements"
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "critic",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Chain-of-Verification Reduces Hallucination in Large Language Models",
+          "authors": "Dhuliawala, Komeili, Xu, Raileanu, Li, Celikyilmaz, Weston",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2309.11495"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "verification",
+        "hallucination"
+      ]
+    },
+    {
+      "id": "extended-thinking",
+      "name": "Extended Thinking",
+      "aliases": [
+        "Reasoning Tokens",
+        "Reasoning Budget"
+      ],
+      "category": "reasoning",
+      "intent": "Spend a configurable budget of internal reasoning tokens before producing a user-visible answer.",
+      "context": "Hard reasoning tasks where extra inference-time compute reliably improves answer quality.",
+      "problem": "Static prompt-based CoT mixes reasoning into the response; reasoning models offer a separate budget meter and opaque internal reasoning the user does not see.",
+      "forces": [
+        "Reasoning tokens cost more than standard tokens on most providers.",
+        "User-visible latency rises with thinking budget.",
+        "Opaque reasoning blocks: harder to inspect and debug."
+      ],
+      "solution": "Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthropic Claude extended thinking budget_tokens, Gemini thinking budget). Set budget per request based on task difficulty (cheap for routing, expensive for hard reasoning). Monitor reasoning-token consumption.",
+      "consequences": {
+        "benefits": [
+          "Quality lift on hard reasoning without prompt rewrites.",
+          "Budget meter is a clean control."
+        ],
+        "liabilities": [
+          "Cost spikes with budget.",
+          "Opaque reasoning blocks are harder to debug than visible CoT."
+        ]
+      },
+      "constrains": "Reasoning happens within the declared token budget; exceeding it terminates reasoning and forces an answer.",
+      "known_uses": [
+        {
+          "system": "Anthropic Claude extended thinking (budget_tokens)",
+          "status": "available"
+        },
+        {
+          "system": "Gemini 2.5 thinking budget",
+          "status": "available"
+        },
+        {
+          "system": "DeepSeek-R1",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI reasoning effort (o1, o3, o4-mini)",
+          "status": "available",
+          "note": "Qualitative low/medium/high control."
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "complements"
+        },
+        {
+          "pattern": "scratchpad",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "reasoning-trace-carry-forward",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Anthropic: Extended thinking",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+        },
+        {
+          "type": "doc",
+          "title": "OpenAI: Reasoning models",
+          "url": "https://platform.openai.com/docs/guides/reasoning"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reasoning",
+        "budget",
+        "tokens"
+      ]
+    },
+    {
+      "id": "graph-of-thoughts",
+      "name": "Graph of Thoughts",
+      "aliases": [
+        "GoT",
+        "DAG Reasoning"
+      ],
+      "category": "reasoning",
+      "intent": "Model reasoning as an arbitrary DAG so thoughts can be merged, refined, and aggregated across branches.",
+      "context": "Tasks with subproblems whose results combine non-trivially (sorting partial lists, set operations, summarisation merge); tree-shaped reasoning loses these aggregation opportunities.",
+      "problem": "Tree of Thoughts cannot combine partial solutions or reuse intermediate results across sibling branches.",
+      "forces": [
+        "Richer reasoning topology vs orchestration complexity.",
+        "Cross-branch reuse vs aggregation prompt cost.",
+        "DAG expressiveness vs cycle-safety enforcement."
+      ],
+      "solution": "Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.",
+      "consequences": {
+        "benefits": [
+          "Strict superset of CoT and ToT.",
+          "Most useful when subproblems have non-tree dependencies."
+        ],
+        "liabilities": [
+          "Orchestration overhead.",
+          "Hard to debug when the DAG grows."
+        ]
+      },
+      "constrains": "Thought operations must be composed via the named operators; ad-hoc reasoning outside the operator vocabulary is forbidden.",
+      "known_uses": [
+        {
+          "system": "GoT paper benchmarks (sorting, set intersection, document merge)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "lats",
+          "relation": "complements"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Graph of Thoughts: Solving Elaborate Problems with Large Language Models",
+          "authors": "Besta, Blach, Kubicek, Gerstenberger, Podstawski, Gianinazzi, Gajda, Lehmann, Niewiadomski, Nyczyk, Hoefler",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2308.09687"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "reasoning",
+        "graph",
+        "dag"
+      ]
+    },
+    {
+      "id": "least-to-most",
+      "name": "Least-to-Most Prompting",
+      "aliases": [
+        "L2M",
+        "Easy-First Decomposition"
+      ],
+      "category": "reasoning",
+      "intent": "Decompose a hard problem into an ordered list of easier subproblems, then solve them sequentially with each answer feeding the next.",
+      "context": "Tasks with poor length or complexity generalisation: the model handles the easy training-style cases but fails on harder, longer instances.",
+      "problem": "CoT generalises poorly out of distribution; the model needs explicit scaffolding for harder instances.",
+      "forces": [
+        "Decomposition prompts are themselves a design problem.",
+        "Two stages double minimum cost.",
+        "Errors in the decomposition cascade."
+      ],
+      "solution": "Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.",
+      "consequences": {
+        "benefits": [
+          "Strong length and complexity generalisation.",
+          "Subproblem answers are inspectable."
+        ],
+        "liabilities": [
+          "Decomposition prompt design is task-specific.",
+          "Two-stage pipeline; ambiguity in stage 1 propagates."
+        ]
+      },
+      "constrains": "Subproblems must be solved in the listed order; out-of-order solving is forbidden.",
+      "known_uses": [
+        {
+          "system": "L2M paper benchmarks (last letter, SCAN, math)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "self-ask",
+          "relation": "complements"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "complements"
+        },
+        {
+          "pattern": "goal-decomposition",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Least-to-Most Prompting Enables Complex Reasoning in Large Language Models",
+          "authors": "Zhou, Schärli, Hou, Wei, Scales, Wang, Schuurmans, Cui, Bousquet, Le, Chi",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2205.10625"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "decomposition"
+      ]
+    },
+    {
+      "id": "rest-em",
+      "name": "ReST-EM",
+      "aliases": [
+        "Reinforced Self-Training",
+        "Self-Training Loop"
+      ],
+      "category": "reasoning",
+      "intent": "Iterate generate → reward-filter → fine-tune to bootstrap reasoning capabilities without human-labelled data.",
+      "context": "Reasoning tasks where the model is partially competent and a reward signal (correct answer, executable test, formal verifier) exists.",
+      "problem": "Pure prompting plateaus; full RL with PPO is unstable and expensive; supervised data is unavailable.",
+      "forces": [
+        "Reward filter quality bounds learning quality.",
+        "Iteration count vs cost.",
+        "Distribution drift across iterations."
+      ],
+      "solution": "EM-style loop. (E-step) Generate many responses per problem. Filter by reward (correctness against ground truth or executable test). (M-step) Fine-tune on the filtered set. Iterate. Variants: ReST (DeepMind, RL-shaped), ReST-EM (Singh et al., expectation-maximisation framing).",
+      "consequences": {
+        "benefits": [
+          "Strong gains without human-labelled rationales.",
+          "Stable; converges in a few iterations."
+        ],
+        "liabilities": [
+          "Compute-heavy.",
+          "Reward gaming possible."
+        ]
+      },
+      "constrains": "Training data is restricted to filter-passing samples; ungrounded samples are not reinforced.",
+      "known_uses": [
+        {
+          "system": "DeepMind ReST",
+          "status": "available"
+        },
+        {
+          "system": "Singh et al. ReST-EM",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "star-bootstrapping",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Reinforced Self-Training (ReST) for Language Modeling",
+          "authors": "Gulcehre et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2308.08998"
+        },
+        {
+          "type": "paper",
+          "title": "Beyond Human Data: Scaling Self-Training for Problem-Solving with Language Models",
+          "authors": "Singh, Co-Reyes, Agarwal, Anand, Patil, Garcia, Liu, Harrison, Lee, Xu, Parisi, Kumar, Alemi, Rizkowsky, Nova, Adlam, Bohnet, Elsayed, Sedghi, Mordatch, Simpson, Gur, Snoek, Pfaff, Brown, Roy, Mustafa, Hoffman, Botvinick, Faust, Larochelle, Hadsell, Schuurmans, Faruqui",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2312.06585"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "self-training",
+        "rl"
+      ]
+    },
+    {
+      "id": "self-ask",
+      "name": "Self-Ask",
+      "aliases": [
+        "Decompose-Ask",
+        "Sub-Question Prompting"
+      ],
+      "category": "reasoning",
+      "intent": "Have the model emit explicit follow-up sub-questions, answer them (optionally via search), then compose the final answer.",
+      "context": "Multi-hop questions where the model knows each single hop but fails to chain hops in one inference.",
+      "problem": "The 'compositionality gap': models know each fact in isolation but fail to combine them into a multi-hop answer.",
+      "forces": [
+        "Sub-question quality bounds the answer quality.",
+        "Sub-question slots invite tool integration but add latency.",
+        "Excessive decomposition wastes calls."
+      ],
+      "solution": "Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.",
+      "consequences": {
+        "benefits": [
+          "Bridges CoT and tool-using agents naturally.",
+          "Decomposition is lexical and inspectable."
+        ],
+        "liabilities": [
+          "Latency: N sub-question calls per question.",
+          "Sub-questions can drift from the original."
+        ]
+      },
+      "constrains": "Sub-question slots are the only insertion point for retrieval or tool calls; the agent cannot retrieve except through a sub-question.",
+      "known_uses": [
+        {
+          "system": "Self-Ask + Search",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "react",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "least-to-most",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Measuring and Narrowing the Compositionality Gap in Language Models",
+          "authors": "Press, Zhang, Min, Schmidt, Smith, Lewis",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2210.03350"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reasoning",
+        "decomposition",
+        "multi-hop"
+      ]
+    },
+    {
+      "id": "star-bootstrapping",
+      "name": "STaR Bootstrapping",
+      "aliases": [
+        "Self-Taught Reasoner",
+        "Rationale Bootstrapping"
+      ],
+      "category": "reasoning",
+      "intent": "Bootstrap a model's reasoning by training it on its own correct chain-of-thought outputs.",
+      "context": "Reasoning tasks where chain-of-thought helps but supervised rationale data is unavailable.",
+      "problem": "Without supervised rationale data, fine-tuning for reasoning is constrained; pure CoT prompting plateaus.",
+      "forces": [
+        "Filter quality determines what 'correct' rationale gets reinforced.",
+        "Wrong rationales that produce right answers can leak in.",
+        "Compute cost of repeated generation + filtering."
+      ],
+      "solution": "Prompt the base model with CoT to generate rationale + answer pairs. Keep pairs where the answer matches ground truth. **Rationalization**: when a generated rationale yields the wrong answer, prompt the model with the correct answer as a hint and ask for a rationale that justifies it; add the rationalized example to training. Fine-tune on the kept + rationalized pairs. Repeat: the fine-tuned model generates better rationales next round; iterate.",
+      "consequences": {
+        "benefits": [
+          "Self-improvement on reasoning without rationale labels.",
+          "Iterative gains compound."
+        ],
+        "liabilities": [
+          "Spurious-rationale leakage if filtering is too lax.",
+          "Compute-heavy."
+        ]
+      },
+      "constrains": "Training data is restricted to filter-passing rationales; ungrounded rationales are not reinforced.",
+      "known_uses": [
+        {
+          "system": "STaR paper experiments",
+          "status": "available"
+        },
+        {
+          "system": "Influences modern reasoning-distillation pipelines",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "uses"
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rest-em",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "STaR: Bootstrapping Reasoning with Reasoning",
+          "authors": "Zelikman, Wu, Mu, Goodman",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2203.14465"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "training",
+        "bootstrapping"
+      ]
+    },
+    {
+      "id": "test-time-compute-scaling",
+      "name": "Test-Time Compute Scaling",
+      "aliases": [
+        "Inference-Time Scaling",
+        "Compute-Time Trade-Off"
+      ],
+      "category": "reasoning",
+      "intent": "Allocate more inference-time compute (samples, search, deeper thinking) instead of scaling parameters to improve quality.",
+      "context": "Frontier of agent capability where parameter scaling has saturated and quality gains come from inference-time techniques.",
+      "problem": "Naive single-pass inference under-uses available compute; many hard tasks have inference-time techniques that beat ever-larger models.",
+      "forces": [
+        "Wall-clock latency rises with compute.",
+        "Cost rises linearly or worse with sample count.",
+        "Best technique (samples / search / deeper thinking) is task-dependent."
+      ],
+      "solution": "Pick the inference-time technique that fits: best-of-N for verifier-amenable tasks, self-consistency for sampling-amenable tasks, tree search for combinatorial tasks, extended thinking for sequential reasoning. Compose techniques where complementary. Tune the compute budget per task class.",
+      "consequences": {
+        "benefits": [
+          "Quality lifts without retraining.",
+          "Compute budget becomes a per-request control."
+        ],
+        "liabilities": [
+          "Latency-sensitive use cases cannot afford much.",
+          "Token cost can dominate."
+        ]
+      },
+      "constrains": "Each request specifies its compute budget; over-budget requests are cut off.",
+      "known_uses": [
+        {
+          "system": "OpenAI o-series scaling-with-effort",
+          "status": "available"
+        },
+        {
+          "system": "DeepMind AlphaCode/AlphaProof scaling",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "extended-thinking",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "lats",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "process-reward-model",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Scaling LLM Test-Time Compute Optimally Can Be More Effective Than Scaling Model Parameters",
+          "authors": "Snell, Lee, Xu, Kumar",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2408.03314"
+        },
+        {
+          "type": "paper",
+          "title": "Large Language Monkeys: Scaling Inference Compute with Repeated Sampling",
+          "authors": "Brown, Juravsky, Ehrlich, Clark, Le, Ré, Mirhoseini",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2407.21787"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reasoning",
+        "scaling",
+        "compute"
+      ]
+    },
+    {
+      "id": "tree-of-thoughts",
+      "name": "Tree of Thoughts",
+      "aliases": [
+        "ToT",
+        "Deliberate Reasoning"
+      ],
+      "category": "reasoning",
+      "intent": "Search over a tree of partial reasoning states with explicit lookahead, evaluation, and backtracking.",
+      "context": "The problem benefits from exploring alternatives (puzzles, planning, creative writing) and committing to a single chain leads to dead ends.",
+      "problem": "Chain-of-Thought commits to a single trace; if an early step is wrong the model cannot recover or compare alternatives.",
+      "forces": [
+        "Search costs many model calls per problem.",
+        "A value or heuristic function is needed to score partial states.",
+        "Termination criteria are non-trivial."
+      ],
+      "solution": "Decompose the problem into thought steps. At each node, sample several candidate next thoughts. Evaluate each (model self-evaluation or programmatic check). Apply BFS/DFS/beam to explore the tree. Backtrack from dead ends. Return the best leaf.",
+      "consequences": {
+        "benefits": [
+          "Higher accuracy on tasks where alternatives matter (Game of 24, crosswords, creative writing planning).",
+          "Explicit search vocabulary (lookahead, prune, backtrack)."
+        ],
+        "liabilities": [
+          "5-100x cost over CoT depending on branching factor and depth.",
+          "Value function quality bounds search benefit."
+        ]
+      },
+      "constrains": "The agent may only commit to a final answer after exploring at least one full path; search depth and branching are bounded by configuration.",
+      "known_uses": [
+        {
+          "system": "ToT paper benchmarks (Game of 24, crosswords, creative writing)",
+          "status": "available"
+        },
+        {
+          "system": "LangChain ToT integration",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "graph-of-thoughts",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "lats",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Tree of Thoughts: Deliberate Problem Solving with Large Language Models",
+          "authors": "Yao, Yu, Zhao, Shafran, Griffiths, Cao, Narasimhan",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.10601"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "search",
+        "tree"
+      ]
+    },
+    {
+      "id": "zero-shot-cot",
+      "name": "Zero-Shot Chain-of-Thought",
+      "aliases": [
+        "Let's Think Step by Step",
+        "Trigger-Phrase CoT"
+      ],
+      "category": "reasoning",
+      "intent": "Elicit step-by-step reasoning with a single trigger phrase rather than few-shot exemplars.",
+      "context": "Reasoning tasks where curating few-shot exemplars is impractical or costly.",
+      "problem": "Few-shot CoT requires exemplar curation per task type; that effort scales poorly across many tasks.",
+      "forces": [
+        "Trigger phrases are model- and language-specific.",
+        "Quality lift is smaller than well-curated few-shot CoT.",
+        "Trigger-phrase reasoning can drift on complex tasks."
+      ],
+      "solution": "Append a trigger phrase ('Let's think step by step', 'Let's work through this carefully') to the prompt. The model produces reasoning before its answer with no exemplar required. Optionally extract the final answer with a follow-up prompt.",
+      "consequences": {
+        "benefits": [
+          "Zero curation cost per task.",
+          "Generalises across task types."
+        ],
+        "liabilities": [
+          "Lower quality lift than well-tuned few-shot CoT.",
+          "Trigger-phrase brittleness."
+        ]
+      },
+      "constrains": "The model is required to reason before answering; one-shot answer-only generation is not the target.",
+      "known_uses": [
+        {
+          "system": "Zero-Shot CoT paper baseline",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Large Language Models are Zero-Shot Reasoners",
+          "authors": "Kojima, Gu, Reid, Matsuo, Iwasawa",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2205.11916"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reasoning",
+        "cot",
+        "zero-shot"
+      ]
+    }
+  ]
+}

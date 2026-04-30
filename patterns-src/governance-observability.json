@@ -1,0 +1,1257 @@
+{
+  "category": "governance-observability",
+  "label": "Governance & Observability",
+  "patterns": [
+    {
+      "id": "agent-as-judge",
+      "name": "Agent-as-a-Judge",
+      "aliases": [
+        "Trajectory Evaluator",
+        "Judge Agent"
+      ],
+      "category": "governance-observability",
+      "intent": "Evaluate an agent's full trajectory (steps, tool calls, intermediate states) by another agent rather than scoring only the final output.",
+      "context": "Agent evaluations (SWE-Bench, agentic benchmarks) where the final output is one signal among many and the trajectory contains evaluable structure.",
+      "problem": "LLM-as-judge evaluates only the final answer; agentic tasks succeed or fail along the trajectory in ways the final answer hides.",
+      "forces": [
+        "Trajectory evaluation is more expensive than answer-only judging.",
+        "Judge agents have their own biases and failure modes.",
+        "Trajectory schemas vary per agent framework."
+      ],
+      "solution": "A judge agent receives the candidate agent's full trajectory: thoughts, tool calls, observations, intermediate state, and final answer. It evaluates against a rubric covering correctness, efficiency, and process quality. Outputs a structured verdict with rationale.",
+      "consequences": {
+        "benefits": [
+          "Catches process-level failures that hide behind right answers.",
+          "Inspectable judge rationales."
+        ],
+        "liabilities": [
+          "Cost: trajectory evaluation is expensive.",
+          "Judge calibration on trajectory rubrics is its own dataset effort."
+        ]
+      },
+      "constrains": "The judge sees the full trajectory, not just the final output; answer-only evaluation is not used in this pattern.",
+      "known_uses": [
+        {
+          "system": "MetaGPT Agent-as-a-Judge",
+          "status": "available"
+        },
+        {
+          "system": "SWE-Bench-style agentic benchmarks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "llm-as-judge",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "eval-harness",
+          "relation": "uses"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Agent-as-a-Judge: Evaluate Agents with Agents",
+          "authors": "Zhuge, Zhao, Ashley, Wang, Khizbullin, Xiong, Liu, Chang, Zhang, Yang, Liu, Huang, Schmidhuber",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2410.10934"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "eval",
+        "judge",
+        "trajectory"
+      ]
+    },
+    {
+      "id": "agent-resumption",
+      "name": "Agent Resumption",
+      "aliases": [
+        "Durable Execution",
+        "Pause-and-Resume",
+        "Long-Running Agent State"
+      ],
+      "category": "governance-observability",
+      "intent": "Persist agent execution state so a long-running run survives restarts, deploys, or user disconnects.",
+      "context": "Production agents that run for minutes to hours; users need the work to survive disconnects and ops events.",
+      "problem": "Agents that lose state on restart lose hours of work; users distrust long-running agents.",
+      "forces": [
+        "Checkpoint frequency vs cost.",
+        "What to persist; what to recompute.",
+        "Resumability requires deterministic enough replay or full state capture."
+      ],
+      "solution": "Two production approaches. (a) Deterministic replay of recorded effects (Temporal/Inngest pattern): state = inputs + log of side-effects; on resume, the engine re-executes the workflow code, skipping side-effects that already have logged results. (b) Checkpoint snapshots of agent state (LangGraph Cloud pattern): periodically serialise plan, working memory, partial outputs, pending tool calls; restore on restart. Both approaches require deterministic idempotency keys passed to side-effect targets so a replayed-but-unlogged call is deduplicated downstream. Without this, crash-between-effect-and-log produces duplicates.",
+      "consequences": {
+        "benefits": [
+          "Reliability for long-running agents.",
+          "Operations confidence: deploys do not lose user work."
+        ],
+        "liabilities": [
+          "Checkpoint storage cost.",
+          "Resumed runs may see drifted external state.",
+          "Deterministic-replay requires the workflow code to be deterministic; non-deterministic code in the agent path corrupts on resume.",
+          "Tools that don't accept an idempotency key cannot be safely resumed."
+        ]
+      },
+      "constrains": "Agent state must be serialisable; non-serialisable in-memory references are forbidden in long-running paths.",
+      "known_uses": [
+        {
+          "system": "Devin sessions",
+          "status": "available"
+        },
+        {
+          "system": "Manus tasks",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI Agents SDK durable execution",
+          "status": "available"
+        },
+        {
+          "system": "Temporal-backed agents",
+          "status": "available"
+        },
+        {
+          "system": "Inngest agents",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph Cloud checkpointing",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "scheduled-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "short-term-memory",
+          "relation": "uses"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Temporal: Durable execution",
+          "url": "https://docs.temporal.io"
+        },
+        {
+          "type": "doc",
+          "title": "Inngest: AgentKit durable agents",
+          "url": "https://www.inngest.com/docs"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "durability",
+        "long-running",
+        "state"
+      ]
+    },
+    {
+      "id": "attention-manipulation-explainability",
+      "name": "Attention-Manipulation Explainability",
+      "aliases": [
+        "AtMan",
+        "Attention Perturbation Attribution",
+        "Token-Influence Map"
+      ],
+      "category": "governance-observability",
+      "intent": "Surface which input tokens caused a given output by perturbing attention across all transformer layers and measuring the resulting change in output probability, producing a per-token relevance map alongside the model's response.",
+      "context": "Regulated or high-stakes deployments where the operator must explain to an auditor or end-user *why* the model produced a specific output; pure post-hoc rationalisations are considered insufficient.",
+      "problem": "Free-text \"why did you say that?\" follow-up prompts produce plausible but unfaithful justifications; the model confabulates a reason that does not match its actual decision.",
+      "forces": [
+        "Auditors want input-grounded explanations, not generated rationales.",
+        "Per-token attribution must be cheap enough to run in production, not only offline.",
+        "Faithfulness of the explanation matters more than its readability.",
+        "Vendor-side method may be incompatible with hosted black-box APIs."
+      ],
+      "solution": "Run a structured perturbation pass over the model's attention: for each input token (or chunk), suppress its attention contribution and measure the change in the output token probabilities. Tokens whose suppression most reduces the output probability are the most relevant. Surface this as a heat-map alongside the answer. Keep the attribution method on the inference side; avoid asking the model to self-explain in prose.",
+      "structure": "Input -> Model -> Output. Parallel: Input -> perturb(token_i) -> ΔP(output) -> relevance_map.",
+      "consequences": {
+        "benefits": [
+          "Faithful (mechanistic) attribution rather than confabulated rationale.",
+          "Compatible with audit and right-to-explanation requirements.",
+          "User-visible heat-maps build calibrated trust."
+        ],
+        "liabilities": [
+          "Requires white-box access to attention; not available for hosted black-box APIs.",
+          "Compute overhead per request (one forward pass per token group).",
+          "Token-level attribution can mislead when reasoning spans many tokens."
+        ]
+      },
+      "constrains": "The agent may not present generated text as the explanation of its own output when an attribution-based explanation is feasible; self-explanations have to be marked as such.",
+      "known_uses": [
+        {
+          "system": "Aleph Alpha AtMan",
+          "note": "Original attention-perturbation explainability method shipped in PhariaAI.",
+          "status": "available",
+          "url": "https://aleph-alpha.com/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lineage-tracking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "citation-streaming",
+          "relation": "alternative-to",
+          "note": "Citations attribute to retrieved docs; AtMan attributes to input tokens."
+        },
+        {
+          "pattern": "model-card",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "AtMan: Understanding Transformer Predictions Through Memory Efficient Attention Manipulation",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2301.08110"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "governance",
+        "explainability",
+        "germany-origin",
+        "aleph-alpha"
+      ]
+    },
+    {
+      "id": "cost-observability",
+      "name": "Cost Observability",
+      "aliases": [
+        "Token Telemetry",
+        "Cost Dashboard"
+      ],
+      "category": "governance-observability",
+      "intent": "Surface per-request, per-user, and per-feature cost and token consumption to operators in near-real-time.",
+      "context": "Production agent products where cost surprises (a runaway feature, a bad routing decision) blow up bills before anyone notices.",
+      "problem": "Without per-feature cost visibility, expensive failures hide in aggregate metrics until billing arrives.",
+      "forces": [
+        "Telemetry schema must capture which feature, which model, which user.",
+        "Real-time vs daily aggregation.",
+        "Privacy on per-user attribution."
+      ],
+      "solution": "Tag every model and tool call with feature, route, user (anonymised), and model id. Stream to a telemetry store. Build dashboards by feature, by model, by tier, by hour. Set alerts on anomalies. Pair with cost-gating for prevention.",
+      "consequences": {
+        "benefits": [
+          "Fast detection of cost regressions.",
+          "Inputs for capacity planning and pricing."
+        ],
+        "liabilities": [
+          "Telemetry overhead.",
+          "Per-user attribution has privacy implications."
+        ]
+      },
+      "constrains": "Calls without telemetry tags fall into an 'unattributed' bucket; some internal gateways enforce tag-or-reject.",
+      "known_uses": [
+        {
+          "system": "Langfuse",
+          "status": "available"
+        },
+        {
+          "system": "Helicone",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI usage dashboard",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Console usage",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "cost-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lineage-tracking",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Langfuse",
+          "url": "https://langfuse.com/docs"
+        },
+        {
+          "type": "doc",
+          "title": "Helicone",
+          "url": "https://docs.helicone.ai"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "observability",
+        "cost",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "decision-log",
+      "name": "Decision Log",
+      "aliases": [
+        "Reasoning Trace",
+        "Thought Trace"
+      ],
+      "category": "governance-observability",
+      "intent": "Persist the agent's reasoning trace alongside its actions so post-hoc review can explain why.",
+      "context": "Audit and debugging both need access to what the agent considered, not just what it did.",
+      "problem": "Action-only logs answer 'what' but not 'why'; debugging a wrong action requires the reasoning chain.",
+      "forces": [
+        "Reasoning traces are large.",
+        "Sensitive content in reasoning may need redaction.",
+        "Trace fidelity vs cost: full chain-of-thought, key decisions, summary?"
+      ],
+      "solution": "Persist reasoning at a chosen granularity (full trace, key decisions, or summary). Link each action in the provenance ledger to its trace. Indexed by request id and time for retrieval.",
+      "consequences": {
+        "benefits": [
+          "Debugging speed jumps; you see the why immediately.",
+          "User-facing explanations become possible."
+        ],
+        "liabilities": [
+          "Storage and privacy implications.",
+          "Trace tampering (the agent rewriting its trace) defeats the purpose; append-only is needed."
+        ]
+      },
+      "constrains": "Action records cannot be written without a corresponding decision-log entry.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Thought stream + ledger linkage.",
+          "status": "available"
+        },
+        {
+          "system": "Langfuse / LangSmith trace stores",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provenance-ledger",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "uses"
+        },
+        {
+          "pattern": "black-box-opaqueness",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "replay-time-travel",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "agent-as-judge",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "attention-manipulation-explainability",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Langfuse docs",
+          "url": "https://langfuse.com/docs"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "observability",
+        "trace",
+        "debug"
+      ]
+    },
+    {
+      "id": "eval-as-contract",
+      "name": "Eval as Contract",
+      "aliases": [
+        "Test-Driven Agent",
+        "Eval-Gated Release"
+      ],
+      "category": "governance-observability",
+      "intent": "Treat the eval suite as the contract the agent must satisfy; releases ship only if evals pass.",
+      "context": "Production agents where 'works on my prompt' is insufficient and stakeholders need a quality bar to depend on.",
+      "problem": "Without a release gate tied to evals, quality regressions slip through; the eval suite becomes documentation rather than enforcement.",
+      "forces": [
+        "Contract authoring is up-front work.",
+        "Eval-suite drift if not maintained.",
+        "Calibration: which evals are blocking, which are advisory."
+      ],
+      "solution": "Define a tiered eval suite: blocking evals (must pass for release), advisory evals (tracked but not blocking). Wire blocking evals into CI. Block PRs and releases when blocking evals fail. Treat eval changes as architectural changes (review, signoff).",
+      "consequences": {
+        "benefits": [
+          "Quality bar is enforced, not aspirational.",
+          "Eval suite earns its seat by being load-bearing."
+        ],
+        "liabilities": [
+          "Bad evals block legitimate releases.",
+          "Calibration is empirical."
+        ]
+      },
+      "constrains": "Releases are forbidden when blocking evals fail; bypassing requires explicit operator override.",
+      "known_uses": [
+        {
+          "system": "AI-Standards Eval as Contract pattern",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        },
+        {
+          "pattern": "perma-beta",
+          "relation": "conflicts-with"
+        },
+        {
+          "pattern": "prompt-versioning",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "automatic-workflow-search",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "ai-standards/ai-design-patterns (Eval as Contract)",
+          "url": "https://github.com/ai-standards/ai-design-patterns"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "eval",
+        "release",
+        "contract"
+      ]
+    },
+    {
+      "id": "eval-harness",
+      "name": "Eval Harness",
+      "aliases": [
+        "Golden Dataset Suite",
+        "Champion-Challenger",
+        "Regression Suite"
+      ],
+      "category": "governance-observability",
+      "intent": "Run a held-out dataset against agent versions to detect regressions and measure improvement.",
+      "context": "Agents are non-deterministic and prompt-sensitive; without an eval harness, every change is a guess.",
+      "problem": "A change that 'feels better' often isn't; without measurement, the system regresses silently.",
+      "forces": [
+        "Dataset construction is expensive and ages.",
+        "Judging open-ended outputs needs a metric or judge.",
+        "Champion-challenger is fairer but doubles cost."
+      ],
+      "solution": "Build a golden dataset of (input, expected output) pairs. Run candidate versions against the dataset; score each. Compare champion (current) against challenger (proposed). Promote on quality lift, blocked on regression. Re-run on every meaningful change.",
+      "consequences": {
+        "benefits": [
+          "Quality becomes measurable, comparable, and trendable.",
+          "Releases gain a quantitative gate."
+        ],
+        "liabilities": [
+          "Dataset bias means high scores can hide real-world failures.",
+          "LLM-as-judge has its own calibration cost."
+        ]
+      },
+      "constrains": "Releases are blocked if the harness flags a regression beyond tolerance.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "Eval harness flagged as the explicit next step; in beta because of this gap.",
+          "status": "planned"
+        },
+        {
+          "system": "Sparrot",
+          "status": "planned"
+        },
+        {
+          "system": "Ragas, DeepEval, Langfuse Evals",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "eval-as-contract",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        },
+        {
+          "pattern": "perma-beta",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "dspy-signatures",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "model-card",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-as-judge",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "automatic-workflow-search",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "explodinggradients/ragas",
+          "url": "https://github.com/explodinggradients/ragas"
+        },
+        {
+          "type": "doc",
+          "title": "Anthropic: Building Effective Agents (eval section)",
+          "year": 2024
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "eval",
+        "regression",
+        "harness"
+      ]
+    },
+    {
+      "id": "incident-response-runbook",
+      "name": "Incident Response Runbook",
+      "aliases": [
+        "IR Runbook",
+        "Agent Failure Playbook",
+        "Agent Incident Procedure"
+      ],
+      "category": "governance-observability",
+      "intent": "Maintain pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) so detected incidents trigger known steps.",
+      "context": "Production agents at organisations with safety controls (kill-switch, sandbox-escape-monitoring, provenance-ledger) that detect events nobody knows how to respond to.",
+      "problem": "Without a runbook, detection produces alerts that wake the on-call but do not lead to coordinated containment, compensation, communication, or post-mortem.",
+      "forces": [
+        "Severity classification must be agreed upfront.",
+        "Containment vs forensic preservation tension.",
+        "Communication clocks for regulators (GDPR 72h, EU AI Act serious incident) constrain runbook latency."
+      ],
+      "solution": "Maintain a runbook covering: severity levels, on-call paths, containment steps (kill-switch invocation, traffic rerouting), forensic preservation (pin traces beyond normal retention), compensating actions, customer communication templates, regulator notification procedures, and post-mortem template. Tie alerts from kill-switch/sandbox-escape-monitoring/cost-observability to runbook entries.",
+      "consequences": {
+        "benefits": [
+          "Detection produces coordinated response, not panic.",
+          "Regulator timelines are met."
+        ],
+        "liabilities": [
+          "Runbook drift: scenarios evolve faster than the doc.",
+          "Runbook fatigue if drilled too rarely or too often."
+        ]
+      },
+      "constrains": "Detected incidents must trigger a documented runbook step; ad-hoc response without runbook is a process failure to be flagged in post-mortem.",
+      "known_uses": [
+        {
+          "system": "Standard SRE practice transferred to agent platforms",
+          "status": "available"
+        },
+        {
+          "system": "Frontier-lab safety teams",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "kill-switch",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sandbox-escape-monitoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "uses"
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Site Reliability Engineering (Google, ch. 14 Managing Incidents)",
+          "year": 2016
+        },
+        {
+          "type": "book",
+          "title": "Site Reliability Engineering (Google) — Managing Incidents",
+          "year": 2016,
+          "url": "https://sre.google/sre-book/managing-incidents/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "governance",
+        "incident-response",
+        "safety"
+      ]
+    },
+    {
+      "id": "lineage-tracking",
+      "name": "Lineage Tracking",
+      "aliases": [
+        "Data Lineage",
+        "Prompt Versioning",
+        "Artefact Provenance"
+      ],
+      "category": "governance-observability",
+      "intent": "Track which prompt version, model version, and data sources produced each agent output.",
+      "context": "Long-lived production agents where outputs are referenced months later and stakeholders ask 'which version produced this?'.",
+      "problem": "Without lineage, output disputes are unanswerable; rolling back to a known-good state is guesswork.",
+      "forces": [
+        "Lineage metadata adds storage.",
+        "Schema evolution of lineage is itself a problem.",
+        "PII in lineage records (prompts contain user data)."
+      ],
+      "solution": "Tag every agent output with: prompt template hash, model id and version, tool versions, retrieved-document ids, decision-log id. Store in a queryable lineage store. Make lineage joinable to the output store.",
+      "consequences": {
+        "benefits": [
+          "Output disputes are answerable.",
+          "Targeted rollback becomes possible."
+        ],
+        "liabilities": [
+          "Storage growth.",
+          "Lineage schema must evolve carefully."
+        ]
+      },
+      "constrains": "Outputs without lineage tags are not promoted to production storage.",
+      "known_uses": [
+        {
+          "system": "Langfuse, LangSmith, Weights & Biases Prompts",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provenance-ledger",
+          "relation": "complements"
+        },
+        {
+          "pattern": "model-card",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-observability",
+          "relation": "complements"
+        },
+        {
+          "pattern": "replay-time-travel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "black-box-opaqueness",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hidden-mode-switching",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "prompt-versioning",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "attention-manipulation-explainability",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "governance",
+        "lineage",
+        "versioning"
+      ]
+    },
+    {
+      "id": "llm-as-judge",
+      "name": "LLM-as-Judge",
+      "aliases": [
+        "Model Grading",
+        "Auto-Evaluator"
+      ],
+      "category": "governance-observability",
+      "intent": "Use an LLM to score open-ended outputs against rubric criteria when no exact-match metric applies.",
+      "context": "Free-form outputs (summaries, code, prose) defy exact-match scoring; human grading is too slow for CI.",
+      "problem": "Without an automated grader, regression detection on free-form outputs requires human eyes on every run.",
+      "forces": [
+        "Judges have biases (length, position, model-family preference).",
+        "Calibration against human judgement is its own dataset.",
+        "Same-model judging is suspect when the candidate is from the same family."
+      ],
+      "solution": "Define a rubric. Prompt a judge model with the input, candidate output, and rubric. Receive a structured score plus rationale. Calibrate periodically against human-graded samples. Use a different model family for judge vs candidate where possible.",
+      "consequences": {
+        "benefits": [
+          "Scales free-form evaluation.",
+          "Rationales are debugging breadcrumbs."
+        ],
+        "liabilities": [
+          "Judge biases skew scores in subtle ways.",
+          "Cost: every eval is now N x judge calls."
+        ]
+      },
+      "constrains": "Scores are advisory unless calibrated against human judgement at known intervals.",
+      "known_uses": [
+        {
+          "system": "MT-Bench / AlpacaEval",
+          "status": "available"
+        },
+        {
+          "system": "Ragas / DeepEval / Langfuse",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "agent-as-judge",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+          "authors": "Zheng et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2306.05685"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "eval",
+        "judge",
+        "scoring"
+      ]
+    },
+    {
+      "id": "model-card",
+      "name": "Model Card",
+      "aliases": [
+        "System Card"
+      ],
+      "category": "governance-observability",
+      "intent": "Maintain a structured document describing the model/agent's intended use, limitations, evaluation results, and risks.",
+      "context": "Regulated, high-stakes, or public-facing agents where stakeholders (legal, compliance, users) need to understand what the system does and where it fails.",
+      "problem": "Agent capabilities and limitations are tribal knowledge; without a card, every stakeholder reinvents understanding.",
+      "forces": [
+        "Cards age fast in fast-moving systems.",
+        "Truthful disclosure conflicts with marketing pressure.",
+        "Card depth vs maintainability."
+      ],
+      "solution": "Maintain a markdown document at a known location with sections: intended use, out-of-scope use, training/data lineage, evaluation results, limitations, risks, contact. Versioned alongside the agent.",
+      "consequences": {
+        "benefits": [
+          "Stakeholder alignment.",
+          "Regulatory and audit defensibility."
+        ],
+        "liabilities": [
+          "Maintenance burden.",
+          "Card drift when not enforced in PRs."
+        ]
+      },
+      "constrains": "Production releases require a current card; missing or stale cards block deployment.",
+      "known_uses": [
+        {
+          "system": "Anthropic system cards",
+          "status": "available"
+        },
+        {
+          "system": "Google Model Cards",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "lineage-tracking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "eval-harness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "complements"
+        },
+        {
+          "pattern": "awareness",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "hidden-mode-switching",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        },
+        {
+          "pattern": "attention-manipulation-explainability",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Model Cards for Model Reporting",
+          "authors": "Mitchell, Wu, Zaldivar, Barnes, Vasserman, Hutchinson, Spitzer, Raji, Gebru",
+          "year": 2018,
+          "url": "https://arxiv.org/abs/1810.03993"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "governance",
+        "documentation"
+      ]
+    },
+    {
+      "id": "prompt-versioning",
+      "name": "Prompt Versioning",
+      "aliases": [
+        "Prompt-as-Artifact",
+        "Prompt Registry",
+        "Versioned Prompts"
+      ],
+      "category": "governance-observability",
+      "intent": "Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.",
+      "context": "Production agents where prompt changes drive quality changes; ad-hoc prompt edits introduce silent regressions.",
+      "problem": "Prompts edited inline in code are hard to audit; rolling back a prompt means rolling back a deployment; comparison across versions is bespoke.",
+      "forces": [
+        "Registry adds infrastructure.",
+        "Prompt versioning must integrate with eval harness.",
+        "Signed prompts vs editable prompts."
+      ],
+      "solution": "Prompts live in a registry as immutable, hashed, version-tagged artefacts. Code references prompts by name + version (semver). Deployments pin specific versions; rollback by version. Eval harness ties metric outcomes to prompt versions. Optionally signed for provenance.",
+      "consequences": {
+        "benefits": [
+          "Prompt rollback without redeploy.",
+          "Eval results map to specific prompts."
+        ],
+        "liabilities": [
+          "Registry infrastructure.",
+          "Version-pinning means prompts stop tracking model upgrades automatically."
+        ]
+      },
+      "constrains": "Production calls reference pinned prompt versions only; ad-hoc inline prompts are forbidden.",
+      "known_uses": [
+        {
+          "system": "LangSmith Prompts",
+          "status": "available"
+        },
+        {
+          "system": "PromptLayer",
+          "status": "available"
+        },
+        {
+          "system": "Humanloop",
+          "status": "available"
+        },
+        {
+          "system": "Vellum",
+          "status": "available"
+        },
+        {
+          "system": "Helicone Prompts",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "lineage-tracking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "eval-as-contract",
+          "relation": "uses"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangSmith Prompts",
+          "url": "https://docs.smith.langchain.com/prompt_engineering/concepts"
+        },
+        {
+          "type": "doc",
+          "title": "PromptLayer",
+          "url": "https://docs.promptlayer.com"
+        },
+        {
+          "type": "doc",
+          "title": "Humanloop",
+          "url": "https://humanloop.com"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "governance",
+        "prompt",
+        "versioning"
+      ]
+    },
+    {
+      "id": "provenance-ledger",
+      "name": "Provenance Ledger",
+      "aliases": [
+        "Audit Trail",
+        "Action Log"
+      ],
+      "category": "governance-observability",
+      "intent": "Log every agent decision and state change with enough metadata to explain or reverse it later.",
+      "context": "Long-running or regulated agents need to answer 'why did the agent do X on day Y?' months later.",
+      "problem": "Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback become impossible.",
+      "forces": [
+        "Auditability vs storage cost of every event.",
+        "Schema rigidity vs evolvability over the agent's lifetime.",
+        "PII in events: redaction at write time vs read time."
+      ],
+      "solution": "Append events to an immutable log with: timestamp, actor, action, target, justification (link to thought or decision), diff hash. Enable rollback by id. Reject events that lack the required fields.",
+      "consequences": {
+        "benefits": [
+          "Audit and rollback become tractable.",
+          "Pattern of failures becomes visible across time."
+        ],
+        "liabilities": [
+          "Log volume can dominate other storage.",
+          "Justification fields require the agent to write them; lazy agents skip."
+        ]
+      },
+      "constrains": "Self-edits and other recorded actions are rejected if they lack a valid justification reference.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "ledger.jsonl with {ts, file, diff_hash, thought_id, justification}; orphan writes rejected.",
+          "status": "available"
+        },
+        {
+          "system": "Langfuse traces",
+          "status": "available"
+        },
+        {
+          "system": "OpenTelemetry GenAI semantic conventions",
+          "status": "available"
+        },
+        {
+          "system": "Datadog LLM Observability",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "lineage-tracking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "model-card",
+          "relation": "complements"
+        },
+        {
+          "pattern": "black-box-opaqueness",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sandbox-escape-monitoring",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "OpenTelemetry GenAI semantic conventions",
+          "year": 2024
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "audit",
+        "provenance",
+        "rollback"
+      ]
+    },
+    {
+      "id": "replay-time-travel",
+      "name": "Replay / Time-Travel",
+      "aliases": [
+        "Trace Replay",
+        "Run Branching",
+        "Fork from Step N"
+      ],
+      "category": "governance-observability",
+      "intent": "Re-run a past agent trace from any step with modified inputs/prompts/tools to debug or branch.",
+      "context": "Agent debugging and experimentation; production incidents that need reproduction.",
+      "problem": "Agent runs are non-deterministic and state-laden; without replay, debugging is reproduction-by-prayer.",
+      "forces": [
+        "Captured state must be complete enough to re-run.",
+        "Storage of full traces is expensive.",
+        "Modified replays diverge from original; comparison logic is non-trivial."
+      ],
+      "solution": "Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.",
+      "consequences": {
+        "benefits": [
+          "Debugging cycle drops from hours to minutes.",
+          "A/B comparison of fixes becomes trivial."
+        ],
+        "liabilities": [
+          "Trace storage overhead.",
+          "Non-deterministic external dependencies (network) limit fidelity."
+        ]
+      },
+      "constrains": "Replay reads from captured state; live model and tool calls happen only for the modified branch from step N forward.",
+      "known_uses": [
+        {
+          "system": "LangSmith replay",
+          "status": "available"
+        },
+        {
+          "system": "Langfuse playground replay",
+          "status": "available"
+        },
+        {
+          "system": "Inspect AI",
+          "status": "available"
+        },
+        {
+          "system": "Claude Code conversation rewind",
+          "status": "available",
+          "note": "Transcript-level rewind, not full trace replay."
+        },
+        {
+          "system": "Braintrust playground",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "decision-log",
+          "relation": "uses"
+        },
+        {
+          "pattern": "lineage-tracking",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangSmith: Replay",
+          "url": "https://docs.smith.langchain.com/observability/how_to_guides/replay"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "debug",
+        "replay",
+        "observability"
+      ]
+    },
+    {
+      "id": "sandbox-escape-monitoring",
+      "name": "Sandbox Escape Monitoring",
+      "aliases": [
+        "Sandbox Telemetry",
+        "Boundary Violation Alerts"
+      ],
+      "category": "governance-observability",
+      "intent": "Treat sandbox boundary violations as telemetry; alert on syscalls, network egress, or filesystem writes outside expected scope.",
+      "context": "Agents executing code or operating filesystems where sandbox-isolation is in place; sandboxes have known escape vulnerabilities.",
+      "problem": "Sandbox-isolation is preventive only; without monitoring, a successful escape (or even an attempt) is invisible until damage is done.",
+      "forces": [
+        "Telemetry granularity vs cost.",
+        "False positives on legitimate boundary-pushing operations.",
+        "Egress patterns evolve faster than allowlists."
+      ],
+      "solution": "Instrument the sandbox: log every syscall outside the allowed set, every network egress not on the allowlist, every filesystem write outside the working directory. Stream to safety telemetry. Alert on threshold breaches. Pair with kill-switch for automatic halt on confirmed escape.",
+      "consequences": {
+        "benefits": [
+          "Detection of escape attempts and successes.",
+          "Forensic trail when incidents occur."
+        ],
+        "liabilities": [
+          "Telemetry volume.",
+          "Alert fatigue if thresholds are mis-tuned."
+        ]
+      },
+      "constrains": "Sandbox events outside the allowed set must be logged and inspectable; silent boundary violations are forbidden.",
+      "known_uses": [
+        {
+          "system": "Production code-execution platforms (E2B, Modal sandbox monitoring)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "uses"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "sandbox",
+        "monitoring"
+      ]
+    },
+    {
+      "id": "shadow-canary",
+      "name": "Shadow Canary",
+      "aliases": [
+        "Shadow Agent",
+        "Canary Deployment"
+      ],
+      "category": "governance-observability",
+      "intent": "Run a candidate agent version in shadow alongside the champion, comparing outputs without affecting users.",
+      "context": "Agent changes are non-deterministic and prompt-sensitive; CI tests cover correctness, not field behaviour.",
+      "problem": "Releases without field comparison miss regressions visible only on real traffic.",
+      "forces": [
+        "Shadow runs cost money for output never shown.",
+        "Comparison logic for free-form outputs is non-trivial.",
+        "Shadow latency must not affect the user-visible path."
+      ],
+      "solution": "Route a fraction of real traffic through both champion and challenger. Champion's output reaches the user. Challenger's output is logged. Diff the outputs on agreed metrics (judge model, exact match on tool calls, latency, cost). Promote on lift; revert on regression.",
+      "consequences": {
+        "benefits": [
+          "Field-quality regression detection.",
+          "Confidence to roll out non-deterministic changes."
+        ],
+        "liabilities": [
+          "2x cost during shadow window.",
+          "Diff-noise on free-form outputs is hard to attribute."
+        ]
+      },
+      "constrains": "Challenger output is not user-visible during shadow; only logging.",
+      "known_uses": [
+        {
+          "system": "Standard practice in ML/agent platforms",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "perma-beta",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "eval-as-contract",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-versioning",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "governance",
+        "shadow",
+        "release"
+      ]
+    }
+  ]
+}

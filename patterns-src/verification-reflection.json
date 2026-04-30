@@ -1,0 +1,903 @@
+{
+  "category": "verification-reflection",
+  "label": "Verification & Reflection",
+  "patterns": [
+    {
+      "id": "best-of-n",
+      "name": "Best-of-N Sampling",
+      "aliases": [
+        "BoN",
+        "Reranking",
+        "BoNBoN Alignment"
+      ],
+      "category": "verification-reflection",
+      "intent": "Sample N candidate outputs and select the highest-ranked by a reward model or scorer.",
+      "context": "Output quality matters and a reward model exists (or can be approximated) to score candidates.",
+      "problem": "A single sample may be acceptable; the best of N is often markedly better at modest cost increase.",
+      "forces": [
+        "N candidates cost N inferences.",
+        "Reward-model quality bounds achievable improvement.",
+        "Diversity across candidates is needed; identical samples defeat the pattern."
+      ],
+      "solution": "Generate N candidates with non-zero temperature. Score each with a reward model or rule-based scorer. Return the top-1 (or top-K). BoNBoN alignment fine-tunes a model to mimic the BoN distribution directly, eliminating per-inference sampling cost.",
+      "consequences": {
+        "benefits": [
+          "Quality lift without retraining the base model.",
+          "Trade-off knob: increase N for more quality, fewer for less cost."
+        ],
+        "liabilities": [
+          "Cost scales with N.",
+          "Reward hacking: candidates can game a flawed scorer."
+        ]
+      },
+      "constrains": "The chosen output must be from the candidate set; no synthesis across candidates.",
+      "known_uses": [
+        {
+          "system": "RLHF training pipelines",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "self-consistency",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "process-reward-model",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "rest-em",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "automatic-workflow-search",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "BoNBoN Alignment for Large Language Models and the Sweetness of Best-of-n Sampling",
+          "authors": "Gui, Gârbacea, Veitch",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2406.00832"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "sampling",
+        "reward",
+        "alignment"
+      ]
+    },
+    {
+      "id": "confidence-reporting",
+      "name": "Confidence Reporting",
+      "aliases": [
+        "Uncertainty Surfacing",
+        "Calibrated Output"
+      ],
+      "category": "verification-reflection",
+      "intent": "Surface the agent's uncertainty about its answer alongside the answer itself.",
+      "context": "Decisions downstream of the agent depend on whether the answer is reliable; users and systems both benefit from a confidence signal.",
+      "problem": "Models output answers with uniform tone regardless of internal certainty; downstream code cannot distinguish 'I know' from 'I am guessing'.",
+      "forces": [
+        "Confidence signals are themselves miscalibrated by the model.",
+        "Surfacing uncertainty erodes user trust if overdone.",
+        "Sample-based confidence (self-consistency) costs N calls."
+      ],
+      "solution": "Produce a confidence label (high/medium/low or numeric) alongside each answer. Derive from sample variance (self-consistency), evaluator score, retrieval recall, or rubric score. Render in UI; route low-confidence to fallback or human review.",
+      "consequences": {
+        "benefits": [
+          "Downstream code can branch on confidence.",
+          "Users learn when to verify."
+        ],
+        "liabilities": [
+          "Calibration is empirical and drifts.",
+          "False confidence remains the failure mode."
+        ]
+      },
+      "constrains": "Outputs without a confidence label are not consumable by confidence-aware downstream code.",
+      "known_uses": [
+        {
+          "system": "Sparrot empirical-introspection variance signal",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI logprobs-derived confidence",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "self-consistency",
+          "relation": "uses"
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fallback-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "attention-manipulation-explainability",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Language Models (Mostly) Know What They Know",
+          "authors": "Kadavath et al.",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2207.05221"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "uncertainty",
+        "calibration"
+      ]
+    },
+    {
+      "id": "critic",
+      "name": "Tool-Augmented Self-Correction",
+      "aliases": [
+        "Tool-Interactive Self-Correction",
+        "CRITIC"
+      ],
+      "category": "verification-reflection",
+      "intent": "Self-correct LLM outputs by interactively critiquing them with external tools (search, code execution, calculator).",
+      "context": "Generation tasks where errors can be detected and corrected by grounded checks (factual claims by search, code by execution, math by calculator).",
+      "problem": "Self-critique without external tools recycles the model's blind spots; tools provide grounded ground-truth signals.",
+      "forces": [
+        "Tool selection per critique step.",
+        "Critique cost adds to generation cost.",
+        "Tools may themselves be wrong or limited."
+      ],
+      "solution": "After draft generation, the model emits a critique that names suspected errors and queries tools to verify. Tool results inform the revised output. Iterate until tools find no more issues or budget exhausted.",
+      "consequences": {
+        "benefits": [
+          "Grounded self-correction beats ungrounded reflection.",
+          "Tool invocations during critique are auditable."
+        ],
+        "liabilities": [
+          "Latency and cost per turn.",
+          "Tool selection itself is a learning problem."
+        ]
+      },
+      "constrains": "The critic may revise outputs only when an external tool corroborates a defect; ungrounded edits are forbidden.",
+      "known_uses": [
+        {
+          "system": "CRITIC paper baselines",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "reflection",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "CRITIC: Large Language Models Can Self-Correct with Tool-Interactive Critiquing",
+          "authors": "Gou, Shao, Gong, Shen, Yang, Duan, Chen",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.11738"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reflection",
+        "tool-grounded",
+        "self-correction"
+      ]
+    },
+    {
+      "id": "deterministic-llm-sandwich",
+      "name": "Deterministic-LLM Sandwich",
+      "aliases": [
+        "Verification-and-Grounding Loop",
+        "Bracketed LLM Call",
+        "Verify LLM Output",
+        "Pre/Post Validation"
+      ],
+      "category": "verification-reflection",
+      "intent": "Bracket every LLM call with deterministic checks on both sides.",
+      "context": "A correctness boundary where wrong outputs cause real damage (a wrong stitch count, a malformed migration, a mis-priced order).",
+      "problem": "Trusting the LLM's output unconditionally accepts hallucination at the most expensive moment; banning the LLM entirely loses its strengths.",
+      "forces": [
+        "Bracketing adds latency per call.",
+        "Pre-checks must be cheap to be worth running.",
+        "Post-checks must catch what the model gets wrong, not what is merely surprising."
+      ],
+      "solution": "Three layers. Pre: deterministic check decides whether the LLM should run at all (e.g. AST parse must succeed). LLM: produces a candidate output with structured-output schema and frozen rubric. Post: deterministic re-validation (parse, type-check, run tests). If post fails, the original is returned unchanged.",
+      "structure": "Pre(input) -> {pass, fail} ; if pass: LLM(input) -> candidate ; Post(candidate) -> {accept, reject}.",
+      "consequences": {
+        "benefits": [
+          "Confidence at the correctness boundary; the model cannot land an unsafe artefact.",
+          "Bug fixes go into the deterministic layer where they are testable."
+        ],
+        "liabilities": [
+          "Building the deterministic checks is itself the bulk of the work.",
+          "Over-strict post-checks reject valid outputs."
+        ]
+      },
+      "constrains": "An LLM-produced artefact lands only after passing the post-check; otherwise the prior state is preserved.",
+      "known_uses": [
+        {
+          "system": "Knitting-DSL Pipeline (Stash2Go)",
+          "note": "deterministicReview.js -> scopedLlmFixer.js -> parse and revalidate.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "frozen-rubric-reflection",
+          "relation": "uses"
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "code-execution",
+          "relation": "composes-with",
+          "note": "Post-check often runs code (parse/test) to validate output."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Marco Nissen, Working with the models",
+          "year": 2026
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "verification",
+        "boundary",
+        "sandwich"
+      ]
+    },
+    {
+      "id": "evaluator-optimizer",
+      "name": "Evaluator-Optimizer",
+      "aliases": [
+        "Generator-Critic Loop",
+        "LLM-as-Judge Refinement"
+      ],
+      "category": "verification-reflection",
+      "intent": "One LLM generates; another evaluates and feeds back; loop until criteria are met.",
+      "context": "Tasks with measurable evaluation criteria where iterative refinement beats single-pass generation.",
+      "problem": "Single-shot generation tops out below what an evaluator-corrected loop achieves.",
+      "forces": [
+        "The evaluator must be calibrated; a bad judge teaches bad lessons.",
+        "Loop budget caps cost.",
+        "Generator and evaluator can collude (especially if same model, same prompt family)."
+      ],
+      "solution": "Generator produces a candidate. Evaluator scores it against criteria with feedback. Generator revises with the feedback. Loop until evaluator passes or max iterations.",
+      "consequences": {
+        "benefits": [
+          "Quality climbs predictably with iterations.",
+          "Evaluator can be reused as an offline regression suite."
+        ],
+        "liabilities": [
+          "Cost = (generator + evaluator) x iterations.",
+          "Convergence is not guaranteed."
+        ]
+      },
+      "constrains": "Generator outputs are accepted only after the evaluator passes; an unbounded loop is forbidden by the iteration cap.",
+      "known_uses": [
+        {
+          "system": "Anthropic Building Effective Agents (Workflow #5)",
+          "status": "available"
+        },
+        {
+          "system": "Cursor auto-fix loops",
+          "status": "available"
+        },
+        {
+          "system": "Cline auto-iterate",
+          "status": "available"
+        },
+        {
+          "system": "Aider lint-then-fix loop",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "reflection",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "planner-executor-observer",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "relation": "conflicts-with"
+        },
+        {
+          "pattern": "self-refine",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "crag",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "dynamic-expert-recruitment",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Anthropic: Building Effective Agents",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "evaluator",
+        "loop",
+        "judge"
+      ]
+    },
+    {
+      "id": "frozen-rubric-reflection",
+      "name": "Frozen Rubric Reflection",
+      "aliases": [
+        "Scoped Self-Review",
+        "Closed-Set Critic"
+      ],
+      "category": "verification-reflection",
+      "intent": "Constrain reflection to a fixed, hand-authored rubric of criteria so the reviewer cannot invent new ones each run.",
+      "context": "Open-ended reflection drifts pattern over pattern; the reviewer's criteria change with the wind, making outputs hard to compare across runs or users.",
+      "problem": "Free-form 'review your work' produces inconsistent reviews because the model invents categories on each call.",
+      "forces": [
+        "Authoring a good rubric is non-trivial up-front work.",
+        "Rubric drift over time is a separate problem from per-call drift.",
+        "Some defects fall outside the rubric and go unflagged."
+      ],
+      "solution": "A fixed rubric file (or schema) lists exactly the categories the reviewer may flag. The reviewer prompt includes the rubric and a JSON Schema enforcing it. Temperature is zero. Output validates against the schema; new finding categories are rejected.",
+      "consequences": {
+        "benefits": [
+          "Consistent reviews across runs and users.",
+          "Rubric is the single load-bearing artefact; iteration is in one place."
+        ],
+        "liabilities": [
+          "Hard ceiling on what the reviewer can catch.",
+          "Rubric authorship is its own engineering discipline."
+        ]
+      },
+      "constrains": "The reviewer cannot output finding categories outside the rubric; the JSON schema rejects them.",
+      "known_uses": [
+        {
+          "system": "Knitting-DSL Pipeline (Stash2Go)",
+          "note": "Six-item rubric in scopedLlmReviewer.js: duplicate NOTEs, finishing order, construction voice, prose omissions, prose inventions, pattern name sanity.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "reflection",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "deterministic-llm-sandwich",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Marco Nissen, Working with the models",
+          "year": 2026
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reflection",
+        "rubric",
+        "structured-output"
+      ]
+    },
+    {
+      "id": "inner-critic",
+      "name": "Self-Modification Diff Gate",
+      "aliases": [
+        "Diff Reviewer",
+        "Self-Mod Gate",
+        "Inner Critic"
+      ],
+      "category": "verification-reflection",
+      "intent": "Gate the agent's edits to its own code or rules through a separate critic persona that reviews the diff before it lands.",
+      "context": "A self-modifying agent can edit its own source, prompts, or rules; without a gate, recursive self-editing can drift into incoherence or unsafe behaviour.",
+      "problem": "Self-edits applied directly bypass review; the agent can corrupt its own future behaviour irreversibly.",
+      "forces": [
+        "Critic and modifier may share blind spots if they share a model.",
+        "Strict critics block legitimate improvements.",
+        "Lax critics defeat the gate."
+      ],
+      "solution": "Every self-edit goes through a critic step: a separate prompt (and optionally a separate model) reviews the proposed diff against criteria (safety, charter compliance, test passing). Edits land only on critic approval. Rejected edits are logged for later human review. The critic must run on a frozen checkpoint (separate process or sandbox) so a malformed self-edit cannot corrupt the critic before it votes; recursion guard is required when the critic itself is in the edit scope.",
+      "consequences": {
+        "benefits": [
+          "Recursive self-improvement becomes survivable in practice.",
+          "Audit trail of what was rejected is itself learning signal."
+        ],
+        "liabilities": [
+          "Critic prompt is a load-bearing artefact; bad critics are worse than no critic.",
+          "Two-step pipeline doubles per-edit latency."
+        ]
+      },
+      "constrains": "No write to self-modifiable files succeeds without a passing critic review.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "src/sparrot/*.py edits gated by critic.py.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "skill-library",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "constitutional-charter",
+          "relation": "uses"
+        },
+        {
+          "pattern": "inner-committee",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "quorum-on-mutation",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Marco Nissen, Working with the models",
+          "year": 2026
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "self-modification",
+        "critic",
+        "safety"
+      ]
+    },
+    {
+      "id": "process-reward-model",
+      "name": "Process Reward Model",
+      "aliases": [
+        "PRM",
+        "Step-Level Verifier"
+      ],
+      "category": "verification-reflection",
+      "intent": "Train a verifier that scores each reasoning step rather than only the final answer.",
+      "context": "Multi-step reasoning tasks where final-answer scoring conflates good reasoning with lucky right answers.",
+      "problem": "Outcome reward models reinforce shortcut reasoning that lands on the right answer through wrong steps; step-level supervision gives finer-grained signal.",
+      "forces": [
+        "Step-level annotation is expensive (humans must label each step).",
+        "Step boundaries vary across tasks.",
+        "PRM and outcome reward sometimes conflict on what counts as 'correct'."
+      ],
+      "solution": "Collect step-level labels (correct / neutral / incorrect / hallucination) for chain-of-thought traces. Train a classifier to predict step labels. At inference, score every step; reject candidates whose intermediate steps have low scores. Powers test-time search and fine-tuning of the generator.",
+      "consequences": {
+        "benefits": [
+          "Catches wrong-reasoning-right-answer cases.",
+          "Enables tree-search and best-of-N with finer signal."
+        ],
+        "liabilities": [
+          "Annotation cost.",
+          "PRM calibration shifts with model capability."
+        ]
+      },
+      "constrains": "Final answers are accepted only when intermediate steps pass the PRM threshold.",
+      "known_uses": [
+        {
+          "system": "OpenAI 'Let's Verify Step by Step' baseline",
+          "status": "available"
+        },
+        {
+          "system": "DeepMind reasoning evaluators",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "best-of-n",
+          "relation": "uses"
+        },
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "lats",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Let's Verify Step by Step",
+          "authors": "Lightman, Kosaraju, Burda, Edwards, Baker, Lee, Leike, Schulman, Sutskever, Cobbe",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.20050"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "verification",
+        "reward",
+        "step-level"
+      ]
+    },
+    {
+      "id": "reflection",
+      "name": "Reflection",
+      "aliases": [
+        "Self-Critique",
+        "Single-Pass Self-Review"
+      ],
+      "category": "verification-reflection",
+      "intent": "Have the model review its own output and produce a revised version in one or more passes.",
+      "context": "First-pass model outputs contain mistakes a second look would catch; the cost of an extra pass is acceptable.",
+      "problem": "One-shot generation underuses the model; a second pass focused on critique often fixes errors at modest cost.",
+      "forces": [
+        "Same-model self-critique misses correlated blind spots.",
+        "Free-form review drifts; the model invents new criteria each time.",
+        "Termination: when does the loop stop?"
+      ],
+      "solution": "After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).",
+      "consequences": {
+        "benefits": [
+          "Catches surface errors cheaply.",
+          "Pairs naturally with structured outputs."
+        ],
+        "liabilities": [
+          "Diminishing returns after one or two passes.",
+          "Self-reinforced confidence on wrong answers (Reflexion replication studies)."
+        ]
+      },
+      "constrains": "The reviewer may only critique against criteria fixed by the surrounding system; free-form criteria invention is forbidden when the pattern is used at a correctness boundary.",
+      "known_uses": [
+        {
+          "system": "Knitting-DSL Pipeline (Stash2Go)",
+          "note": "scopedLlmReviewer.js runs a frozen 6-item rubric.",
+          "status": "available"
+        },
+        {
+          "system": "Self-Refine paper",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "frozen-rubric-reflection",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "reflexion",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "agentic-rag",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "self-refine",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "critic",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "self-rag",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Self-Refine: Iterative Refinement with Self-Feedback",
+          "authors": "Madaan et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2303.17651"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reflection",
+        "self-critique"
+      ]
+    },
+    {
+      "id": "reflexion",
+      "name": "Reflexion",
+      "aliases": [
+        "Cross-Episode Lesson Writing",
+        "Verbal Reinforcement Learning"
+      ],
+      "category": "verification-reflection",
+      "intent": "Have the agent write linguistic lessons from past failures and consult them in future episodes.",
+      "context": "The same agent attempts similar tasks repeatedly; without memory across attempts, mistakes recur.",
+      "problem": "Stateless agents repeat the same errors; full RL fine-tuning is too expensive for most settings.",
+      "forces": [
+        "Lesson quality is bounded by the model's self-critique ability.",
+        "Lesson retrieval (which lesson applies?) is a search problem.",
+        "Lesson rot: outdated lessons may misguide once the world changes."
+      ],
+      "solution": "After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.",
+      "consequences": {
+        "benefits": [
+          "Improvement without fine-tuning weights.",
+          "Lessons are human-readable and editable."
+        ],
+        "liabilities": [
+          "Single-agent reflexion repeats blind spots because the same model writes and reads the lessons.",
+          "Lesson stores grow; without curation they become noise."
+        ]
+      },
+      "constrains": "Lessons are appended, not overwritten; old lessons are explicitly retired rather than silently deleted.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Reflection cycle: chunks -> insights -> rule proposals.",
+          "status": "available"
+        },
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "Per-user lesson schema not yet built.",
+          "status": "pure-future"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-summaries",
+          "relation": "complements"
+        },
+        {
+          "pattern": "reflection",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+          "authors": "Shinn, Cassano, Berman, Gopinath, Narasimhan, Yao",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2303.11366"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "memory",
+        "reflection",
+        "learning"
+      ]
+    },
+    {
+      "id": "self-consistency",
+      "name": "Self-Consistency",
+      "aliases": [
+        "Sample-and-Vote",
+        "Empirical Introspection",
+        "Marginalised Reasoning"
+      ],
+      "category": "verification-reflection",
+      "intent": "Sample the same question multiple times at non-zero temperature and aggregate by majority or judge to mitigate hallucination.",
+      "context": "Reasoning-heavy questions where the model is mostly right but sometimes invents a different chain.",
+      "problem": "A single sample at zero temperature gives the most likely chain; sampling and voting often outperforms it because the right answer is the one most chains converge on.",
+      "forces": [
+        "N samples cost N times more.",
+        "Aggregation logic depends on whether the answer is a class, a number, or free text.",
+        "Variance is itself signal: a high-variance question is one the model is uncertain on."
+      ],
+      "solution": "Run the same prompt N times with non-zero temperature. Extract the answer from each. Aggregate: majority vote for discrete answers, median for numeric, judge for free-form. Variance across samples is logged as a confidence signal.",
+      "consequences": {
+        "benefits": [
+          "Higher accuracy on reasoning benchmarks at moderate cost.",
+          "Variance is a free uncertainty estimate."
+        ],
+        "liabilities": [
+          "Linear cost scaling.",
+          "Free-form aggregation needs a judge model."
+        ]
+      },
+      "constrains": "The final answer is the aggregate, not any single sample; individual samples have no authority.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "introspect(question, samples, temperature) tool.",
+          "status": "available"
+        },
+        {
+          "system": "Chain-of-Thought + Self-Consistency benchmarks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "parallelization",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "debate",
+          "relation": "complements"
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "lats",
+          "relation": "complements"
+        },
+        {
+          "pattern": "map-reduce",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "chain-of-thought",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "complements"
+        },
+        {
+          "pattern": "star-bootstrapping",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
+          "authors": "Wang, Wei, Schuurmans, Le, Chi, Narang, Chowdhery, Zhou",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2203.11171"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "sampling",
+        "voting",
+        "uncertainty"
+      ]
+    },
+    {
+      "id": "self-refine",
+      "name": "Self-Refine",
+      "aliases": [
+        "Iterative Self-Feedback"
+      ],
+      "category": "verification-reflection",
+      "intent": "Iterate generate → feedback (same model) → refine until a stop criterion fires, with no separate critic model.",
+      "context": "Generation tasks where the same model can produce useful self-feedback against an explicit improvement target.",
+      "problem": "One-shot generation under-uses the model; calling for explicit critique-and-revise from the same model raises quality at modest cost.",
+      "forces": [
+        "Same-model critique inherits the model's blind spots.",
+        "Termination criterion is its own design.",
+        "Cost grows linearly with iterations."
+      ],
+      "solution": "Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.",
+      "consequences": {
+        "benefits": [
+          "Quality improvement on tasks with measurable targets.",
+          "Same-model loop is simple to deploy."
+        ],
+        "liabilities": [
+          "Reinforces same-model blind spots (Reflexion replication studies).",
+          "Diminishing returns after 2-3 iterations."
+        ]
+      },
+      "constrains": "Feedback must conform to the chosen target; revisions must address the most recent feedback.",
+      "known_uses": [
+        {
+          "system": "Self-Refine paper benchmarks (math, code, dialog)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "reflection",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "relation": "conflicts-with",
+          "note": "Self-Refine is the well-engineered version of the failure mode same-model-self-critique describes."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Self-Refine: Iterative Refinement with Self-Feedback",
+          "authors": "Madaan, Tandon, Gupta, Hallinan, Gao, Wiegreffe, Alon, Dziri, Prabhumoye, Yang, Welleck, Majumder, Gupta, Yazdanbakhsh, Clark",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2303.17651"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "reflection",
+        "iterative",
+        "self-feedback"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1032 @@
+{
+  "category": "memory",
+  "label": "Memory",
+  "patterns": [
+    {
+      "id": "append-only-thought-stream",
+      "name": "Append-Only Thought Stream",
+      "aliases": [
+        "Event-Sourced Memory",
+        "Immutable Journal"
+      ],
+      "category": "memory",
+      "intent": "Make the agent's thought log append-only so the agent cannot rewrite its own history.",
+      "context": "Self-modifying or long-running agents could in principle revise their own past; doing so undermines audit and learning.",
+      "problem": "If the agent can edit its own history, every later inference is conditioned on a possibly-rewritten past.",
+      "forces": [
+        "Append-only stores grow without bound.",
+        "Strict immutability conflicts with redaction (PII, mistakes).",
+        "Compaction must respect append-only at the underlying log layer."
+      ],
+      "solution": "Thoughts and journal entries are written to files or a log the agent has no permission to delete or modify. Compaction creates new summary files at higher tiers without touching originals. Redaction goes through an explicit operator path, not the agent.",
+      "consequences": {
+        "benefits": [
+          "Provenance and audit are tractable.",
+          "Reasoning over the past is deterministic across runs."
+        ],
+        "liabilities": [
+          "Storage growth.",
+          "Operator burden when redactions are needed."
+        ]
+      },
+      "constrains": "The agent has read access only to thoughts/ and journal/; writes go through an append-only API enforced at the tool layer.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "thoughts/ and journal/ are read-only at the agent's tool layer.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provenance-ledger",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "five-tier-memory-cascade",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "complements"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Designing Data-Intensive Applications (event sourcing)",
+          "authors": "Martin Kleppmann",
+          "year": 2017
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "append-only",
+        "provenance"
+      ]
+    },
+    {
+      "id": "awareness",
+      "name": "Awareness",
+      "aliases": [
+        "Situational Awareness",
+        "Capability Self-Knowledge"
+      ],
+      "category": "memory",
+      "intent": "Maintain the agent's explicit knowledge of its own tools, capabilities, environment, and current context as queryable state.",
+      "context": "Agents that operate over time and across capabilities need to know what they can do and where they are; without explicit awareness, capability is implicit in prompts.",
+      "problem": "Agents that do not know their own capabilities either over-promise (hallucinate tools) or under-deliver (forget tools they have).",
+      "forces": [
+        "Awareness state grows with capability.",
+        "Stale awareness misleads.",
+        "Self-description is itself a prompt-engineering effort."
+      ],
+      "solution": "Persist explicit state about: available tools (with descriptions), the environment (what host, what user, what permissions), the current task, and the agent's own identity. Refresh on capability changes. Inject relevant slices of awareness into each turn's context.",
+      "consequences": {
+        "benefits": [
+          "Reduces hallucinated tool calls.",
+          "Grounds the agent in its own context."
+        ],
+        "liabilities": [
+          "Awareness state is a maintenance burden.",
+          "Excess awareness wastes context tokens."
+        ]
+      },
+      "constrains": "Tool calls and self-references must match the awareness state; mismatches are flagged.",
+      "known_uses": [
+        {
+          "system": "Sparrot world.md + personality.md",
+          "status": "available"
+        },
+        {
+          "system": "Avramovic Awareness pattern",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-use",
+          "relation": "complements"
+        },
+        {
+          "pattern": "model-card",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "tool-discovery",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "zeljkoavramovic/agentic-design-patterns",
+          "url": "https://github.com/zeljkoavramovic.github.io/agentic-design-patterns/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "awareness",
+        "state",
+        "self-model"
+      ]
+    },
+    {
+      "id": "context-window-packing",
+      "name": "Context Window Packing",
+      "aliases": [
+        "Context Compression",
+        "Token Budget Management",
+        "Fit in Context",
+        "Token Cost Reduction"
+      ],
+      "category": "memory",
+      "intent": "Choose what fits in the context window each turn given a fixed token budget.",
+      "context": "Agents whose available context (system prompt + history + retrieved chunks + tools + state) exceeds the model's window.",
+      "problem": "Naive concatenation overflows; naive truncation loses critical state.",
+      "forces": [
+        "What to drop is task-dependent.",
+        "Compression has its own LLM cost.",
+        "Reserved budget for the response itself."
+      ],
+      "solution": "Define a packing policy. Reserve N tokens for system + tools + response. Allocate the rest across history (compressed), retrieved chunks (top-k after rerank), and current state. Use eviction (drop oldest), summarisation (compress), or selection (relevance-rank) policies. Audit token counts before each call.",
+      "consequences": {
+        "benefits": [
+          "Predictable behaviour at the window edge.",
+          "Inspectable trade-offs."
+        ],
+        "liabilities": [
+          "Complexity of the packing logic.",
+          "Compression artefacts."
+        ]
+      },
+      "constrains": "Total tokens passed to the model must not exceed the window minus the reserved response budget.",
+      "known_uses": [
+        {
+          "system": "LangChain ConversationSummaryBufferMemory",
+          "status": "available"
+        },
+        {
+          "system": "Most production agent frameworks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-summaries",
+          "relation": "uses"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "dynamic-scaffolding",
+          "relation": "complements"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "reasoning-trace-carry-forward",
+          "relation": "used-by"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "context",
+        "tokens",
+        "budget"
+      ]
+    },
+    {
+      "id": "cross-session-memory",
+      "name": "Cross-Session Memory",
+      "aliases": [
+        "Persistent User Memory",
+        "Long-Lived User Profile",
+        "Beat Agent Amnesia",
+        "No-Forget Memory",
+        "Agent Forgets Between Sessions",
+        "Session-to-Session Memory"
+      ],
+      "category": "memory",
+      "intent": "Persist user-specific facts, preferences, and prior context across all sessions, threads, and devices.",
+      "context": "User-facing assistants where users expect continuity beyond a single conversation.",
+      "problem": "Per-thread memory loses everything between sessions; users repeat themselves; the assistant feels amnesic.",
+      "forces": [
+        "What to remember vs forget; user agency.",
+        "Privacy, deletion, portability requirements.",
+        "Cost of always-on memory loading per turn."
+      ],
+      "solution": "Maintain a per-user store of distilled facts (preferences, prior context, names, projects). Load relevant slices into each session's context. Provide explicit add/forget tools. Audit and surface memory entries to the user. Deletion controls and a user-visible memory inspector (delete / disable / export) satisfy regulatory and trust requirements.",
+      "consequences": {
+        "benefits": [
+          "Continuity across sessions and devices.",
+          "Compounding usefulness over time."
+        ],
+        "liabilities": [
+          "Privacy obligations.",
+          "Memory hallucinations are stickier than chat hallucinations."
+        ]
+      },
+      "constrains": "Memory entries must be added through declared tools; the model cannot silently mutate persistent user state.",
+      "known_uses": [
+        {
+          "system": "ChatGPT Memory",
+          "status": "available"
+        },
+        {
+          "system": "Claude Projects + memory",
+          "status": "available"
+        },
+        {
+          "system": "Letta",
+          "status": "available"
+        },
+        {
+          "system": "Lindy memory",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "short-term-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "OpenAI: Memory and new controls for ChatGPT",
+          "year": 2024,
+          "url": "https://openai.com/index/memory-and-new-controls-for-chatgpt/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "persistence",
+        "user"
+      ]
+    },
+    {
+      "id": "episodic-summaries",
+      "name": "Episodic Summaries",
+      "aliases": [
+        "Compaction",
+        "Conversation Summarisation",
+        "Chunk Summaries",
+        "Reduce Token Cost",
+        "Shrink Context",
+        "Cuts Token Use",
+        "Too Many Tokens Reduction"
+      ],
+      "category": "memory",
+      "intent": "Compress past episodes into summaries that preserve gist while shedding token cost.",
+      "context": "A long-running agent has more history than fits the context window; raw replay is impractical.",
+      "problem": "Without compaction, either the context grows unboundedly or important facts fall off the back of a sliding window.",
+      "forces": [
+        "Token savings vs summary fidelity loss.",
+        "Compaction LLM cost vs context-window relief.",
+        "Single source of truth vs raw-archive availability."
+      ],
+      "solution": "On a schedule (or at thresholds), summarise blocks of recent thoughts/conversation into compact representations. Store summaries in a higher tier; archive originals. Reads consult summaries first, originals on demand.",
+      "consequences": {
+        "benefits": [
+          "Bounded effective context size despite unbounded history.",
+          "Summaries are easier to embed and search."
+        ],
+        "liabilities": [
+          "Summary errors are sticky; the agent reasons over the summary, not the original.",
+          "Compaction policy is its own configuration burden."
+        ]
+      },
+      "constrains": "Past events older than the compaction horizon are accessible only via summary, not raw.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Hourly chunk summarisation; daily insight extraction.",
+          "status": "available"
+        },
+        {
+          "system": "Generative Agents (Park et al. 2023)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "five-tier-memory-cascade",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "reflexion",
+          "relation": "complements"
+        },
+        {
+          "pattern": "context-window-packing",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "short-term-memory",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Park, O'Brien, Cai, Morris, Liang, Bernstein",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "summarisation",
+        "compaction"
+      ]
+    },
+    {
+      "id": "five-tier-memory-cascade",
+      "name": "Five-Tier Memory Cascade",
+      "aliases": [
+        "Multi-Tier Memory",
+        "Cognitive Memory Hierarchy"
+      ],
+      "category": "memory",
+      "intent": "Stage agent memory across sensory, working, short-term, episodic, and long-term tiers with explicit promotion and decay between them.",
+      "context": "A long-running agent accumulates information of different timescales (one-tick observation, one-day pattern, one-month rule); flat memory cannot represent this.",
+      "problem": "Flat append-only logs collapse signal across timescales; pure long-term memory cannot capture momentary salience.",
+      "forces": [
+        "Promotion criteria from one tier to the next must be defined and audited.",
+        "Storage cost grows with tier count.",
+        "Reads must consult the right tier; cross-tier conflicts must be resolved."
+      ],
+      "solution": "Five tiers. Sensory: raw input per tick. Working: top-N items in active focus (Global Workspace Theory, ≤7 items). Short-term: recent verbatim (1-7 days). Episodic: compressed summaries (5-10x). Long-term: distilled rules and insights. Compaction promotes upward on a schedule; decay archives downward; rehearsal lifts archived items back when re-attended.",
+      "consequences": {
+        "benefits": [
+          "Each tier optimises for its timescale.",
+          "Inspectable memory hierarchy maps to cognitive science vocabulary."
+        ],
+        "liabilities": [
+          "Architecturally heavy; only earns its seat in long-running agents.",
+          "Tuning the promotion thresholds is empirical work."
+        ]
+      },
+      "constrains": "Reads at each tier may only return items at that tier's compaction level; cross-tier joins go through promotion or rehearsal.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "workspace/focus.md (working), thoughts/ (short), chunks/ (episodic), insights+rules+motivations (long).",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-summaries",
+          "relation": "uses"
+        },
+        {
+          "pattern": "hippocampal-rehearsal",
+          "relation": "uses"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents (memory stream + reflection)",
+          "authors": "Park et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        },
+        {
+          "type": "book",
+          "title": "A Cognitive Theory of Consciousness (Global Workspace Theory)",
+          "authors": "Bernard Baars",
+          "year": 1988
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "memory",
+        "cognitive-architecture"
+      ]
+    },
+    {
+      "id": "hippocampal-rehearsal",
+      "name": "Hippocampal Rehearsal",
+      "aliases": [
+        "Memory Reactivation",
+        "Lift-from-Archive"
+      ],
+      "category": "memory",
+      "intent": "Lift archived memory items back into short-term tiers when something re-attends to them.",
+      "context": "A long-running agent has archived something that becomes relevant again; cold-storage retrieval is slow and out-of-band.",
+      "problem": "Archived items might as well not exist if the agent never thinks about them again, even when current context makes them relevant.",
+      "forces": [
+        "Re-attention triggers must be cheap to evaluate.",
+        "Lifting too aggressively floods the working tier.",
+        "The lifted item is now a duplicate of the archive copy."
+      ],
+      "solution": "When salience scoring matches against archived items (embedding similarity, keyword match, explicit reference), the matched item is reactivated into short-term memory for one or more cycles. The original archive copy stays untouched.",
+      "consequences": {
+        "benefits": [
+          "Long-tail relevance does not require the agent to remember to remember.",
+          "Mimics the rehearsal step of biological memory consolidation."
+        ],
+        "liabilities": [
+          "False rehearsals waste working-memory slots.",
+          "Operationally complex; requires content-addressable storage."
+        ]
+      },
+      "constrains": "Archived items become readable only after rehearsal lifts them; direct cold reads are not part of the agent's primary path.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Stage P5+ rehearsal step.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "five-tier-memory-cascade",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Memory consolidation through hippocampal-cortical replay (review)",
+          "year": 2017
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "memory",
+        "rehearsal"
+      ]
+    },
+    {
+      "id": "knowledge-graph-memory",
+      "name": "Knowledge Graph Memory",
+      "aliases": [
+        "Triple Store Memory",
+        "Symbolic Memory"
+      ],
+      "category": "memory",
+      "intent": "Persist agent memory as entities and relations in a structured graph so symbolic queries (path, neighbour, type) become possible.",
+      "context": "Tasks where structured queries over relationships beat semantic similarity (organisation charts, code call graphs, family trees, knowledge bases).",
+      "problem": "Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries; symbolic structure is lost.",
+      "forces": [
+        "Entity and relation extraction is itself a model task with errors.",
+        "Schema design for the graph is a separate engineering effort.",
+        "Updates and deletions need referential integrity."
+      ],
+      "solution": "Extract entities and relations from observations into a graph store (Neo4j, RDF, simple JSON). Queries traverse the graph (Cypher/SPARQL or programmatic). Combine with vector memory for hybrid retrieval (vector finds entry points; graph traverses).",
+      "consequences": {
+        "benefits": [
+          "Structured queries over relationships.",
+          "Inspectable, editable, debuggable knowledge."
+        ],
+        "liabilities": [
+          "Extraction quality bounds graph quality.",
+          "Schema rigidity vs flexibility tension."
+        ]
+      },
+      "constrains": "Memory queries that require traversal must use graph operations; ad-hoc text matching over the graph is not the supported access path.",
+      "known_uses": [
+        {
+          "system": "Microsoft GraphRAG (graph as memory + retrieval)",
+          "status": "available"
+        },
+        {
+          "system": "Zep memory (hybrid)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "vector-memory",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "graphrag",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "From Local to Global: A Graph RAG Approach to Query-Focused Summarization",
+          "authors": "Edge et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2404.16130"
+        },
+        {
+          "type": "repo",
+          "title": "microsoft/graphrag",
+          "url": "https://github.com/microsoft/graphrag"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "graph",
+        "knowledge"
+      ]
+    },
+    {
+      "id": "memgpt-paging",
+      "name": "MemGPT-Style Paging",
+      "aliases": [
+        "Virtual Context",
+        "Memory Paging",
+        "OS-Style Memory"
+      ],
+      "category": "memory",
+      "intent": "Treat the LLM context window as RAM and external storage as disk, with the model issuing tool calls to page memory in and out.",
+      "context": "Long-running agents whose conversation or document state exceeds the context window; naive truncation loses state unpredictably.",
+      "problem": "Fixed context windows force a choice between losing state and stuffing irrelevant content; both degrade quality.",
+      "forces": [
+        "Paging tools compete for context space themselves.",
+        "Eviction policy (LRU? LFU? salience?) affects quality.",
+        "Tool latency on page faults adds to user-visible time."
+      ],
+      "solution": "Two memory tiers. Main context: system prompt, working set, recent messages. External context: recall (raw history) and archival (vector store). The model has tool calls for read_recall, write_archival, search_archival. Paging happens at the agent's discretion; the model treats main context as RAM and external as disk.",
+      "consequences": {
+        "benefits": [
+          "Conversation continuity beyond the context window.",
+          "Inspectable memory tiers; archival is queryable independently."
+        ],
+        "liabilities": [
+          "Tool definitions consume context budget.",
+          "Page-fault tool calls add latency."
+        ]
+      },
+      "constrains": "Memory beyond the working set is accessible only via paging tool calls; the agent cannot directly read external state.",
+      "known_uses": [
+        {
+          "system": "Letta (formerly MemGPT)",
+          "status": "available",
+          "url": "https://github.com/letta-ai/letta"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "vector-memory",
+          "relation": "uses"
+        },
+        {
+          "pattern": "five-tier-memory-cascade",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "uses",
+          "note": "Paging operations are tool calls."
+        },
+        {
+          "pattern": "cross-session-memory",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "context-window-packing",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "MemGPT: Towards LLMs as Operating Systems",
+          "authors": "Packer, Wooders, Lin, Fang, Patil, Stoica, Gonzalez",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2310.08560"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "paging",
+        "os"
+      ]
+    },
+    {
+      "id": "reasoning-trace-carry-forward",
+      "name": "Reasoning Trace Carry-Forward",
+      "aliases": [
+        "Reasoning Content Episode",
+        "CoT Carry Across Tool Calls",
+        "Episode-Bound Reasoning"
+      ],
+      "category": "memory",
+      "intent": "For reasoning models that emit a separate reasoning trace, preserve that trace in context across the same logical task episode (across tool-call/result turns) but drop it at user-turn boundaries.",
+      "context": "The agent uses a reasoning model that exposes a separate reasoning_content field (the model's chain of thought, distinct from the user-visible content), inside a tool-use loop with multi-turn history.",
+      "problem": "Two failure modes pull in opposite directions. (1) If the reasoning trace is dropped between a tool call and its result, the model loses the context of why it called the tool. (2) If the reasoning trace is preserved across user-turn boundaries, conversation history bloats with stale reasoning and the next user task inherits irrelevant prior thinking.",
+      "forces": [
+        "Reasoning trace is the bridge between tool-call intent and post-tool-result interpretation.",
+        "Reasoning trace is private intermediate state, not conversational record.",
+        "Tokens are expensive; preserving traces forever costs money.",
+        "Stale reasoning leaks bias into the next task."
+      ],
+      "solution": "Define an episode as: from one user turn to the next user turn (inclusive of all intervening tool calls and tool results). Within an episode, preserve assistant reasoning_content as part of the context concatenation across all turns. At the next user turn boundary, drop reasoning_content from prior episodes (the API will ignore it if you do pass it). The user-visible content remains in history; only the reasoning trace is episode-scoped.",
+      "structure": "User -> [reasoning + tool_call] -> tool_result -> [reasoning + tool_call] -> tool_result -> [reasoning + final_content] -> User. Within episode: preserve reasoning. Across episodes: drop reasoning, keep content.",
+      "consequences": {
+        "benefits": [
+          "Tool-using episodes get the benefit of CoT continuity.",
+          "Multi-turn dialogues do not accumulate stale reasoning.",
+          "Cheaper than naive reasoning-trace preservation forever."
+        ],
+        "liabilities": [
+          "Episode boundary detection has to be encoded in the agent loop, not the model.",
+          "If the model expects its own past reasoning at a later turn, dropping it breaks that.",
+          "Provider-specific (DeepSeek-style reasoning_content); needs adaptation per API."
+        ]
+      },
+      "constrains": "Internal reasoning content may not cross user-task boundaries; only user-visible content persists in conversation history.",
+      "known_uses": [
+        {
+          "system": "DeepSeek API (thinking mode)",
+          "note": "Documented behaviour: pass reasoning_content back across tool-call turns; drop it across user turns.",
+          "status": "available",
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "extended-thinking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "context-window-packing",
+          "relation": "uses"
+        },
+        {
+          "pattern": "short-term-memory",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "prompt-caching",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "DeepSeek API: Thinking Mode",
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode"
+        },
+        {
+          "type": "paper",
+          "title": "DeepSeek-V3 Technical Report",
+          "authors": "DeepSeek-AI",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2412.19437"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "reasoning",
+        "china-origin",
+        "deepseek"
+      ]
+    },
+    {
+      "id": "scratchpad",
+      "name": "Scratchpad",
+      "aliases": [
+        "Working Notes",
+        "Thinking Tool",
+        "Notepad"
+      ],
+      "category": "memory",
+      "intent": "Give the agent a writable scratch space for intermediate notes that informs later turns but does not pollute the response.",
+      "context": "Long tasks where the agent benefits from writing things down (computations, plans, lists of unresolved questions) without showing the user.",
+      "problem": "Without a scratchpad, intermediate work pollutes the response or is lost between turns.",
+      "forces": [
+        "Scratchpad content adds tokens to subsequent turns.",
+        "What stays in the scratchpad vs the response is a UX choice.",
+        "Scratchpad content can leak via traces."
+      ],
+      "solution": "Provide a tool or convention for writing to a scratchpad (a section of the prompt, a tool call, a file). The agent reads from and writes to it across turns. The user-visible response is separate. The scratchpad is purged at task completion or expires with the session.",
+      "consequences": {
+        "benefits": [
+          "Intermediate work persists without cluttering output.",
+          "Useful for chain-of-thought style reasoning that should not be visible."
+        ],
+        "liabilities": [
+          "Token cost grows with scratchpad size.",
+          "Scratchpad becomes shadow state if not purged."
+        ]
+      },
+      "constrains": "Scratchpad contents are visible only to the agent loop; user-facing output draws from the response slot.",
+      "known_uses": [
+        {
+          "system": "OpenAI o1-style internal reasoning",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic <thinking> blocks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "short-term-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chain-of-thought",
+          "relation": "uses"
+        },
+        {
+          "pattern": "extended-thinking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Show Your Work: Scratchpads for Intermediate Computation with Language Models",
+          "authors": "Nye et al.",
+          "year": 2021,
+          "url": "https://arxiv.org/abs/2112.00114"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "scratchpad",
+        "thinking"
+      ]
+    },
+    {
+      "id": "session-isolation",
+      "name": "Session Isolation",
+      "aliases": [
+        "Tenant Separation",
+        "Per-User State"
+      ],
+      "category": "memory",
+      "intent": "Keep one user's session state and memory unreachable from another user's agent.",
+      "context": "Multi-user agent products where leaks across users are a privacy and security failure.",
+      "problem": "Shared memory backends and shared model contexts can leak one user's data into another's response.",
+      "forces": [
+        "Cache hits across users are tempting for cost; they break isolation.",
+        "Auth scope must travel with every read and write.",
+        "Multi-tenant prompt injection becomes a real attack surface."
+      ],
+      "solution": "Session state is keyed by per-user identity (OAuth/JWT subject). Reads and writes carry that identity end-to-end. Caches are scoped per user. Prompts never include another user's content.",
+      "consequences": {
+        "benefits": [
+          "Privacy and security boundary is explicit and testable.",
+          "Multi-tenant compliance posture is simpler."
+        ],
+        "liabilities": [
+          "Loss of cross-user cache benefits.",
+          "Auth plumbing in every layer."
+        ]
+      },
+      "constrains": "No code path may read or cache user A's state under user B's identity.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "Per-user OAuth/JWT scope for tools and state.",
+          "status": "available"
+        },
+        {
+          "system": "Weft",
+          "note": "Bearer-wrapped per-user OAuth 1.0a tokens.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "short-term-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cross-session-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-result-caching",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "complements"
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "complements"
+        },
+        {
+          "pattern": "secrets-handling",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "multi-tenant",
+        "auth"
+      ]
+    },
+    {
+      "id": "short-term-memory",
+      "name": "Short-Term Thread Memory",
+      "aliases": [
+        "Conversation State",
+        "Per-Thread State",
+        "Working Memory"
+      ],
+      "category": "memory",
+      "intent": "Carry the relevant slice of conversation context across turns within a session.",
+      "context": "A multi-turn agent needs continuity (the user's most recent screen, the active plan, prior tool results) but does not need it forever.",
+      "problem": "Replaying the entire conversation every turn is expensive and pollutes context with stale facts.",
+      "forces": [
+        "TTL choice (minutes? hours? days?) trades freshness for cost.",
+        "What to keep vs. summarise is a quality-vs-cost tension.",
+        "Multi-device sessions complicate where state lives."
+      ],
+      "solution": "Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.",
+      "consequences": {
+        "benefits": [
+          "Continuity without full-history replay.",
+          "Bounded memory footprint per active user."
+        ],
+        "liabilities": [
+          "TTL boundaries surprise users when state vanishes mid-task.",
+          "Schema migrations are painful for live state."
+        ]
+      },
+      "constrains": "The agent cannot rely on facts older than the TTL window without re-fetching them.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "Per-thread state in chat/backend/state.py with 24h TTL.",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph MemorySaver checkpoints",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-summaries",
+          "relation": "complements"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "cross-session-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "scratchpad",
+          "relation": "complements"
+        },
+        {
+          "pattern": "reasoning-trace-carry-forward",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangGraph: Persistence",
+          "url": "https://langchain-ai.github.io/langgraph/concepts/persistence/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "state",
+        "ttl"
+      ]
+    },
+    {
+      "id": "vector-memory",
+      "name": "Vector Memory",
+      "aliases": [
+        "Semantic Memory",
+        "Embedding-Indexed Memory"
+      ],
+      "category": "memory",
+      "intent": "Store memories as embeddings in a vector index and retrieve the most semantically similar items at query time.",
+      "context": "Long-running agents accumulate facts/observations whose relevance is best judged by similarity to the current context.",
+      "problem": "Append-only logs grow unboundedly; without semantic retrieval the agent cannot find the relevant past.",
+      "forces": [
+        "Embedding choice constrains retrieval quality.",
+        "Index updates have non-trivial latency.",
+        "Forgetting is achieved by deletion or decay; both have failure modes."
+      ],
+      "solution": "Each memory item is embedded and indexed. At query time, embed the query (or a summary of current state), retrieve top-k most similar memories, prepend to context. Optional decay (boost recent, age old) and salience weighting.",
+      "consequences": {
+        "benefits": [
+          "Semantically relevant past surfaces automatically.",
+          "Scales to memory stores too large for context."
+        ],
+        "liabilities": [
+          "Misses purely temporal queries ('what did I do yesterday?').",
+          "Embedding drift on schema changes."
+        ]
+      },
+      "constrains": "The agent reads memory only through the retriever; full-store scans are not part of the loop.",
+      "known_uses": [
+        {
+          "system": "MemGPT / Letta archival memory",
+          "status": "available"
+        },
+        {
+          "system": "Generative Agents memory stream (Park et al.)",
+          "status": "available"
+        },
+        {
+          "system": "LangChain VectorStoreRetrieverMemory",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "memgpt-paging",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises",
+          "note": "Vector Memory is RAG over the agent's own past."
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Park et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "vector",
+        "embedding"
+      ]
+    }
+  ]
+}

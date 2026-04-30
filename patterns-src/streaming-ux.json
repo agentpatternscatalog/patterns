@@ -1,0 +1,351 @@
+{
+  "category": "streaming-ux",
+  "label": "Streaming & UX",
+  "patterns": [
+    {
+      "id": "bidirectional-impulse-channel",
+      "name": "Bidirectional Impulse Channel",
+      "aliases": [
+        "Two-Way Chat",
+        "User-and-Agent-Initiated Communication"
+      ],
+      "category": "streaming-ux",
+      "intent": "Let the user inject impulses into the agent and let the agent push messages to the user, both through one channel.",
+      "context": "Long-running agents (cognitive loops, monitoring agents) that have continuous internal activity the user might want to influence or be informed of.",
+      "problem": "Pure request/response chat misses the long-running case; pure push notifications are intrusive without a back-channel.",
+      "forces": [
+        "Push hygiene: too many messages train users to ignore the channel.",
+        "Inverse: starvation when the agent waits forever.",
+        "Authority: not every user-typed line should be a command."
+      ],
+      "solution": "A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal ...`, `!forget ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.",
+      "consequences": {
+        "benefits": [
+          "User feels the agent is alive without being noisy.",
+          "Direct memory edits are auditable and reversible."
+        ],
+        "liabilities": [
+          "Salience threshold tuning is empirical.",
+          "Direct memory edits bypass the LLM and can encode wrong rules."
+        ]
+      },
+      "constrains": "The agent may push at most one unsolicited message per window; user commands beginning with `!` bypass the model entirely.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "CLI as bidirectional impulse channel.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "streaming-typed-events",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Marco Nissen, Working with the models",
+          "year": 2026
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "ux",
+        "long-running",
+        "agent-initiated"
+      ]
+    },
+    {
+      "id": "citation-streaming",
+      "name": "Citation Streaming",
+      "aliases": [
+        "Inline Citations",
+        "Source-Anchored Output"
+      ],
+      "category": "streaming-ux",
+      "intent": "Stream citations alongside generated text so the UI can render source links in place as content appears.",
+      "context": "RAG-backed answers where the user must trace claims to sources; post-hoc citation breaks the streaming UX.",
+      "problem": "Generating citations after the answer hides them until the end; trusting the model to inline citations as text fails reliably.",
+      "forces": [
+        "Citation events must align with generated tokens.",
+        "Source spans need stable ids.",
+        "UI needs to render mid-stream without flickering."
+      ],
+      "solution": "Define a streaming event vocabulary that includes citation events linked to source ids. The model is prompted to emit citation markers; the host extracts them into typed events alongside text deltas. The UI renders sources progressively. Final output includes a citation map.",
+      "consequences": {
+        "benefits": [
+          "Trust UX: claims trace to sources visibly.",
+          "Hallucinations become visible (no source = suspicious)."
+        ],
+        "liabilities": [
+          "Streaming protocol is more complex.",
+          "Citation event quality depends on model compliance."
+        ]
+      },
+      "constrains": "Source claims in the output must reference a citation event with a valid source id.",
+      "known_uses": [
+        {
+          "system": "Perplexity",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Citations API",
+          "status": "available"
+        },
+        {
+          "system": "ChatGPT",
+          "status": "available"
+        },
+        {
+          "system": "Gemini Deep Research",
+          "status": "available"
+        },
+        {
+          "system": "Glean",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "streaming-typed-events",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hallucinated-citations",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "attention-manipulation-explainability",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Anthropic: Citations",
+          "url": "https://docs.anthropic.com/claude/docs/citations"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "streaming",
+        "citation",
+        "ux"
+      ]
+    },
+    {
+      "id": "salience-triggered-output",
+      "name": "Salience-Triggered Output",
+      "aliases": [
+        "Endogenous Push",
+        "Threshold Notification"
+      ],
+      "category": "streaming-ux",
+      "intent": "Have the agent emit a message only when an internal salience signal crosses a threshold, not on every cycle.",
+      "context": "A tick-based or always-on agent; constant output overwhelms; silence is wasteful when something matters.",
+      "problem": "Agents that emit on every cycle are noisy; agents that only emit on user request miss timely signals.",
+      "forces": [
+        "Salience scoring is itself a model; flawed scoring leads to noise or silence.",
+        "Threshold tuning is per-context.",
+        "Hygiene: rate-limiting prevents nag spirals."
+      ],
+      "solution": "Score every internal event for salience (novelty + goal-relevance + recency + prediction-error - fatigue). When the score for a candidate output crosses a threshold, emit. Otherwise log and move on. Rate-limit emissions per time window.",
+      "consequences": {
+        "benefits": [
+          "Output rate matches signal rate.",
+          "Salience scores become inspectable in the trace."
+        ],
+        "liabilities": [
+          "Threshold tuning is fragile to context shifts.",
+          "Silence on low salience can hide problems."
+        ]
+      },
+      "constrains": "Output is forbidden unless the salience score exceeds the configured threshold.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "Pushes when insight clears salience threshold, when focus is stuck, when contradiction surfaces, when goal completes.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "bidirectional-impulse-channel",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "streaming-typed-events",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "The free-energy principle: a unified brain theory?",
+          "authors": "Karl Friston",
+          "year": 2010
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "salience",
+        "endogenous",
+        "threshold"
+      ]
+    },
+    {
+      "id": "stop-cancel",
+      "name": "Stop / Cancel",
+      "aliases": [
+        "User Interrupt",
+        "Abort Generation"
+      ],
+      "category": "streaming-ux",
+      "intent": "Let the user interrupt an in-flight agent run cleanly, releasing resources and surfacing partial state.",
+      "context": "Long-running agents where the user notices a wrong direction mid-run and wants to redirect.",
+      "problem": "Without an interrupt, users wait for completion or for the page to die; agents continue burning cost on wrong work.",
+      "forces": [
+        "Cancellation must reach upstream tools and providers.",
+        "Partial state may or may not be useful.",
+        "Race conditions between completion and cancellation."
+      ],
+      "solution": "Surface a stop control in the UI. On click, propagate a cancellation token through the agent loop, tool calls, and provider streams. Clean up partial state. Show what was done. Optionally save partial output for later resumption.",
+      "consequences": {
+        "benefits": [
+          "User control restores when the agent goes wrong.",
+          "Cost is bounded by user attention."
+        ],
+        "liabilities": [
+          "Cancellation plumbing is non-trivial across providers.",
+          "Partial state may be inconsistent."
+        ]
+      },
+      "constrains": "Once cancelled, no further model or tool calls may be issued for the cancelled run.",
+      "known_uses": [
+        {
+          "system": "ChatGPT Stop button",
+          "status": "available"
+        },
+        {
+          "system": "Claude Code's Esc-to-interrupt",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "streaming-typed-events",
+          "relation": "complements"
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "ux",
+        "cancel",
+        "interrupt"
+      ]
+    },
+    {
+      "id": "streaming-typed-events",
+      "name": "Streaming Typed Events",
+      "aliases": [
+        "SSE Streaming",
+        "Typed Event Stream",
+        "Token Stream + Cards"
+      ],
+      "category": "streaming-ux",
+      "intent": "Push partial results to the client as typed events as they become available, rather than waiting for the full response.",
+      "context": "User-facing agents where time-to-first-token (TTFT) is user-perceived latency; UIs that show cards, suggestions, or progressive disclosure.",
+      "problem": "Waiting for the complete answer feels slow; a single text stream loses the structure the UI needs.",
+      "forces": [
+        "Browser/network limits on long-lived connections.",
+        "Event ordering and reconnection semantics.",
+        "Backpressure when the client is slow."
+      ],
+      "solution": "Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta (token), card (structured), suggestions, tool_start, tool_end, done, error. The client routes each event to the right UI component. Reconnect with last-event-id resumption.",
+      "consequences": {
+        "benefits": [
+          "Perceived latency drops dramatically.",
+          "Rich UIs with structured streaming components."
+        ],
+        "liabilities": [
+          "Connection management complexity.",
+          "Partial state on the client must be reconcilable."
+        ]
+      },
+      "constrains": "Events are typed; clients cannot consume payloads outside the declared event vocabulary.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "SSE typed events: text_delta, card, suggestions, tool_start, done, error.",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI Assistants streaming",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Messages streaming",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "structured-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "citation-streaming",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "bidirectional-impulse-channel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "stop-cancel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multilingual-voice-agent",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "MDN: Server-Sent Events",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "streaming",
+        "sse",
+        "ux"
+      ]
+    }
+  ]
+}

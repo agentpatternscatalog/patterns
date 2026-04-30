@@ -1,0 +1,1464 @@
+{
+  "category": "safety-control",
+  "label": "Safety & Control",
+  "patterns": [
+    {
+      "id": "approval-queue",
+      "name": "Approval Queue",
+      "aliases": [
+        "Async Approval",
+        "Supervisor Inbox",
+        "Approval Inbox"
+      ],
+      "category": "safety-control",
+      "intent": "Queue agent-proposed actions for asynchronous human review while the agent continues other work.",
+      "context": "Long-running agent products where some actions need human approval but blocking the agent's whole loop on every approval is impractical.",
+      "problem": "Synchronous human-in-the-loop blocks the agent; ungated execution risks unsafe actions.",
+      "forces": [
+        "Async approval adds wall-clock delay before action lands.",
+        "Approval inbox can become unmanageable at scale.",
+        "Race conditions if the world changes while approval is pending."
+      ],
+      "solution": "Agent emits proposed action to an approval queue with context. A human (or supervisor agent) reviews the queue and approves or rejects. Approved actions are executed by the agent or by a runner. The agent can continue parallel work while waiting; some workflows pause specific branches.",
+      "consequences": {
+        "benefits": [
+          "Human oversight without blocking throughput.",
+          "Approval inbox is auditable."
+        ],
+        "liabilities": [
+          "Inbox fatigue at scale.",
+          "World drift between proposal and approval."
+        ]
+      },
+      "constrains": "Actions in the approval queue may not execute until the approval status is set to approved.",
+      "known_uses": [
+        {
+          "system": "Lindy approval inbox",
+          "status": "available"
+        },
+        {
+          "system": "Sierra supervisor escalations",
+          "status": "available"
+        },
+        {
+          "system": "GitHub Copilot Workspace plan review",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "complements"
+        },
+        {
+          "pattern": "conversation-handoff",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "approval",
+        "async"
+      ]
+    },
+    {
+      "id": "compensating-action",
+      "name": "Compensating Action",
+      "aliases": [
+        "Saga",
+        "Undo Step",
+        "Rollback Action"
+      ],
+      "category": "safety-control",
+      "intent": "Pair every irreversible-looking agent action with a compensating action that can undo or counteract it.",
+      "context": "Multi-step workflows where some steps succeed and later steps fail; without compensation, partial state is left inconsistent.",
+      "problem": "Distributed transactions are not available across most agent tool palettes; failure mid-plan leaves the system in an inconsistent state.",
+      "forces": [
+        "Not every action has a clean compensator.",
+        "Compensation logic is a separate code path.",
+        "Idempotency matters: compensating an already-compensated action must be safe."
+      ],
+      "solution": "For each forward action, define a compensating action (delete-after-create, refund-after-charge, archive-after-publish). On failure mid-plan, run compensators in reverse order to restore the prior state. Idempotent compensators.",
+      "consequences": {
+        "benefits": [
+          "Partial-failure consistency.",
+          "Confidence to attempt multi-step writes."
+        ],
+        "liabilities": [
+          "Doubles the number of action implementations.",
+          "Some actions cannot truly be compensated (sent emails, public posts)."
+        ]
+      },
+      "constrains": "Forward actions cannot be invoked without a registered compensator; uncompensable actions need explicit operator approval.",
+      "known_uses": [
+        {
+          "system": "Saga pattern in microservices, transferred to agents",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "uses"
+        },
+        {
+          "pattern": "approval-queue",
+          "relation": "complements"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Sagas (Garcia-Molina, Salem)",
+          "year": 1987
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "saga",
+        "transaction"
+      ]
+    },
+    {
+      "id": "constitutional-charter",
+      "name": "Constitutional Charter",
+      "aliases": [
+        "Immutable Constitution",
+        "Negative Constraints",
+        "Robot Laws"
+      ],
+      "category": "safety-control",
+      "intent": "Define rules the agent reads every turn but cannot modify, encoding inviolable boundaries.",
+      "context": "Long-running or self-modifying agents need a fixed point of reference; without one, recursive editing drifts the agent's identity.",
+      "problem": "If the agent can edit everything, it can edit its own values; nothing stays inviolable.",
+      "forces": [
+        "Charter authors must encode hard constraints without paralysing the agent.",
+        "Read-only at the tool layer is enforceable; read-only by exhortation is not.",
+        "Charters age; updating requires human action."
+      ],
+      "solution": "A charter file is read into context every turn (or every tick). The tool layer enforces read-only on it; the agent has no write tool that can touch it. Updates go through an explicit operator path. Charters typically express constraints in negative form ('the agent shall not...').",
+      "consequences": {
+        "benefits": [
+          "Stable identity across long runs and self-modifications.",
+          "Explicit list of inviolable constraints, auditable separately from prompts."
+        ],
+        "liabilities": [
+          "A bad charter codifies bad values.",
+          "Charter prose adds tokens to every turn."
+        ]
+      },
+      "constrains": "The agent cannot write the charter; updates require explicit operator action outside the agent loop.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "charter.md read every tick; read-only at tool layer.",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Constitutional AI",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "quorum-on-mutation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inner-critic",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "refusal",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "prompt-bloat",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Constitutional AI: Harmlessness from AI Feedback",
+          "authors": "Bai et al.",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2212.08073"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "constitution",
+        "immutable"
+      ]
+    },
+    {
+      "id": "conversation-handoff",
+      "name": "Conversation Handoff to Human",
+      "aliases": [
+        "Escalation",
+        "Live-Agent Handoff",
+        "Human Takeover"
+      ],
+      "category": "safety-control",
+      "intent": "Transfer the entire conversation thread from agent to human operator, with state transfer and return primitive.",
+      "context": "Customer-facing agent products where some conversations exceed agent capability or require regulatory accountability.",
+      "problem": "Human-in-the-loop gates approve or reject discrete actions; this pattern transfers ownership of the whole conversation, which is structurally different.",
+      "forces": [
+        "Handoff loses context fidelity.",
+        "Sticky routing (return to same operator on follow-up) needs auth + session plumbing.",
+        "Return primitive (back to agent) requires re-grounding."
+      ],
+      "solution": "On escalation trigger (low confidence, explicit user request, policy violation), the agent emits a structured handoff envelope with conversation summary, ticket number, and human operator queue assignment. Operator takes ownership; agent disengages. On return, agent resumes with operator's note in context.",
+      "consequences": {
+        "benefits": [
+          "Hard cases reach humans.",
+          "Customer experience preserved across the boundary."
+        ],
+        "liabilities": [
+          "Operator queue capacity bounds scale.",
+          "State transfer has fidelity loss."
+        ]
+      },
+      "constrains": "Once handed off, the agent does not generate to the user; the operator owns the thread until explicit return.",
+      "known_uses": [
+        {
+          "system": "Sierra agent escalations",
+          "status": "available"
+        },
+        {
+          "system": "Intercom Fin handoffs",
+          "status": "available"
+        },
+        {
+          "system": "Zendesk AI handoffs",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "approval-queue",
+          "relation": "complements"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Intercom Fin: Human handoff",
+          "url": "https://www.intercom.com/help/en/articles/8362236-fin-handover"
+        },
+        {
+          "type": "doc",
+          "title": "Sierra agent escalations",
+          "url": "https://sierra.ai"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "escalation",
+        "handoff"
+      ]
+    },
+    {
+      "id": "cost-gating",
+      "name": "Cost Gating",
+      "aliases": [
+        "Budget Cap",
+        "Cost-Aware Approval"
+      ],
+      "category": "safety-control",
+      "intent": "Block actions whose expected cost exceeds a threshold without explicit user (or operator) acknowledgement.",
+      "context": "Some agent actions cost real money (large model calls, paid APIs); running them silently is rude or financially dangerous.",
+      "problem": "Agents that act first and bill later create surprise costs; users learn to distrust the agent.",
+      "forces": [
+        "Estimating cost up front requires a model of what will happen.",
+        "Confirmation-fatigue: too many approvals train users to ignore them.",
+        "Budgets at multiple horizons (per call, per session, per month)."
+      ],
+      "solution": "Estimate cost before invoking the expensive action. If the estimate exceeds the threshold, surface it to the user (or operator) and require explicit approval. Track running totals against per-session and per-period budgets.",
+      "consequences": {
+        "benefits": [
+          "Predictable bill.",
+          "Forces the system to know its own cost shape."
+        ],
+        "liabilities": [
+          "Estimation errors; actual cost can exceed estimate.",
+          "Friction at the wrong moment can sour UX."
+        ]
+      },
+      "constrains": "Actions exceeding the threshold cannot run without explicit acknowledgement.",
+      "known_uses": [
+        {
+          "system": "Knitting-DSL Pipeline (Stash2Go)",
+          "note": "scopedLlmFixer.js runs only when user accepts the cost.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-caching",
+          "relation": "complements"
+        },
+        {
+          "pattern": "extended-thinking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-observability",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "cost",
+        "budget"
+      ]
+    },
+    {
+      "id": "exception-recovery",
+      "name": "Exception Handling and Recovery",
+      "aliases": [
+        "Error Recovery",
+        "Failure Mode Handler"
+      ],
+      "category": "safety-control",
+      "intent": "Catch and react to predictable failure modes (tool errors, rate limits, validation failures) with structured recovery paths.",
+      "context": "Production agents face many failure modes (API down, rate-limited, malformed responses, permission denied); each needs a defined response.",
+      "problem": "Untyped errors bubble up as agent confusion; the agent retries randomly, hallucinates explanations, or stalls.",
+      "forces": [
+        "Recovery logic must not mask bugs.",
+        "Some errors are user-visible; others should be silent.",
+        "Retry storms on transient errors."
+      ],
+      "solution": "Catalogue failure modes. For each, define: detect (typed error), respond (retry / fall back / surface to user / replan), and log. The agent receives a structured error message and can react with a typed branch in its loop.",
+      "consequences": {
+        "benefits": [
+          "Failure modes become first-class.",
+          "Reliability under partial failures rises."
+        ],
+        "liabilities": [
+          "Exception-handling code is its own surface to maintain.",
+          "Hidden retries can mask deeper issues."
+        ]
+      },
+      "constrains": "Errors must arrive at the agent as typed events from the catalogue; untyped errors are escalated to the operator.",
+      "known_uses": [
+        {
+          "system": "Production agent platforms",
+          "status": "available"
+        },
+        {
+          "system": "Gulli Exception Handling pattern",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "fallback-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "complements"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "relation": "complements"
+        },
+        {
+          "pattern": "graceful-degradation",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Agentic Design Patterns (Gulli)",
+          "year": 2025
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "error",
+        "recovery"
+      ]
+    },
+    {
+      "id": "human-in-the-loop",
+      "name": "Human-in-the-Loop",
+      "aliases": [
+        "HITL",
+        "Approval Gate",
+        "Confirmation Step",
+        "Risky Action Gate",
+        "Destructive Action Confirmation",
+        "Ask Before Risky Action"
+      ],
+      "category": "safety-control",
+      "intent": "Require explicit human approval at defined points before the agent performs an action.",
+      "context": "An action is destructive, irreversible, or regulatory; the cost of being wrong exceeds the cost of waiting.",
+      "problem": "Fully autonomous action at risky boundaries combines model confidence with consequence; the combination is unsafe.",
+      "forces": [
+        "Where to place the gate trades latency and friction for safety.",
+        "Approval-fatigue: too many gates train users to click through.",
+        "Asynchronous approval stalls the loop."
+      ],
+      "solution": "Identify the boundary. Pause the loop. Surface the proposed action with enough context for the human to decide. Require an explicit approve/reject. Resume on approve; abort or replan on reject. Log the decision.",
+      "consequences": {
+        "benefits": [
+          "Risk drops to a level the system can defend.",
+          "Decision log captures human judgement that can later train an automated gate."
+        ],
+        "liabilities": [
+          "User experience friction.",
+          "Synchronous gates break async agents."
+        ]
+      },
+      "constrains": "The defined action class cannot proceed without an affirmative approval signal.",
+      "known_uses": [
+        {
+          "system": "Knitting-DSL Pipeline (Stash2Go)",
+          "note": "Opt-in fixer: user clicks to invoke.",
+          "status": "available"
+        },
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "On destructive writes (project create, queue add, stash subtract).",
+          "status": "planned"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-gating",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "approval-queue",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "complements"
+        },
+        {
+          "pattern": "conversation-handoff",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "communicative-dehallucination",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangGraph: Human-in-the-Loop",
+          "url": "https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "approval",
+        "hitl"
+      ]
+    },
+    {
+      "id": "input-output-guardrails",
+      "name": "Input/Output Guardrails",
+      "aliases": [
+        "Guards",
+        "Validators",
+        "Content Filters"
+      ],
+      "category": "safety-control",
+      "intent": "Validate inputs before they reach the model and outputs before they reach the user.",
+      "context": "Production agents face adversarial inputs (prompt injection, PII leakage attempts) and produce outputs that may need format, safety, or policy checks.",
+      "problem": "Trusting the model to police its own inputs and outputs is unsafe; the model is the surface being defended.",
+      "forces": [
+        "Guards add latency and cost.",
+        "Over-strict guards block legitimate traffic.",
+        "Adversarial inputs evolve; guards must too."
+      ],
+      "solution": "Place validators on input (regex, classifier, allowlist) and output (schema, toxicity classifier, secret-redaction) paths. Compose validators per use case. On failure, exception or fallback response. Hub of pre-built validators is reusable across products.",
+      "consequences": {
+        "benefits": [
+          "Single chokepoint for safety policy enforcement.",
+          "Centralised audit trail of blocked content."
+        ],
+        "liabilities": [
+          "False positives are user-visible.",
+          "Maintenance: validator stack drifts from current threats."
+        ]
+      },
+      "constrains": "Inputs not passing input guards never reach the model; outputs not passing output guards never reach the user.",
+      "known_uses": [
+        {
+          "system": "Guardrails AI",
+          "status": "available",
+          "url": "https://github.com/guardrails-ai/guardrails"
+        },
+        {
+          "system": "OpenAI moderation API",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "structured-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "refusal",
+          "relation": "complements"
+        },
+        {
+          "pattern": "computer-use",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "secrets-handling",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "code-switching-aware-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "guardrails-ai/guardrails",
+          "url": "https://github.com/guardrails-ai/guardrails"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "guards",
+        "validation"
+      ]
+    },
+    {
+      "id": "kill-switch",
+      "name": "Kill Switch",
+      "aliases": [
+        "Out-of-Band Stop",
+        "Emergency Halt",
+        "Killbit",
+        "Halt All Agents",
+        "Stop Every Running Agent"
+      ],
+      "category": "safety-control",
+      "intent": "Provide an out-of-band control plane to halt running agent instances without redeploy.",
+      "context": "Production agents whose loop the operator may need to stop urgently (PII leak, runaway cost, mass-action error).",
+      "problem": "In-band stop hooks rely on the agent's own loop checking; if the model is wedged, infinite-looping, or running tools that ignore signals, in-band stops fail.",
+      "forces": [
+        "False trips lose user work.",
+        "Out-of-band signals must propagate to all agent surfaces (model calls, tools, sub-agents).",
+        "Compensating actions on halt are non-trivial."
+      ],
+      "solution": "Signed revocation token or feature flag checked on every step from a shared store the agent runtime cannot bypass. On revocation, the agent halts: no further model calls, no further tool calls; in-flight effects are compensated where possible. Killing the OS process is the fallback, but loses provenance.",
+      "consequences": {
+        "benefits": [
+          "Operator authority survives wedged loops.",
+          "Pairs naturally with rate-limiting and circuit-breaker."
+        ],
+        "liabilities": [
+          "Implementation cuts across the whole runtime.",
+          "Wrong-time halts lose work."
+        ]
+      },
+      "constrains": "When the kill-switch fires, no further model or tool calls may proceed regardless of agent state.",
+      "known_uses": [
+        {
+          "system": "Production AI gateway kill-switches (Portkey, Helicone)",
+          "status": "available"
+        },
+        {
+          "system": "Internal feature-flag-driven halt at frontier labs",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "stop-hook",
+          "relation": "complements"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "uses"
+        },
+        {
+          "pattern": "sandbox-escape-monitoring",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Portkey AI Gateway",
+          "url": "https://portkey.ai/docs"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "kill-switch",
+        "emergency"
+      ]
+    },
+    {
+      "id": "pii-redaction",
+      "name": "PII Redaction",
+      "aliases": [
+        "Data Loss Prevention",
+        "Sensitive Data Filtering"
+      ],
+      "category": "safety-control",
+      "intent": "Detect and remove personally identifiable information from inputs to and outputs from the model.",
+      "context": "Regulated environments (healthcare, finance, EU GDPR, US HIPAA) where the model must not see or echo certain personal data.",
+      "problem": "LLMs memorise and echo what they see; any PII in the prompt risks ending up in the response, the logs, or the training set of the next model.",
+      "forces": [
+        "Detection precision vs recall.",
+        "Reversible vs irreversible redaction.",
+        "Token-level vs entity-level redaction."
+      ],
+      "solution": "Pre-process inputs: detect PII (regex + NER + classifier), replace with placeholders. Post-process outputs: re-substitute placeholders back, or refuse if outputs contain unrequested PII. Audit log of redactions.",
+      "consequences": {
+        "benefits": [
+          "Compliance posture improves.",
+          "Logs and prompts become safer to retain."
+        ],
+        "liabilities": [
+          "Redaction errors are user-visible.",
+          "Some workflows need PII; redaction must be selective.",
+          "Re-identification risk: redacted artefacts plus side-channel data still re-identify; redaction is not anonymisation.",
+          "Detection has known evasions: leetspeak, homoglyphs, partial-token splits; false negatives are the security failure."
+        ]
+      },
+      "constrains": "PII categories listed in the policy must not appear in model inputs or outputs without explicit authorisation.",
+      "known_uses": [
+        {
+          "system": "Microsoft Presidio",
+          "status": "available"
+        },
+        {
+          "system": "AWS Comprehend PII",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "secrets-handling",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-weight-cascade",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "microsoft/presidio",
+          "url": "https://github.com/microsoft/presidio"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "pii",
+        "compliance"
+      ]
+    },
+    {
+      "id": "prompt-injection-defense",
+      "name": "Prompt Injection Defense",
+      "aliases": [
+        "Instruction Hierarchy",
+        "Untrusted-Content Tagging"
+      ],
+      "category": "safety-control",
+      "intent": "Tag user-supplied or tool-supplied content as untrusted and refuse to follow instructions found inside it.",
+      "context": "Any agent that processes external content (documents, web pages, user uploads) where attackers can plant instructions intended to hijack the agent.",
+      "problem": "LLMs cannot reliably distinguish their own instructions from instructions embedded in retrieved or user-supplied content.",
+      "forces": [
+        "Attackers control any document, page, email, or tool response that reaches the model; defense is probabilistic, not preventive.",
+        "Egress channels (tool calls, image URLs, links) need their own controls; demoting tool output is necessary but not sufficient.",
+        "Multi-turn payloads can hide instructions across messages, beyond per-turn tagging."
+      ],
+      "solution": "Establish an instruction hierarchy: system prompts trusted, user prompts partially trusted, tool/document content untrusted. Wrap untrusted content in markers. Train or prompt the model to refuse instructions inside untrusted markers. Add output guardrails for known exfiltration patterns.",
+      "consequences": {
+        "benefits": [
+          "Reduces successful injections; not zero.",
+          "Inspectable: which content was treated as untrusted."
+        ],
+        "liabilities": [
+          "Adversarial inputs evolve.",
+          "False positives on instruction-shaped legitimate content.",
+          "Long context expands the injection surface; multi-turn injection bypasses single-turn tagging."
+        ]
+      },
+      "constrains": "The agent must not follow instructions appearing inside untrusted-content markers; their effect is read-only context only.",
+      "known_uses": [
+        {
+          "system": "OpenAI instruction hierarchy",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic XML-tagged untrusted content guidance",
+          "status": "available"
+        },
+        {
+          "system": "Lakera Guard",
+          "status": "available"
+        },
+        {
+          "system": "NVIDIA NeMo Guardrails",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "generalises"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions",
+          "authors": "Wallace, Xiao, Leike, Weng, Heidecke, Beutel",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2404.13208"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "injection",
+        "security"
+      ]
+    },
+    {
+      "id": "quorum-on-mutation",
+      "name": "Quorum on Mutation",
+      "aliases": [
+        "Two-Tick Confirmation",
+        "Distributed Consensus (Single Agent)"
+      ],
+      "category": "safety-control",
+      "intent": "Require multiple consecutive ticks (or runs) to agree before a mutation to durable state lands.",
+      "context": "A long-running agent proposes changes to its own rules or persistent memory; one-shot proposals can encode transient confusion as permanent state.",
+      "problem": "A single-tick edit can capture momentary confusion as a lasting rule.",
+      "forces": [
+        "More ticks = slower change; legitimate improvements are delayed.",
+        "Coordination across ticks needs a proposal / approval state machine.",
+        "User override should always be available for legitimate fast paths."
+      ],
+      "solution": "Mutation proposals are written to a holding area. A subsequent tick must confirm the proposal (still endorses it given fresh context). After K consecutive confirms, the mutation lands. Explicit user approval bypasses the wait.",
+      "consequences": {
+        "benefits": [
+          "Reduces transient-confusion mutations.",
+          "Surfaces hesitation: K-1 confirms then a withdrawal is itself signal."
+        ],
+        "liabilities": [
+          "Latency on legitimate changes.",
+          "Implementation complexity in the agent's state machine."
+        ]
+      },
+      "constrains": "A mutation cannot land on a single tick's say-so; it requires K consecutive endorsements.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "rules/*.md changes require two consecutive ticks to agree, or explicit user approval.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "constitutional-charter",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inner-critic",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "experimental",
+      "tags": [
+        "safety",
+        "consensus",
+        "mutation"
+      ]
+    },
+    {
+      "id": "rate-limiting",
+      "name": "Rate Limiting",
+      "aliases": [
+        "Throttling",
+        "Quota Enforcement"
+      ],
+      "category": "safety-control",
+      "intent": "Cap the number of requests, tokens, or tool calls per user (or session) within a time window.",
+      "context": "Multi-tenant agent products where one user (or runaway agent) can consume disproportionate resources.",
+      "problem": "Without limits, a single user (or compromised account) can bankrupt the product or starve others.",
+      "forces": [
+        "Generous limits hurt cost; tight limits hurt UX.",
+        "Per-tier limits add complexity.",
+        "Distributed counters need coordination."
+      ],
+      "solution": "Define limits per identity at multiple horizons (per minute, per hour, per day). Use token-bucket or sliding-window counters. Apply at API gateway and at agent loop level. Surface limit hits to the user clearly.",
+      "consequences": {
+        "benefits": [
+          "Cost predictability.",
+          "Abuse becomes detectable as limit hits."
+        ],
+        "liabilities": [
+          "Legitimate burst usage is throttled.",
+          "Tier definitions ossify."
+        ]
+      },
+      "constrains": "Requests beyond the limit are rejected or queued; no code path may bypass the limiter.",
+      "known_uses": [
+        {
+          "system": "Most production agent APIs",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "circuit-breaker",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "complements"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "throttle",
+        "quota"
+      ]
+    },
+    {
+      "id": "refusal",
+      "name": "Refusal",
+      "aliases": [
+        "Decline",
+        "Out-of-Scope Response"
+      ],
+      "category": "safety-control",
+      "intent": "Explicitly refuse requests that fall outside the agent's scope, capability, or policy boundaries.",
+      "context": "Users will ask the agent things it should not do (off-topic, unsafe, beyond capability); silently complying or hallucinating both fail.",
+      "problem": "Helpful-by-default agents drift into unhelpful or unsafe responses on out-of-scope requests.",
+      "forces": [
+        "Over-refusal frustrates users.",
+        "Under-refusal lands the agent in trouble.",
+        "Refusal text quality matters; templated refusals feel insulting."
+      ],
+      "solution": "Define refusal triggers (policy violation, out-of-scope, capability gap, regulatory boundary). Return a clear, kind, specific refusal that names the boundary and (when possible) suggests an alternative. Log refusals for review.",
+      "consequences": {
+        "benefits": [
+          "Trust improves: the agent has visible limits.",
+          "Compliance posture is defensible."
+        ],
+        "liabilities": [
+          "Calibration of triggers is empirical.",
+          "Refusal-fatigue when triggers are wrong."
+        ]
+      },
+      "constrains": "When triggers fire, the agent must refuse rather than attempt the task.",
+      "known_uses": [
+        {
+          "system": "OpenAI moderation API",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic safety classifier (Claude)",
+          "status": "available"
+        },
+        {
+          "system": "Lakera Guard refusal flows",
+          "status": "available"
+        },
+        {
+          "system": "NVIDIA NeMo Guardrails",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "constitutional-charter",
+          "relation": "uses"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements"
+        },
+        {
+          "pattern": "code-switching-aware-agent",
+          "relation": "conflicts-with"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "refusal"
+      ]
+    },
+    {
+      "id": "secrets-handling",
+      "name": "Secrets Handling",
+      "aliases": [
+        "Tool-Side Credential Injection",
+        "Model-Never-Sees-Secrets"
+      ],
+      "category": "safety-control",
+      "intent": "Ensure the model never receives secrets in plaintext; tools resolve credentials from references at runtime.",
+      "context": "Agents with tools that need authentication (API keys, OAuth tokens, DB credentials, service accounts).",
+      "problem": "Any secret that reaches the model is now in the chat log, the trace store, the eval harness, and likely the third-party model provider. Leaks are then everywhere.",
+      "forces": [
+        "Tool authors prefer simple credential passing.",
+        "Reference-based credential resolution adds tool runtime complexity.",
+        "Some integrations require credentials in URL or header (cannot avoid)."
+      ],
+      "solution": "Tool runtime resolves credentials from typed references the agent emits (e.g., `{auth: 'github_token_for_user_42'}`). Credential values are injected outside the model context. Input/output guards reject any payload matching credential signatures. Provenance ledger and traces are scrubbed at write time.",
+      "consequences": {
+        "benefits": [
+          "Secrets never appear in agent context, logs, or traces.",
+          "Compliance posture improves."
+        ],
+        "liabilities": [
+          "Tool runtime complexity rises.",
+          "Credential reference scheme must be maintained."
+        ]
+      },
+      "constrains": "The model may emit credential references but never plaintext secrets; runtime injects values out-of-context.",
+      "known_uses": [
+        {
+          "system": "Anthropic Claude with workspace credentials",
+          "status": "available"
+        },
+        {
+          "system": "MCP servers with server-side OAuth",
+          "status": "available"
+        },
+        {
+          "system": "Production agent gateways (Portkey, Helicone)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "pii-redaction",
+          "relation": "complements"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "mcp",
+          "relation": "complements"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        },
+        {
+          "pattern": "wasm-skill-runtime",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "MCP authentication",
+          "url": "https://modelcontextprotocol.io/specification"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "secrets",
+        "credentials"
+      ]
+    },
+    {
+      "id": "sovereign-inference-stack",
+      "name": "Sovereign Inference Stack",
+      "aliases": [
+        "On-Premise Agent Stack",
+        "Data-Residency Agent Architecture",
+        "Sovereign AI"
+      ],
+      "category": "safety-control",
+      "intent": "Run the entire agent stack (model weights, inference, tool layer, vector stores, logs) inside a jurisdictional and operational boundary the operator controls, so no request, prompt, or output crosses into a third-party API.",
+      "context": "Public administration, regulated industry (banking, defense, health), or critical infrastructure operators where data egress to a foreign-cloud LLM provider is forbidden by policy or law (e.g. EU AI Act high-risk systems, BSI C5, NIS2, sectoral data-protection regimes).",
+      "problem": "Hosted-API agents leak prompts, tool inputs, and outputs to a third party; for regulated workloads this is a non-starter regardless of contractual assurances.",
+      "forces": [
+        "Frontier hosted models offer the best capability per dollar.",
+        "Regulators forbid data egress for protected categories.",
+        "Self-hosting demands GPU capex and MLOps competence the operator may lack.",
+        "Sovereign deployments must still reach acceptable model quality to be useful."
+      ],
+      "solution": "Choose models with permissive weights or commercial sovereign licensing. Run inference on-prem or in a jurisdictionally controlled cloud region with the operator holding the keys. Place all auxiliary services (vector store, tool gateway, audit log, evaluation harness) inside the same boundary. Document the boundary as part of the system's compliance posture (model card, data-flow diagram). Treat the boundary as load-bearing: any new tool or model call has to be reviewed for boundary impact before merge.",
+      "structure": "Boundary { Inference + Tools + Memory + Logs + Eval } -- only public artefacts (UI responses) leave.",
+      "consequences": {
+        "benefits": [
+          "Compliant with data-residency and sectoral regulations.",
+          "Auditable end-to-end; no opaque third-party API.",
+          "Operator retains negotiating power over model upgrades and pricing."
+        ],
+        "liabilities": [
+          "Capex and operational complexity (GPU fleet, ops team).",
+          "Capability gap vs. frontier hosted models is real and ongoing.",
+          "Each new model upgrade is a procurement project, not an API key swap."
+        ]
+      },
+      "constrains": "No prompt, tool input, tool output, or memory entry may leave the operator-controlled boundary; agent components that require a third-party hosted call are forbidden by construction.",
+      "known_uses": [
+        {
+          "system": "Aleph Alpha PhariaAI",
+          "note": "End-to-end stack (Pharia models, PhariaEngine WebAssembly skill runtime, on-prem deployable) marketed for sovereign / explainable enterprise and government use.",
+          "status": "available",
+          "url": "https://docs.aleph-alpha.com/phariaai-home/latest/index.html"
+        },
+        {
+          "system": "Mistral on-prem (\"Le Chat Enterprise\" / private deployment)",
+          "note": "Self-hostable European model option used for similar sovereignty requirements.",
+          "status": "available"
+        },
+        {
+          "system": "SAP Joule with private grounding",
+          "note": "Tenant-isolated agent stack with customer data residency commitments.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "model-card",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lineage-tracking",
+          "relation": "uses"
+        },
+        {
+          "pattern": "secrets-handling",
+          "relation": "complements"
+        },
+        {
+          "pattern": "constitutional-charter",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-weight-cascade",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "PhariaAI Documentation",
+          "url": "https://docs.aleph-alpha.com/phariaai-home/latest/index.html"
+        },
+        {
+          "type": "doc",
+          "title": "Aleph Alpha — Sovereign AI Solutions",
+          "url": "https://aleph-alpha.com/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "compliance",
+        "germany-origin",
+        "sovereignty",
+        "eu-ai-act"
+      ]
+    },
+    {
+      "id": "step-budget",
+      "name": "Step Budget",
+      "aliases": [
+        "Max Steps",
+        "Iteration Cap",
+        "Loop Bound"
+      ],
+      "category": "safety-control",
+      "intent": "Cap the number of tool calls or loop iterations the agent is allowed within a single request.",
+      "context": "Agent loops can run forever or wander; without a hard cap, runaway loops cost real money.",
+      "problem": "Soft termination conditions (model says 'done') fail open; the agent never says done.",
+      "forces": [
+        "Cap too low cuts off legitimate work.",
+        "Cap too high lets pathological runs burn budget.",
+        "What to do when hit (return partial? error?) is its own design choice."
+      ],
+      "solution": "Define a numeric cap (max_steps=N) in the agent loop. Increment per tool call or per loop iteration. When N is hit, terminate the loop and return the best partial answer with a note that the cap was reached.",
+      "consequences": {
+        "benefits": [
+          "Bounded worst-case cost per request.",
+          "Surfaces pathological prompts as cap-hits."
+        ],
+        "liabilities": [
+          "Can hide deeper bugs (the agent really should stop earlier).",
+          "Choosing N is empirical."
+        ]
+      },
+      "constrains": "The loop terminates after N iterations regardless of agent's own opinion.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "max_steps=4 in the agent lane.",
+          "status": "available"
+        },
+        {
+          "system": "Claude Code (max_turns)",
+          "status": "available"
+        },
+        {
+          "system": "OpenAI Agents SDK (max_iterations)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "cost-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "complements"
+        },
+        {
+          "pattern": "infinite-debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "unbounded-loop",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "spec-driven-loop",
+          "relation": "complements"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "complements"
+        },
+        {
+          "pattern": "stop-hook",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "stop-cancel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "outer-inner-agent-loop",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "OpenAI Agents SDK",
+          "url": "https://github.com/openai/openai-agents-python"
+        },
+        {
+          "type": "doc",
+          "title": "Anthropic: Building agents",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "bound",
+        "loop"
+      ]
+    },
+    {
+      "id": "stop-hook",
+      "name": "Stop Hook",
+      "aliases": [
+        "Termination Predicate",
+        "Halt Condition",
+        "Stop Condition",
+        "Done Predicate",
+        "Exit Condition",
+        "Loop Termination Rule"
+      ],
+      "category": "safety-control",
+      "intent": "Define an explicit programmatic predicate that decides when the agent's loop should terminate.",
+      "context": "Agent loops need a stop condition; relying on the model to declare 'done' is unreliable.",
+      "problem": "Implicit termination ('the model says it is done') fails when the model is uncertain or stuck.",
+      "forces": [
+        "Predicate complexity trades correctness for performance.",
+        "Stop too early loses work; stop too late wastes calls.",
+        "Coverage: which conditions warrant a stop?"
+      ],
+      "solution": "Implement a stop hook function that runs after each step. It returns one of: continue, stop-success, stop-failure. Conditions include: target reached, step budget hit, error encountered, stagnation detected (no progress in last N steps).",
+      "consequences": {
+        "benefits": [
+          "Explicit, testable termination logic.",
+          "Independent from the model's self-assessment."
+        ],
+        "liabilities": [
+          "More code to maintain than 'while not done'.",
+          "Predicate bugs cause hangs or premature stops."
+        ]
+      },
+      "constrains": "The loop terminates exactly when the stop hook says so; no other code path may exit the loop.",
+      "known_uses": [
+        {
+          "system": "Avramovic's catalog (Reliability & Control)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "step-budget",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "unbounded-loop",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "infinite-debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chat-chain",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "zeljkoavramovic/agentic-design-patterns",
+          "url": "https://github.com/zeljkoavramovic/agentic-design-patterns"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "safety",
+        "termination",
+        "loop"
+      ]
+    },
+    {
+      "id": "tool-output-poisoning",
+      "name": "Tool Output Poisoning Defense",
+      "aliases": [
+        "Indirect Prompt Injection (Tools)",
+        "Untrusted Tool Output"
+      ],
+      "category": "safety-control",
+      "intent": "Treat tool output as untrusted content and apply instruction-stripping plus per-tool trust labels.",
+      "context": "Agents that consume tool output where the tool itself is untrusted (browser-agent, MCP server with unknown providers, search results, document parsers, third-party APIs).",
+      "problem": "A compromised or hijacked tool can return content with embedded instructions that hijack the agent. Tool-output is the largest unstructured untrusted surface modern agents ingest.",
+      "forces": [
+        "Tool trust is heterogeneous: a typed DB query is high-trust, a web fetch is low-trust.",
+        "Instruction-stripping has false positives on legitimate instruction-shaped content.",
+        "Egress channels (tool calls, image URLs, links) are exfiltration vectors."
+      ],
+      "solution": "Typed `ToolResult` envelope with `trust: low|medium|high` and content-type discriminator. Apply instruction-stripping on `low` results. Forbid tool-output-driven follow-up tool calls without re-validation against the user's original intent. Pair with input/output guardrails.",
+      "consequences": {
+        "benefits": [
+          "Reduces successful indirect injection from compromised tools.",
+          "Trust labels are inspectable in traces."
+        ],
+        "liabilities": [
+          "False positives strip legitimate instruction-shaped content.",
+          "New injection vectors emerge faster than defenses."
+        ]
+      },
+      "constrains": "Tool output is treated as untrusted by default; instructions inside tool responses do not have authority over the agent's behaviour.",
+      "known_uses": [
+        {
+          "system": "Anthropic XML-tagged untrusted-content guidance",
+          "status": "available"
+        },
+        {
+          "system": "Lakera Guard tool-output filtering",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "mcp",
+          "relation": "complements"
+        },
+        {
+          "pattern": "browser-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Not what you've signed up for: Compromising Real-World LLM-Integrated Apps with Indirect Prompt Injection",
+          "authors": "Greshake et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2302.12173"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "injection",
+        "tool-trust"
+      ]
+    }
+  ]
+}

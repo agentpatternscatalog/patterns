@@ -1,0 +1,1094 @@
+{
+  "category": "routing-composition",
+  "label": "Routing & Composition",
+  "patterns": [
+    {
+      "id": "automatic-workflow-search",
+      "name": "Automatic Workflow Search",
+      "aliases": [
+        "AFlow",
+        "Workflow Synthesis",
+        "MCTS over Agent Graphs"
+      ],
+      "category": "routing-composition",
+      "intent": "Treat the agent's workflow itself (a graph of LLM-invoking nodes connected by edges) as an artefact to search; use Monte Carlo Tree Search guided by an eval benchmark to discover the best workflow, then deploy it.",
+      "context": "A repeatable task domain (coding, math, QA) where you can score outputs against a benchmark, and where the right composition of routing, planning, ensembling, review, and revise nodes is not known a priori.",
+      "problem": "Hand-designing the optimal agent workflow per domain is expensive, brittle, and biased by the designer's repertoire of patterns.",
+      "forces": [
+        "There is a combinatorial space of workflows.",
+        "Each workflow run costs money to evaluate.",
+        "Search needs a signal (benchmark scores) plus an explore/exploit policy.",
+        "Workflows have to be representable as code or as a graph for search to work."
+      ],
+      "solution": "Represent each candidate workflow as code or a graph of nodes (router, planner, ensemble, review, revise, executor). Use MCTS — selection by UCB-style scoring on past benchmark performance, expansion by code mutations or graph edits, simulation by running the workflow on the eval set, backpropagation of scores. After a search budget, deploy the best-scoring workflow. Use a library of operators (Ensemble, Review, Revise) to constrain the search space.",
+      "structure": "Search: workflow_graph -> mutate -> run on eval set -> score -> MCTS update -> repeat -> best_workflow -> deploy.",
+      "consequences": {
+        "benefits": [
+          "Discovers non-obvious workflow compositions a human designer would not try.",
+          "Cheaper smaller models reach larger-model performance on some benchmarks.",
+          "The search artefact is a reusable, inspectable workflow."
+        ],
+        "liabilities": [
+          "Eval set quality bounds discovered workflow quality.",
+          "Compute-intensive: many workflow evaluations per search.",
+          "Risk of overfitting to the eval set; held-out eval needed."
+        ]
+      },
+      "constrains": "No workflow may be deployed that was not measured against the held-out eval set; ad-hoc human edits to a discovered workflow re-enter the search.",
+      "known_uses": [
+        {
+          "system": "AFlow (DeepWisdom + HKUST(GZ))",
+          "note": "MCTS over code-represented workflows; outperforms hand-designed baselines by 5.7% average.",
+          "status": "available",
+          "url": "https://github.com/FoundationAgents/AFlow"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "uses"
+        },
+        {
+          "pattern": "eval-as-contract",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lats",
+          "relation": "complements",
+          "note": "LATS searches reasoning trees; AFlow searches workflow graphs."
+        },
+        {
+          "pattern": "spec-first-agent",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "AFlow: Automating Agentic Workflow Generation",
+          "authors": "Zhang et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2410.10762"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "workflow",
+        "search",
+        "china-origin",
+        "aflow",
+        "mcts"
+      ]
+    },
+    {
+      "id": "circuit-breaker",
+      "name": "Circuit Breaker",
+      "aliases": [
+        "Failure Trip",
+        "Rate-Limit Trip"
+      ],
+      "category": "routing-composition",
+      "intent": "Stop calling a failing dependency for a cooldown period after error rates exceed a threshold.",
+      "context": "Agents that depend on external APIs which can fail (rate limits, outages, regional incidents); retries amplify the problem.",
+      "problem": "Hammering a failing dependency wastes cost, increases latency, and can block legitimate traffic when rate limits are involved.",
+      "forces": [
+        "Threshold tuning trades fast detection for false trips.",
+        "Cooldown duration trades availability for stability.",
+        "Per-endpoint vs global breakers differ on blast radius."
+      ],
+      "solution": "Track per-dependency error rate over a window. When error rate exceeds a threshold, 'open' the breaker: route calls to fallback (or fail fast) for a cooldown. After cooldown, allow trial calls; close the breaker on success.",
+      "consequences": {
+        "benefits": [
+          "Cost and latency under partial outages drop.",
+          "Upstream dependencies recover without retry storms."
+        ],
+        "liabilities": [
+          "False trips degrade availability when the error was transient.",
+          "Tuning is empirical."
+        ]
+      },
+      "constrains": "When the breaker is open, the dependency must not be called; only fallback paths may run.",
+      "known_uses": [
+        {
+          "system": "Standard pattern in microservice frameworks; transferred to agent stacks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "fallback-chain",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "exception-recovery",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provider-fallback",
+          "relation": "complements"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "graceful-degradation",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Release It! (Michael Nygard)",
+          "year": 2007
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "reliability",
+        "breaker"
+      ]
+    },
+    {
+      "id": "dynamic-scaffolding",
+      "name": "Dynamic Scaffolding",
+      "aliases": [
+        "Adaptive Prompting",
+        "Just-in-Time Context"
+      ],
+      "category": "routing-composition",
+      "intent": "Inject task-specific scaffolding (examples, hints, schemas) into the prompt only when the task type warrants it.",
+      "context": "Agents handling heterogeneous tasks where always-present scaffolding wastes tokens and sometimes biases outputs.",
+      "problem": "Static prompts either include everything (wasteful, sometimes misleading) or include nothing (under-scaffolded for hard cases).",
+      "forces": [
+        "Detection of when scaffolding helps is itself a problem.",
+        "Scaffolding library curation effort.",
+        "Compositional scaffolding (multiple scaffolds in one prompt) interacts unpredictably."
+      ],
+      "solution": "Maintain a library of scaffolds (few-shot examples, schemas, hints) keyed by task type or feature. At runtime, classify the task and inject the matching scaffolds. Audit which scaffolds fired per request.",
+      "consequences": {
+        "benefits": [
+          "Token efficiency.",
+          "Targeted quality lift on hard cases."
+        ],
+        "liabilities": [
+          "Scaffold library maintenance.",
+          "Misclassification injects wrong scaffolds."
+        ]
+      },
+      "constrains": "Scaffolds load only on matching task classification; default tasks see the bare prompt.",
+      "known_uses": [
+        {
+          "system": "Avramovic Dynamic Scaffolding pattern",
+          "status": "available"
+        },
+        {
+          "system": "DSPy compiled prompts (signature-driven scaffolding)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "uses"
+        },
+        {
+          "pattern": "context-window-packing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-skills",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "zeljkoavramovic/agentic-design-patterns",
+          "url": "https://github.com/zeljkoavramovic/agentic-design-patterns"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "prompting",
+        "scaffolding",
+        "dynamic"
+      ]
+    },
+    {
+      "id": "fallback-chain",
+      "name": "Fallback Chain",
+      "aliases": [
+        "Cascade Fallback",
+        "Try-Then-Try-Else",
+        "Tool Failed Fall Back",
+        "Provider Failed Retry Other"
+      ],
+      "category": "routing-composition",
+      "intent": "Try a primary handler; on failure or low confidence, fall through to a sequence of fallback handlers.",
+      "context": "Production agents where any single model or tool can fail (rate limits, errors, low-confidence outputs); end-users still need an answer.",
+      "problem": "Single-handler failure cascades to the user as an outage; low-confidence outputs degrade UX silently.",
+      "forces": [
+        "Fallback handlers may be slower or worse.",
+        "Detecting 'failure' requires a confidence signal.",
+        "Cascade depth must be bounded."
+      ],
+      "solution": "Define an ordered chain of handlers. Each handler returns either a confident answer or a failure/low-confidence signal. On failure, the next handler runs. Final fallback is a generic 'I don't know' rather than a wrong answer.",
+      "consequences": {
+        "benefits": [
+          "Graceful degradation under partial failures.",
+          "Each layer can be tuned independently."
+        ],
+        "liabilities": [
+          "Cumulative latency on full cascade.",
+          "Hides quality regressions in the primary."
+        ]
+      },
+      "constrains": "Each handler may produce a result or pass; only the chain may decide to terminate.",
+      "known_uses": [
+        {
+          "system": "Most production routing layers",
+          "status": "available"
+        },
+        {
+          "system": "AI-Standards Fallback Chain pattern",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provider-fallback",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "exception-recovery",
+          "relation": "complements"
+        },
+        {
+          "pattern": "graceful-degradation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-weight-cascade",
+          "relation": "used-by"
+        }
+      ],
+      "references": [],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "fallback",
+        "reliability"
+      ]
+    },
+    {
+      "id": "graceful-degradation",
+      "name": "Graceful Degradation",
+      "aliases": [
+        "Feature-Level Fallback",
+        "Degraded Mode"
+      ],
+      "category": "routing-composition",
+      "intent": "When a dependency fails, downgrade the user-facing experience to a working subset rather than failing entirely.",
+      "context": "Agent products that depend on multiple optional capabilities (retrieval, vision, code-execution) where any single dependency may fail without the whole product needing to.",
+      "problem": "Failing entirely on any dependency outage frustrates users; silently producing degraded output without disclosure erodes trust.",
+      "forces": [
+        "Degradation paths multiply test surface.",
+        "User-visible degradation messaging is its own UX problem.",
+        "Some failures must hard-fail (PII path, payment)."
+      ],
+      "solution": "Define per-feature fallback behaviour. On dependency failure, downgrade (text-only when vision fails, no citations when retrieval fails, simple summary when code execution fails) and disclose to the user that degraded mode is active. Feature flags double as degradation switches.",
+      "consequences": {
+        "benefits": [
+          "Product resilience under partial outages.",
+          "User trust via transparent degradation."
+        ],
+        "liabilities": [
+          "Test matrix grows with feature count.",
+          "Degraded modes can themselves have bugs."
+        ]
+      },
+      "constrains": "On failure, the agent must produce a degraded response with disclosure rather than a generic error.",
+      "known_uses": [
+        {
+          "system": "Perplexity (citations missing under retrieval issues)",
+          "status": "available"
+        },
+        {
+          "system": "ChatGPT (vision unavailable falls back to text)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "fallback-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "uses"
+        },
+        {
+          "pattern": "exception-recovery",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Release It! (Michael Nygard, ch. 4)",
+          "year": 2007
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "resilience",
+        "degradation"
+      ]
+    },
+    {
+      "id": "mixture-of-experts-routing",
+      "name": "Mixture of Experts Routing",
+      "aliases": [
+        "MoE Routing (Agent-Level)",
+        "Expert Selection"
+      ],
+      "category": "routing-composition",
+      "intent": "Route each request to one or more domain-expert agents, where each expert holds deep capability in a narrow area.",
+      "context": "Heterogeneous domains where one agent cannot credibly cover all expertise (legal + medical + finance + technical).",
+      "problem": "A generalist agent's depth in any one domain is shallow; users in specialist domains feel under-served.",
+      "forces": [
+        "Expert maintenance scales with domain count.",
+        "Routing classification must match expert coverage.",
+        "Cross-domain queries challenge single-expert routing."
+      ],
+      "solution": "Define experts (specialised system prompts, tool palettes, possibly fine-tuned models). A router classifies queries by domain. Route to one expert (top-1) or to multiple experts whose outputs are aggregated. Distinct from standard routing by emphasising deep specialisation per expert.",
+      "consequences": {
+        "benefits": [
+          "Depth per domain.",
+          "Independent expert evolution."
+        ],
+        "liabilities": [
+          "Domain count grows expert maintenance linearly.",
+          "Cross-domain queries fall through cracks."
+        ]
+      },
+      "constrains": "Each request is bound to one or more named experts; generalist fallback is explicit, not default.",
+      "known_uses": [
+        {
+          "system": "Vendor knowledge-base products with domain agents",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dynamic-expert-recruitment",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Mixture-of-Agents Enhances Large Language Model Capabilities",
+          "authors": "Wang et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2406.04692"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "experts",
+        "specialisation"
+      ]
+    },
+    {
+      "id": "multi-model-routing",
+      "name": "Multi-Model Routing",
+      "aliases": [
+        "Cascade Routing",
+        "Cheap-First Routing",
+        "Model Cascading"
+      ],
+      "category": "routing-composition",
+      "intent": "Send each request to the cheapest model that can handle it well.",
+      "context": "Model prices and capabilities vary by an order of magnitude; using the strongest model for every call is wasteful.",
+      "problem": "Static model choice either pays too much or misses quality on hard cases.",
+      "forces": [
+        "Quality bar must be measurable per request type.",
+        "Cheap models hallucinate confidently; the router must not trust them blindly.",
+        "Falling back from cheap to expensive on failure costs more than starting expensive."
+      ],
+      "solution": "Combine routing (classify the request) with a per-class model preference. Routing and filter extraction go to the cheap model; the screen-aware dialog or final answer goes to the strong model. Optionally cascade: try cheap, fall back to strong if confidence is low.",
+      "consequences": {
+        "benefits": [
+          "Bill drops 5-10x without quality loss when class boundaries match cost boundaries.",
+          "Dev/test runs naturally on cheap models."
+        ],
+        "liabilities": [
+          "Two-model debug surface.",
+          "Vendor lock-in when models diverge in tool calling."
+        ]
+      },
+      "constrains": "Each request class is bound to a model tier; agents cannot escalate without routing approval.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "gpt-5.4-mini for routing/filters; gpt-5.4 for screen-aware dialog.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "cost-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fallback-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hero-agent",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "provider-fallback",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hidden-mode-switching",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "dual-system-gui-agent",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "open-weight-cascade",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "multilingual-voice-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "OpenAI / Anthropic model selection guides",
+          "year": 2024
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "cost",
+        "cascade"
+      ]
+    },
+    {
+      "id": "open-weight-cascade",
+      "name": "Open-Weight Cascade",
+      "aliases": [
+        "Permissive-License Cascade",
+        "Sovereign Routing",
+        "Self-Hostable Cascade"
+      ],
+      "category": "routing-composition",
+      "intent": "Build a multi-model cascade where the lower tiers are deliberately open-weight, self-hostable models that can run inside the operator's boundary, and only escalations cross to a hosted frontier model — giving cost arbitrage *and* a sovereign fast-path.",
+      "context": "European or regulated deployments that want both cost optimisation and a fast-path that does not depend on a non-EU hosted API.",
+      "problem": "A naïve cheap-first cascade still falls through to a hosted frontier model for hard requests, meaning every borderline request leaks data. Open-weight-only cascades miss capability on the rare hard request.",
+      "forces": [
+        "Most requests are easy; cheap models handle them.",
+        "Hard requests need frontier capability.",
+        "Some requests must never leave the boundary regardless of difficulty.",
+        "Open-weight models close the capability gap at a delay."
+      ],
+      "solution": "Stratify requests by sensitivity *and* difficulty before routing. (1) Sensitive requests: forced down the open-weight path even if confidence is low; degrade gracefully or refuse rather than escalate. (2) Insensitive easy requests: small open-weight model. (3) Insensitive hard requests: escalate to hosted frontier model. The router enforces the sensitivity classification before any model call.",
+      "structure": "Request -> Sensitivity classifier -> [sensitive: open-weight only path] | [insensitive: cheap-first cascade with hosted frontier as fallback].",
+      "consequences": {
+        "benefits": [
+          "Compliant fast-path for sensitive workloads.",
+          "Cost arbitrage on the insensitive path.",
+          "Operator can swap model tiers without re-architecting."
+        ],
+        "liabilities": [
+          "Sensitivity classifier is the new failure surface.",
+          "Quality cliff at the sensitive boundary if the open-weight tier under-performs.",
+          "Operational overhead of running two stacks."
+        ]
+      },
+      "constrains": "A request classified as sensitive may not be routed to a hosted frontier model; the hosted tier is only reachable from the insensitive path.",
+      "known_uses": [
+        {
+          "system": "Mistral",
+          "note": "Open-weight (Mistral 7B, Mixtral) plus hosted (Mistral Large, Medium 3.5) tiers — operators commonly cascade them.",
+          "status": "available",
+          "url": "https://mistral.ai/"
+        },
+        {
+          "system": "Aleph Alpha PhariaAI multi-model",
+          "note": "On-prem Pharia models plus optional hosted escalation.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "multi-model-routing",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "fallback-chain",
+          "relation": "uses"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provider-fallback",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Mistral AI — Models",
+          "url": "https://mistral.ai/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "sovereignty",
+        "france-origin",
+        "mistral"
+      ]
+    },
+    {
+      "id": "parallel-tool-calls",
+      "name": "Parallel Tool Calls",
+      "aliases": [
+        "Concurrent Function Calls",
+        "Multi-Tool Turn"
+      ],
+      "category": "routing-composition",
+      "intent": "Allow the model to emit several independent tool calls in one assistant turn; the host executes them in parallel.",
+      "context": "Tasks where the model can identify independent sub-actions in one breath and parallel execution would cut wall-clock time.",
+      "problem": "Sequential tool calls waste latency on independent operations; full DAG-planning patterns are heavyweight for the simple parallel case.",
+      "forces": [
+        "Concurrency limits per provider.",
+        "Provider must support multi-tool-call turns.",
+        "Aggregation of results back into the next turn.",
+        "Models sometimes emit dependent calls in one turn despite the prompt; the host must detect or document this contract."
+      ],
+      "solution": "The provider's API allows the assistant turn to contain multiple tool calls. The host fans them out concurrently (with bounded concurrency and rate-limit handling). Results return as multiple tool messages; the next assistant turn sees all of them.",
+      "consequences": {
+        "benefits": [
+          "Lower wall-clock latency on parallelisable steps.",
+          "Simpler than full DAG planning."
+        ],
+        "liabilities": [
+          "Provider-specific behaviour.",
+          "Host concurrency control complexity.",
+          "Silent correctness bugs when accidentally-dependent calls are parallelised."
+        ]
+      },
+      "constrains": "Tool calls in the same assistant turn are treated as independent; cross-call dependencies are not allowed within one turn.",
+      "known_uses": [
+        {
+          "system": "OpenAI parallel function calling",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic parallel tool use",
+          "status": "available"
+        },
+        {
+          "system": "Claude Code multi-tool turns",
+          "status": "available"
+        },
+        {
+          "system": "Cursor parallel reads",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-use",
+          "relation": "uses"
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "code-as-action",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "OpenAI: Parallel function calling",
+          "url": "https://platform.openai.com/docs/guides/function-calling"
+        },
+        {
+          "type": "doc",
+          "title": "Anthropic: Tool use",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "tool-use",
+        "parallel",
+        "concurrency"
+      ]
+    },
+    {
+      "id": "parallelization",
+      "name": "Parallelization",
+      "aliases": [
+        "Sectioning",
+        "Voting",
+        "Parallel Branches"
+      ],
+      "category": "routing-composition",
+      "intent": "Run independent LLM calls concurrently and combine results.",
+      "context": "The task naturally splits (sectioning) or benefits from multiple independent attempts (voting).",
+      "problem": "Sequential execution of independent work wastes wall-clock time; single-attempt execution misses outliers a second look would catch.",
+      "forces": [
+        "Concurrency limits and rate limits.",
+        "Aggregation logic for voting (majority? best? union?).",
+        "Cost multiplies linearly with parallel branches."
+      ],
+      "solution": "Two flavours. Sectioning: split a task into independent subtasks, run them concurrently, concatenate results. Voting: run the same task multiple times, aggregate by majority or judge.",
+      "consequences": {
+        "benefits": [
+          "Wall-clock latency drops; quality rises (voting).",
+          "Independent failures isolate cleanly."
+        ],
+        "liabilities": [
+          "Cost scales with branch count.",
+          "Aggregation logic is its own correctness problem."
+        ]
+      },
+      "constrains": "Branches cannot share state during execution; aggregation is the only join point.",
+      "known_uses": [
+        {
+          "system": "Anthropic Building Effective Agents (Workflow #3)",
+          "status": "available"
+        },
+        {
+          "system": "Self-consistency in mathematical reasoning",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "self-consistency",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "map-reduce",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "parallel-tool-calls",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "prompt-chaining",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "lead-researcher",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Anthropic: Building Effective Agents",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "parallel",
+        "voting",
+        "concurrency"
+      ]
+    },
+    {
+      "id": "pipes-and-filters",
+      "name": "Pipes and Filters",
+      "aliases": [
+        "Pipeline",
+        "Streaming Pipeline",
+        "EIP Pipeline"
+      ],
+      "category": "routing-composition",
+      "intent": "Compose stream-shaped processing as a chain of small filters connected by pipes.",
+      "context": "Data flows through several transformations (parse, classify, transform, validate, format); each transformation is independently testable.",
+      "problem": "Monolithic transformations are hard to test; bespoke pipelines reinvent connection plumbing each time.",
+      "forces": [
+        "Filter granularity: too small = overhead; too big = back to monolith.",
+        "Pipe contracts (typed messages) need agreement.",
+        "Backpressure across pipes."
+      ],
+      "solution": "Decompose the transformation into small filters with single responsibilities. Connect them via typed pipes (function call, queue, stream). Each filter is testable in isolation. Filters can be reused across pipelines.",
+      "consequences": {
+        "benefits": [
+          "Composability and testability.",
+          "Reuse across pipelines."
+        ],
+        "liabilities": [
+          "Pipeline visibility: hard to see end-to-end behaviour.",
+          "Latency adds across stages."
+        ]
+      },
+      "constrains": "Filters communicate only through pipes with typed contracts.",
+      "known_uses": [
+        {
+          "system": "Enterprise Integration Patterns (Hohpe, Woolf)",
+          "status": "available"
+        },
+        {
+          "system": "LangChain Runnable composition",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "prompt-chaining",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "map-reduce",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "chat-chain",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Enterprise Integration Patterns",
+          "authors": "Gregor Hohpe, Bobby Woolf",
+          "year": 2003
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "pipeline",
+        "composition",
+        "eip"
+      ]
+    },
+    {
+      "id": "prompt-chaining",
+      "name": "Prompt Chaining",
+      "aliases": [
+        "Sequential Decomposition",
+        "Pipeline of Prompts"
+      ],
+      "category": "routing-composition",
+      "intent": "Decompose a task into a fixed sequence of LLM calls where each step's output becomes the next step's input.",
+      "context": "The task is composed of identifiable sub-tasks with clear boundaries; the order is known in advance.",
+      "problem": "A single mega-prompt overloads the model and makes failures hard to localise.",
+      "forces": [
+        "Decomposition clarity vs compounded latency.",
+        "Step isolation vs error compounding across the chain.",
+        "Schema rigor between steps vs pipeline flexibility."
+      ],
+      "solution": "Define a fixed pipeline of prompts. Each step has its own system prompt, expected output shape, and validation. A failure at step k retries step k or aborts; downstream steps run only on success.",
+      "consequences": {
+        "benefits": [
+          "Failures localise to a step.",
+          "Each step's prompt can be optimised independently."
+        ],
+        "liabilities": [
+          "Inflexible to inputs that do not match the assumed decomposition.",
+          "Latency = sum of step latencies."
+        ]
+      },
+      "constrains": "Step k cannot bypass step k-1's output schema.",
+      "known_uses": [
+        {
+          "system": "Anthropic Building Effective Agents (Workflow #1)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "pipes-and-filters",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "chat-chain",
+          "relation": "specialises"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Anthropic: Building Effective Agents",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "pipeline",
+        "workflow",
+        "decomposition"
+      ]
+    },
+    {
+      "id": "provider-fallback",
+      "name": "Provider Fallback",
+      "aliases": [
+        "Mid-Request Failover",
+        "Cross-Provider Recovery"
+      ],
+      "category": "routing-composition",
+      "intent": "When one provider's API errors mid-stream, transparently switch to another provider while preserving state.",
+      "context": "Production agent products that depend on multiple LLM providers and need uptime across provider outages, rate limits, and regional incidents.",
+      "problem": "Single-provider deployments take outages personally; fallback-chain handles request boundaries but cannot recover a stream that fails mid-generation.",
+      "forces": [
+        "Provider tool-call schemas differ; cross-provider continuation needs schema translation.",
+        "Partial output reconciliation across providers.",
+        "Routing logic must not amplify provider quirks."
+      ],
+      "solution": "A gateway proxy holds the conversation state. On stream error, it switches to a fallback provider, optionally preserving partial output, and continues with translated message format. Tool-call schemas are normalised at the gateway. Streaming clients see one continuous stream.",
+      "consequences": {
+        "benefits": [
+          "Uptime through provider outages.",
+          "Multi-provider portfolio for cost arbitrage."
+        ],
+        "liabilities": [
+          "Schema translation has its own bugs.",
+          "Quality discontinuity when providers differ in capability."
+        ]
+      },
+      "constrains": "Failover happens transparently to the client; the client sees one provider-agnostic interface.",
+      "known_uses": [
+        {
+          "system": "OpenRouter automatic failover",
+          "status": "available"
+        },
+        {
+          "system": "Cursor model switching on rate-limit",
+          "status": "available"
+        },
+        {
+          "system": "Portkey gateway fallback",
+          "status": "available"
+        },
+        {
+          "system": "Helicone gateway fallback",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "fallback-chain",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-weight-cascade",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "OpenRouter: Provider Routing",
+          "url": "https://openrouter.ai/docs/features/provider-routing"
+        },
+        {
+          "type": "doc",
+          "title": "Portkey Gateway: Fallback",
+          "url": "https://portkey.ai/docs"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "failover",
+        "gateway"
+      ]
+    },
+    {
+      "id": "routing",
+      "name": "Routing",
+      "aliases": [
+        "Mode Selector",
+        "Intent Classifier",
+        "Task Router"
+      ],
+      "category": "routing-composition",
+      "intent": "Classify an incoming request and dispatch it to the specialist (lane / agent / model) best suited to handle it.",
+      "context": "Heterogeneous traffic where different requests benefit from different prompts, tool palettes, or models.",
+      "problem": "A single prompt that handles everything either over-pays (cheap requests routed through expensive paths) or under-serves (complex requests stuck in cheap paths).",
+      "forces": [
+        "Routing itself costs a model call.",
+        "Misrouting can be worse than not routing at all.",
+        "The router needs visibility into capabilities of each downstream specialist."
+      ],
+      "solution": "A lightweight classifier model (often the cheapest available) returns a label. The host dispatches the request to the specialist for that label. Common lanes: command (deterministic action), agent (multi-step), chat (no tools).",
+      "consequences": {
+        "benefits": [
+          "Cheap requests pay cheap prices.",
+          "Each lane can be tuned in isolation."
+        ],
+        "liabilities": [
+          "Two-call latency on every request.",
+          "Lane definitions ossify; reclassification is hard once users learn the lanes."
+        ]
+      },
+      "constrains": "A request gets exactly one lane; downstream specialists cannot accept work outside their declared lane.",
+      "known_uses": [
+        {
+          "system": "Bobbin (Stash2Go)",
+          "note": "mode_selector classifies intent into command / agent / chat.",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Building Effective Agents (Workflow #2)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "multi-model-routing",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "mixture-of-experts-routing",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "fallback-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dynamic-scaffolding",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "hero-agent",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "prompt-chaining",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-loadout",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Anthropic: Building Effective Agents",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "routing",
+        "classifier"
+      ]
+    }
+  ]
+}
