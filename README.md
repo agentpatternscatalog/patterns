@@ -4,6 +4,18 @@ A machine-readable reference of agentic design patterns in GoF/POSA form. Pure d
 
 **179 patterns across 13 categories, 850 typed cross-pattern edges.**
 
+## What "agentic" means
+
+An agent is a system that pursues a goal and reaches an action autonomously. Given a user-supplied objective, the LLM decides what to do next, picks tools, observes results, and iterates until the goal is met or a budget is exhausted — without a human stepping through each call.
+
+Three properties separate an agentic system from a one-shot prompt:
+
+- **Goal-directed.** The agent holds an objective across many model calls, not a single response.
+- **Autonomous action.** The agent chooses tools and executes them; the host does not script the steps in advance.
+- **Loop-bounded.** The agent keeps acting until it terminates itself, hits a step or cost budget, or is interrupted.
+
+The patterns in this catalog are the architectural choices that make agentic systems work in production: how the loop is shaped, what the agent is allowed to remember, which tools it sees, and how it is verified, audited, and stopped.
+
 ## Why a pattern catalog for LLM agents
 
 Christopher Alexander, in *A Pattern Language* (1977), defined a pattern as something that "describes a problem which occurs over and over again in our environment, and then describes the core of the solution to that problem, in such a way that you can use this solution a million times over, without ever doing it the same way twice." The Gang of Four carried that framing into software in 1994. The result was a shared vocabulary that let teams reason about decisions instead of re-discovering them.
