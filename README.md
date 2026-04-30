@@ -22,8 +22,7 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 
 - **[`INDEX.md`](INDEX.md)** — every pattern grouped by category.
 - **[`patterns/`](patterns/)** — one Markdown page per pattern.
-- **[`patterns.json`](patterns.json)** — source of truth, validated against [`schema.json`](schema.json).
-- **[`patterns-src/`](patterns-src/)** — per-category JSON shards; `patterns.json` is regenerated from these.
+- **[`patterns-src/`](patterns-src/)** — source of truth: 13 per-category JSON shards, each entry validated against [`schema.json`](schema.json).
 
 ## Find a pattern
 
