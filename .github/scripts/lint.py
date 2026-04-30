@@ -397,7 +397,13 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
                 seen[url] = None
                 return url, None
         except error.HTTPError as e:
-            if e.code in (403, 405, 501):
+            # 403/429 commonly mean "URL exists but anti-bot blocked the check"
+            # rather than "URL is dead". Treat them as alive — the link is
+            # reachable from a real browser.
+            if e.code in (403, 429):
+                seen[url] = None
+                return url, None
+            if e.code in (405, 501):
                 try:
                     req = request.Request(url, method="GET", headers={"User-Agent": USER_AGENT})
                     with request.urlopen(req, timeout=20) as resp:
