@@ -107,7 +107,28 @@
         "agentic",
         "iterative"
       ],
-      "example_scenario": "A consulting agent is asked, 'Compare our 2023 and 2024 revenue by region.' Naive RAG would do one search and pass whatever it found to the model. Agentic RAG instead runs in a loop: it queries the 2023 figures, decides it also needs 2024 figures, queries those, notices the EMEA numbers are missing, queries again with a more specific phrase, then produces the comparison from a complete set."
+      "example_scenario": "A consulting agent is asked, 'Compare our 2023 and 2024 revenue by region.' Naive RAG would do one search and pass whatever it found to the model. Agentic RAG instead runs in a loop: it queries the 2023 figures, decides it also needs 2024 figures, queries those, notices the EMEA numbers are missing, queries again with a more specific phrase, then produces the comparison from a complete set.",
+      "variants": [
+        {
+          "name": "Self-RAG (single-pass with reflection)",
+          "summary": "The agent retrieves once, reflects on whether the retrieval is sufficient, and decides to answer or re-query in a single tight loop.",
+          "distinguishing_factor": "one reflection step",
+          "when_to_use": "Latency-sensitive; one extra retrieval is the maximum acceptable cost."
+        },
+        {
+          "name": "Multi-hop iterative",
+          "summary": "The agent decomposes the question, retrieves once per sub-question, then synthesises the answer from accumulated evidence.",
+          "distinguishing_factor": "explicit decomposition",
+          "when_to_use": "Questions that require joining facts across multiple sources (compliance, comparative analysis)."
+        },
+        {
+          "name": "Corrective (CRAG)",
+          "summary": "A grader scores each retrieved document; documents marked Incorrect trigger a web fallback search.",
+          "distinguishing_factor": "grader plus web fallback",
+          "when_to_use": "Index quality is uneven and the system has access to web search as a backup.",
+          "see_also": "crag"
+        }
+      ]
     },
     {
       "id": "contextual-retrieval",
@@ -343,7 +364,27 @@
         "mermaid": "flowchart LR\n  Q[Query] --> Retr[Bi-encoder retrieval, top-100]\n  Retr --> CE[Cross-encoder scores query against each candidate]\n  CE --> Rank[Rerank by score]\n  Rank --> Top[Top-5 to LLM]",
         "caption": "Cross-Encoder Reranking trades inference cost for sharper top-k by scoring each candidate against the query directly."
       },
-      "example_scenario": "A legal-research agent retrieves 100 candidate paragraphs from a corpus of contracts that mention 'force majeure'. Many are off-topic. Before showing them to the LLM, a small cross-encoder model scores each candidate against the user's exact question, picks the top 5, and discards the rest. The LLM only ever reads the sharpest results."
+      "example_scenario": "A legal-research agent retrieves 100 candidate paragraphs from a corpus of contracts that mention 'force majeure'. Many are off-topic. Before showing them to the LLM, a small cross-encoder model scores each candidate against the user's exact question, picks the top 5, and discards the rest. The LLM only ever reads the sharpest results.",
+      "variants": [
+        {
+          "name": "Bi-encoder + cross-encoder cascade",
+          "summary": "A fast bi-encoder retrieves the top 100; a slow cross-encoder reranks them; the top 5 go to the LLM.",
+          "distinguishing_factor": "two-stage cascade",
+          "when_to_use": "Default. Best balance of recall and precision."
+        },
+        {
+          "name": "LLM-as-reranker",
+          "summary": "Skip the cross-encoder entirely; use a cheaper LLM (e.g., Haiku) to score and rank candidates against the query.",
+          "distinguishing_factor": "LLM in the rank loop",
+          "when_to_use": "No good cross-encoder is available for the domain; LLM cost has come down enough."
+        },
+        {
+          "name": "Listwise reranker",
+          "summary": "Send all candidates to the reranker at once; it outputs a re-ordered list rather than per-candidate scores.",
+          "distinguishing_factor": "list-aware ranking",
+          "when_to_use": "Relative ordering matters more than absolute scores; available only with newer rerankers."
+        }
+      ]
     },
     {
       "id": "graphrag",

@@ -381,6 +381,26 @@
         "search",
         "mcts",
         "planning"
+      ],
+      "variants": [
+        {
+          "name": "MCTS with LLM rollout",
+          "summary": "Monte Carlo Tree Search expands the reasoning tree; the LLM serves as the rollout policy for unexplored branches.",
+          "distinguishing_factor": "MCTS dynamics",
+          "when_to_use": "Default for the original LATS paper formulation."
+        },
+        {
+          "name": "Beam-search variant",
+          "summary": "Maintain top-k partial reasoning paths; expand each by one step; keep the top-k overall by score.",
+          "distinguishing_factor": "beam discipline, not stochastic",
+          "when_to_use": "Determinism matters or the search budget is small enough that exploration is expensive."
+        },
+        {
+          "name": "Self-evaluated branch pruning",
+          "summary": "After each expansion, the LLM scores the partial path; low-scoring branches are pruned aggressively.",
+          "distinguishing_factor": "LLM is the value function",
+          "when_to_use": "No external scorer is available; LLM self-evaluation is good enough on this task."
+        }
       ]
     },
     {
@@ -729,7 +749,28 @@
         "mermaid": "sequenceDiagram\n  participant User\n  participant Planner\n  participant Executor\n  participant Tool\n  User->>Planner: goal\n  Planner->>Planner: decompose into ordered steps\n  Planner-->>Executor: plan\n  loop per step\n    Executor->>Tool: action\n    Tool-->>Executor: result\n  end\n  Executor-->>User: outcome",
         "caption": "Plan-and-Execute commits to a plan up front; the executor walks the steps and only loops back to the planner on failure."
       },
-      "example_scenario": "An office-assistant agent is told, 'Book a team offsite in Barcelona for ten people next month, find a restaurant for dinner, and email everyone the schedule.' Up front it writes a five-step plan: search venues, pick one, search restaurants, pick one, send emails. The executor walks the plan in order. Because the venue list does not depend on what restaurants exist, planning once is cheaper than re-thinking every step."
+      "example_scenario": "An office-assistant agent is told, 'Book a team offsite in Barcelona for ten people next month, find a restaurant for dinner, and email everyone the schedule.' Up front it writes a five-step plan: search venues, pick one, search restaurants, pick one, send emails. The executor walks the plan in order. Because the venue list does not depend on what restaurants exist, planning once is cheaper than re-thinking every step.",
+      "variants": [
+        {
+          "name": "Linear plan",
+          "summary": "Planner emits an ordered list of steps; the executor walks them top-to-bottom.",
+          "distinguishing_factor": "ordered list, no branching",
+          "when_to_use": "Default. Each step's output feeds the next; no parallelism is available."
+        },
+        {
+          "name": "Replan-on-failure",
+          "summary": "If a step fails or returns unexpected results, control returns to the planner with the partial state. The planner emits a new plan from there.",
+          "distinguishing_factor": "planner re-invoked on failure",
+          "when_to_use": "World drift mid-execution is likely (external systems failing, data freshness changes)."
+        },
+        {
+          "name": "DAG plan",
+          "summary": "Planner emits a directed acyclic graph of steps with placeholder variables for outputs; independent steps run in parallel.",
+          "distinguishing_factor": "graph, parallelisable",
+          "when_to_use": "Many steps are independent and parallelism would shorten total wall-clock time.",
+          "see_also": "rewoo"
+        }
+      ]
     },
     {
       "id": "planner-executor-observer",
