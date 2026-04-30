@@ -1,0 +1,59 @@
+# CAMEL Role-Playing
+
+**Also known as:** Inception Prompting, AI-User AI-Assistant
+
+**Category:** Multi-Agent  
+**Status in practice:** experimental
+
+## Intent
+
+Have two agents role-play a user-assistant interaction to autonomously complete a task neither could solve alone.
+
+## Context
+
+Tasks where a user-style agent and an assistant-style agent productively elaborate a task through their interaction.
+
+## Problem
+
+Single agents miss the turn-taking dynamics that human collaboration relies on; pure debate is adversarial when collaboration is what is wanted.
+
+## Forces
+
+- Roles drift toward sameness without inception prompting.
+- Conversation length must be bounded.
+- Tasks need to be specified as something the role-play can converge on.
+
+## Solution
+
+Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with their roles fixed and the task specified. They converse until the task is completed or budget exhausted. The output is the final assistant message; the conversation log is debugging artefact.
+
+## Consequences
+
+**Benefits**
+
+- Synthetic task-solving without human-in-the-loop.
+- Useful for generating training data.
+
+**Liabilities**
+
+- Cost: 2x inference per task.
+- Role drift over long conversations.
+
+## What this pattern constrains
+
+The AI-User role may only ask, never answer; AI-Assistant may only answer, never ask user-style questions.
+
+## Known uses
+
+- **CAMEL framework** — *Available*
+
+## Related patterns
+
+- *alternative-to* → [autogen-conversational](autogen-conversational.md)
+- *specialises* → [role-assignment](role-assignment.md)
+
+## References
+
+- (paper) Li, Hammoud, Itani, Khizbullin, Ghanem, *CAMEL: Communicative Agents for "Mind" Exploration of Large Language Model Society*, 2023, <https://arxiv.org/abs/2303.17760>
+
+**Tags:** multi-agent, role-play

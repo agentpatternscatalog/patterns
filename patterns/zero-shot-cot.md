@@ -1,0 +1,58 @@
+# Zero-Shot Chain-of-Thought
+
+**Also known as:** Let's Think Step by Step, Trigger-Phrase CoT
+
+**Category:** Reasoning  
+**Status in practice:** mature
+
+## Intent
+
+Elicit step-by-step reasoning with a single trigger phrase rather than few-shot exemplars.
+
+## Context
+
+Reasoning tasks where curating few-shot exemplars is impractical or costly.
+
+## Problem
+
+Few-shot CoT requires exemplar curation per task type; that effort scales poorly across many tasks.
+
+## Forces
+
+- Trigger phrases are model- and language-specific.
+- Quality lift is smaller than well-curated few-shot CoT.
+- Trigger-phrase reasoning can drift on complex tasks.
+
+## Solution
+
+Append a trigger phrase ('Let's think step by step', 'Let's work through this carefully') to the prompt. The model produces reasoning before its answer with no exemplar required. Optionally extract the final answer with a follow-up prompt.
+
+## Consequences
+
+**Benefits**
+
+- Zero curation cost per task.
+- Generalises across task types.
+
+**Liabilities**
+
+- Lower quality lift than well-tuned few-shot CoT.
+- Trigger-phrase brittleness.
+
+## What this pattern constrains
+
+The model is required to reason before answering; one-shot answer-only generation is not the target.
+
+## Known uses
+
+- **Zero-Shot CoT paper baseline** — *Available*
+
+## Related patterns
+
+- *specialises* → [chain-of-thought](chain-of-thought.md)
+
+## References
+
+- (paper) Kojima, Gu, Reid, Matsuo, Iwasawa, *Large Language Models are Zero-Shot Reasoners*, 2022, <https://arxiv.org/abs/2205.11916>
+
+**Tags:** reasoning, cot, zero-shot

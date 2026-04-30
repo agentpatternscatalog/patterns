@@ -1,0 +1,56 @@
+# Stop / Cancel
+
+**Also known as:** User Interrupt, Abort Generation
+
+**Category:** Streaming & UX  
+**Status in practice:** mature
+
+## Intent
+
+Let the user interrupt an in-flight agent run cleanly, releasing resources and surfacing partial state.
+
+## Context
+
+Long-running agents where the user notices a wrong direction mid-run and wants to redirect.
+
+## Problem
+
+Without an interrupt, users wait for completion or for the page to die; agents continue burning cost on wrong work.
+
+## Forces
+
+- Cancellation must reach upstream tools and providers.
+- Partial state may or may not be useful.
+- Race conditions between completion and cancellation.
+
+## Solution
+
+Surface a stop control in the UI. On click, propagate a cancellation token through the agent loop, tool calls, and provider streams. Clean up partial state. Show what was done. Optionally save partial output for later resumption.
+
+## Consequences
+
+**Benefits**
+
+- User control restores when the agent goes wrong.
+- Cost is bounded by user attention.
+
+**Liabilities**
+
+- Cancellation plumbing is non-trivial across providers.
+- Partial state may be inconsistent.
+
+## What this pattern constrains
+
+Once cancelled, no further model or tool calls may be issued for the cancelled run.
+
+## Known uses
+
+- **ChatGPT Stop button** — *Available*
+- **Claude Code's Esc-to-interrupt** — *Available*
+
+## Related patterns
+
+- *complements* → [streaming-typed-events](streaming-typed-events.md)
+- *complements* → [step-budget](step-budget.md)
+
+**Tags:** ux, cancel, interrupt

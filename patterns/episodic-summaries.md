@@ -1,0 +1,62 @@
+# Episodic Summaries
+
+**Also known as:** Compaction, Conversation Summarisation, Chunk Summaries, Reduce Token Cost, Shrink Context, Cuts Token Use, Too Many Tokens Reduction
+
+**Category:** Memory  
+**Status in practice:** mature
+
+## Intent
+
+Compress past episodes into summaries that preserve gist while shedding token cost.
+
+## Context
+
+A long-running agent has more history than fits the context window; raw replay is impractical.
+
+## Problem
+
+Without compaction, either the context grows unboundedly or important facts fall off the back of a sliding window.
+
+## Forces
+
+- Token savings vs summary fidelity loss.
+- Compaction LLM cost vs context-window relief.
+- Single source of truth vs raw-archive availability.
+
+## Solution
+
+On a schedule (or at thresholds), summarise blocks of recent thoughts/conversation into compact representations. Store summaries in a higher tier; archive originals. Reads consult summaries first, originals on demand.
+
+## Consequences
+
+**Benefits**
+
+- Bounded effective context size despite unbounded history.
+- Summaries are easier to embed and search.
+
+**Liabilities**
+
+- Summary errors are sticky; the agent reasons over the summary, not the original.
+- Compaction policy is its own configuration burden.
+
+## What this pattern constrains
+
+Past events older than the compaction horizon are accessible only via summary, not raw.
+
+## Known uses
+
+- **Sparrot** — *Available*. Hourly chunk summarisation; daily insight extraction.
+- **Generative Agents (Park et al. 2023)** — *Available*
+
+## Related patterns
+
+- *used-by* → [five-tier-memory-cascade](five-tier-memory-cascade.md)
+- *complements* → [reflexion](reflexion.md)
+- *used-by* → [context-window-packing](context-window-packing.md)
+- *complements* → [short-term-memory](short-term-memory.md)
+
+## References
+
+- (paper) Park, O'Brien, Cai, Morris, Liang, Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
+
+**Tags:** memory, summarisation, compaction

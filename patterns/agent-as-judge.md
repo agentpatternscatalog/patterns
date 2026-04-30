@@ -1,0 +1,61 @@
+# Agent-as-a-Judge
+
+**Also known as:** Trajectory Evaluator, Judge Agent
+
+**Category:** Governance & Observability  
+**Status in practice:** emerging
+
+## Intent
+
+Evaluate an agent's full trajectory (steps, tool calls, intermediate states) by another agent rather than scoring only the final output.
+
+## Context
+
+Agent evaluations (SWE-Bench, agentic benchmarks) where the final output is one signal among many and the trajectory contains evaluable structure.
+
+## Problem
+
+LLM-as-judge evaluates only the final answer; agentic tasks succeed or fail along the trajectory in ways the final answer hides.
+
+## Forces
+
+- Trajectory evaluation is more expensive than answer-only judging.
+- Judge agents have their own biases and failure modes.
+- Trajectory schemas vary per agent framework.
+
+## Solution
+
+A judge agent receives the candidate agent's full trajectory: thoughts, tool calls, observations, intermediate state, and final answer. It evaluates against a rubric covering correctness, efficiency, and process quality. Outputs a structured verdict with rationale.
+
+## Consequences
+
+**Benefits**
+
+- Catches process-level failures that hide behind right answers.
+- Inspectable judge rationales.
+
+**Liabilities**
+
+- Cost: trajectory evaluation is expensive.
+- Judge calibration on trajectory rubrics is its own dataset effort.
+
+## What this pattern constrains
+
+The judge sees the full trajectory, not just the final output; answer-only evaluation is not used in this pattern.
+
+## Known uses
+
+- **MetaGPT Agent-as-a-Judge** — *Available*
+- **SWE-Bench-style agentic benchmarks** — *Available*
+
+## Related patterns
+
+- *specialises* → [llm-as-judge](llm-as-judge.md)
+- *uses* → [eval-harness](eval-harness.md)
+- *uses* → [decision-log](decision-log.md)
+
+## References
+
+- (paper) Zhuge, Zhao, Ashley, Wang, Khizbullin, Xiong, Liu, Chang, Zhang, Yang, Liu, Huang, Schmidhuber, *Agent-as-a-Judge: Evaluate Agents with Agents*, 2024, <https://arxiv.org/abs/2410.10934>
+
+**Tags:** eval, judge, trajectory

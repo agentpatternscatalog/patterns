@@ -1,0 +1,59 @@
+# RAFT
+
+**Also known as:** Retrieval-Augmented Fine-Tuning, Distractor-Robust RAG
+
+**Category:** Retrieval & RAG  
+**Status in practice:** emerging
+
+## Intent
+
+Train the model to be robust to irrelevant retrieved documents (distractors) in a domain-specific RAG setting.
+
+## Context
+
+Domain-specific RAG where retrieval inevitably mixes relevant and irrelevant documents; the off-the-shelf model is over-confident on distractors.
+
+## Problem
+
+Generic RAG models are fooled by topically-similar distractors; the answer drifts to the loudest irrelevant source.
+
+## Forces
+
+- Training data construction (oracle docs + distractors) is its own pipeline.
+- Domain shift between training and serving distractors.
+- Trade-off between generalisation and domain specialisation.
+
+## Solution
+
+Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.
+
+## Consequences
+
+**Benefits**
+
+- Robustness to distractor documents in domain RAG.
+- Citation discipline improves.
+
+**Liabilities**
+
+- Training data effort.
+- Domain-specific; transfer between domains is partial.
+
+## What this pattern constrains
+
+Cited claims must come from documents marked oracle in training; distractor citations are penalised.
+
+## Known uses
+
+- **RAFT paper experiments** — *Available*
+
+## Related patterns
+
+- *specialises* → [naive-rag](naive-rag.md)
+- *alternative-to* → [contextual-retrieval](contextual-retrieval.md)
+
+## References
+
+- (paper) Zhang, Patil, Jain, Shen, Zaharia, Stoica, Gonzalez, *RAFT: Adapting Language Model to Domain Specific RAG*, 2024, <https://arxiv.org/abs/2403.10131>
+
+**Tags:** rag, training, domain

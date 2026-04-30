@@ -1,0 +1,66 @@
+# Prompt Versioning
+
+**Also known as:** Prompt-as-Artifact, Prompt Registry, Versioned Prompts
+
+**Category:** Governance & Observability  
+**Status in practice:** mature
+
+## Intent
+
+Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.
+
+## Context
+
+Production agents where prompt changes drive quality changes; ad-hoc prompt edits introduce silent regressions.
+
+## Problem
+
+Prompts edited inline in code are hard to audit; rolling back a prompt means rolling back a deployment; comparison across versions is bespoke.
+
+## Forces
+
+- Registry adds infrastructure.
+- Prompt versioning must integrate with eval harness.
+- Signed prompts vs editable prompts.
+
+## Solution
+
+Prompts live in a registry as immutable, hashed, version-tagged artefacts. Code references prompts by name + version (semver). Deployments pin specific versions; rollback by version. Eval harness ties metric outcomes to prompt versions. Optionally signed for provenance.
+
+## Consequences
+
+**Benefits**
+
+- Prompt rollback without redeploy.
+- Eval results map to specific prompts.
+
+**Liabilities**
+
+- Registry infrastructure.
+- Version-pinning means prompts stop tracking model upgrades automatically.
+
+## What this pattern constrains
+
+Production calls reference pinned prompt versions only; ad-hoc inline prompts are forbidden.
+
+## Known uses
+
+- **LangSmith Prompts** — *Available*
+- **PromptLayer** — *Available*
+- **Humanloop** — *Available*
+- **Vellum** — *Available*
+- **Helicone Prompts** — *Available*
+
+## Related patterns
+
+- *composes-with* → [lineage-tracking](lineage-tracking.md)
+- *uses* → [eval-as-contract](eval-as-contract.md)
+- *complements* → [shadow-canary](shadow-canary.md)
+
+## References
+
+- (doc) *LangSmith Prompts*, <https://docs.smith.langchain.com/prompt_engineering/concepts>
+- (doc) *PromptLayer*, <https://docs.promptlayer.com>
+- (doc) *Humanloop*, <https://humanloop.com>
+
+**Tags:** governance, prompt, versioning

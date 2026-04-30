@@ -1,0 +1,62 @@
+# Confidence Reporting
+
+**Also known as:** Uncertainty Surfacing, Calibrated Output
+
+**Category:** Verification & Reflection  
+**Status in practice:** emerging
+
+## Intent
+
+Surface the agent's uncertainty about its answer alongside the answer itself.
+
+## Context
+
+Decisions downstream of the agent depend on whether the answer is reliable; users and systems both benefit from a confidence signal.
+
+## Problem
+
+Models output answers with uniform tone regardless of internal certainty; downstream code cannot distinguish 'I know' from 'I am guessing'.
+
+## Forces
+
+- Confidence signals are themselves miscalibrated by the model.
+- Surfacing uncertainty erodes user trust if overdone.
+- Sample-based confidence (self-consistency) costs N calls.
+
+## Solution
+
+Produce a confidence label (high/medium/low or numeric) alongside each answer. Derive from sample variance (self-consistency), evaluator score, retrieval recall, or rubric score. Render in UI; route low-confidence to fallback or human review.
+
+## Consequences
+
+**Benefits**
+
+- Downstream code can branch on confidence.
+- Users learn when to verify.
+
+**Liabilities**
+
+- Calibration is empirical and drifts.
+- False confidence remains the failure mode.
+
+## What this pattern constrains
+
+Outputs without a confidence label are not consumable by confidence-aware downstream code.
+
+## Known uses
+
+- **Sparrot empirical-introspection variance signal** — *Available*
+- **OpenAI logprobs-derived confidence** — *Available*
+
+## Related patterns
+
+- *uses* → [self-consistency](self-consistency.md)
+- *complements* → [disambiguation](disambiguation.md)
+- *complements* → [fallback-chain](fallback-chain.md)
+- *complements* → [attention-manipulation-explainability](attention-manipulation-explainability.md)
+
+## References
+
+- (paper) Kadavath et al., *Language Models (Mostly) Know What They Know*, 2022, <https://arxiv.org/abs/2207.05221>
+
+**Tags:** uncertainty, calibration

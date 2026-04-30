@@ -1,0 +1,61 @@
+# Graph of Thoughts
+
+**Also known as:** GoT, DAG Reasoning
+
+**Category:** Reasoning  
+**Status in practice:** experimental
+
+## Intent
+
+Model reasoning as an arbitrary DAG so thoughts can be merged, refined, and aggregated across branches.
+
+## Context
+
+Tasks with subproblems whose results combine non-trivially (sorting partial lists, set operations, summarisation merge); tree-shaped reasoning loses these aggregation opportunities.
+
+## Problem
+
+Tree of Thoughts cannot combine partial solutions or reuse intermediate results across sibling branches.
+
+## Forces
+
+- Richer reasoning topology vs orchestration complexity.
+- Cross-branch reuse vs aggregation prompt cost.
+- DAG expressiveness vs cycle-safety enforcement.
+
+## Solution
+
+Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.
+
+## Consequences
+
+**Benefits**
+
+- Strict superset of CoT and ToT.
+- Most useful when subproblems have non-tree dependencies.
+
+**Liabilities**
+
+- Orchestration overhead.
+- Hard to debug when the DAG grows.
+
+## What this pattern constrains
+
+Thought operations must be composed via the named operators; ad-hoc reasoning outside the operator vocabulary is forbidden.
+
+## Known uses
+
+- **GoT paper benchmarks (sorting, set intersection, document merge)** — *Available*
+
+## Related patterns
+
+- *generalises* → [tree-of-thoughts](tree-of-thoughts.md)
+- *complements* → [lats](lats.md)
+- *composes-with* → [blackboard](blackboard.md)
+- *complements* → [llm-compiler](llm-compiler.md)
+
+## References
+
+- (paper) Besta, Blach, Kubicek, Gerstenberger, Podstawski, Gianinazzi, Gajda, Lehmann, Niewiadomski, Nyczyk, Hoefler, *Graph of Thoughts: Solving Elaborate Problems with Large Language Models*, 2023, <https://arxiv.org/abs/2308.09687>
+
+**Tags:** reasoning, graph, dag

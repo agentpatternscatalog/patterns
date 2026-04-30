@@ -1,0 +1,65 @@
+# Human-in-the-Loop
+
+**Also known as:** HITL, Approval Gate, Confirmation Step, Risky Action Gate, Destructive Action Confirmation, Ask Before Risky Action
+
+**Category:** Safety & Control  
+**Status in practice:** mature
+
+## Intent
+
+Require explicit human approval at defined points before the agent performs an action.
+
+## Context
+
+An action is destructive, irreversible, or regulatory; the cost of being wrong exceeds the cost of waiting.
+
+## Problem
+
+Fully autonomous action at risky boundaries combines model confidence with consequence; the combination is unsafe.
+
+## Forces
+
+- Where to place the gate trades latency and friction for safety.
+- Approval-fatigue: too many gates train users to click through.
+- Asynchronous approval stalls the loop.
+
+## Solution
+
+Identify the boundary. Pause the loop. Surface the proposed action with enough context for the human to decide. Require an explicit approve/reject. Resume on approve; abort or replan on reject. Log the decision.
+
+## Consequences
+
+**Benefits**
+
+- Risk drops to a level the system can defend.
+- Decision log captures human judgement that can later train an automated gate.
+
+**Liabilities**
+
+- User experience friction.
+- Synchronous gates break async agents.
+
+## What this pattern constrains
+
+The defined action class cannot proceed without an affirmative approval signal.
+
+## Known uses
+
+- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. Opt-in fixer: user clicks to invoke.
+- **Bobbin (Stash2Go)** — *Planned*. On destructive writes (project create, queue add, stash subtract).
+
+## Related patterns
+
+- *complements* → [step-budget](step-budget.md)
+- *generalises* → [cost-gating](cost-gating.md)
+- *generalises* → [approval-queue](approval-queue.md)
+- *generalises* → [disambiguation](disambiguation.md)
+- *complements* → [compensating-action](compensating-action.md)
+- *alternative-to* → [conversation-handoff](conversation-handoff.md)
+- *alternative-to* → [communicative-dehallucination](communicative-dehallucination.md)
+
+## References
+
+- (doc) *LangGraph: Human-in-the-Loop*, <https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/>
+
+**Tags:** safety, approval, hitl

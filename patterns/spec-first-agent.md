@@ -1,0 +1,63 @@
+# Spec-First Agent
+
+**Also known as:** Specification-Driven Agent, Plan-as-Document
+
+**Category:** Planning & Control Flow  
+**Status in practice:** emerging
+
+## Intent
+
+Drive the agent loop from a human-authored specification document rather than free-form prompts.
+
+## Context
+
+The task is well-defined enough to write down; the agent benefits from a stable, inspectable target.
+
+## Problem
+
+Free-form prompts drift; the spec is in the head of one engineer and not auditable.
+
+## Forces
+
+- Spec authoring is up-front work.
+- The agent must update the spec when learnings invalidate it; uncontrolled spec mutation is dangerous.
+- Spec format must be both human- and agent-readable.
+
+## Solution
+
+Write the specification as a markdown file (PROMPT.md, fix_plan.md, or similar). The agent reads the spec at each iteration, executes against it, and may update it under controlled conditions. The spec is the single source of truth for what 'done' means.
+
+## Consequences
+
+**Benefits**
+
+- Inspectable target; reviewable diffs over time.
+- Pairs naturally with iterative loops (Ralph).
+
+**Liabilities**
+
+- Spec quality bounds agent quality.
+- Spec mutation introduces drift if uncontrolled.
+
+## What this pattern constrains
+
+The agent acts only against goals named in the spec; out-of-scope work must be added to the spec first.
+
+## Known uses
+
+- **Ralph Wiggum loop** — *Available*. PROMPT.md + fix_plan.md drive the loop.
+- **Spec-driven Claude Code workflows** — *Available*
+
+## Related patterns
+
+- *used-by* → [spec-driven-loop](spec-driven-loop.md)
+- *complements* → [agent-skills](agent-skills.md)
+- *complements* → [sop-encoded-multi-agent](sop-encoded-multi-agent.md)
+- *alternative-to* → [todo-list-driven-agent](todo-list-driven-agent.md)
+- *alternative-to* → [automatic-workflow-search](automatic-workflow-search.md)
+
+## References
+
+- (blog) *Geoffrey Huntley, Ralph*, 2025, <https://ghuntley.com/ralph/>
+
+**Tags:** spec, documentation
