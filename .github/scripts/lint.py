@@ -260,6 +260,8 @@ def rule_a2() -> list[Violation]:
         "INDEX.md",
         "framework-coverage.json",
         "framework-coverage.schema.json",
+        "recipes.json",
+        "recipes.schema.json",
     }
     allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
     for f in root_files:
@@ -580,6 +582,42 @@ def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+def rule_a12(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A12 Recipes: pattern ids in recipes.json must resolve; recipe ids unique."""
+    out: list[Violation] = []
+    rec_path = ROOT / "recipes.json"
+    if not rec_path.exists():
+        return out
+    try:
+        rec = json.loads(rec_path.read_text())
+    except json.JSONDecodeError as e:
+        out.append(Violation("A12.1", "recipes.json", f"invalid JSON: {e}"))
+        return out
+
+    pattern_ids = {p["id"] for p in patterns}
+    rec_ids: set[str] = set()
+    for r in rec.get("recipes", []):
+        rid = r.get("id", "<no-id>")
+        if rid in rec_ids:
+            out.append(Violation("A12.2", f"recipes::{rid}", "duplicate recipe id"))
+        rec_ids.add(rid)
+        seen_members: set[str] = set()
+        for m in r.get("members", []):
+            pid = m.get("pattern", "")
+            if pid not in pattern_ids:
+                out.append(Violation(
+                    "A12.3", f"recipes::{rid}",
+                    f"member references unknown pattern id {pid!r}",
+                ))
+            if pid in seen_members:
+                out.append(Violation(
+                    "A12.4", f"recipes::{rid}",
+                    f"member {pid!r} listed more than once",
+                ))
+            seen_members.add(pid)
+    return out
+
+
 RULES = {
     "A1": ("schema/structure", lambda P, W, N: rule_a1(P, W)),
     "A2": ("repo hygiene", lambda P, W, N: rule_a2()),
@@ -592,6 +630,7 @@ RULES = {
     "A9": ("tone", lambda P, W, N: rule_a9(P, W)),
     "A10": ("naming", lambda P, W, N: rule_a10(P, W)),
     "A11": ("framework coverage refs", lambda P, W, N: rule_a11(P, W)),
+    "A12": ("recipe pattern refs", lambda P, W, N: rule_a12(P, W)),
 }
 
 

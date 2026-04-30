@@ -36,6 +36,7 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 - **[`patterns/`](patterns/)** — one Markdown page per pattern.
 - **[`patterns-src/`](patterns-src/)** — source of truth: 13 per-category JSON shards, each entry validated against [`schema.json`](schema.json).
 - **[`framework-coverage.json`](framework-coverage.json)** — which patterns each agent framework (LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy, n8n, Temporal, Vercel AI SDK, Claude Agent SDK, Google ADK, Letta, …) provides as `fully` / `limited` / `none` / `unknown`. Hand-curated, conservative; carries a `last_analysis_date` plus per-row `last_analyzed`.
+- **[`recipes.json`](recipes.json)** — named cross-category compositions: *modern coding agent*, *production RAG*, *voice agent stack*, *sovereign deployment*, *long-running autonomous agent*, *multi-agent debate*, *browser & computer-use stack*, *memory architecture*, *multi-agent coordination*, *safety hardening*, *eval & observability*, *structured output stack*, *streaming UX stack*, *planning loops*, *routing & fallback*, *reflection & self-correction*. Each recipe lists pattern members with role (`core`, `hardening`, `optional`).
 
 ## Find a pattern
 

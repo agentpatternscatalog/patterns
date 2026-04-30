@@ -45,12 +45,15 @@ def build(out_dir: Path) -> None:
     )
     shutil.copy(SCHEMA, out_dir / "schema.json")
 
-    cov = ROOT / "framework-coverage.json"
-    cov_schema = ROOT / "framework-coverage.schema.json"
-    if cov.exists():
-        shutil.copy(cov, out_dir / "framework-coverage.json")
-    if cov_schema.exists():
-        shutil.copy(cov_schema, out_dir / "framework-coverage.schema.json")
+    for extra in (
+        "framework-coverage.json",
+        "framework-coverage.schema.json",
+        "recipes.json",
+        "recipes.schema.json",
+    ):
+        src = ROOT / extra
+        if src.exists():
+            shutil.copy(src, out_dir / extra)
 
     print(f"built {out_dir/'patterns.json'} with {len(patterns)} patterns")
 
