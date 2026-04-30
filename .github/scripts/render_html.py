@@ -133,6 +133,23 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
     elif p.get("structure"):
         parts.append(f"<h2>Structure</h2><pre><code>{esc(p['structure'])}</code></pre>")
 
+    variants = p.get("variants") or []
+    if variants:
+        parts.append("<h2>Variants</h2>")
+        for v in variants:
+            parts.append(f'<h3>{esc(v["name"])}</h3>')
+            parts.append(f'<p>{esc(v["summary"])}</p>')
+            if v.get("distinguishing_factor"):
+                parts.append(f'<p class="meta">Distinguishing factor: {esc(v["distinguishing_factor"])}</p>')
+            if v.get("when_to_use"):
+                parts.append(f'<p class="meta">When to use: {esc(v["when_to_use"])}</p>')
+            sa = v.get("see_also")
+            if sa:
+                if sa in all_ids:
+                    parts.append(f'<p class="meta">See also: <a href="{esc(sa)}.html">{esc(sa)}</a></p>')
+                else:
+                    parts.append(f'<p class="meta">See also: <code>{esc(sa)}</code></p>')
+
     if applicability.get("use_when") or applicability.get("do_not_use_when"):
         parts.append("<h2>Applicability</h2>")
         if applicability.get("use_when"):

@@ -633,6 +633,40 @@ DIAGRAM_KEYWORDS = {
 }
 
 
+def rule_a14(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A14 Variant sanity: unique names within a pattern; see_also refs resolve;
+    variant name must not duplicate an existing first-class pattern's id."""
+    out: list[Violation] = []
+    pattern_ids = {p["id"] for p in patterns}
+    pattern_names_lower = {p["name"].lower() for p in patterns}
+    for p in patterns:
+        variants = p.get("variants") or []
+        if not variants:
+            continue
+        loc = f"{where.get(p['id'], '?')}::{p['id']}"
+        seen_names: set[str] = set()
+        for v in variants:
+            name = v.get("name", "")
+            key = name.lower().strip()
+            if not key:
+                out.append(Violation("A14.1", loc, "variant has empty name"))
+                continue
+            if key in seen_names:
+                out.append(Violation("A14.2", loc, f"duplicate variant name {name!r}"))
+            seen_names.add(key)
+            if key in pattern_names_lower and key != p["name"].lower():
+                out.append(Violation(
+                    "A14.3", loc,
+                    f"variant {name!r} duplicates an existing first-class pattern's name; "
+                    f"either reword the variant or promote it to its own pattern"))
+            see_also = v.get("see_also")
+            if see_also and see_also not in pattern_ids:
+                out.append(Violation(
+                    "A14.4", loc,
+                    f"variant {name!r} see_also references unknown pattern id {see_also!r}"))
+    return out
+
+
 def rule_a13(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A13 Diagram sanity: diagram.mermaid first non-empty line must match diagram.type."""
     out: list[Violation] = []
@@ -706,6 +740,7 @@ RULES = {
     "A11": ("framework coverage refs", lambda P, W, N: rule_a11(P, W)),
     "A12": ("recipe pattern refs", lambda P, W, N: rule_a12(P, W)),
     "A13": ("diagram sanity", lambda P, W, N: rule_a13(P, W)),
+    "A14": ("variant sanity", lambda P, W, N: rule_a14(P, W)),
 }
 
 

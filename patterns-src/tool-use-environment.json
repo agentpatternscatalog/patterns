@@ -857,7 +857,27 @@
         "mermaid": "sequenceDiagram\n  participant Host\n  participant Server\n  Host->>Server: initialize\n  Server-->>Host: capabilities (tools, resources, prompts)\n  Host->>Server: tools/list\n  Server-->>Host: typed tool catalog\n  Host->>Server: tools/call(name, args)\n  Server-->>Host: typed result",
         "caption": "MCP is the interface between an agent host and a tool server: typed catalog up front, typed calls and results during."
       },
-      "example_scenario": "A developer writes a 'GitHub PR review' tool once and exposes it via Model Context Protocol. Now it works in Claude Desktop, in Cursor, in their custom CLI agent, and in their teammate's VS Code agent — without rewriting the integration four times. The host and the tool only need to agree on MCP, not on each other's internal details."
+      "example_scenario": "A developer writes a 'GitHub PR review' tool once and exposes it via Model Context Protocol. Now it works in Claude Desktop, in Cursor, in their custom CLI agent, and in their teammate's VS Code agent — without rewriting the integration four times. The host and the tool only need to agree on MCP, not on each other's internal details.",
+      "variants": [
+        {
+          "name": "stdio transport",
+          "summary": "The agent host launches the MCP server as a subprocess and communicates over stdin/stdout JSON-RPC.",
+          "distinguishing_factor": "process-local, no network",
+          "when_to_use": "Local desktop agents (Claude Desktop, Cursor) that bundle servers as binaries."
+        },
+        {
+          "name": "HTTP / SSE transport",
+          "summary": "The MCP server is a long-running HTTP service; the host opens an SSE connection for server-initiated events plus regular HTTP for tool calls.",
+          "distinguishing_factor": "remote, streaming-capable",
+          "when_to_use": "Hosted MCP servers shared by multiple clients, or when the server needs to push notifications to the agent."
+        },
+        {
+          "name": "Streamable HTTP",
+          "summary": "Newer MCP transport (2025+) that consolidates request/response and event streaming on a single HTTP endpoint with chunked encoding.",
+          "distinguishing_factor": "single endpoint, bidirectional",
+          "when_to_use": "Newer MCP-conformant hosts; replaces the SSE-plus-HTTP split for simpler deployments."
+        }
+      ]
     },
     {
       "id": "mobile-ui-agent",
@@ -1730,7 +1750,28 @@
         "mermaid": "sequenceDiagram\n  participant Model\n  participant Validator\n  participant Executor\n  Model->>Validator: tool_call(name, args:JSON)\n  Validator->>Validator: validate against JSON Schema\n  alt valid\n    Validator->>Executor: dispatch\n    Executor-->>Model: tool_result(JSON)\n  else invalid\n    Validator-->>Model: typed error\n  end",
         "caption": "Tool Use makes the validator the boundary: invalid calls are rejected at the schema layer before any executor runs."
       },
-      "example_scenario": "A customer-support agent receives 'cancel my order #4471.' Instead of writing free-form text the surrounding code has to parse, it emits a structured call: cancel_order({order_id: '4471'}). A validator checks the call against the API's schema; the executor runs it; the agent gets back {status: 'cancelled', refund_amount: 49.99}. The model never has to guess at field names or formatting."
+      "example_scenario": "A customer-support agent receives 'cancel my order #4471.' Instead of writing free-form text the surrounding code has to parse, it emits a structured call: cancel_order({order_id: '4471'}). A validator checks the call against the API's schema; the executor runs it; the agent gets back {status: 'cancelled', refund_amount: 49.99}. The model never has to guess at field names or formatting.",
+      "variants": [
+        {
+          "name": "Provider native function-calling",
+          "summary": "The provider's API exposes a typed `tools` parameter; the model emits a `tool_call` message with name and JSON arguments. Validation happens server-side at the provider boundary.",
+          "distinguishing_factor": "vendor SDK contract",
+          "when_to_use": "Default for hosted models that support it (OpenAI, Anthropic, Google, Cohere). Lowest implementation cost."
+        },
+        {
+          "name": "JSON-mode tool use",
+          "summary": "The model is instructed to emit a JSON object whose schema includes a `tool` field; the host parses and validates against the local palette. No vendor-side tool API.",
+          "distinguishing_factor": "schema enforced at host, not provider",
+          "when_to_use": "Self-hosted or older models that lack native function-calling but reliably produce JSON."
+        },
+        {
+          "name": "Code-as-action tool use",
+          "summary": "The model emits a code snippet in a sandboxed interpreter; tool composition becomes function nesting and control flow. Each tool is a function the snippet may call.",
+          "distinguishing_factor": "code is the call-encoding",
+          "when_to_use": "Tasks that benefit from composition or branching across multiple tool calls per step.",
+          "see_also": "code-as-action"
+        }
+      ]
     },
     {
       "id": "toolformer",
