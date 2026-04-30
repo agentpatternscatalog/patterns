@@ -252,7 +252,15 @@ def rule_a2() -> list[Violation]:
         if f.endswith(script_exts):
             out.append(Violation("A2.1", f, "script at repo root (move to .github/scripts/)"))
 
-    allowed_top = {"README.md", "LICENSE", ".gitignore", "schema.json", "INDEX.md"}
+    allowed_top = {
+        "README.md",
+        "LICENSE",
+        ".gitignore",
+        "schema.json",
+        "INDEX.md",
+        "framework-coverage.json",
+        "framework-coverage.schema.json",
+    }
     allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
     for f in root_files:
         if f not in allowed_top:
