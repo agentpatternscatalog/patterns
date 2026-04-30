@@ -582,6 +582,38 @@ def rule_a11(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+DIAGRAM_KEYWORDS = {
+    "sequence": ("sequenceDiagram",),
+    "flow": ("flowchart", "graph"),
+    "class": ("classDiagram",),
+    "state": ("stateDiagram", "stateDiagram-v2"),
+    "graph": ("graph", "flowchart"),
+}
+
+
+def rule_a13(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A13 Diagram sanity: diagram.mermaid first non-empty line must match diagram.type."""
+    out: list[Violation] = []
+    for p in patterns:
+        d = p.get("diagram")
+        if not d:
+            continue
+        loc = f"{where.get(p['id'], '?')}::{p['id']}"
+        m = (d.get("mermaid") or "").lstrip()
+        if not m:
+            out.append(Violation("A13.1", loc, "diagram.mermaid is empty"))
+            continue
+        first_line = m.splitlines()[0].strip()
+        first_word = first_line.split()[0] if first_line else ""
+        expected = DIAGRAM_KEYWORDS.get(d.get("type", ""), ())
+        if not any(first_word.startswith(k) for k in expected):
+            out.append(Violation(
+                "A13.2", loc,
+                f"diagram.mermaid begins with {first_word!r}; expected one of {list(expected)} for type {d.get('type')!r}",
+            ))
+    return out
+
+
 def rule_a12(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A12 Recipes: pattern ids in recipes.json must resolve; recipe ids unique."""
     out: list[Violation] = []
@@ -631,6 +663,7 @@ RULES = {
     "A10": ("naming", lambda P, W, N: rule_a10(P, W)),
     "A11": ("framework coverage refs", lambda P, W, N: rule_a11(P, W)),
     "A12": ("recipe pattern refs", lambda P, W, N: rule_a12(P, W)),
+    "A13": ("diagram sanity", lambda P, W, N: rule_a13(P, W)),
 }
 
 
