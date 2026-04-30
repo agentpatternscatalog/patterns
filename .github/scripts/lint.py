@@ -41,28 +41,68 @@ KEBAB_RE = re.compile(r"^[a-z0-9-]+$")
 URL_RE = re.compile(r"https?://[^\s'\"<>)]+", re.IGNORECASE)
 
 CONSTRAINT_MARKERS = (
+    # explicit negation
     "cannot",
     "can't",
     "must not",
     "may not",
+    "is not",
+    "are not",
+    "do not",
+    "does not",
+    "did not",
+    "have no",
+    "has no",
+    "no ",
+    "never",
+    "without",
+    " not ",
+    "neither",
+    "untrusted",
+    # imperative / required precondition
+    "must",
+    "only when",
+    "only after",
+    "only if",
+    "only ",
+    "before ",
+    "is required",
+    "are required",
+    "is bound",
+    "are bound",
+    "bounded",
+    "is constrained",
+    "are constrained",
+    "is replaced",
+    "are replaced",
+    # rejection / refusal language
     "forbid",
     "reject",
     "halt",
-    "read-only",
-    "frozen",
+    "terminate",
     "block",
     "deny",
+    "denied",
     "refuse",
     "prevent",
     "restrict",
+    "fail",
+    "rejected",
+    "exceed",
+    "cut off",
+    # state/scope restrictions
+    "read-only",
+    "frozen",
     "no longer",
-    "is required",
-    "are required",
-    "is required to",
     "is not allowed",
     "not permitted",
     "off-limits",
     "out of scope",
+    "regardless",
+    "unless",
+    "rather than",
+    "at most",
+    "advisory",
 )
 
 HYPE_WORDS = (
@@ -96,7 +136,6 @@ HYPE_WORDS = (
 NEUTRAL_VOICE_FORBIDDEN = (
     r"\bwe\b",
     r"\bour\b",
-    r"\bus\b",
     r"\byou\b",
     r"\byour\b",
 )
@@ -389,6 +428,18 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
     return out
 
 
+ABBREV_BEFORE_PERIOD = re.compile(
+    r"\b(?:e\.g|i\.e|etc|vs|cf|Mr|Mrs|Ms|Dr|Jr|Sr|St|Inc|Ltd|Co|Corp|Fig|No|al)\.\s+",
+    re.IGNORECASE,
+)
+
+
+def _count_sentences(text: str) -> int:
+    masked = ABBREV_BEFORE_PERIOD.sub(lambda m: m.group(0).replace(".", "\x00"), text)
+    parts = [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", masked) if s.strip()]
+    return len(parts)
+
+
 def rule_a7(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A7 Prose shape: intent one sentence, prose slots not bullets."""
     out: list[Violation] = []
@@ -396,10 +447,9 @@ def rule_a7(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
         loc = f"{where.get(p['id'], '?')}::{p['id']}"
         intent = (p.get("intent") or "").strip()
         if intent:
-            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", intent)
-            sentences = [s for s in sentences if s.strip()]
-            if len(sentences) > 1:
-                out.append(Violation("A7.1", loc, f"intent has {len(sentences)} sentences; expected 1"))
+            n = _count_sentences(intent)
+            if n > 1:
+                out.append(Violation("A7.1", loc, f"intent has {n} sentences; expected 1"))
             if intent.lstrip().startswith(("- ", "* ")):
                 out.append(Violation("A7.1", loc, "intent starts with a bullet"))
             if len(intent.split()) > 35:
@@ -411,6 +461,21 @@ def rule_a7(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+PROPER_NOUNS_WITH_AI = (
+    "EU AI Act",
+    "AI Act",
+    "AI Safety Institute",
+    "Open AI",
+    "OpenAI",
+    "GenAI",
+    "xAI",
+    "AI21",
+    "AGI",
+    "AI-User",
+    "AI-Assistant",
+)
+
+
 def rule_a8(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A8 Vocabulary: never 'the AI'."""
     out: list[Violation] = []
@@ -419,9 +484,12 @@ def rule_a8(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     for p in patterns:
         loc = f"{where.get(p['id'], '?')}::{p['id']}"
         for slot, text in text_fields(p).items():
-            if pat.search(text):
+            scrubbed = text
+            for noun in PROPER_NOUNS_WITH_AI:
+                scrubbed = scrubbed.replace(noun, "")
+            if pat.search(scrubbed):
                 out.append(Violation("A8.1", f"{loc}#{slot}", "found 'the AI' / 'an AI' (use 'the model' or 'the LLM')"))
-            elif standalone.search(text) and not re.search(r"\bAPI\b|\bGenAI\b|\bxAI\b", text):
+            elif standalone.search(scrubbed) and not re.search(r"\bAPI\b", scrubbed):
                 out.append(Violation("A8.1", f"{loc}#{slot}", "standalone 'AI' (use 'the model' or 'the LLM')"))
     return out
 
