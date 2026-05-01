@@ -108,6 +108,8 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
         parts.append(f'<p class="aliases">aka {esc(", ".join(aliases))}</p>')
 
     meta_bits = [f"category: <code>{esc(cat)}</code>", f"status: <code>{esc(p.get('status_in_practice','—'))}</code>"]
+    if p.get("author"):
+        meta_bits.append(f"author: <code>{esc(p['author'])}</code>")
     parts.append(f'<p class="meta">{" &middot; ".join(meta_bits)}</p>')
 
     parts.append(f"<h2>Intent</h2><p>{esc(p['intent'])}</p>")

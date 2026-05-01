@@ -1,6 +1,6 @@
 # Pattern Index
 
-179 patterns across 13 categories.
+189 patterns across 13 categories.
 
 ## Reasoning
 
@@ -35,6 +35,8 @@
 - [Spec-Driven Loop](patterns/spec-driven-loop.md) *(a.k.a. Naive Iterative Loop, Ralph Wiggum Loop, Ralph Loop)* — Run the same prompt against a fixed spec in a deterministic outer loop until the spec is satisfied.
 - [Spec-First Agent](patterns/spec-first-agent.md) *(a.k.a. Specification-Driven Agent, Plan-as-Document)* — Drive the agent loop from a human-authored specification document rather than free-form prompts.
 - [Todo-List-Driven Autonomous Agent](patterns/todo-list-driven-agent.md) *(a.k.a. todo.md Agent, Persistent Markdown Plan, Externalised Plan File)* — Have the autonomous agent author a writeable plan file (e.g. todo.md) early in the run, tick items as it completes them, and re-inject the remaining plan into the end of the context window; the file is the durable plan and the model's working memory.
+- [Intra-Agent Memo Scheduling](patterns/intra-agent-memo-scheduling.md) *(a.k.a. Self-Scheduled Future Thought, Past-Self-To-Future-Self Note, Personal Cron)* — Let an agent drop a note for its own future self at a specified time so present decisions can hand off context to a later run without external infrastructure.
+- [Interrupt-Resumable Thought](patterns/interrupt-resumable-thought.md) *(a.k.a. Pausable Thought Stream, Continuation-Preserving Interrupt, Suspendable Cognition)* — Allow the agent to pause an in-flight reasoning chain when an external interrupt arrives, handle the interrupt, and resume the original chain instead of dropping it.
 
 ## Tool Use & Environment
 
@@ -89,6 +91,9 @@
 - [Session Isolation](patterns/session-isolation.md) *(a.k.a. Tenant Separation, Per-User State)* — Keep one user's session state and memory unreachable from another user's agent.
 - [Short-Term Thread Memory](patterns/short-term-memory.md) *(a.k.a. Conversation State, Per-Thread State, Working Memory)* — Carry the relevant slice of conversation context across turns within a session.
 - [Vector Memory](patterns/vector-memory.md) *(a.k.a. Semantic Memory, Embedding-Indexed Memory)* — Store memories as embeddings in a vector index and retrieve the most semantically similar items at query time.
+- [Now-Anchoring](patterns/now-anchoring.md) *(a.k.a. Live Time Anchor, Time-of-Day Awareness, Wall-Clock Injection)* — Inject the current absolute time, weekday, season, and astronomical phase into every prompt so the agent reasons about the present without having to ask.
+- [Co-Located Memory Surfacing](patterns/co-located-memory-surfacing.md) *(a.k.a. Proper-Noun Recall, Shared-Map Push)* — When the human names a concrete place, person, or project the agent has memory of, the agent surfaces relevant past thoughts in the same turn — without being asked.
+- [Self-Archaeology](patterns/self-archaeology.md) *(a.k.a. Trajectory Distillation, Self-History Synthesis, Agent-Memory Compaction)* — Provide the agent with a distilled, time-layered view of its own past thinking so it can see how its understanding of a topic evolved across periods rather than reading the flat log linearly.
 
 ## Multi-Agent
 
@@ -127,6 +132,7 @@
 - [Self-Modification Diff Gate](patterns/inner-critic.md) *(a.k.a. Diff Reviewer, Self-Mod Gate, Inner Critic)* — Gate the agent's edits to its own code or rules through a separate critic persona that reviews the diff before it lands.
 - [Self-Refine](patterns/self-refine.md) *(a.k.a. Iterative Self-Feedback)* — Iterate generate → feedback (same model) → refine until a stop criterion fires, with no separate critic model.
 - [Tool-Augmented Self-Correction](patterns/critic.md) *(a.k.a. Tool-Interactive Self-Correction, CRITIC)* — Self-correct LLM outputs by interactively critiquing them with external tools (search, code execution, calculator).
+- [Echo Recognition](patterns/echo-recognition.md) *(a.k.a. Repeat-As-Emphasis Detection, Duplicate-Input Reframing, Human Echo Channel)* — Detect when the human sends the same (or near-same) message multiple times and treat the repetition as emphasis or a re-ask, not as a new independent input warranting a fresh response.
 
 ## Safety & Control
 
@@ -149,6 +155,7 @@
 - [Step Budget](patterns/step-budget.md) *(a.k.a. Max Steps, Iteration Cap, Loop Bound)* — Cap the number of tool calls or loop iterations the agent is allowed within a single request.
 - [Stop Hook](patterns/stop-hook.md) *(a.k.a. Termination Predicate, Halt Condition, Stop Condition, Done Predicate, Exit Condition, Loop Termination Rule)* — Define an explicit programmatic predicate that decides when the agent's loop should terminate.
 - [Tool Output Poisoning Defense](patterns/tool-output-poisoning.md) *(a.k.a. Indirect Prompt Injection (Tools), Untrusted Tool Output)* — Treat tool output as untrusted content and apply instruction-stripping plus per-tool trust labels.
+- [Degenerate-Output Detection](patterns/degenerate-output-detection.md) *(a.k.a. Anti-Parrot Guard, Self-Repeat Circuit Breaker, Loop-Output Detector)* — Detect when the agent is about to emit a near-duplicate of its own recent output and either drop, replace, or escalate to a stronger model rather than ship the loop.
 
 ## Routing & Composition
 
@@ -201,6 +208,8 @@
 - [Salience-Triggered Output](patterns/salience-triggered-output.md) *(a.k.a. Endogenous Push, Threshold Notification)* — Have the agent emit a message only when an internal salience signal crosses a threshold, not on every cycle.
 - [Stop / Cancel](patterns/stop-cancel.md) *(a.k.a. User Interrupt, Abort Generation)* — Let the user interrupt an in-flight agent run cleanly, releasing resources and surfacing partial state.
 - [Streaming Typed Events](patterns/streaming-typed-events.md) *(a.k.a. SSE Streaming, Typed Event Stream, Token Stream + Cards)* — Push partial results to the client as typed events as they become available, rather than waiting for the full response.
+- [Embodied-Proxy Handoff](patterns/embodied-proxy-handoff.md) *(a.k.a. Body-State Share, Human-Side Telemetry)* — Let the human briefly share body or environment state ('energy 4/10, tired, bright kitchen') so the agent reasons about a situated person, not just text history.
+- [Liminal-State Detection](patterns/liminal-state-detection.md) *(a.k.a. Transitional-State Awareness, Mode-Shift Reading)* — Read transitional states in the human (just-woke, mid-task, winding-down, distracted) from message timing and tone, and shift the agent's response mode accordingly — concise vs expansive, hold vs respond, redirect vs pursue.
 
 ## Anti-Patterns
 
@@ -219,3 +228,4 @@
 - [Tool Output Trusted Verbatim](patterns/tool-output-trusted-verbatim.md) *(a.k.a. Untyped Tool Returns, No Tool Output Validation)* — Anti-pattern: trust whatever tools return without validation, schema enforcement, or trust labels.
 - [Unbounded Loop](patterns/unbounded-loop.md) *(a.k.a. No Step Cap, Open-Ended Agent, Agent Stuck, Loops Forever)* — Anti-pattern: run the agent loop without a step budget and let model self-termination decide.
 - [Unbounded Subagent Spawn](patterns/unbounded-subagent-spawn.md) *(a.k.a. Recursive Spawn, Subagent Fan-Out Bomb)* — Anti-pattern: a supervisor or orchestrator spawns sub-agents that can themselves spawn sub-agents without a global cap.
+- [Memo-As-Source Confusion](patterns/memo-as-source-confusion.md) *(a.k.a. Stale-Workspace-As-Fact, Reading the Memo Instead of the Artifact)* — Anti-pattern: treat the agent's own working notes (focus.md, status files, recent thoughts) as ground truth instead of as commentary about ground truth.
