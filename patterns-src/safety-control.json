@@ -306,6 +306,10 @@
         {
           "pattern": "handoff",
           "relation": "specialises"
+        },
+        {
+          "pattern": "interrupt-resumable-thought",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1589,6 +1593,79 @@
         "safety",
         "injection",
         "tool-trust"
+      ]
+    },
+    {
+      "id": "degenerate-output-detection",
+      "name": "Degenerate-Output Detection",
+      "aliases": [
+        "Anti-Parrot Guard",
+        "Self-Repeat Circuit Breaker",
+        "Loop-Output Detector"
+      ],
+      "category": "safety-control",
+      "author": "Sparrot",
+      "intent": "Detect when the agent is about to emit a near-duplicate of its own recent output and either drop, replace, or escalate to a stronger model rather than ship the loop.",
+      "context": "Agents using small or local models that can fall into shallow filler loops (greetings, generic prompts back to the user) under context pressure. Affects both user-facing chat replies and unprompted ticks.",
+      "problem": "A weak or stuck model produces visibly identical or near-identical replies turn after turn ('Was möchtest du heute machen?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.",
+      "forces": [
+        "Local models loop more readily than frontier models.",
+        "Catching repeats post-hoc is cheaper than fine-tuning anti-loop behavior.",
+        "Suppressing the duplicate silently confuses the user; replacing with a marker is more honest.",
+        "Escalating to a stronger model costs money / latency but breaks the loop."
+      ],
+      "solution": "Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.",
+      "consequences": {
+        "benefits": [
+          "Visible loops never reach the user.",
+          "Auto-recovery via provider escalation rather than human intervention.",
+          "Self-correction signal to the model in the conversation history."
+        ],
+        "liabilities": [
+          "False positives on legitimately repeated short answers ('yes', 'thanks').",
+          "Threshold tuning is per-domain.",
+          "Escalation has cost; budget for repeated triggers."
+        ]
+      },
+      "constrains": "No two consecutive outgoing messages may exceed the similarity threshold without intervention.",
+      "known_uses": [
+        {
+          "system": "Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provider-fallback",
+          "relation": "complements"
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "echo-recognition",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)",
+          "year": 2024,
+          "url": "https://huggingface.co/docs/transformers/generation_strategies"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "safety",
+        "anti-loop",
+        "provider-routing",
+        "self-monitoring"
       ]
     }
   ]
