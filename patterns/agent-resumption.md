@@ -27,6 +27,10 @@ Agents that lose state on restart lose hours of work; users distrust long-runnin
 
 Two production approaches. (a) Deterministic replay of recorded effects (Temporal/Inngest pattern): state = inputs + log of side-effects; on resume, the engine re-executes the workflow code, skipping side-effects that already have logged results. (b) Checkpoint snapshots of agent state (LangGraph Cloud pattern): periodically serialise plan, working memory, partial outputs, pending tool calls; restore on restart. Both approaches require deterministic idempotency keys passed to side-effect targets so a replayed-but-unlogged call is deduplicated downstream. Without this, crash-between-effect-and-log produces duplicates.
 
+## Example scenario
+
+A research agent is forty minutes into a slow scrape-and-summarise run when the operator deploys a hotfix and the worker container restarts. Without persisted state, the run vanishes and the user re-issues the request. The team adds Agent Resumption: every step's plan, tool result, and intermediate state is checkpointed to durable storage, keyed by run id. After the restart, the worker reloads the checkpoint and continues from the next step instead of from scratch.
+
 ## Consequences
 
 **Benefits**

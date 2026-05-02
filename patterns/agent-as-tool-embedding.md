@@ -28,6 +28,10 @@ Letting the parent observe the sub-agent's turns either bloats parent context or
 
 Define the sub-agent as `def sub_agent(task: str, ...) -> Result`. The parent calls it like any other tool. Inside the function: a fresh agent loop with its own model, tool palette, and step budget runs to completion or failure, returning a structured result. Parent context records only the call and the return value. Step budget and timeout are enforced by the wrapper, not by the sub-agent's prompt.
 
+## Example scenario
+
+A travel-planning agent needs to research hotel options, which itself takes ten or twenty turns of search and filtering. Putting all those turns into the parent's transcript bloats context and entangles the planner with hotel-search internals. The team wraps the hotel sub-agent behind a single function-shaped tool: the parent calls research_hotels(criteria) and gets back a structured shortlist. The sub-agent's internal turns stay sealed behind that signature.
+
 ## Structure
 
 ```

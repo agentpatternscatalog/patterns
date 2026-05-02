@@ -87,6 +87,10 @@ Dream pass surfaces recurring themes from recent thoughts and writes them to the
 
 *When to use:* Default safety stance: humans or higher-level reflection promote candidates to durable rules.
 
+## Example scenario
+
+A long-running personal agent has been talking with its user daily for three months. Per-tick reflection keeps it coherent within a session; weekly insight extraction is too coarse. Affective residue from a tense conversation last Tuesday still colours its tone today. The team adds a Dream Consolidation Cycle: once a night the agent reads its last twenty-four hours of thoughts, promotes recurring themes into long-term memory, and writes off the affective residue, clearing working memory before the next day. The agent stops ruminating on stale items.
+
 ## Known uses
 
 - **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*

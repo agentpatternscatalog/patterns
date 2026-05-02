@@ -27,6 +27,10 @@ Without per-feature cost visibility, expensive failures hide in aggregate metric
 
 Tag every model and tool call with feature, route, user (anonymised), and model id. Stream to a telemetry store. Build dashboards by feature, by model, by tier, by hour. Set alerts on anomalies. Pair with cost-gating for prevention.
 
+## Example scenario
+
+An ops team notices the monthly LLM bill has tripled but can't say which feature drove it — the dashboard only shows total tokens. By the time billing arrives the runaway feature has been live for weeks. They add Cost Observability: every request is tagged with feature, user, and tenant, and per-feature spend rolls up in near-real-time. Within an hour of a regression the team can see which feature now costs ten times what it did yesterday.
+
 ## Consequences
 
 **Benefits**

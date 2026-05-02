@@ -27,6 +27,10 @@ Most software has no clean API; agents need to operate GUIs visually, including 
 
 The model receives screenshots (optionally augmented with accessibility-tree or set-of-mark annotations) and emits typed tool calls (move mouse, click, type, scroll, screenshot). A controller executes them against a real or virtual desktop. The loop is ReAct-shaped: screenshot → think → act → screenshot.
 
+## Example scenario
+
+A solo founder wants their agent to update a spreadsheet in a desktop accounting app that has no API and no plug-ins. Building a bespoke integration would take weeks and they'd need to do it again for the next tool. They put the agent on Computer Use: it receives screenshots of the desktop and emits virtual mouse and keyboard actions to navigate menus, click cells, and type. Clunkier and slower than an API, but it works on the software the founder actually owns.
+
 ## Consequences
 
 **Benefits**

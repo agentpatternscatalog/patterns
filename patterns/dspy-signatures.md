@@ -33,6 +33,10 @@ Define each step as a typed signature (input fields → output fields). Compose 
 - **MIPRO signature optimisation** — Joint Bayesian optimisation over instructions and demonstrations rather than demonstrations alone.
 - **Assertion-guarded signatures** — Signatures carry runtime assertions (`dspy.Assert`); the optimiser learns to satisfy them, and violations trigger backtracking at inference.
 
+## Example scenario
+
+A team has six prompts across their pipeline and every model upgrade means rewriting all of them by hand against a vague vibes-test. They migrate to DSPy Signatures: each step is declared as a typed input/output module — for example summarise(article: str) -> Summary — and a compiler generates prompts and few-shot examples automatically against a metric they care about. When they swap models, the compiler re-optimises the prompts; the team stops hand-tuning strings.
+
 ## Consequences
 
 **Benefits**

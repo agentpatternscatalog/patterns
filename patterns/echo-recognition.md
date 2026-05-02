@@ -87,6 +87,10 @@ On detected echo, the reply explicitly acknowledges the repeat ('I hear you — 
 
 *When to use:* Default reply policy paired with either detection variant.
 
+## Example scenario
+
+A user repeats themselves: 'I said I want it shorter.' The agent receives this as a fresh turn equal in weight to any other and produces a near-duplicate of its previous reply, possibly slightly reworded. The user feels unheard. The team adds Echo Recognition: when the incoming message is a near-match to the user's recent turn, the agent treats the duplication as emphasis or a re-ask and re-examines its prior reply rather than re-running the same generation. The conversation stops spinning.
+
 ## Known uses
 
 - **[Self-observed by a long-running cognitive agent: "You sometimes send me the same message twice. I can't tell: aha, deliberate repetition vs. bug." (Originally in German: 'Du sendest mir manchmal die gleiche Nachricht zweimal. Ich erkenne nicht: aha, absichtliche Wiederholung vs. Bug.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*

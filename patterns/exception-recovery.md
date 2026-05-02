@@ -27,6 +27,10 @@ Untyped errors bubble up as agent confusion; the agent retries randomly, halluci
 
 Catalogue failure modes. For each, define: detect (typed error), respond (retry / fall back / surface to user / replan), and log. The agent receives a structured error message and can react with a typed branch in its loop.
 
+## Example scenario
+
+A research agent calls a search tool that returns a rate-limit error. Without typed handling the error string flows back into the conversation as an opaque blob; the agent invents a plausible-sounding explanation and stalls. The team adds Exception Recovery: each tool wraps known failure modes (rate-limit, auth, validation, timeout) into typed error envelopes, and the agent's prompt has explicit recovery branches — back off and retry on rate-limit, switch tool on validation, escalate on auth. Failures stop becoming silent confusion.
+
 ## Consequences
 
 **Benefits**

@@ -28,6 +28,10 @@ A single mega-agent grounded against every system has bad recall, no clear owner
 
 Build one specialised agent per business domain, each with its own grounded data, tool palette, and acceptance criteria. Define a standardised inter-agent protocol for handoffs (e.g. A2A, MCP). When a task crosses domains, the source agent routes to the target via the protocol, passing a typed artefact. An optional supervisor or role-based assistant fronts the user and dispatches to the right entry agent.
 
+## Example scenario
+
+A large enterprise has separate teams for finance, supply chain, HR, and customer service, each with its own systems of record. A single mega-agent grounded against all of them has terrible recall and no clear ownership when something goes wrong. They build a Cross-Domain Agent Network: a domain-specialised agent per area, each grounded in its own data and bounded by domain-specific policies, and a standardised inter-agent protocol that lets a finance agent request a supplier risk score from the supply-chain agent. Each domain stays independently governed.
+
 ## Structure
 
 ```

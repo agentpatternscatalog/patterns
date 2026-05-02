@@ -34,6 +34,10 @@ Prompt the model with exemplars showing intermediate reasoning, or use a zero-sh
 - **Self-consistency CoT** — Sample many CoT traces at temperature, then take the majority-vote answer rather than the first trace (Wang et al. 2023).
 - **Auto-CoT** — Automatically construct exemplars by clustering questions and generating zero-shot CoT for each cluster representative (Zhang et al. 2022).
 
+## Example scenario
+
+A maths-tutoring assistant keeps blurting wrong answers to multi-step word problems because it tries to jump straight from 'Maria has...' to a single number. The team adds Chain-of-Thought prompting with a few worked exemplars, asking the model to write out each intermediate quantity before stating the final answer. Accuracy on the same problem set improves substantially because the answer now depends on reasoning steps the model can attend to one at a time, instead of being collapsed into a single output token.
+
 ## Consequences
 
 **Benefits**

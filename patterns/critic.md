@@ -27,6 +27,10 @@ Self-critique without external tools recycles the model's blind spots; tools pro
 
 After draft generation, the model emits a critique that names suspected errors and queries tools to verify. Tool results inform the revised output. Iterate until tools find no more issues or budget exhausted.
 
+## Example scenario
+
+A coding agent answers 'what's the time complexity of this sort?' confidently, but its self-critique just talks itself in circles using the same blind spots that produced the answer. The team wires in a Critic equipped with external tools: the critic runs the proposed code on benchmarks, queries an algorithms reference, and uses a calculator to double-check claimed bounds. When the critic has a measurement that contradicts the draft, the agent revises against an actual signal instead of recycling its own prior.
+
 ## Consequences
 
 **Benefits**

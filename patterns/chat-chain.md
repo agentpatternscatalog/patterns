@@ -28,6 +28,10 @@ A single agent loop loses focus; broadcast multi-agent chat produces tangled con
 
 Define an ordered chain of phases. Each phase has (a) a defined input artefact, (b) two role-paired agents (e.g. designer + coder, coder + tester), (c) a phase-specific completion predicate, (d) a defined output artefact. Within a phase, the two agents converse multi-turn; the completion predicate ends the phase; the artefact moves to the next phase. The chain is the macro-control; the chat is the micro-control.
 
+## Example scenario
+
+A team is using an agent system to ship a small internal tool. A single agent loop forgets the requirements by the time it's writing tests, and a free-for-all multi-agent chat tangles design discussions with code review. They structure the work as a Chat-Chain: phase 1 is two agents pairing on requirements until a spec is signed off, phase 2 is two agents pairing on design against that spec, phase 3 is implementation, and so on. Each phase's signed-off artefact becomes the only context that crosses into the next.
+
 ## Structure
 
 ```

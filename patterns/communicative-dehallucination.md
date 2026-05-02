@@ -27,6 +27,10 @@ Without a clarification channel between agents, the assistant fabricates the mis
 
 Define an explicit role-reversal protocol: when the assistant detects that the instruction is missing a deciding piece of context, it pivots and emits a focused question back to the instructor ("the precise name of the dependency, please"). The instructor answers, and only then does the assistant produce its conclusion. Bound the depth (one or two reversals) to prevent infinite ping-pong.
 
+## Example scenario
+
+An orchestrator agent tells a coding sub-agent 'add the new field to the user model'. The sub-agent doesn't know whether 'field' means database column, API contract, or both, but it would normally just pick one and start editing. Under Communicative Dehallucination, the sub-agent reverses roles and asks back: 'do you mean the database schema, the GraphQL type, or both?' Only after the orchestrator answers does it act, so the wrong choice never propagates downstream where it would be expensive to detect.
+
 ## Structure
 
 ```

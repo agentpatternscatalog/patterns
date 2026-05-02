@@ -28,6 +28,10 @@ Without prior knowledge of element semantics, the agent guesses at every screen 
 
 Split the agent's lifecycle into two phases. (1) Exploration — agent autonomously interacts with the app or watches a human demo, and writes per-element documentation: what the element is, what it does, when to use it. Store as a structured knowledge base. (2) Deployment — for each task, retrieve relevant element docs (e.g. via vector search), inject into context, then act. Refresh docs when the UI changes.
 
+## Example scenario
+
+A logistics company points its agent at an internal warehouse app it has never seen before. On every task the agent stumbles: it misreads which button submits, hallucinates field names, and clicks 'Cancel' thinking it confirms. The team runs an exploration phase first: a human demonstrates a few flows while the agent records each element's role and the surrounding context, building a per-element knowledge base. At deployment, the agent retrieves the relevant element docs before each click and stops guessing.
+
 ## Structure
 
 ```

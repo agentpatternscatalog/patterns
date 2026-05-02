@@ -27,6 +27,10 @@ Agents that always act produce confidently wrong results on ambiguous inputs.
 
 Detect ambiguity via low-confidence intent classification or explicit ambiguity rubric. When detected, ask one focused question and wait for the answer before acting. Phrase the question with the most-likely interpretation as a default.
 
+## Example scenario
+
+A scheduling assistant gets the message 'move my meeting with Sam to Tuesday'. There are three Sams and two Tuesdays in scope. An always-act agent picks one and silently moves the wrong meeting. The team adds Disambiguation: when the resolver returns multiple candidates with similar likelihood, the agent asks 'which Sam — Sam Patel from Finance or Sam Chen from Design?' before touching the calendar. One short question prevents an embarrassing rollback.
+
 ## Consequences
 
 **Benefits**

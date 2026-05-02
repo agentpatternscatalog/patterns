@@ -34,6 +34,10 @@ Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthrop
 - **Interleaved thinking** — Reasoning blocks may be emitted between tool calls within one turn rather than only at the start (Anthropic interleaved thinking).
 - **Summary-exposed thinking** — Hidden reasoning is kept private but a short summary of it is returned to the caller for UX (OpenAI reasoning summaries).
 
+## Example scenario
+
+An agent answering 'is this contract fair to my client?' produces a one-paragraph answer that misses two clauses. The team enables Extended Thinking with a generous internal-token budget: before the user-visible reply, the model spends thousands of opaque reasoning tokens working through clauses, comparing precedents, and listing edge cases. The user sees a tighter, better-reasoned answer; the chain itself stays internal so the prompt isn't polluted by reasoning artefacts on subsequent turns.
+
 ## Consequences
 
 **Benefits**

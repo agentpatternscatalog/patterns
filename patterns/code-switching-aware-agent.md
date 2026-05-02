@@ -34,6 +34,10 @@ Adopt a three-part discipline. (1) Tokenise on Unicode + Latin without assuming 
 - **Per-clause language tagging** — Run a clause-level language detector and route each clause to the appropriate sub-pipeline before recombining.
 - **Few-shot code-switched prompting** — When no code-switched-trained model is available, supply few-shot exemplars in the same code-switched register as expected input.
 
+## Example scenario
+
+A consumer-finance assistant in India keeps mishandling messages like 'mera EMI kab due hai bhai?' — Roman-script Hindi mixed with English. A mono-language tokeniser splits 'EMI' awkwardly and the language detector flips between turns, sending replies to the wrong NLU pipeline. The team rebuilds the front of the agent as Code-Switching Aware: tokenisation handles Latin and Devanagari indistinguishably, each token gets a language tag, and tool routing uses the mixed signal directly. Users stop being asked to 'please use one language'.
+
 ## Structure
 
 ```

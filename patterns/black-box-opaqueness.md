@@ -27,6 +27,10 @@ When (not if) the agent does something wrong, there is no record of why; debuggi
 
 Don't. Add traces, decision logs, and provenance from day one. See provenance-ledger, decision-log, lineage-tracking.
 
+## Example scenario
+
+A startup ships a customer-facing agent in a hurry with no traces, no decision logs, and no tool-call provenance. A week later a user complains the agent issued a duplicate refund. The team has nothing to look at — they spend two days trying to reproduce the bug from the user's vague timeline and never definitively explain it. This is the Black-Box Opaqueness anti-pattern: the absence of observability is itself the failure, and recovery requires retrofitting traces to every step before the next incident.
+
 ## Consequences
 
 **Liabilities**

@@ -27,6 +27,10 @@ Per-thread memory loses everything between sessions; users repeat themselves; th
 
 Maintain a per-user store of distilled facts (preferences, prior context, names, projects). Load relevant slices into each session's context. Provide explicit add/forget tools. Audit and surface memory entries to the user. Deletion controls and a user-visible memory inspector (delete / disable / export) satisfy regulatory and trust requirements.
 
+## Example scenario
+
+A user uses their personal assistant on the laptop in the morning, the phone at lunch, and a smart speaker in the evening. Without persistent memory, each device feels like a stranger — the user repeats their dietary restrictions three times in one day. The team adds Cross-Session Memory: stable user-specific facts (allergies, preferred name, default timezone) are stored centrally and loaded into every new session on every device. The assistant stops feeling amnesic and the user stops repeating themselves.
+
 ## Consequences
 
 **Benefits**

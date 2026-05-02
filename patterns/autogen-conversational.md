@@ -27,6 +27,10 @@ Single-agent loops cannot represent dialogue-shaped collaboration; rigid orchest
 
 Define agents with system prompts and allowed actions. Implement a conversation manager that selects which agent speaks next (round-robin, condition-based, model-decided). Each agent reads the conversation and emits a turn. Continue until termination criterion (task complete, max turns, explicit handoff to user).
 
+## Example scenario
+
+A finance team wants an agent that drafts an internal memo, has a 'reviewer' poke holes in it, and revises until the reviewer signs off. A linear pipeline can't represent the back-and-forth, and a free-form group chat is too loose. They use an AutoGen-style conversational setup: a writer agent and a reviewer agent take turns until the reviewer emits an explicit approval token. Each turn drives the next; the loop ends when the role-defined criterion fires.
+
 ## Consequences
 
 **Benefits**

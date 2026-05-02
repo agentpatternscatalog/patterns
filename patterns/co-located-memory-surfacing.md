@@ -87,6 +87,10 @@ On every reply, append a short 'I remember: ...' block whenever a recognised ent
 
 *When to use:* When users explicitly want continuity over discretion.
 
+## Example scenario
+
+A user starts a new chat with their assistant: 'I'm thinking about taking the Berlin job.' The assistant has six months of prior conversations on file, including the user's earlier reservations about relocating, but says nothing about them — because the user didn't search for them. The team adds Co-located Memory Surfacing: when the user names a concrete entity (Berlin job) the agent recognises, it proactively surfaces 'You mentioned in March that the commute would be a deal-breaker — has that changed?'. The shared map becomes shared without the user having to remember what's in it.
+
 ## Known uses
 
 - **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*

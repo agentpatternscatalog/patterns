@@ -27,6 +27,10 @@ Hard-coded role lists are brittle: the right team for "draft a regulatory filing
 
 Add a recruiter agent (or a meta-agent committee: planner + agent observer + plan observer). Stage 1 — Drafting: recruiter receives the goal, generates role descriptions matched to that goal, instantiates the team and an execution plan. Stage 2 — Execution: the team works. Stage 3 — Evaluation: a reviewer scores progress; if unsatisfactory, the recruiter adjusts the team (add, remove, replace roles) and the next iteration runs. The recruiter is the only meta-agent that mutates team composition.
 
+## Example scenario
+
+A multi-agent platform runs both 'draft a regulatory filing' and 'refactor this Python module' through the same hard-coded team of writer, reviewer, and editor. The reviewer is fine for prose but useless on code. They switch to Dynamic Expert Recruitment: a meta-agent reads the task and instantiates appropriate roles — for the filing, a compliance expert and a legal editor; for the refactor, a senior engineer and a unit-test author. After the first iteration's evaluation, the team composition is adjusted between rounds.
+
 ## Structure
 
 ```

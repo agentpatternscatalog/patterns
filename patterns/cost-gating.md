@@ -27,6 +27,10 @@ Agents that act first and bill later create surprise costs; users learn to distr
 
 Estimate cost before invoking the expensive action. If the estimate exceeds the threshold, surface it to the user (or operator) and require explicit approval. Track running totals against per-session and per-period budgets.
 
+## Example scenario
+
+An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up.
+
 ## Consequences
 
 **Benefits**

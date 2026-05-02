@@ -27,6 +27,10 @@ Single-agent answers hide reasoning blind spots; the same model giving both answ
 
 Two or more agents are given different positions. They exchange arguments over N rounds. A judge agent (or a tie-break rule) selects the answer or synthesises a position from both.
 
+## Example scenario
+
+A policy-analysis agent answers 'should the firm adopt this open-source library?' with a confident yes that turns out to ignore a license incompatibility. Single-shot answers hide the reasoning the model didn't do. The team uses Debate: two agents argue opposing positions — one for adoption, one against — exchanging structured arguments for a fixed number of rounds, and a third agent reads the transcript and rules. The license question surfaces in the second round and changes the verdict.
+
 ## Consequences
 
 **Benefits**

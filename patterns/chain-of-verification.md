@@ -34,6 +34,10 @@ Four-step pipeline. Draft: produce initial answer. Plan: generate verification q
 - **Factored CoVe** — Answer each verification question in its own isolated prompt so checks cannot reinforce each other (highest quality).
 - **Factor+Revise CoVe** — Factored execution plus an explicit cross-check step that flags inconsistencies between draft and verification answers before revising.
 
+## Example scenario
+
+A research agent confidently lists five 'recent papers' on a niche topic, two of which don't exist. Asking the model to check its own draft in the same conversation just produces equally confident reaffirmations. The team applies Chain-of-Verification: after the draft, the system generates verification questions about each citation, answers each one in a fresh context with no view of the draft, and revises. Fabricated citations get exposed because the verifier never saw the wrong claim to begin with.
+
 ## Consequences
 
 **Benefits**

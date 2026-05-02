@@ -33,6 +33,10 @@ A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal 
 - **Out-of-band push** — User and agent share the same chat for prompts, but the agent sends salience-triggered pushes through a separate notification surface (toast, email).
 - **Always-on REPL channel** — User and agent both type into a shared REPL with the agent running a continuous loop; both can interrupt the other.
 
+## Example scenario
+
+A user has asked their personal agent to monitor a slow scientific computation overnight and 'tell me when it's interesting'. Pure request/response would force the user to keep polling; pure push notifications wake them for trivia. They build a bidirectional impulse channel: the agent can send messages at any time, but the user can also reach in mid-run with 'stop watching the temperature, watch the residual'. The agent picks up the impulse on its next tick and changes what it pushes.
+
 ## Consequences
 
 **Benefits**

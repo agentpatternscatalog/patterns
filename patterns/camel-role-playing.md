@@ -27,6 +27,10 @@ Single agents miss the turn-taking dynamics that human collaboration relies on; 
 
 Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with their roles fixed and the task specified. They converse until the task is completed or budget exhausted. The output is the final assistant message; the conversation log is debugging artefact.
 
+## Example scenario
+
+A research team wants an agent to design and prototype a small data-pipeline tool, but a single agent loop keeps drifting between requirements and implementation. They cast it as a CAMEL role-play: a 'product owner' agent and a 'developer' agent autonomously play out a user-assistant dialogue, with the product owner stating goals and constraints and the developer iterating. Neither alone could keep the conversation grounded; the role pairing produces working scaffolding without a human in the loop.
+
 ## Consequences
 
 **Benefits**

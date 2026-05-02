@@ -28,6 +28,10 @@ A single model that does both planning and grounding is dominated by the harder 
 
 Define a clean intermediate representation: the decision model emits a high-level intent ("open the cart", "swipe left to next item") in a small, typed vocabulary; the grounding model receives that intent plus the current screenshot and emits the concrete action (tap(x,y), swipe coordinates, key press). The decision model holds the plan and replans on failure; the grounding model is stateless per action but specialised on screen interpretation. Errors at the grounding step are reported back to the decision model for replanning, not retried locally.
 
+## Example scenario
+
+A desktop-automation agent occasionally clicks the wrong menu item by a few pixels, and on other tasks plans well but loops endlessly trying to recover from a bad click. A single model is dominated by whichever skill is harder at the moment. The team splits it into a Dual-System GUI Agent: a strong planning model decides what to do and how to recover from errors, and a separate vision-grounding model translates 'click Save As' into the precise pixel coordinates. Each subproblem goes to the better-suited model.
+
 ## Structure
 
 ```

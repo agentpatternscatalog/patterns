@@ -27,6 +27,10 @@ Stuffing every workflow into the system prompt bloats context; ad-hoc prompt fil
 
 Package each procedure as a markdown file (and optional companion resources) under a known directory. The agent loads relevant skills on demand based on the current task. Skills are author-time artefacts versioned with the agent.
 
+## Example scenario
+
+A customer-support agent now handles refunds, address changes, subscription pauses, and SIM swaps. Cramming every workflow into the system prompt has pushed it past 18k tokens and the agent still skips steps. The team breaks each workflow into an Agent Skill — a markdown file with the procedure plus a few example dialogues — that the agent loads on demand once the user's intent is classified. The base prompt shrinks; only the relevant procedure enters context for that conversation.
+
 ## Consequences
 
 **Benefits**

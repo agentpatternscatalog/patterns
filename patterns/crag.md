@@ -33,6 +33,10 @@ After retrieval, a lightweight evaluator (T5-based or similar) grades each docum
 - **Binary CRAG** — Simplified two-grade variant (good / bad) used when a calibrated three-way evaluator is unavailable.
 - **Decompose-and-recompose CRAG** — For Correct documents, additionally strip irrelevant strips and recompose only the relevant strips before passing to the generator.
 
+## Example scenario
+
+A RAG-powered legal assistant retrieves three statutes for a question about export controls; one of them is from the wrong jurisdiction. Naive RAG would hand all three to the generator and the wrong statute would corrupt the answer. The team layers in CRAG: a lightweight evaluator grades each retrieved document for relevance, the wrong-jurisdiction one falls below threshold, and the system triggers a corrective web search before generation. The final answer is grounded in two strong retrievals plus one fresh source instead of one bad one.
+
 ## Consequences
 
 **Benefits**
