@@ -46,6 +46,18 @@ Combine routing (classify the request) with a per-class model preference. Routin
 
 A SaaS company is paying frontier-model prices for every request, including 'what's the weather in Berlin' and 'extract emails from this paragraph'. The team adds multi-model-routing: a tiny classifier routes simple extractions and routing decisions to a cheap small model and reserves the expensive frontier model for the screen-aware dialog and final answers. A confidence cascade falls back to the strong model when the cheap one returns low-confidence. Total token cost drops by 60 percent with no measurable quality loss on the eval set.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  R[Request] --> CL[Cheap classifier model]
+  CL -->|easy class| WC[Cheap model]
+  CL -->|hard class| WS[Strong model]
+  WC -->|low confidence| WS
+  WC --> O[Response]
+  WS --> O
+```
+
 ## Consequences
 
 **Benefits**

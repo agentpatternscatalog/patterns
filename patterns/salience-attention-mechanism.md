@@ -29,6 +29,18 @@ Without explicit salience, the agent either dumps all memory into context (token
 
 Score each candidate memory item `m` with a weighted sum: `alpha * novelty(m) + beta * goal_relevance(m) + gamma * recency(m) + delta * prediction_error(m) - epsilon * fatigue(m)`. Pick the top-k into the working set for the next tick. Persist the weights in a tunable config so a reflection pass can adjust them. The fatigue term penalises items that have already been attended to many times in the recent window, breaking rumination loops.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Mem[(Candidate memory items)] --> Sc[Salience score:<br/>α·novelty + β·goal +<br/>γ·recency + δ·prederr − ε·fatigue]
+  Sc --> Top[Top-k]
+  Top --> WS[Working set]
+  WS --> Tick[Next tick]
+  Tick -.reflection.-> Cfg[Tunable weights]
+  Cfg --> Sc
+```
+
 ## Consequences
 
 **Benefits**

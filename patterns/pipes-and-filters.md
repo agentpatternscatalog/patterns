@@ -46,6 +46,17 @@ Decompose the transformation into small filters with single responsibilities. Co
 
 A document-processing agent has grown into a 1500-line monolith that does PDF extraction, OCR cleanup, language detection, chunking, and embedding all in one function — and is impossible to test in isolation. The team rebuilds it as pipes-and-filters: each stage becomes a small filter with a single responsibility, connected by typed pipes. The OCR-cleanup filter can now be tested against a fixture in isolation, the chunking filter is reused by another product, and a new language-detection filter is dropped in without touching the others.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  In[Input stream] --> F1[Filter 1]
+  F1 -->|pipe| F2[Filter 2]
+  F2 -->|pipe| F3[Filter 3]
+  F3 -->|pipe| F4[Filter 4]
+  F4 --> Out[Output stream]
+```
+
 ## Consequences
 
 **Benefits**

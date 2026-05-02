@@ -33,6 +33,18 @@ Cap a list at 5-8 preoccupations stored as small JSON entries with topic, intens
 
 A long-running personal agent has a 'current focus' slot that holds one item and a long-term insight store that is too distilled. Mid-tier concerns — a project the user is wrestling with, a relationship issue they keep returning to — either crowd out the active focus or fall off the back of the context window. The team adds preoccupation-tracking: a capped list of 5–8 affect-tagged concerns with topic, intensity, and last-touched, decaying with a 7-day half-life, surfaced as a sidebar in every tick prompt. Mid-tier context now persists across days without overwhelming the foreground.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  E[Events / thoughts] --> U[Update preoccupations]
+  U --> L[(List, cap 5-8<br/>topic, intensity, affect)]
+  L -->|7-day half-life| Decay[Decay]
+  Decay --> L
+  L -->|sidebar| Tick[Tick prompt]
+  L -->|coldest dropped<br/>at cap| Out[Released]
+```
+
 ## Consequences
 
 **Benefits**

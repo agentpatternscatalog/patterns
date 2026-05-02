@@ -52,6 +52,17 @@ Construct training examples where some documents are oracle and others are distr
 
 A clinical-coding RAG assistant keeps citing topically-similar but wrong ICD chapters when the retriever pulls in adjacent conditions. The team builds a RAFT-style training set where each prompt has the oracle code reference plus three convincing distractors, and the gold answer cites only the oracle. After fine-tuning, the model learns to ignore distractors even when they dominate the retrieved context. Production accuracy on the long-tail comorbidity codes climbs without changing the retriever.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]
+  Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]
+  FT --> RAG[RAG inference]
+  Q[Query] --> RAG
+  RAG --> A[Answer with<br/>citation discipline]
+```
+
 ## Consequences
 
 **Benefits**

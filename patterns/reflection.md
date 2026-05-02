@@ -46,6 +46,19 @@ After producing an output, the model is prompted (often as a critic persona) to 
 
 A drafting agent writes a press release in one shot; legal flags two compliance issues post-hoc. The team adds a critic pass: after the first draft, the same model is prompted as a compliance reviewer to list concrete issues, then a third pass rewrites against that critique. With one extra round-trip, most legal-flag issues are caught before legal sees the draft. The team caps it at two reflection passes to control cost.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  T[Task] --> P[Producer pass]
+  P --> O1[Output v1]
+  O1 --> Cr[Critic pass]
+  Cr -->|issues| Rev[Revise pass]
+  Rev --> O2[Output v2]
+  O2 -->|loop until clean<br/>or max iters| Cr
+  O2 --> Final[Final output]
+```
+
 ## Consequences
 
 **Benefits**

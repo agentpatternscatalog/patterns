@@ -46,6 +46,18 @@ After each episode, the agent reflects on success/failure and writes a verbal le
 
 An agent solving programming-contest problems repeatedly trips over off-by-one in inclusive ranges. After each episode it writes a one-paragraph lesson keyed to 'range parsing' and stores it in long-term memory. On the next problem that mentions inclusive bounds, the relevant lesson is retrieved and prepended to the prompt. Same model, no fine-tune; pass-rate on that error class climbs because the agent now reads its own past lessons before writing code.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Ep[Episode] --> R[Reflect:<br/>verbal lesson]
+  R --> M[(Long-term memory<br/>keyed by task type)]
+  Q[New episode] --> Ret[Retrieve lessons]
+  M --> Ret
+  Ret -->|prepend to context| Run[Run agent]
+  Run --> Ep
+```
+
 ## Consequences
 
 **Benefits**

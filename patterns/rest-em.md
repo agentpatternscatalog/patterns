@@ -52,6 +52,17 @@ EM-style loop. (E-step) Generate many responses per problem. Filter by reward (c
 
 A team wants a small in-house model to solve grade-school math without paying to label rationales. They run ReST-EM: sample many CoT solutions per problem, keep only those whose final answer matches ground truth, fine-tune on the kept set, then sample again. Each round yields a stronger sampler whose kept fraction grows. After three iterations the small model lands within a few points of a much larger zero-shot baseline at a fraction of inference cost.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  M[Model] -->|E-step:<br/>generate many| C[Candidates]
+  C --> Rw[Reward filter:<br/>correctness / tests]
+  Rw --> Good[Filtered set]
+  Good -->|M-step: fine-tune| M
+  M -->|iterate| C
+```
+
 ## Consequences
 
 **Benefits**

@@ -46,6 +46,18 @@ Instrument the sandbox: log every syscall outside the allowed set, every network
 
 A code-execution agent runs user-emitted Python in a container that should have no network. One day a contractor's prompt-injected payload triggers an outbound DNS request; sandbox-isolation alone would have allowed the egress to fail silently. With escape monitoring, the unexpected syscall and the blocked egress both stream to safety telemetry, an alert fires within seconds, and the team locks the offending tenant before any further attempts.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]
+  S -->|net egress not on allowlist| Tel
+  S -->|fs write outside workdir| Tel
+  Tel --> Det[Threshold detector]
+  Det -->|alert| Op[Operators]
+  Det -->|confirmed escape| KS[Kill-switch]
+```
+
 ## Consequences
 
 **Benefits**

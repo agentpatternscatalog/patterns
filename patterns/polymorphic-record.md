@@ -52,6 +52,27 @@ Define a core schema with the common fields and a discriminator (e.g. `material_
 
 A textile-trading platform has yarn, fabric, and trim records, each with shared fields (sku, supplier, lead-time) plus type-specific ones (yarn count, fabric weave, trim attachment). Three separate schemas duplicate code; one bloated 'material' schema with every field is unenforceable. The team adopts a polymorphic-record: a core schema with the shared fields and a `material_type` discriminator, plus namespaced extension blocks (yarn:{}, fabric:{}, trim:{}). Clients that don't understand a sub-type still read the core fields and round-trip the rest losslessly.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class Record {
+    +id
+    +material_type
+    +common_fields
+  }
+  class YarnExt {
+    +weight
+    +fiber
+  }
+  class FabricExt {
+    +width
+    +weave
+  }
+  Record o-- YarnExt : yarn
+  Record o-- FabricExt : fabric
+```
+
 ## Consequences
 
 **Benefits**

@@ -53,6 +53,20 @@ An agent built on a reasoning model debugs flaky CI by calling a log-fetch tool.
 User -> [reasoning + tool_call] -> tool_result -> [reasoning + tool_call] -> tool_result -> [reasoning + final_content] -> User. Within episode: preserve reasoning. Across episodes: drop reasoning, keep content.
 ```
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> UserTurn
+  UserTurn --> Reasoning: assistant emits reasoning_content
+  Reasoning --> ToolCall
+  ToolCall --> ToolResult
+  ToolResult --> Reasoning: same episode, keep prior reasoning
+  Reasoning --> Reply: final assistant text
+  Reply --> NextUserTurn: drop all reasoning_content
+  NextUserTurn --> [*]
+```
+
 ## Consequences
 
 **Benefits**

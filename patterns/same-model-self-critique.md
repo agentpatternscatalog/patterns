@@ -46,6 +46,16 @@ Don't pretend it is independent. Either accept that self-critique catches surfac
 
 A team ships an agent where the same model writes an answer and then 'self-critiques' it before returning, and treats the critique as independent verification. Replication studies and their own evals show the critic confidently endorses confidently-wrong answers because it shares the producer's blind spots. They stop pretending independence: they either accept that self-critique catches surface errors only, or they swap the critic to a different model family.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  M[Same model] -->|produces| A[Answer]
+  M -->|critiques| A
+  A -.shared blind spots.-> Illusion[Illusion of independence]
+  Illusion -.fix.-> Diff[Use different model family<br/>or accept surface-only]
+```
+
 ## Consequences
 
 **Liabilities**

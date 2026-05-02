@@ -46,6 +46,18 @@ Prompts live in a registry as immutable, hashed, version-tagged artefacts. Code 
 
 A team rolls a small wording change into a prompt at 14:00 and by 16:00 the agent's behaviour has shifted in ways nobody predicted. There is no clean rollback short of redeploying the entire service from a prior commit. They adopt prompt-versioning: prompts live in a registry as immutable, hashed, semver-tagged artefacts; code references them by name plus version; deployments pin a specific version; rollback is a one-line config change. Eval-harness metrics tie to prompt versions. The next bad-prompt incident is reverted in under a minute.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Ed[Author edits prompt] --> H[Hash + semver tag]
+  H --> Reg[(Prompt registry<br/>immutable, signed)]
+  Code[Application code] -->|name + version| Reg
+  Reg --> Dep[Deployment]
+  Dep --> Eval[Eval harness]
+  Eval -.ties metrics to.-> Reg
+```
+
 ## Consequences
 
 **Benefits**

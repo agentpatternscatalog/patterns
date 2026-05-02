@@ -46,6 +46,18 @@ Don't reach for RAG first. Check whether the knowledge lives in a tool (database
 
 A team's first move on a new internal Q&A bot is to spin up a vector index over the company wiki. After three weeks they discover that 80 percent of questions are about live ticket status, which is in their helpdesk database, and a vector search over stale wiki pages cannot answer them. They name the failure naive-rag-first: they tear out the index for those queries and route them to a typed helpdesk tool call. RAG stays only for the genuine free-text knowledge questions where the wiki is authoritative.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[New knowledge need] --> X{Where does it live?}
+  X -->|tool / DB / API| T[Use tool-use]
+  X -->|small + stable| P[Inline in system prompt]
+  X -->|truly external + large| R[Use naive-rag]
+  X -.skipped check.-> AP[Anti-pattern: RAG by default]
+  AP -.causes.-> Bloat[Index sprawl & latency]
+```
+
 ## Consequences
 
 **Liabilities**

@@ -46,6 +46,21 @@ Mutation proposals are written to a holding area. A subsequent tick must confirm
 
 A long-running personal agent reads a frustrated user message and proposes a new persistent rule: 'never offer suggestions before being asked.' Under single-tick mutation the rule would land immediately and degrade the agent for weeks. Instead the proposal goes to a holding area; the next tick re-reads the rule against fresh context and the user's later message ('actually keep proposing, I just hated that one') and declines to confirm. The mutation expires unwritten. Only rules that survive K consecutive endorsements join the durable charter.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Proposed: propose mutation
+  Proposed --> Confirmed1: tick confirms
+  Confirmed1 --> ConfirmedK: K-1 more confirms
+  ConfirmedK --> Landed: write to durable state
+  Proposed --> Dropped: any tick disagrees
+  Confirmed1 --> Dropped: any tick disagrees
+  Proposed --> Landed: explicit user approval
+  Landed --> [*]
+  Dropped --> [*]
+```
+
 ## Consequences
 
 **Benefits**

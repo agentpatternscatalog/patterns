@@ -46,6 +46,18 @@ Define limits per identity at multiple horizons (per minute, per hour, per day).
 
 A coding assistant ships a free tier and within a week one signed-up account opens 400 concurrent agent loops, draining the month's token budget in two hours. The team adds per-identity token-bucket counters at three horizons (per minute, per hour, per day) at the API gateway and inside the agent loop itself. Over-budget callers get a clear 429 naming which window tripped and when it resets. Cost stops being a single hostile user away from blowing up.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Req[Request] --> ID[Identify caller]
+  ID --> B[Token bucket /<br/>sliding window]
+  B -->|under limit| Allow[Allow]
+  B -->|over limit| Deny[429 + clear message]
+  Allow --> Agent[Agent loop]
+  Agent --> B2[Inner limit:<br/>tool calls / tokens]
+```
+
 ## Consequences
 
 **Benefits**

@@ -33,6 +33,17 @@ On every prompt assembly, compute a small block: ISO local time, ISO UTC, weekda
 
 A long-running personal agent answers 'good morning!' at 22:00 because nothing in its prompt tells it what time the user is in. The user finds it disorienting. The team adds now-anchoring: every prompt assembly computes a small NOW block (ISO local time, weekday, day-of-year, season, moon phase) and prepends it near the top of the system prompt. The agent's replies become temporally grounded — 'evening — Friday, finally' — without any tool call, and time-aware reasoning costs microseconds.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  C[Clock] --> N[NOW block builder]
+  N -->|ISO local, UTC,<br/>weekday, week,<br/>season, moon| H[## NOW header]
+  H --> SP[System prompt]
+  SP --> M[LLM]
+  M --> R[Time-aware reply]
+```
+
 ## Consequences
 
 **Benefits**

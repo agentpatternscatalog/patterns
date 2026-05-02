@@ -52,6 +52,17 @@ Outer (plan, dispatch, monitor) <-- result/interrupt --> Inner (ReAct loop on su
 
 A research agent that handles multi-step report writing repeatedly drifts mid-execution — it discovers a fact that invalidates its plan but keeps executing because the planning loop has already exited. The team restructures as an outer-inner-agent-loop: the outer planner decomposes the report into subtasks with milestones; the inner executor runs a ReAct loop on each subtask and reports back. When the inner agent reports an invalidating finding, the outer can interrupt and replan instead of letting execution proceed on a stale plan.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  G[Goal] --> OP[Outer: Planner/Dispatcher]
+  OP -->|subtask k| IA[Inner: ReAct executor]
+  IA -->|status + evidence| OP
+  OP -->|milestone missed| OP
+  OP -->|all done| Done[Final result]
+```
+
 ## Consequences
 
 **Benefits**

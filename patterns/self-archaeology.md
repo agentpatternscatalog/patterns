@@ -29,6 +29,20 @@ When the agent asks itself 'what have I learned about X', the linear log gives e
 
 Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a separate dedicated directory (e.g. `trajectories/<topic>.md`) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Th[(Past thoughts)] --> Comp[Periodic compaction pass]
+  Comp --> P1[Period 1: held A]
+  Comp --> P2[Period 2: revised to B<br/>because Z]
+  Comp --> P3[Period 3: now C]
+  P1 --> Note[Trajectory note]
+  P2 --> Note
+  P3 --> Note
+  Note --> Agent[Agent context]
+```
+
 ## Consequences
 
 **Benefits**

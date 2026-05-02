@@ -52,6 +52,21 @@ A research agent built with ReAct burns tokens because each tool observation re-
 Planner(query) -> DAG(steps with #refs) -> Worker(steps) -> resolved_trace -> Solver(query, trace) -> answer.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  G[Goal] --> Pl[Planner]
+  Pl -->|DAG with #t1, #t2 vars| Plan[Plan]
+  Plan --> W[Worker]
+  W -->|exec ToolA| O1[obs t1]
+  W -->|exec ToolB t1| O2[obs t2]
+  O1 --> Tr[Resolved trace]
+  O2 --> Tr
+  Tr --> S[Solver]
+  S --> Ans[Answer]
+```
+
 ## Consequences
 
 **Benefits**

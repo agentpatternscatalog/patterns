@@ -46,6 +46,22 @@ Tool runtime resolves credentials from typed references the agent emits (e.g., `
 
 A debugging session shows that a customer's GitHub PAT once appeared in the model's input and therefore in the prompt log, the eval harness export, and the third-party model vendor's training-data request form. Containment is impossible after the fact. The team rebuilds tool calls so the agent emits only typed references like `{auth: 'github_token_for_user_42'}` and the tool runtime resolves the credential outside the model context. Plaintext secrets never enter the chat log again.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant M as Model
+  participant H as Tool runtime
+  participant V as Secret store
+  participant API as External API
+  M->>H: call({auth: 'github_token_for_user_42'})
+  H->>V: resolve reference
+  V-->>H: secret value
+  H->>API: request with secret
+  API-->>H: response
+  H-->>M: result (scrubbed)
+```
+
 ## Consequences
 
 **Benefits**

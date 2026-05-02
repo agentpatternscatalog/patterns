@@ -46,6 +46,18 @@ Collect step-level labels (correct / neutral / incorrect / hallucination) for ch
 
 A maths-reasoning agent passes most of the eval set but on inspection many traces have correct final answers reached through wrong intermediate steps — shortcuts the outcome reward model rewarded. The team trains a process-reward-model: human raters label each chain-of-thought step as correct, neutral, incorrect, or hallucinated; a classifier learns step-level scores. At inference, candidates whose intermediate steps score low are rejected even when the final answer happens to match. The agent's reasoning quality, not just its final accuracy, improves.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  CoT[Reasoning trace] --> S1[Step 1] --> S2[Step 2] --> S3[Step 3] --> Ans[Final answer]
+  S1 --> PRM[Process reward model]
+  S2 --> PRM
+  S3 --> PRM
+  PRM -->|low score| Reject[Reject candidate]
+  PRM -->|all high| Accept[Accept]
+```
+
 ## Consequences
 
 **Benefits**

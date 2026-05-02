@@ -46,6 +46,19 @@ Provide a tool or convention for writing to a scratchpad (a section of the promp
 
 A research agent that has to read ten papers and answer one question keeps repeating itself in the visible response because every intermediate note is also output to the user. The team adds a scratchpad tool: the agent writes intermediate notes to a private buffer it can reread on later turns; the user-visible response is composed at the end. Responses become tight while the agent's working memory stays rich.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  T[Turn n] --> A[Agent]
+  A -->|write notes| SP[(Scratchpad)]
+  SP -->|read on| T2[Turn n+1]
+  T2 --> A
+  A --> Resp[User-visible response]
+  Resp -.does not include.-> SP
+  Done[Task done] -->|purge| SP
+```
+
 ## Consequences
 
 **Benefits**

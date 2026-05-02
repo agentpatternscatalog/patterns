@@ -46,6 +46,18 @@ Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a repla
 
 A support agent gives a strange reply to a user three days ago and the team cannot reproduce it locally because too much state has changed. They open the trace store, jump to step 7, swap in the new system prompt, and re-run forward; the new prompt fixes the issue, the old one reproduces it exactly. They commit the fix with the trace ID in the changelog. Replay turns 'this happened once' bugs into deterministic tests.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]
+  Tr --> Sel[Pick step N]
+  Sel --> Mod[Modify prompt /<br/>model / tool result]
+  Mod --> Rep[Replay forward]
+  Rep --> Br[(Branch trace)]
+  Br --> Cmp[Compare branches]
+```
+
 ## Consequences
 
 **Benefits**

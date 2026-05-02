@@ -53,6 +53,19 @@ Request -> Sensitivity classifier -> [sensitive: open-weight only path] | [insen
 
 A European bank wants the cost-and-quality benefits of a multi-tier model cascade but is bound by data-residency rules that forbid sending customer queries to a hosted US frontier model. The team builds an open-weight-cascade: requests are first stratified by sensitivity, sensitive ones are forced down the on-prem open-weight tier (and degrade or refuse rather than escalate), and only insensitive hard requests are allowed to escalate to the hosted frontier model. They get the cost arbitrage without violating residency for sensitive traffic.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  R[Request] --> S{Sensitive?}
+  S -->|yes| OW[Open-weight in-boundary]
+  OW -->|low conf.| Deg[Degrade or refuse]
+  S -->|no| D{Difficulty?}
+  D -->|easy| Sm[Small open-weight]
+  D -->|hard| Fr[Hosted frontier]
+  Sm -->|low conf.| Fr
+```
+
 ## Consequences
 
 **Benefits**

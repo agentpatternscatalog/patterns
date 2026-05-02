@@ -46,6 +46,23 @@ Orchestrator agent receives the task, decides at runtime what subtasks to spawn,
 
 A coding agent receives a vague request — 'audit our service for unused dependencies and unused env vars'. A static plan-and-execute pipeline cannot decide upfront how many sub-tasks there are because it depends on what the audit finds. The team uses orchestrator-workers: the orchestrator inspects the repo, decides at runtime to spawn one worker per detected language toolchain, collects each worker's findings, and synthesises a single audit report. The worker count varies from one repo to the next.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant O as Orchestrator
+  participant W1 as Worker 1
+  participant W2 as Worker 2
+  U->>O: task
+  O->>O: decide subtasks (runtime)
+  O->>W1: subtask A
+  O->>W2: subtask B
+  W1-->>O: result A
+  W2-->>O: result B
+  O->>U: synthesised answer
+```
+
 ## Consequences
 
 **Benefits**

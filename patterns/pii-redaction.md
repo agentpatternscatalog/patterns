@@ -46,6 +46,19 @@ Pre-process inputs: detect PII (regex + NER + classifier), replace with placehol
 
 A health-tech company's support agent logs are reviewed by a security auditor who finds patient names and dates of birth in plaintext across hundreds of transcripts, and worse, the model has occasionally echoed an SSN back into a response. The team installs pii-redaction: an input pipeline detects PII via regex plus NER and substitutes placeholders before anything reaches the model; an output pipeline re-substitutes only when explicitly required and refuses on unrequested PII. Every redaction is logged for audit. The next audit finds zero plaintext PII.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  In[User input] --> D[Detect: regex + NER + classifier]
+  D -->|placeholders| LLM[LLM]
+  LLM --> Out1[Raw output]
+  Out1 --> S[Re-substitute or refuse]
+  S --> Out2[User-visible output]
+  D --> A[(Audit log)]
+  S --> A
+```
+
 ## Consequences
 
 **Benefits**

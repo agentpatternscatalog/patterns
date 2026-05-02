@@ -46,6 +46,20 @@ Define refusal triggers (policy violation, out-of-scope, capability gap, regulat
 
 A customer-service agent for a bank starts being asked for stock picks, legal advice, and competitor comparisons. Helpful-by-default, it answers and gets the bank into hot water. The team defines refusal triggers (regulatory boundary, out-of-scope, capability gap) and a kind, specific refusal template that names the boundary and points to a human team. Out-of-scope replies stop being plausible-sounding hallucinations and start being short, clear handoffs.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Req[Request] --> T{Refusal trigger?}
+  T -->|policy violation| Ref[Clear, kind refusal]
+  T -->|out of scope| Ref
+  T -->|capability gap| Ref
+  T -->|regulatory| Ref
+  T -->|none| Run[Handle normally]
+  Ref --> Alt[Suggest alternative]
+  Ref --> Log[(Refusal log)]
+```
+
 ## Consequences
 
 **Benefits**

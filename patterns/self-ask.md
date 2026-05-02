@@ -52,6 +52,18 @@ Prompt the model to interleave sub-questions and their answers. Each sub-questio
 
 A QA agent fails on multi-hop questions like 'which of the founder's PhD advisors won a Turing Award?' even though it knows each fact. The team prompts it to emit explicit follow-up sub-questions ('who was the founder's PhD advisor?', 'did that person win a Turing Award?'), answer each via search, then compose. Multi-hop accuracy jumps because the compositionality gap is closed by externalising the steps the model otherwise short-circuits.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Q[Top question] --> M[Model]
+  M --> SQ1[Sub-question 1]
+  SQ1 -->|answer directly<br/>or via search| A1[Answer 1]
+  A1 --> SQ2[Sub-question 2]
+  SQ2 -->|answer| A2[Answer 2]
+  A2 --> Comp[Compose final answer]
+```
+
 ## Consequences
 
 **Benefits**

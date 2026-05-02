@@ -46,6 +46,16 @@ Place all stable content (system prompt, tool definitions, charter, rules) at th
 
 A coding agent ships a 12k-token system prompt that includes tool schemas, charter, and code-style rules, and per-call costs feel high. Inspecting the cache-hit metric shows zero hits because the per-call user message is being prepended to the system prompt by accident, breaking the byte-stable prefix. The team applies prompt-caching discipline: stable content (system prompt, tool definitions, charter) moves to the start; variable content (current state, user message) moves to the end; the cache breakpoint is marked at the boundary. Cache hit rate jumps to over 90 percent and per-call cost halves.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  SP[Stable: system + tools + charter] -->|cache breakpoint| CB[(Cached prefix)]
+  CB --> V[Variable: state + user message]
+  V --> LLM[LLM call]
+  LLM --> R[Response<br/>cheaper, faster]
+```
+
 ## Consequences
 
 **Benefits**

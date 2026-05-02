@@ -52,6 +52,23 @@ Define a versioned envelope (`{schema_version, type, payload}`). Reserve namespa
 
 A typed event stream between agent and client ships v1; six months later the client team needs three new fields and a vendor-specific extension. Without extensibility the schema breaks every old client. The team had used a versioned envelope (`{schema_version, type, payload, extensions}`) with reserved `x-vendor.*` namespaces from day one; adding the new fields and extensions ships without breaking older clients, and a `schema_version` bump is reserved for genuine incompatibilities.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class Envelope {
+    +schema_version
+    +type
+    +payload
+  }
+  class Extensions {
+    +x-vendor.foo
+    +x-vendor.bar
+  }
+  Envelope o-- Extensions : extensions
+  note for Envelope "Old clients ignore unknown extensions;\nschema_version bump = breaking change"
+```
+
 ## Consequences
 
 **Benefits**

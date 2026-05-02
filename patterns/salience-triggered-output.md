@@ -52,6 +52,18 @@ Score every internal event for salience (novelty + goal-relevance + recency + pr
 
 An always-on monitoring agent emits one line per second; users mute the channel within an hour and stop reading it. The team adds a salience score (novelty + goal-relevance minus fatigue) and an output threshold. The agent now stays silent while nothing surprising is happening and speaks up the moment a metric breaks pattern. Read-through rate goes up because the channel becomes a signal rather than noise.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Ev[Internal event] --> Sc[Score salience]
+  Sc --> Th{> threshold?}
+  Th -->|no| Log[Log only]
+  Th -->|yes| RL[Rate limiter]
+  RL -->|under window| Em[Emit message]
+  RL -->|over window| Log
+```
+
 ## Consequences
 
 **Benefits**

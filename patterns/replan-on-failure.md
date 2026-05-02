@@ -46,6 +46,20 @@ Define replan triggers (tool error, unexpected observation, observer dissent). W
 
 A travel-booking agent has a plan that assumes a particular hotel API is up; the API returns 500 on every retry. Without replan-on-failure the agent grinds the same dead branch until budget exhausts. Instead, the tool error trips a replan trigger: the planner is invoked again with the failure context, drops the dead branch, picks an alternate provider, and proceeds. The user sees one extra second of latency and a successful booking instead of a timeout.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Plan[Plan v1] --> Exec[Executor]
+  Exec -->|tool error| Trig[Replan trigger]
+  Exec -->|unexpected obs| Trig
+  Exec -->|observer dissent| Trig
+  Trig --> P2[Planner with failure context]
+  P2 --> Plan2[Plan v2]
+  Plan2 --> Exec
+  Plan2 -.preserve compatible<br/>partial progress.-> Exec
+```
+
 ## Consequences
 
 **Benefits**

@@ -46,6 +46,17 @@ Define a fixed pipeline of prompts. Each step has its own system prompt, expecte
 
 A team builds a 'turn meeting transcript into a structured action-item list' feature as one mega-prompt. Failures are hard to localise — sometimes the speaker attribution is wrong, sometimes the dates are wrong, sometimes the JSON is malformed. They split it into a prompt-chain: step one cleans the transcript and attributes speakers, step two extracts candidate action items, step three normalises dates and owners, step four validates and emits JSON. Each step has its own validator; a failure at step three retries step three instead of redoing the whole pipeline.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  In[Input] --> P1[Prompt 1<br/>validate]
+  P1 -->|out_1| P2[Prompt 2<br/>validate]
+  P2 -->|out_2| P3[Prompt 3<br/>validate]
+  P3 --> Out[Output]
+  P2 -.fail.-> Retry[Retry or abort]
+```
+
 ## Consequences
 
 **Benefits**

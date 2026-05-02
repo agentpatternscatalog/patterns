@@ -46,6 +46,19 @@ A lightweight classifier model (often the cheapest available) returns a label. T
 
 A help-desk product handles cheap FAQ lookups and rare deep-research queries through one expensive prompt; per-query cost is irrational. The team puts a small classifier in front: it returns one of `command`, `agent`, `research`, `human` and the host dispatches to the right lane. Eighty percent of traffic lands in the cheap deterministic command lane, the heavy agent only runs when needed, and average per-query cost falls by an order of magnitude.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Req[Request] --> CL[Cheap classifier]
+  CL -->|command| L1[Deterministic action lane]
+  CL -->|agent| L2[Multi-step agent lane]
+  CL -->|chat| L3[Chat lane, no tools]
+  L1 --> Out[Response]
+  L2 --> Out
+  L3 --> Out
+```
+
 ## Consequences
 
 **Benefits**

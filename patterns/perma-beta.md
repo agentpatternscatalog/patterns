@@ -46,6 +46,17 @@ Don't. Build the eval harness and exit beta. See eval-harness, llm-as-judge, sha
 
 A startup launches its agent product as 'beta' and uses the label as a blanket excuse for any quality complaint. Eighteen months later the agent is still beta, there is no eval harness, and customers have started churning to a competitor that ships GA. The team names the failure perma-beta and forces an exit: build the eval suite, set quality gates, fix the regressions blocking GA, and remove the beta label. The label was hiding the fact that nobody actually knew whether the product was getting better or worse.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']
+  V1 --> V2[v2 still 'beta']
+  V2 -.no eval gate.-> Reg[Quality regressions]
+  Reg -.blamed on.-> Users[Users]
+  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]
+```
+
 ## Consequences
 
 **Liabilities**

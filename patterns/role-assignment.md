@@ -46,6 +46,26 @@ Define each role with a system prompt naming its responsibility and constraints,
 
 A multi-agent content pipeline with three identical generic agents keeps producing similar bland outputs and reviewers cannot tell whose work to trust. The team gives each agent a named role with role-specific prompt and a scoped tool palette: researcher (search-only), writer (draft tools), critic (lint and policy tools). Outputs become identifiable, review focuses on the role boundary, and disagreement between writer and critic surfaces as a productive signal rather than confusion.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class Role {
+    +name
+    +system_prompt
+    +tool_palette
+    +acceptance_criteria
+  }
+  class Researcher
+  class Writer
+  class Critic
+  class Planner
+  Role <|-- Researcher
+  Role <|-- Writer
+  Role <|-- Critic
+  Role <|-- Planner
+```
+
 ## Consequences
 
 **Benefits**

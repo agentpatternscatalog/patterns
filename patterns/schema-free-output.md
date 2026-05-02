@@ -46,6 +46,15 @@ Don't. Use structured-output (JSON Schema, Pydantic, function calling). See stru
 
 A team ships an agent whose downstream consumes free-form model output by regex-parsing 'looks like JSON.' Edge cases (smart quotes, missing commas, surprise prose preamble) fail in non-obvious ways, and post-mortems blame the model when most failures are parser bugs. They stop doing this and switch to structured output with a JSON Schema, validating against it and retrying on parse failure. The 'flaky model' framing dissolves into a parser-bug fix.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  M[LLM] -->|free-form text| Pr[Ad-hoc parser]
+  Pr -.brittle.-> Fail[Downstream breakage]
+  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]
+```
+
 ## Consequences
 
 **Liabilities**

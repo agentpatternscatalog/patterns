@@ -52,6 +52,19 @@ Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed th
 
 A startup ships a support assistant whose knowledge changes weekly — release notes, pricing, integration guides. Bake-it-into-the-prompt does not scale and fine-tuning on every release is impractical. They adopt naive-rag: chunk the docs, embed with a dense encoder, index, and at query time retrieve top-k and prepend to the prompt. The pipeline is the simplest possible and ships in a week. Knowledge updates now flow by re-indexing the docs, not by retraining or redeploying the model.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  C[Corpus] -->|chunk + embed| I[(Vector index)]
+  Q[Query] -->|embed| E[Query vector]
+  E -->|top-k| I
+  I -->|chunks| P[Prompt]
+  Q --> P
+  P --> G[Generator LLM]
+  G --> A[Answer]
+```
+
 ## Consequences
 
 **Benefits**

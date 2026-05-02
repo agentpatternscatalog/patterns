@@ -46,6 +46,17 @@ Append events to an immutable log with: timestamp, actor, action, target, justif
 
 A regulator asks an insurance-claims agent why it rejected a specific claim three months ago. The team can show the final decision but not the chain of reasoning, the retrieved policy clauses, or which model version answered — the audit trail is partial. They add a provenance-ledger: every decision and state change appends an immutable event with timestamp, actor, action, target, justification link, and diff hash. Rollback by event id becomes trivial; the next regulator question is answered with a full reconstruction.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Act[Agent action / state change] --> V[Validator: required fields?]
+  V -->|reject| Err[Error]
+  V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]
+  L --> Audit[Audit / explain]
+  L --> RB[Rollback by id]
+```
+
 ## Consequences
 
 **Benefits**

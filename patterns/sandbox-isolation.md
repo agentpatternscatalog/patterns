@@ -46,6 +46,18 @@ Run code in a container, microVM, WASM runtime, or restricted subprocess with mi
 
 A coding agent runs LLM-emitted shell commands directly on the developer's host and one day a `rm -rf` lands in the wrong directory. The team moves all agent-emitted execution into a microVM with read-only base filesystem, a scoped working directory, network allowlist, and CPU and memory caps. A subsequent destructive command is contained to a disposable VM and the host stays intact; the agent product stops being one mistake away from a nuked laptop.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Code[Agent-emitted code/action] --> SB[Sandbox<br/>container / microVM /<br/>WASM / restricted subproc]
+  SB --> FS[FS: read-only or<br/>scoped workdir]
+  SB --> Net[Network: allowlist or block]
+  SB --> Lim[CPU/mem/time limits]
+  SB --> Eph[Ephemeral state]
+  SB --> Out[Result]
+```
+
 ## Consequences
 
 **Benefits**

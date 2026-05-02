@@ -46,6 +46,23 @@ A gateway proxy holds the conversation state. On stream error, it switches to a 
 
 A code-review agent product runs on a single provider whose us-east region begins returning 529 errors mid-stream during peak hours. Users see half-rendered reviews abandoned with stack traces. The team puts a gateway in front: it holds conversation state, normalises tool-call schemas across two providers, and on stream error reconnects the user to the fallback provider continuing from the last clean delta. Uptime moves from the underlying provider's SLA to the union of two providers' SLAs, and the support inbox stops filling on incident days.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant GW as Gateway
+  participant P1 as Provider A
+  participant P2 as Provider B
+  C->>GW: request (stream)
+  GW->>P1: forward
+  P1-->>GW: partial stream
+  P1--xGW: stream error
+  GW->>P2: continue (translated msgs)
+  P2-->>GW: rest of stream
+  GW-->>C: one continuous stream
+```
+
 ## Consequences
 
 **Benefits**

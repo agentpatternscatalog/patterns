@@ -46,6 +46,20 @@ Maintain a markdown document at a known location with sections: intended use, ou
 
 A new product manager joins and has to explain to a regulator what the underwriting agent does, what data it was trained on, and where it is known to fail. The institutional knowledge lives in three engineers' heads and a Slack thread. The team writes a model-card: intended use, out-of-scope use, training data lineage, evaluation results by demographic slice, known limitations, contact owner. It lives at /docs/agents/underwriter-card.md, is versioned with the agent, and is the canonical reference for the next regulator question.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  A[Agent / Model release] --> C[Model Card document]
+  C --> S1[Intended use]
+  C --> S2[Out-of-scope use]
+  C --> S3[Training & data lineage]
+  C --> S4[Evaluation results]
+  C --> S5[Limitations & risks]
+  C --> S6[Contact / owner]
+  C -->|versioned with| A
+```
+
 ## Consequences
 
 **Benefits**

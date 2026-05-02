@@ -47,6 +47,26 @@ The provider's API allows the assistant turn to contain multiple tool calls. The
 
 An agent that summarises a support ticket needs to fetch the customer record, the recent invoice, and the last three tickets — three independent calls. Sequential dispatch takes a second per call and makes the bot feel sluggish. The team enables parallel-tool-calls in the provider API: the model emits all three tool calls in one assistant turn, the host fans them out concurrently with bounded concurrency, and the next assistant turn sees all three results. Latency drops from three seconds to about one without changing the model.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant M as Model
+  participant H as Host
+  participant T1 as Tool 1
+  participant T2 as Tool 2
+  M->>H: assistant turn: [call(T1), call(T2)]
+  par fan-out
+    H->>T1: invoke
+  and
+    H->>T2: invoke
+  end
+  T1-->>H: result 1
+  T2-->>H: result 2
+  H->>M: tool messages 1+2
+  M->>H: next assistant turn
+```
+
 ## Consequences
 
 **Benefits**

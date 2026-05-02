@@ -46,6 +46,22 @@ Schedule the agent run at fixed cadence (cron, scheduler service). The agent rea
 
 A product manager wants a daily competitive-intelligence digest in their inbox. Building it as a request-driven agent forces them to remember to ask each morning, which they don't. The team schedules the agent to run at 06:00 cron, read its persisted state (last-seen items), execute its task, write results to email and storage, and exit. The digest now arrives reliably even when no human is awake, and the agent's state survives across runs.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Sch as Scheduler (cron)
+  participant A as Agent
+  participant St as Durable state
+  loop every cadence
+    Sch->>A: trigger run
+    A->>St: read current state
+    A->>A: execute task
+    A->>St: write results
+    A-->>Sch: exit
+  end
+```
+
 ## Consequences
 
 **Benefits**

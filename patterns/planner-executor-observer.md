@@ -46,6 +46,18 @@ Three roles: Planner produces a plan; Executor runs steps; Observer reads the cu
 
 A research agent that uses a Planner and Executor loop produces fluent reports that quietly drift from the plan: the executor swaps in adjacent topics and the planner never notices because no one is checking. The team adds an Observer role: after each executor step the observer reads the cumulative output against the plan and emits loop, respond, or replan. When the executor wanders into 'related-but-off-plan' territory the observer triggers a replan instead of letting the drift compound.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  G[Goal] --> P[Planner]
+  P -->|plan| E[Executor]
+  E -->|step result| O[Observer]
+  O -->|loop| E
+  O -->|replan| P
+  O -->|respond| R[Final answer]
+```
+
 ## Consequences
 
 **Benefits**

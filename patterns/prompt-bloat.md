@@ -46,6 +46,17 @@ Don't. Treat the prompt as code: PR review, eval gate on length, quarterly pruni
 
 A coding-agent team adds one sentence to the system prompt every time a customer reports an edge case. Eighteen months later the prompt is 6500 tokens, prompt-cache misses are common, and the model's instruction-following is visibly degraded — newer rules contradict older ones. The team names it prompt-bloat: the prompt goes under PR review with a length budget, recurring procedures are lifted into agent-skills, stable rules move into a constitutional charter, and a quarterly pruning sprint trims dead weight. The prompt halves and quality climbs back.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Bug1[Bug fix 1] -->|+sentence| P[System prompt]
+  Bug2[Bug fix 2] -->|+sentence| P
+  Bug3[Bug fix 3] -->|+sentence| P
+  P -->|never pruned| Bloat[Bloated prompt]
+  Bloat -.fix.-> Treat[Treat prompt as code:<br/>review, eval gate, prune]
+```
+
 ## Consequences
 
 **Liabilities**
