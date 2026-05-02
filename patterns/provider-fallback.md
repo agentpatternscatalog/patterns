@@ -41,7 +41,7 @@ A gateway proxy holds the conversation state. On stream error, it switches to a 
 
 ## What this pattern constrains
 
-Failover happens transparently to the client; the client sees one provider-agnostic interface.
+Clients must not see the underlying provider; only the provider-agnostic interface is exposed, and failover happens behind it.
 
 ## Known uses
 

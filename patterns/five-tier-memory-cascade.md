@@ -59,6 +59,6 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 ## References
 
 - (paper) Park et al., *Generative Agents (memory stream + reflection)*, 2023, <https://arxiv.org/abs/2304.03442>
-- (book) Bernard Baars, *A Cognitive Theory of Consciousness (Global Workspace Theory)*, 1988
+- (book) Bernard Baars, *A Cognitive Theory of Consciousness (Global Workspace Theory)*, 1988, <https://www.goodreads.com/book/show/2155836.A_Cognitive_Theory_of_Consciousness>
 
 **Tags:** memory, cognitive-architecture
