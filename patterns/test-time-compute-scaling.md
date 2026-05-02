@@ -23,6 +23,21 @@ Naive single-pass inference under-uses available compute; many hard tasks have i
 - Cost rises linearly or worse with sample count.
 - Best technique (samples / search / deeper thinking) is task-dependent.
 
+
+## Applicability
+
+**Use when**
+
+- Parameter scaling has saturated and inference-time techniques deliver further lift.
+- The task is amenable to a known technique (best-of-N, self-consistency, tree search, extended thinking).
+- Compute budget at inference time is available and worth spending for quality.
+
+**Do not use when**
+
+- Latency or cost budgets cannot absorb extra inference-time compute.
+- The task does not benefit from any of the inference-time techniques.
+- A larger or better model is cheaper than scaling test-time compute.
+
 ## Solution
 
 Pick the inference-time technique that fits: best-of-N for verifier-amenable tasks, self-consistency for sampling-amenable tasks, tree search for combinatorial tasks, extended thinking for sequential reasoning. Compose techniques where complementary. Tune the compute budget per task class.

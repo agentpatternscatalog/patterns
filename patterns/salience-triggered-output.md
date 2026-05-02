@@ -23,6 +23,21 @@ Agents that emit on every cycle are noisy; agents that only emit on user request
 - Threshold tuning is per-context.
 - Hygiene: rate-limiting prevents nag spirals.
 
+
+## Applicability
+
+**Use when**
+
+- The agent runs on a tick or always-on loop and emits too often or too seldom.
+- An internal salience signal can be defined from novelty, goal-relevance, and recency.
+- Users tolerate occasional silence in exchange for less noise.
+
+**Do not use when**
+
+- The agent is request-driven and emits exactly when asked.
+- Missing a low-salience event is unacceptable (compliance, safety telemetry).
+- No reliable salience signal can be constructed.
+
 ## Solution
 
 Score every internal event for salience (novelty + goal-relevance + recency + prediction-error - fatigue). When the score for a candidate output crosses a threshold, emit. Otherwise log and move on. Rate-limit emissions per time window.

@@ -23,6 +23,21 @@ Waiting for the complete answer feels slow; a single text stream loses the struc
 - Event ordering and reconnection semantics.
 - Backpressure when the client is slow.
 
+
+## Applicability
+
+**Use when**
+
+- User-facing agents where time-to-first-token is perceived latency.
+- The UI shows cards, suggestions, or progressive disclosure that need typed events.
+- A transport (SSE, WebSocket) supports event streams with reconnection.
+
+**Do not use when**
+
+- Outputs are short enough that batching the full response is fine.
+- The client cannot consume streams or has no progressive UI.
+- A typed event vocabulary cannot be agreed across producer and consumer.
+
 ## Solution
 
 Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta (token), card (structured), suggestions, tool_start, tool_end, done, error. The client routes each event to the right UI component. Reconnect with last-event-id resumption.

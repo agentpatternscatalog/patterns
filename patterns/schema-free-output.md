@@ -23,6 +23,21 @@ The model invents punctuation, formatting, and field names. Parsers fail in non-
 - Some providers offered structured output later than tool use.
 - Free-form feels flexible until it breaks.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; downstream code parsing free-form model text is brittle and silently corrupts state.
+- Use structured-output (JSON Schema, Pydantic, function calling) instead.
+- If a provider lacks structured output, validate with strict post-parse and retry.
+
+**Do not use when**
+
+- Downstream code depends on typed fields.
+- Parser failure would propagate as a model bug and waste debugging time.
+- Structured output or tool calling is available on the chosen provider.
+
 ## Solution
 
 Don't. Use structured-output (JSON Schema, Pydantic, function calling). See structured-output, tool-use.

@@ -23,6 +23,21 @@ Centralised supervisors become bottlenecks at scale; some tasks (negotiation, si
 - Communication topology (broadcast? gossip? pub/sub?) is a design choice.
 - Termination is non-trivial without a supervisor.
 
+
+## Applicability
+
+**Use when**
+
+- Centralised coordination is a bottleneck or the task benefits from many independent attempts.
+- Agents can interact through a shared bus or environment.
+- Termination conditions can be defined at the environment level.
+
+**Do not use when**
+
+- Tasks need deterministic ordering or strict accountability per step.
+- Convergence cannot be guaranteed and runaway interaction is too costly.
+- A supervisor pattern already handles the workload predictably.
+
 ## Solution
 
 Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).

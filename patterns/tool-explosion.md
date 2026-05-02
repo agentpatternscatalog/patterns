@@ -23,6 +23,21 @@ Past about 20 tools, model selection accuracy drops sharply; the agent picks wro
 - Discovery is push-style; filter is pull-style.
 - Frontier models tolerate larger palettes; the threshold drifts.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; past about 20 tools, function-calling accuracy drops sharply.
+- Use tool-loadout to select per-task subsets and cap exposed tools.
+- Measure function-calling accuracy as a release gate.
+
+**Do not use when**
+
+- More than ~20 tools must be exposed and accuracy matters.
+- Tool selection accuracy is on the release-gate dashboard.
+- A tool-loadout or routing layer is available to filter per request.
+
 ## Solution
 
 Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a tested threshold. Measure function-calling accuracy as a release gate.

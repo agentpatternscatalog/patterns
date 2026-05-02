@@ -23,6 +23,21 @@ Token cost in ReAct grows linearly with steps because each observation re-enters
 - Placeholder substitution requires a typed variable convention.
 - Plan correctness must be high; mid-run replans defeat the saving.
 
+
+## Applicability
+
+**Use when**
+
+- Most planning steps do not depend on early observations and can be planned upfront.
+- ReAct-style observation re-injection is the dominant token cost.
+- Tools have stable signatures so the planner can reference outputs by variable.
+
+**Do not use when**
+
+- Plans must adapt at every step based on observations (true exploratory tasks).
+- Tool outputs are large or complex enough that the solver still needs reasoning per step.
+- A simple ReAct loop already meets latency and cost targets.
+
 ## Solution
 
 Three roles. Planner emits a DAG with steps `t1 = ToolA(x); t2 = ToolB(#t1)` using variable references. Worker executes each tool in dependency order. Solver reads the resolved trace and produces the final answer. The planner never sees observations.

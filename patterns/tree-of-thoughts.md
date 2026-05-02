@@ -23,6 +23,21 @@ Chain-of-Thought commits to a single trace; if an early step is wrong the model 
 - A value or heuristic function is needed to score partial states.
 - Termination criteria are non-trivial.
 
+
+## Applicability
+
+**Use when**
+
+- Problems benefit from exploring alternatives rather than committing to one chain (puzzles, planning, creative writing).
+- Each thought step can be evaluated by the model or a programmatic check.
+- Compute budget allows BFS, DFS, or beam search over thought nodes.
+
+**Do not use when**
+
+- Single-chain reasoning already reaches the answer reliably.
+- Step evaluation is unreliable and search would explore noise.
+- Latency or cost of search is unacceptable.
+
 ## Solution
 
 Decompose the problem into thought steps. At each node, sample several candidate next thoughts. Evaluate each (model self-evaluation or programmatic check). Apply BFS/DFS/beam to explore the tree. Backtrack from dead ends. Return the best leaf.

@@ -24,6 +24,21 @@ In-context plans drift to the middle of the window where the model attends least
 - Re-injecting the full plan every turn is repetitive but combats attention drift.
 - Markdown is human- and model-readable, supports easy ticking.
 
+
+## Applicability
+
+**Use when**
+
+- A long-horizon autonomous task may span hundreds of tool calls and exceed in-context plans.
+- The sandbox provides filesystem access for a durable plan artefact.
+- Runs may be paused, truncated, or resumed and need a reload-friendly plan.
+
+**Do not use when**
+
+- Tasks are short and an in-context plan suffices.
+- There is no filesystem to write a durable plan file.
+- The plan would never be re-injected and the file would just be write-only noise.
+
 ## Solution
 
 Early in the run, the agent writes its plan as a checklist file (todo.md) in its sandbox. Each turn: read the file, work the next unticked item, update the file (tick the item, add follow-ups, drop dead-ends). Re-inject the unticked tail of the file into the prompt before the model's next turn. The file outlives any single context window. Paired with a sandboxed VM that gives the agent persistent storage and basic tools (browser, shell, file editor).

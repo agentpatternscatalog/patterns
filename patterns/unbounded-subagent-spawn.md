@@ -23,6 +23,21 @@ step-budget caps a single agent's loop; cost-gating caps a single action's cost.
 - Detecting recursive spawn requires global agent tree state.
 - Killing a single instance does not kill its descendants.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; fan-out without a global cap can recursively explode the agent tree.
+- Maintain a global step budget across all descendants of a root request.
+- Cap fan-out per supervisor and track parent_run_id for inspectability.
+
+**Do not use when**
+
+- Sub-agents may spawn further sub-agents.
+- Total system cost across the agent tree is bounded by SLOs.
+- A kill-switch is available for emergency descent halt.
+
 ## Solution
 
 Don't. Maintain a global step budget across all descendants of a root request. Cap fan-out per supervisor (typically 5-10 children). Track parent_run_id in lineage so the agent tree is inspectable. Pair with kill-switch for emergency descent halt.

@@ -23,6 +23,21 @@ Hardcoded tool palettes force a redeploy for every new capability; dynamic envir
 - Tool quality varies; not every advertised tool should be exposed.
 - Versioning of advertised tools.
 
+
+## Applicability
+
+**Use when**
+
+- Tool palettes evolve and redeploys per new capability are a drag.
+- A registry (MCP server, internal directory) advertises tools with typed schemas.
+- The agent can refresh its palette safely at runtime.
+
+**Do not use when**
+
+- The tool set is fixed and small enough to hardcode.
+- Dynamic discovery introduces unacceptable latency or trust risk.
+- No registry exists and building one is more cost than benefit.
+
 ## Solution
 
 On startup (or periodically), the agent queries a tool registry (MCP server, internal directory). The registry returns advertised tools with typed schemas. The agent loads them into its palette. Optionally cached and refreshed.

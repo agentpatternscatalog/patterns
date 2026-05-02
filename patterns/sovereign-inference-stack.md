@@ -24,6 +24,21 @@ Hosted-API agents leak prompts, tool inputs, and outputs to a third party; for r
 - Self-hosting demands GPU capex and MLOps competence the operator may lack.
 - Sovereign deployments must still reach acceptable model quality to be useful.
 
+
+## Applicability
+
+**Use when**
+
+- Regulated workload forbids data egress to a foreign-cloud LLM provider.
+- Permissively licensed or sovereign-licensed models meet quality requirements.
+- The operator can run inference on-prem or in a controlled jurisdiction.
+
+**Do not use when**
+
+- Data egress to a hosted API is allowed and frontier capability matters more.
+- Self-hosted operations cost or complexity exceeds the regulatory benefit.
+- Available open-weight models cannot meet quality targets for the workload.
+
 ## Solution
 
 Choose models with permissive weights or commercial sovereign licensing. Run inference on-prem or in a jurisdictionally controlled cloud region with the operator holding the keys. Place all auxiliary services (vector store, tool gateway, audit log, evaluation harness) inside the same boundary. Document the boundary as part of the system's compliance posture (model card, data-flow diagram). Treat the boundary as load-bearing: any new tool or model call has to be reviewed for boundary impact before merge.

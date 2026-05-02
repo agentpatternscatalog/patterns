@@ -24,6 +24,21 @@ Plain-process tools share the host's privileges, language-specific sandboxes (e.
 - Polyglot authoring is a real requirement; Python-only is restrictive.
 - Capability declarations have to be checkable, not advisory.
 
+
+## Applicability
+
+**Use when**
+
+- Enterprise platforms must accept user- or partner-authored skills in multiple languages.
+- Per-skill capabilities (filesystem, network, env, syscalls) must be enforced.
+- Per-call container overhead is too heavy for request-rate execution.
+
+**Do not use when**
+
+- All skills are first-party and trusted.
+- Wasm tooling for the target languages is not mature enough for the workload.
+- A simpler sandbox already meets the threat model.
+
 ## Solution
 
 Define a Wasm Component Model interface for skills: each skill compiles to a Wasm module and ships with a manifest declaring (filesystem paths, network hosts, env vars, syscalls) it needs. The host runtime instantiates a fresh sandbox per call with only those capabilities. Skills can be authored in any language compiling to Wasm. The host treats the manifest as the contract; missing-capability calls fail at the boundary.

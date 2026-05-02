@@ -23,6 +23,21 @@ Repeat calls on the same arguments waste latency and money; the tool layer often
 - Per-user vs global caches differ on isolation guarantees.
 - Cache hits hide tool latency the agent might benefit from learning about.
 
+
+## Applicability
+
+**Use when**
+
+- Agents re-call the same tool with the same arguments multiple times within a task.
+- Tools are deterministic enough to cache by normalised arguments.
+- TTL and per-user vs global scoping can be defined per tool.
+
+**Do not use when**
+
+- Tool results are non-deterministic or time-sensitive (live state).
+- Per-user scoping cannot be enforced and shared cache would leak data.
+- Repeat-call rate is too low to recover the cache infrastructure cost.
+
 ## Solution
 
 Wrap deterministic tools in a cache layered on `(tool_name, normalised_args)`. Set TTLs by tool type. On cache hit, return immediately without invoking the underlying tool. Per-user scoping for tools that read user data; global for read-only public data. Cache keys must include the auth subject (caller identity), not just args; args-only keys leak data when callers change.

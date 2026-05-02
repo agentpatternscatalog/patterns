@@ -23,6 +23,21 @@ Without an interrupt, users wait for completion or for the page to die; agents c
 - Partial state may or may not be useful.
 - Race conditions between completion and cancellation.
 
+
+## Applicability
+
+**Use when**
+
+- Long-running agents where the user may notice a wrong direction mid-run.
+- A cancellation token can be propagated through agent loop, tools, and provider streams.
+- Partial state can be cleaned up and surfaced cleanly.
+
+**Do not use when**
+
+- Runs are short and cancellation provides no real value.
+- Cancellation cannot propagate cleanly and would leave inconsistent state.
+- The UI has no surface to expose a stop control.
+
 ## Solution
 
 Surface a stop control in the UI. On click, propagate a cancellation token through the agent loop, tool calls, and provider streams. Clean up partial state. Show what was done. Optionally save partial output for later resumption.

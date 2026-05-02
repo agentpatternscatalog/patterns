@@ -23,6 +23,21 @@ A compromised or hijacked tool can return content with embedded instructions tha
 - Instruction-stripping has false positives on legitimate instruction-shaped content.
 - Egress channels (tool calls, image URLs, links) are exfiltration vectors.
 
+
+## Applicability
+
+**Use when**
+
+- The agent consumes tool output where the tool itself may be untrusted (browser, MCP, search, parsers).
+- Tool envelopes can carry trust labels and content-type discriminators.
+- Instruction-stripping and re-validation can be enforced on low-trust results.
+
+**Do not use when**
+
+- All tools are first-party and cannot return adversarial content.
+- No envelope or trust labelling can be added to the tool layer.
+- The instruction-stripping cost destroys the utility of the tool output.
+
 ## Solution
 
 Typed `ToolResult` envelope with `trust: low|medium|high` and content-type discriminator. Apply instruction-stripping on `low` results. Forbid tool-output-driven follow-up tool calls without re-validation against the user's original intent. Pair with input/output guardrails.

@@ -23,6 +23,21 @@ Releases without field comparison miss regressions visible only on real traffic.
 - Comparison logic for free-form outputs is non-trivial.
 - Shadow latency must not affect the user-visible path.
 
+
+## Applicability
+
+**Use when**
+
+- Agent changes are non-deterministic and CI cannot capture field behaviour.
+- Real traffic can be replayed through a challenger without affecting users.
+- A diff metric (judge model, exact match, latency) can be defined.
+
+**Do not use when**
+
+- Privacy rules forbid duplicating traffic through a shadow path.
+- Cost of running both champion and challenger is prohibitive.
+- No diff metric exists that reliably catches regressions.
+
 ## Solution
 
 Route a fraction of real traffic through both champion and challenger. Champion's output reaches the user. Challenger's output is logged. Diff the outputs on agreed metrics (judge model, exact match on tool calls, latency, cost). Promote on lift; revert on regression.

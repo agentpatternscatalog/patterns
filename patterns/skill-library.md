@@ -23,6 +23,21 @@ Without a place to crystallise repeated work, every run starts from scratch.
 - The library must be loadable without restart in a long-running agent.
 - Skill discovery (which skill applies?) is itself a retrieval problem.
 
+
+## Applicability
+
+**Use when**
+
+- Patterns of tool use repeat across runs and rederivation costs are noticeable.
+- The agent can write and version reusable modules safely.
+- A critic or reviewer gates additions to the library.
+
+**Do not use when**
+
+- Each task is novel and no skill would be reused.
+- Skill additions cannot be reviewed and the library would rot.
+- The runtime cannot dynamically load new modules safely.
+
 ## Solution
 
 A directory (often `skills/*.py` or `skills/*.md`) where the agent can write new modules. A loader (importlib in Python, dynamic import in JS) makes them callable. A critic gates additions. Old skills are versioned, not overwritten silently.

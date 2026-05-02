@@ -23,6 +23,21 @@ Agent runs are non-deterministic and state-laden; without replay, debugging is r
 - Storage of full traces is expensive.
 - Modified replays diverge from original; comparison logic is non-trivial.
 
+
+## Applicability
+
+**Use when**
+
+- Agent runs are non-deterministic and incidents need reproducible debugging.
+- Engineers want to branch from a past step to test fixes or alternative prompts.
+- Per-step inputs, outputs, and tool calls can be captured durably.
+
+**Do not use when**
+
+- Trace storage cost outweighs the value of replay (low-stakes ephemeral runs).
+- Privacy or retention rules forbid keeping per-step traces.
+- The agent has no externally observable failures worth reproducing.
+
 ## Solution
 
 Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.

@@ -23,6 +23,21 @@ Letting vendor shapes leak into the agent's context wastes tokens and ties the a
 - Translation must be reversible to write back without data loss.
 - Round-tripping costs latency and complexity.
 
+
+## Applicability
+
+**Use when**
+
+- The agent reasons in one shape (its domain) but data lives in another (vendor schemas).
+- Vendor API churn would otherwise leak into the agent's context.
+- A typed boundary can be maintained between the agent and upstream APIs.
+
+**Do not use when**
+
+- Only one vendor schema exists and aligns with the agent's needs already.
+- The translation layer would add more complexity than it saves.
+- Vendor shapes change so often that the translator becomes the bottleneck.
+
 ## Solution
 
 A translation module sits between the agent's tool palette and the upstream API. Inbound: vendor JSON is mapped into the domain shape. Outbound: domain edits become signed vendor calls. The agent sees one consistent shape regardless of how many backends sit behind it.

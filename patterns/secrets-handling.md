@@ -23,6 +23,21 @@ Any secret that reaches the model is now in the chat log, the trace store, the e
 - Reference-based credential resolution adds tool runtime complexity.
 - Some integrations require credentials in URL or header (cannot avoid).
 
+
+## Applicability
+
+**Use when**
+
+- Tools require credentials and any leak would propagate to logs and providers.
+- A tool runtime can resolve typed credential references outside the model context.
+- Compliance or security policy forbids plaintext secrets in prompts.
+
+**Do not use when**
+
+- No tool requires secrets and nothing sensitive is exchanged.
+- The runtime cannot inject credentials outside the model context.
+- Cost of indirection outweighs leak risk for a low-value internal demo.
+
 ## Solution
 
 Tool runtime resolves credentials from typed references the agent emits (e.g., `{auth: 'github_token_for_user_42'}`). Credential values are injected outside the model context. Input/output guards reject any payload matching credential signatures. Provenance ledger and traces are scrubbed at write time.

@@ -23,6 +23,21 @@ Sandbox-isolation is preventive only; without monitoring, a successful escape (o
 - False positives on legitimate boundary-pushing operations.
 - Egress patterns evolve faster than allowlists.
 
+
+## Applicability
+
+**Use when**
+
+- The agent executes code or operates a filesystem inside a sandbox.
+- Sandbox boundaries can be instrumented to log syscalls, egress, and writes.
+- A safety telemetry pipeline and kill-switch already exist or are being built.
+
+**Do not use when**
+
+- There is no sandbox to monitor (escape monitoring without isolation is theatre).
+- Telemetry volume would overwhelm the safety pipeline without thresholds.
+- Alerts have no responder and would be ignored.
+
 ## Solution
 
 Instrument the sandbox: log every syscall outside the allowed set, every network egress not on the allowlist, every filesystem write outside the working directory. Stream to safety telemetry. Alert on threshold breaches. Pair with kill-switch for automatic halt on confirmed escape.

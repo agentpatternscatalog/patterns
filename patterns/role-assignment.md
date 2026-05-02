@@ -23,6 +23,21 @@ Generic agents drift toward similarity; without explicit roles, contributions bl
 - Cross-role handoffs need typed contracts.
 - Role count multiplies prompt-engineering effort.
 
+
+## Applicability
+
+**Use when**
+
+- Multiple agents collaborate and the user needs to reason about who did what.
+- Different parts of the workflow have distinct responsibilities, tools, and acceptance criteria.
+- Generic agents have been observed drifting toward similarity or duplicating effort.
+
+**Do not use when**
+
+- A single agent with one prompt already handles the workflow well.
+- Roles would be artificial and add prompt overhead without separating concerns.
+- The team cannot articulate distinct responsibilities and acceptance criteria per role.
+
 ## Solution
 
 Define each role with a system prompt naming its responsibility and constraints, a tool palette scoped to its role, and acceptance criteria for outputs it produces. Workflow assigns tasks to roles. Outputs are evaluated against the role's acceptance criteria.

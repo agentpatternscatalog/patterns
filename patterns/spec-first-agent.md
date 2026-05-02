@@ -23,6 +23,21 @@ Free-form prompts drift; the spec is in the head of one engineer and not auditab
 - The agent must update the spec when learnings invalidate it; uncontrolled spec mutation is dangerous.
 - Spec format must be both human- and agent-readable.
 
+
+## Applicability
+
+**Use when**
+
+- The task is well-defined enough to write down as a spec.
+- The spec needs to be inspectable, audited, or shared across engineers.
+- The agent benefits from a stable target rather than free-form prompts.
+
+**Do not use when**
+
+- Requirements change faster than a spec can be maintained.
+- The task is exploratory and a spec would prematurely commit to a path.
+- Writing the spec costs more than just doing the work.
+
 ## Solution
 
 Write the specification as a markdown file (PROMPT.md, fix_plan.md, or similar). The agent reads the spec at each iteration, executes against it, and may update it under controlled conditions. The spec is the single source of truth for what 'done' means.

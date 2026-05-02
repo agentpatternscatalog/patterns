@@ -23,6 +23,21 @@ The 'compositionality gap': models know each fact in isolation but fail to combi
 - Sub-question slots invite tool integration but add latency.
 - Excessive decomposition wastes calls.
 
+
+## Applicability
+
+**Use when**
+
+- The task is multi-hop and the model knows each hop in isolation.
+- Compositionality gaps cause the model to skip combining facts.
+- Sub-questions can be answered by the model or a search tool.
+
+**Do not use when**
+
+- Single-hop questions where decomposition adds latency without lift.
+- The sub-questions cannot be answered cleanly and would compound errors.
+- Latency budget cannot afford the extra inference per sub-question.
+
 ## Solution
 
 Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.

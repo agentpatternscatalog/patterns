@@ -23,6 +23,21 @@ Shared memory backends and shared model contexts can leak one user's data into a
 - Auth scope must travel with every read and write.
 - Multi-tenant prompt injection becomes a real attack surface.
 
+
+## Applicability
+
+**Use when**
+
+- Multiple users share an agent backend and cross-user leaks are unacceptable.
+- Session state and caches can be keyed end-to-end by user identity.
+- Auth identity (OAuth, JWT subject) flows through the stack.
+
+**Do not use when**
+
+- The agent serves a single user or fully trusted tenant.
+- Identity propagation cannot be enforced through every cache and store.
+- Session state genuinely is shared and intended (collaborative workspaces).
+
 ## Solution
 
 Session state is keyed by per-user identity (OAuth/JWT subject). Reads and writes carry that identity end-to-end. Caches are scoped per user. Prompts never include another user's content.

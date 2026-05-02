@@ -23,6 +23,21 @@ An agent with full host access can damage the host (delete files, exfiltrate dat
 - Strict sandboxes block legitimate work.
 - Escape vulnerabilities are real and ongoing.
 
+
+## Applicability
+
+**Use when**
+
+- The agent executes generated code or operates the filesystem.
+- Host damage (deletion, exfiltration, malware) is a credible risk.
+- A container, microVM, or WASM runtime can be deployed for execution.
+
+**Do not use when**
+
+- The agent never executes code or touches the filesystem.
+- Isolation overhead breaks latency or cost targets and the workload is genuinely safe.
+- Sandbox configuration is so loose it provides no real protection.
+
 ## Solution
 
 Run code in a container, microVM, WASM runtime, or restricted subprocess with minimal privileges. Filesystem is read-only or scoped to a working directory. Network is allowlisted or blocked. Resource limits cap CPU/memory/time. Persistent state is ephemeral by default.

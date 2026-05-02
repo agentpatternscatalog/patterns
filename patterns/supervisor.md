@@ -23,6 +23,21 @@ A single agent that handles everything has either too few tools (limiting capabi
 - Inter-agent communication needs a protocol.
 - Specialisation reduces transfer learning across requests.
 
+
+## Applicability
+
+**Use when**
+
+- Different request types want their own loop, prompt, tools, and possibly model.
+- A flat router would be too coarse because lanes need their own multi-step behaviour.
+- A coordinating layer can dispatch and decide whether to escalate.
+
+**Do not use when**
+
+- A single agent already handles the workload without confusion.
+- Routing alone (no inner loop per lane) suffices.
+- Supervisor coordination cost outweighs the specialisation benefit.
+
 ## Solution
 
 A supervisor classifies requests and dispatches them to a specialised agent. Each specialist has its own prompt, tools, and possibly its own model. The supervisor may receive results back and decide whether to escalate or respond.

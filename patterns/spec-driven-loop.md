@@ -23,6 +23,21 @@ Agents that try to plan an entire feature in one go are brittle; agents that wan
 - Tests gate progress; without them the loop has no error signal.
 - Cost per iteration must be tolerable for hundreds of runs.
 
+
+## Applicability
+
+**Use when**
+
+- A task has a clear (or improvable) spec and incremental iteration adds value.
+- Each iteration's output can be gated by a test or check.
+- An outer shell loop can run the same prompt repeatedly without supervision.
+
+**Do not use when**
+
+- The task has no spec and cannot be incrementally improved.
+- There is no test gate and the loop cannot tell when to stop.
+- Unsupervised loops would consume cost without convergence.
+
 ## Solution
 
 An outer shell loop (`while :; do cat PROMPT.md | claude-code ; done`) runs the same prompt repeatedly. The prompt encodes one task at a time, references a fix_plan.md that the agent itself updates, and ends with a test invocation that gates the next iteration. Subagents are used for parallel reads; build/test stays serial.

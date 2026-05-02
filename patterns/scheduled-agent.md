@@ -23,6 +23,21 @@ Request-driven agents only act when called; many useful tasks need to act on tim
 - Failure modes when the agent's run is missed.
 - Drift if the schedule is not authoritative.
 
+
+## Applicability
+
+**Use when**
+
+- A task should run periodically regardless of user prompting.
+- Agent state can be persisted in durable storage between runs.
+- A scheduler (cron, queue, scheduler service) is available.
+
+**Do not use when**
+
+- The task only matters in response to a specific user request.
+- Runs would frequently be wasted because no work is pending.
+- Persistent state cannot be carried across runs.
+
 ## Solution
 
 Schedule the agent run at fixed cadence (cron, scheduler service). The agent reads its current state, executes its task, writes results, and exits. State persists across runs in durable storage.

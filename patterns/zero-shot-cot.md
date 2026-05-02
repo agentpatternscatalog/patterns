@@ -23,6 +23,21 @@ Few-shot CoT requires exemplar curation per task type; that effort scales poorly
 - Quality lift is smaller than well-curated few-shot CoT.
 - Trigger-phrase reasoning can drift on complex tasks.
 
+
+## Applicability
+
+**Use when**
+
+- Reasoning tasks where curating few-shot exemplars is impractical or costly.
+- A trigger phrase reliably elicits useful chains for the task domain.
+- Latency budget allows the model to produce reasoning before the answer.
+
+**Do not use when**
+
+- Few-shot exemplars are available and yield meaningfully better reasoning.
+- The trigger phrase produces noisy or irrelevant chains for the task.
+- Latency budget forbids the longer reasoning output.
+
 ## Solution
 
 Append a trigger phrase ('Let's think step by step', 'Let's work through this carefully') to the prompt. The model produces reasoning before its answer with no exemplar required. Optionally extract the final answer with a follow-up prompt.

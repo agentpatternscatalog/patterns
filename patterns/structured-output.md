@@ -23,6 +23,21 @@ Free-form output requires fragile post-hoc parsing; the model produces near-JSON
 - Schema evolution is a real concern.
 - Provider implementations of structured output differ in fidelity.
 
+
+## Applicability
+
+**Use when**
+
+- Downstream code consumes typed data and free-form text would break parsers.
+- A JSON Schema or equivalent typed shape can be defined for the output.
+- The provider supports structured-output mode or function calling.
+
+**Do not use when**
+
+- Output is for human consumption only and structure adds no value.
+- The schema would be so loose it provides no real type safety.
+- Strict schema enforcement triggers excessive retries that hurt UX.
+
 ## Solution
 
 Define a JSON Schema (or Pydantic / Zod / equivalent). Pass it to the model via the provider's structured-output mode. Validate the output. Reject and retry on validation failure. Cap retries.

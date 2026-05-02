@@ -23,6 +23,21 @@ Static retrieve-then-generate retrieves regardless of need and generates regardl
 - Reflection tokens must be enforced at inference, not just trained.
 - Self-evaluation correlates with the model's blind spots.
 
+
+## Applicability
+
+**Use when**
+
+- Retrieval-augmented generation needs to decide when to retrieve and whether evidence is relevant.
+- Static retrieve-then-generate wastes calls or admits hallucination.
+- Fine-tuning the model with reflection tokens is feasible.
+
+**Do not use when**
+
+- A simpler RAG pipeline meets quality targets.
+- Fine-tuning the generator on reflection tokens is not feasible.
+- Latency or cost of inline reflection tokens is unacceptable.
+
 ## Solution
 
 A critic model is first trained to label data with reflection tokens. The generator is then fine-tuned on the labeled data to emit four reflection tokens inline at inference: [Retrieve], [IsRel] (is retrieved evidence relevant?), [IsSup] (is generation supported?), [IsUse] (is generation useful?). The host enforces the reflection grammar and uses tokens to control flow.

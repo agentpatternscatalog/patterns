@@ -23,6 +23,21 @@ Real tools return errors as 200 OK with `{error: ...}`, multi-MB responses that 
 - Schema enforcement requires per-tool work.
 - Size limits are tool-specific.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; real tools return errors as 200 OK, oversized bodies, scripts, or prompt-injection payloads.
+- Validate every tool result against a schema and cap response size.
+- Apply tool-output-poisoning defenses and structured-output downstream.
+
+**Do not use when**
+
+- Tools are untrusted and content can include adversarial payloads.
+- Downstream code assumes valid JSON or bounded sizes.
+- Schema validation, size caps, or sanitisation are available.
+
 ## Solution
 
 Don't. Validate every tool result against a schema. Cap response size. Sanitise HTML. Apply tool-output-poisoning defenses. See tool-output-poisoning, structured-output, input-output-guardrails.

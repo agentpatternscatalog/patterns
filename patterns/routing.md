@@ -23,6 +23,21 @@ A single prompt that handles everything either over-pays (cheap requests routed 
 - Misrouting can be worse than not routing at all.
 - The router needs visibility into capabilities of each downstream specialist.
 
+
+## Applicability
+
+**Use when**
+
+- Traffic is heterogeneous and different requests benefit from different prompts or models.
+- A single all-purpose prompt is over-paying for cheap requests or under-serving complex ones.
+- A lightweight classifier can produce a stable label cheaply.
+
+**Do not use when**
+
+- All requests look alike and a single specialist already serves them well.
+- Misrouting cost is high and the classifier cannot meet the required accuracy.
+- Latency budget cannot accommodate an extra classifier hop.
+
 ## Solution
 
 A lightweight classifier model (often the cheapest available) returns a label. The host dispatches the request to the specialist for that label. Common lanes: command (deterministic action), agent (multi-step), chat (no tools).

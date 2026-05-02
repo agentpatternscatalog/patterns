@@ -23,6 +23,21 @@ Implicit termination ('the model says it is done') fails when the model is uncer
 - Stop too early loses work; stop too late wastes calls.
 - Coverage: which conditions warrant a stop?
 
+
+## Applicability
+
+**Use when**
+
+- Agent loops need an explicit termination predicate beyond model self-declaration.
+- Conditions like budget hit, error, or stagnation can be detected programmatically.
+- Costs of an unbounded loop are unacceptable.
+
+**Do not use when**
+
+- The model reliably declares 'done' and termination already works.
+- No programmatic stop condition can be defined for the task.
+- The loop is naturally bounded by an external trigger.
+
 ## Solution
 
 Implement a stop hook function that runs after each step. It returns one of: continue, stop-success, stop-failure. Conditions include: target reached, step budget hit, error encountered, stagnation detected (no progress in last N steps).

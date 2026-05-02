@@ -23,6 +23,21 @@ Function-calling accuracy degrades past ~20 tools; a 100-tool registry is unusab
 - Filter cost (one extra model call per request, or rule-based).
 - Tool-discovery latency on each request.
 
+
+## Applicability
+
+**Use when**
+
+- The tool registry is large (MCP, plugins, internal catalog) and exposing all degrades selection.
+- A classifier or rule can pick the relevant subset per request cheaply.
+- Function-calling accuracy is a release-gate metric.
+
+**Do not use when**
+
+- The tool set is small and a static palette already works well.
+- Per-request classification adds latency that is not earned back in accuracy.
+- Subsetting would frequently exclude the tool the agent actually needs.
+
 ## Solution
 
 Before the main loop, classify the request and select N relevant tools (rule-based: by routed lane; or model-based: a quick classifier picks tools). Expose only the selected subset to the agent's main inference call. Tools outside the subset are unavailable for this request.

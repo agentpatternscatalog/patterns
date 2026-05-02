@@ -23,6 +23,21 @@ Replaying the entire conversation every turn is expensive and pollutes context w
 - What to keep vs. summarise is a quality-vs-cost tension.
 - Multi-device sessions complicate where state lives.
 
+
+## Applicability
+
+**Use when**
+
+- Multi-turn agent needs continuity across turns within a session.
+- Replaying full conversation each turn is expensive or pollutes context.
+- A typed state object with TTL can capture the relevant slice.
+
+**Do not use when**
+
+- The agent is single-turn or stateless by design.
+- All history truly matters and pruning would lose important context.
+- TTL semantics cannot be enforced reliably in storage.
+
 ## Solution
 
 Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.

@@ -23,6 +23,21 @@ The critic shares the producer's blind spots. Wrong answers are reinforced as co
 - Cross-model judges have their own biases.
 - Self-critique feels free.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; the critic shares the producer's blind spots and reinforces wrong answers.
+- If self-critique is the only option, treat it as catching surface errors only.
+- Use a different model family for the critic (see llm-as-judge or evaluator-optimizer).
+
+**Do not use when**
+
+- Critique must be independent or trusted to catch deep errors.
+- Cost of a wrong-but-confident answer is high.
+- A second model family or programmatic verifier is available.
+
 ## Solution
 
 Don't pretend it is independent. Either accept that self-critique catches surface errors only, or use a different model family for the critic. See reflection, evaluator-optimizer, llm-as-judge.

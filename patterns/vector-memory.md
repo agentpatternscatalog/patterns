@@ -23,6 +23,21 @@ Append-only logs grow unboundedly; without semantic retrieval the agent cannot f
 - Index updates have non-trivial latency.
 - Forgetting is achieved by deletion or decay; both have failure modes.
 
+
+## Applicability
+
+**Use when**
+
+- Long-running agents accumulate facts whose relevance is best judged by similarity.
+- Append-only logs would otherwise grow unboundedly without retrieval.
+- An embedding model and vector index can be deployed and maintained.
+
+**Do not use when**
+
+- Memory is small and a typed key-value store would serve better.
+- Recency or exact-match retrieval matters more than semantic similarity.
+- Vector index maintenance cost outweighs the retrieval benefit.
+
 ## Solution
 
 Each memory item is embedded and indexed. At query time, embed the query (or a summary of current state), retrieve top-k most similar memories, prepend to context. Optional decay (boost recent, age old) and salience weighting.

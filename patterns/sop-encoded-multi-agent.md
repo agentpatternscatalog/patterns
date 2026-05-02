@@ -24,6 +24,21 @@ Free-form multi-agent chat hallucinates context, drifts off-task, and produces n
 - Defined artefacts (PRD, design doc, test plan) compress context across role hand-offs.
 - Rigid SOPs lose the model's ability to adapt; the SOP has to leave room for the role to think.
 
+
+## Applicability
+
+**Use when**
+
+- A complex repeatable task already has a documented human SOP with named roles.
+- Hand-off artefacts between phases can be typed (PRD, design doc, code, test plan).
+- An auditable trail of artefacts is required.
+
+**Do not use when**
+
+- The task is one-off and writing an SOP is more work than doing it.
+- Free-form chat between agents is sufficient and cheaper.
+- Phases cannot be cleanly separated and artefact contracts cannot be defined.
+
 ## Solution
 
 Encode the SOP as: (a) a fixed set of named roles each with role-specific prompt and tool palette, (b) an ordered sequence of phases, (c) a typed artefact contract for each phase boundary (e.g. PRD → design doc → code → test plan → user manual). Agents communicate via the artefacts; a shared message pool plus a subscription filter routes only relevant context to each role.

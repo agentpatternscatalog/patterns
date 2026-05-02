@@ -23,6 +23,21 @@ One-shot generation under-uses the model; calling for explicit critique-and-revi
 - Termination criterion is its own design.
 - Cost grows linearly with iterations.
 
+
+## Applicability
+
+**Use when**
+
+- The same model can produce useful self-feedback against an explicit improvement target.
+- One-shot generation under-uses the model and quality matters.
+- Cost of a few extra refine turns is acceptable.
+
+**Do not use when**
+
+- A different model family is available and would give independent critique.
+- The model's self-feedback is known to be unreliable on this task.
+- Latency budget forbids multiple refine passes.
+
 ## Solution
 
 Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.

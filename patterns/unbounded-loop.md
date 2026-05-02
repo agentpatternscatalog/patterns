@@ -23,6 +23,21 @@ The agent wanders, retries, or loops on errors. Cost is unbounded. User waits.
 - Choosing the cap is empirical.
 - Model self-termination feels natural until it fails.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; the agent wanders and cost is unbounded when termination depends solely on the model.
+- Set max_steps and add a stop hook (see step-budget, stop-hook).
+- Pair with cost-gating to cap total spend per task.
+
+**Do not use when**
+
+- Cost or latency must be bounded.
+- The model is observed not to declare 'done' reliably.
+- Programmatic stop conditions can be defined for the loop.
+
 ## Solution
 
 Don't. Set max_steps. Add a stop hook. See step-budget, the-stop-hook.

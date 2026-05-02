@@ -23,6 +23,21 @@ Rigid schemas break when fields are added; permissive schemas become incoherent.
 - New fields should be discoverable, not hidden.
 - Versioning policy must be agreed upfront.
 
+
+## Applicability
+
+**Use when**
+
+- Schemas are long-lived and will accumulate fields over time.
+- Multiple clients of different ages must coexist with the same data format.
+- Breaking-change cost across clients is high.
+
+**Do not use when**
+
+- The schema is internal, short-lived, and a single client owns it.
+- Strict validation of all fields is required (no unknown extensions allowed).
+- Versioning discipline cannot be enforced and the envelope would rot.
+
 ## Solution
 
 Define a versioned envelope (`{schema_version, type, payload}`). Reserve namespaces for extensions (`x-vendor.foo`, `extensions: {...}`). Old clients ignore unknown extensions. Bumps to schema_version are the only breaking-change signal.
