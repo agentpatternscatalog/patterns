@@ -42,6 +42,10 @@ Reproducibility breaks; users notice quality changes they cannot diagnose; trust
 
 Don't. Disclose model identity per response. Use multi-model-routing transparently. Make routing decisions inspectable.
 
+## Example scenario
+
+A coding-agent vendor silently routes nights and weekends to a smaller model to save cost. Users start filing bug reports about 'the model getting dumber on Saturday morning' and cannot reproduce them on Monday. The team realises they have been doing hidden-mode-switching as an unacknowledged anti-pattern and starts including the resolved model id in every response header and in the agent's own status line. Routing rules are published; users can pin a model if they need consistency. Trust climbs back.
+
 ## Consequences
 
 **Liabilities**

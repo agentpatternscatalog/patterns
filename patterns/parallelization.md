@@ -42,6 +42,10 @@ Sequential execution of independent work wastes wall-clock time; single-attempt 
 
 Two flavours. Sectioning: split a task into independent subtasks, run them concurrently, concatenate results. Voting: run the same task multiple times, aggregate by majority or judge.
 
+## Example scenario
+
+A code-review agent runs three independent checks on each PR — security scan, style review, and test-coverage analysis. Running them in series adds up to thirty seconds per PR. The team applies parallelization in its sectioning flavour: the three checks run as concurrent LLM calls and the results concatenate into one review. For high-stakes PRs they also use the voting flavour: the security check runs three times and an aggregator emits the majority verdict, catching the occasional outlier hit.
+
 ## Consequences
 
 **Benefits**

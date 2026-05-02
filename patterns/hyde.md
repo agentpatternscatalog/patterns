@@ -48,6 +48,10 @@ On query: prompt the LLM to draft a hypothetical answer to the query. Embed the 
 - **Multi-draft HyDE** — Generate N hypothetical answers, embed each, and average or take the union of their top-k retrievals.
 - **Hybrid HyDE** — Average the hypothetical-answer embedding with the original query embedding to hedge against off-topic drafts.
 
+## Example scenario
+
+A documentation-search agent for a developer platform keeps missing relevant pages because users type three-word queries like 'rate limit auth' while the docs are written in long prose. The team adds HyDE: the LLM first drafts a hypothetical answer paragraph to the query, that paragraph is embedded, and retrieval runs against the answer-shaped embedding instead of the bare query. Recall on short queries jumps without changing the index, the encoder, or the docs.
+
 ## Consequences
 
 **Benefits**

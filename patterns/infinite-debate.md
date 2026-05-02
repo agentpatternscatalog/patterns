@@ -42,6 +42,10 @@ Debate without termination converges only by accident. Real cost grows linearly 
 
 Don't. Add a round cap and a termination predicate. Pair debate with a judge or aggregator. See debate, step-budget, the-stop-hook.
 
+## Example scenario
+
+A research team sets up a three-agent debate to answer policy questions: a proponent, a skeptic, and a synthesiser. They forget to add a termination rule. The first run burns through 90 minutes and $34 of tokens with the proponent and skeptic still circling each other when an engineer kills the process. They name the failure infinite-debate and add a round cap of six exchanges plus a judge that emits 'agreement', 'irreducible-disagreement', or 'continue', with continue allowed at most once. Cost becomes predictable.
+
 ## Consequences
 
 **Liabilities**

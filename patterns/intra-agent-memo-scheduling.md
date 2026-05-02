@@ -29,6 +29,10 @@ Without an internal scheduler the agent either acts immediately on every thought
 
 Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent file (`scheduled.jsonl` or similar). At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).
 
+## Example scenario
+
+A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to scheduled.jsonl. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.
+
 ## Consequences
 
 **Benefits**

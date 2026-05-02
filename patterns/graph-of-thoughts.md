@@ -48,6 +48,10 @@ Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), a
 - **Aggregate-heavy GoT** — Aggregate operator merges sibling thoughts repeatedly, ideal for sort/merge or set-union style problems.
 - **Refine-loop GoT** — A single thought is refined in a self-loop until a score plateau, with periodic aggregation against earlier versions.
 
+## Example scenario
+
+A research agent comparing five drug candidates across efficacy, safety, and cost gets stuck in tree-of-thoughts because each branch evaluates one candidate in isolation and cannot reuse a sub-analysis across siblings. The team rebuilds the reasoning state as a DAG: each per-candidate efficacy node feeds into a shared aggregation node that ranks candidates jointly, and a refine operator can revisit any node when new evidence appears. Intermediate scoring is computed once and merged across branches, and the final ranking cites the aggregation node as its source.
+
 ## Consequences
 
 **Benefits**

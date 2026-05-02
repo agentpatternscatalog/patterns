@@ -48,6 +48,10 @@ Define two roles. Outer agent (Dispatcher + Planner): decomposes the goal into s
 Outer (plan, dispatch, monitor) <-- result/interrupt --> Inner (ReAct loop on subtask) <-- tool calls --> Tools.
 ```
 
+## Example scenario
+
+A research agent that handles multi-step report writing repeatedly drifts mid-execution — it discovers a fact that invalidates its plan but keeps executing because the planning loop has already exited. The team restructures as an outer-inner-agent-loop: the outer planner decomposes the report into subtasks with milestones; the inner executor runs a ReAct loop on each subtask and reports back. When the inner agent reports an invalidating finding, the outer can interrupt and replan instead of letting execution proceed on a stale plan.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,10 @@ Beta becomes a permanent excuse. Without an eval harness, quality is a guess and
 
 Don't. Build the eval harness and exit beta. See eval-harness, llm-as-judge, shadow-canary.
 
+## Example scenario
+
+A startup launches its agent product as 'beta' and uses the label as a blanket excuse for any quality complaint. Eighteen months later the agent is still beta, there is no eval harness, and customers have started churning to a competitor that ships GA. The team names the failure perma-beta and forces an exit: build the eval suite, set quality gates, fix the regressions blocking GA, and remove the beta label. The label was hiding the fact that nobody actually knew whether the product was getting better or worse.
+
 ## Consequences
 
 **Liabilities**

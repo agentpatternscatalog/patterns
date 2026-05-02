@@ -48,6 +48,10 @@ Index time: extract entities and relations from chunks; build a knowledge graph;
 - **Local GraphRAG** — Anchor on a named entity and walk its neighbourhood in the graph; suits entity-specific questions.
 - **DRIFT GraphRAG** — Hybrid that starts local around a seed entity and progressively widens to community-level context if the local context is insufficient (Microsoft DRIFT).
 
+## Example scenario
+
+An analyst pointed at a 4000-page deal-room corpus asks 'what are the recurring risk themes across these contracts?' Naive RAG returns five chunks and an answer that misses two themes entirely because no single chunk carries them. The team switches to GraphRAG: at index time the LLM extracts parties, obligations, and clauses into a knowledge graph, clusters the graph into communities, and writes a summary of each. The corpus-wide question now map-reduces over community summaries and surfaces the recurring themes the chunk-level retriever could not see.
+
 ## Consequences
 
 **Benefits**

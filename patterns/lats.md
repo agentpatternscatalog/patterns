@@ -42,6 +42,10 @@ ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit 
 
 Apply Monte Carlo Tree Search (MCTS) to the agent loop. Each node is a partial trajectory. Expansion samples next thoughts/actions. Backpropagation updates a value estimate. Selection chooses the next node by UCT. The agent can backtrack from a failing branch instead of committing.
 
+## Example scenario
+
+A coding agent given an ambiguous bug report tries the first plausible fix, finds it wrong on the test suite, then thrashes because its single chain-of-thought has already committed to that frame. The team rebuilds the loop as LATS: each partial trajectory is a node, expansion samples alternative next actions, the test suite acts as the value signal, and UCT selects the next node to explore. When a branch fails its tests the agent backtracks instead of digging in. Hard bugs that previously needed a human now resolve autonomously.
+
 ## Consequences
 
 **Benefits**

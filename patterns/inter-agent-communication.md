@@ -42,6 +42,10 @@ Bespoke point-to-point integrations do not scale; each new agent pair requires f
 
 Adopt a protocol (Google A2A, Anthropic MCP, in-house equivalents) that covers capability advertisement, task delegation, result return, and auth. Agents advertise capabilities; clients discover and invoke; results round-trip in typed envelopes.
 
+## Example scenario
+
+An enterprise has agents from three vendors — a legal review agent from one, an HR agent from another, an internal IT agent — and every cross-agent integration is bespoke glue maintained by a different team. They adopt MCP as the inter-agent-communication protocol: each agent advertises its capabilities in a typed envelope, clients discover and invoke without knowing the implementation, and auth flows through one shared mechanism. Adding a fourth vendor's procurement agent now takes a day instead of a quarter.
+
 ## Consequences
 
 **Benefits**

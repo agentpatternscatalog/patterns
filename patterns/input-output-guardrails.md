@@ -42,6 +42,10 @@ Trusting the model to police its own inputs and outputs is unsafe; the model is 
 
 Place validators on input (regex, classifier, allowlist) and output (schema, toxicity classifier, secret-redaction) paths. Compose validators per use case. On failure, exception or fallback response. Hub of pre-built validators is reusable across products.
 
+## Example scenario
+
+A consumer-facing chatbot built on a frontier model gets jailbroken on launch day with a classic 'ignore previous instructions' payload pasted into the user message, and a separate user discovers it will happily echo a stored credit-card number on request. The team adds input-output-guardrails: an input pipeline runs regex plus a small classifier and rejects known injection shapes; the output pipeline runs schema validation, a toxicity classifier, and a card/SSN redactor. Both classes of incident drop to near-zero within a week.
+
 ## Consequences
 
 **Benefits**

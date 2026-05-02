@@ -29,6 +29,10 @@ Working focus holds one item; insights are too distilled. Between them there is 
 
 Cap a list at 5-8 preoccupations stored as small JSON entries with topic, intensity (0..1), affect tag, opened-at, last-touched. Apply a 7-day half-life decay to intensity. When the cap is reached, release the coldest entry. Surface all current preoccupations in every tick prompt as a brief sidebar. The agent has explicit `touch` (raise intensity) and `release` (drop) operations.
 
+## Example scenario
+
+A long-running personal agent has a 'current focus' slot that holds one item and a long-term insight store that is too distilled. Mid-tier concerns — a project the user is wrestling with, a relationship issue they keep returning to — either crowd out the active focus or fall off the back of the context window. The team adds preoccupation-tracking: a capped list of 5–8 affect-tagged concerns with topic, intensity, and last-touched, decaying with a 7-day half-life, surfaced as a sidebar in every tick prompt. Mid-tier context now persists across days without overwhelming the foreground.
+
 ## Consequences
 
 **Benefits**

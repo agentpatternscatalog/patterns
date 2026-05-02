@@ -48,6 +48,10 @@ Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems 
 - **Dynamic decomposition L2M** — After each subproblem is answered, the model may revise the remaining subproblem list before continuing.
 - **Tool-augmented L2M** — Each subproblem step may call a tool (calculator, search) instead of being answered by the model alone.
 
+## Example scenario
+
+A maths-tutoring agent is asked a multi-step word problem that combines unit conversion, percentage, and ratio. Plain chain-of-thought gets the unit conversion right but loses the ratio. The team adds least-to-most: stage one prompts the model to list subproblems easiest-first ('1: convert km to m, 2: compute percentage, 3: apply ratio'); stage two solves each in order, feeding prior answers forward. Accuracy on the hard end of the eval set jumps because each step starts from a clean, simpler frame.
+
 ## Consequences
 
 **Benefits**

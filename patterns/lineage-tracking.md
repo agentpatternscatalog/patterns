@@ -42,6 +42,10 @@ Without lineage, output disputes are unanswerable; rolling back to a known-good 
 
 Tag every agent output with: prompt template hash, model id and version, tool versions, retrieved-document ids, decision-log id. Store in a queryable lineage store. Make lineage joinable to the output store.
 
+## Example scenario
+
+A customer files a complaint about an agent answer they got six weeks ago. The team has no record of which prompt template was live then, which model version answered, or which retrieved documents were used; reproducing the answer is impossible. They add lineage-tracking: every output is tagged with prompt-template hash, model id and version, tool versions, retrieved-document ids, and the decision-log id, all stored in a queryable lineage table. The next disputed answer is fully reconstructed in minutes and traced to a since-rolled-back prompt change.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,10 @@ Without a runbook, detection produces alerts that wake the on-call but do not le
 
 Maintain a runbook covering: severity levels, on-call paths, containment steps (kill-switch invocation, traffic rerouting), forensic preservation (pin traces beyond normal retention), compensating actions, customer communication templates, regulator notification procedures, and post-mortem template. Tie alerts from kill-switch/sandbox-escape-monitoring/cost-observability to runbook entries.
 
+## Example scenario
+
+A multi-tenant chat platform discovers at 02:14 that an agent has been emailing one customer's support transcripts to another customer's address for the past nine hours. The on-call has alerts but no plan, and the first hour goes to arguing about whether to kill the service. After the post-mortem the team writes an incident-response-runbook covering severity levels, kill-switch invocation, trace pinning beyond normal retention, customer-notification templates, and regulator timelines. The next incident is contained in eight minutes.
+
 ## Consequences
 
 **Benefits**

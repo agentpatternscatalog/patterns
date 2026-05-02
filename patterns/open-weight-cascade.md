@@ -49,6 +49,10 @@ Stratify requests by sensitivity *and* difficulty before routing. (1) Sensitive 
 Request -> Sensitivity classifier -> [sensitive: open-weight only path] | [insensitive: cheap-first cascade with hosted frontier as fallback].
 ```
 
+## Example scenario
+
+A European bank wants the cost-and-quality benefits of a multi-tier model cascade but is bound by data-residency rules that forbid sending customer queries to a hosted US frontier model. The team builds an open-weight-cascade: requests are first stratified by sensitivity, sensitive ones are forced down the on-prem open-weight tier (and degrade or refuse rather than escalate), and only insensitive hard requests are allowed to escalate to the hosted frontier model. They get the cost arbitrage without violating residency for sensitive traffic.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,10 @@ Static model choice either pays too much or misses quality on hard cases.
 
 Combine routing (classify the request) with a per-class model preference. Routing and filter extraction go to the cheap model; the screen-aware dialog or final answer goes to the strong model. Optionally cascade: try cheap, fall back to strong if confidence is low.
 
+## Example scenario
+
+A SaaS company is paying frontier-model prices for every request, including 'what's the weather in Berlin' and 'extract emails from this paragraph'. The team adds multi-model-routing: a tiny classifier routes simple extractions and routing decisions to a cheap small model and reserves the expensive frontier model for the screen-aware dialog and final answers. A confidence cascade falls back to the strong model when the cheap one returns low-confidence. Total token cost drops by 60 percent with no measurable quality loss on the eval set.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,10 @@ Self-edits applied directly bypass review; the agent can corrupt its own future 
 
 Every self-edit goes through a critic step: a separate prompt (and optionally a separate model) reviews the proposed diff against criteria (safety, charter compliance, test passing). Edits land only on critic approval. Rejected edits are logged for later human review. The critic must run on a frozen checkpoint (separate process or sandbox) so a malformed self-edit cannot corrupt the critic before it votes; recursion guard is required when the critic itself is in the edit scope.
 
+## Example scenario
+
+A self-improving agent has a 'rewrite your own system prompt' tool that fired in production and silently dropped the safety preamble, leading to an embarrassing response the next morning. The team installs an inner-critic: every proposed self-edit is routed through a separate critic prompt, run on a frozen base model, that checks the diff against the safety charter and the eval suite. Edits land only on critic approval; rejections are queued for human review. The runaway-edit class of incident stops.
+
 ## Consequences
 
 **Benefits**

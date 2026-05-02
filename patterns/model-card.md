@@ -42,6 +42,10 @@ Agent capabilities and limitations are tribal knowledge; without a card, every s
 
 Maintain a markdown document at a known location with sections: intended use, out-of-scope use, training/data lineage, evaluation results, limitations, risks, contact. Versioned alongside the agent.
 
+## Example scenario
+
+A new product manager joins and has to explain to a regulator what the underwriting agent does, what data it was trained on, and where it is known to fail. The institutional knowledge lives in three engineers' heads and a Slack thread. The team writes a model-card: intended use, out-of-scope use, training data lineage, evaluation results by demographic slice, known limitations, contact owner. It lives at /docs/agents/underwriter-card.md, is versioned with the agent, and is the canonical reference for the next regulator question.
+
 ## Consequences
 
 **Benefits**

@@ -49,6 +49,10 @@ Define a touch-native action vocabulary (tap(x,y), long_press(x,y), swipe(dir), 
 Screenshot + history -> agent -> action_call(tap|swipe|type|...) -> device -> next screenshot -> ...
 ```
 
+## Example scenario
+
+A team tries to reuse their desktop computer-use agent on Android by injecting mouse-and-keyboard actions through ADB. The agent fights the touch interface, mistakes long-press menus for hover tooltips, and cannot find the back button. They rebuild as a mobile-ui-agent: a touch-native action vocabulary (tap, long-press, swipe, type, back, home), screenshots with extracted UI element annotations, and the model reasons about which element to act on instead of which pixel. The agent completes mobile flows like food ordering and ride-booking end to end.
+
 ## Consequences
 
 **Benefits**
