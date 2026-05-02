@@ -100,6 +100,6 @@ Scalars only enter the prompt context when they exceed a threshold; below thresh
 
 ## References
 
-- (book) Antonio Damasio, *The Feeling of What Happens*, 1999, <https://www.goodreads.com/book/show/47836.The_Feeling_of_What_Happens>
+- (book) Antonio Damasio, *The Feeling of What Happens*, 1999, <https://www.goodreads.com/book/show/125777.The_Feeling_of_What_Happens>
 
 **Tags:** affect, state, tick-loop, self-model
