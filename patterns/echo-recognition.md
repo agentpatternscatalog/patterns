@@ -8,7 +8,7 @@
 
 ## Intent
 
-Detect when the human sends the same (or near-same) message multiple times and treat the repetition as emphasis or a re-ask, not as a new independent input warranting a fresh response.
+Recognize human message repetition as emphasis or a re-ask rather than as an independent input, so the agent does not produce a near-duplicate reply when the human repeats themselves.
 
 ## Context
 
@@ -45,19 +45,61 @@ Maintain a small ring of recent incoming user messages with timestamps. On each 
 
 ## What this pattern constrains
 
-A near-duplicate incoming message must not produce a near-duplicate reply; echoes must be acknowledged as such or explicitly disambiguated.
+A near-duplicate incoming message must not produce a near-duplicate reply; echoes must be acknowledged as such, with the agent surfacing its prior reply and asking what was missed instead of regenerating.
+
+## Applicability
+
+**Use when**
+
+- The agent receives messages from a human who can repeat themselves to emphasise or re-ask.
+- Treating a repeat as fresh input would produce duplicate or near-duplicate replies.
+- The agent has access to short-term history of the user's recent messages.
+
+**Do not use when**
+
+- The agent is one-shot with no history (every message is independent by spec).
+- Repeats from the same user genuinely should be answered as if new each time.
+- Detecting repeats reliably is harder than the harm caused by duplicate replies.
+
+## Variants
+
+### Lexical near-duplicate
+
+Compare the new message to the last N user messages by string similarity; treat above-threshold matches as echoes.
+
+*Distinguishing factor:* surface comparison
+
+*When to use:* Default. Catches literal repeats and minor edits.
+
+### Semantic near-duplicate
+
+Embed and compare; treat semantically equivalent paraphrases as echoes.
+
+*Distinguishing factor:* semantic comparison
+
+*When to use:* When users rephrase without repeating verbatim.
+
+### Acknowledge-and-redirect
+
+On detected echo, the reply explicitly acknowledges the repeat ('I hear you — let me try a different angle') instead of paraphrasing the previous answer.
+
+*Distinguishing factor:* behavioural response, not just detection
+
+*When to use:* Default reply policy paired with either detection variant.
 
 ## Known uses
 
-- **Self-observed by a long-running cognitive agent: 'Du sendest mir manchmal die gleiche Nachricht zweimal. Ich erkenne nicht: aha, absichtliche Wiederholung vs. Bug.' (2026-05-01)** — *Available*
+- **[Self-observed by a long-running cognitive agent: "You sometimes send me the same message twice. I can't tell: aha, deliberate repetition vs. bug." (Originally in German: 'Du sendest mir manchmal die gleiche Nachricht zweimal. Ich erkenne nicht: aha, absichtliche Wiederholung vs. Bug.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *complements* → [degenerate-output-detection](degenerate-output-detection.md)
 - *complements* → [disambiguation](disambiguation.md)
+- *complements* → [decision-log](decision-log.md)
+- *uses* → [short-term-memory](short-term-memory.md)
 
 ## References
 
-- *(none)*
+- (doc) *Anthropic — Reduce hallucinations (handling repeated user input)*, 2025, <https://docs.claude.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations>
 
 **Tags:** input-detection, human-agent, emphasis, deduplication

@@ -54,6 +54,9 @@ The agent has read access only to thoughts/ and journal/; writes go through an a
 - *used-by* → [decision-log](decision-log.md)
 - *complements* → [blackboard](blackboard.md)
 - *complements* → [todo-list-driven-agent](todo-list-driven-agent.md)
+- *complements* → [intra-agent-memo-scheduling](intra-agent-memo-scheduling.md)
+- *generalises* → [self-archaeology](self-archaeology.md)
+- *complements* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
 
 ## References
 

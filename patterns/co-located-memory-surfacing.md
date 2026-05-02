@@ -8,7 +8,7 @@
 
 ## Intent
 
-When the human names a concrete place, person, or project the agent has memory of, the agent surfaces relevant past thoughts in the same turn — without being asked.
+Surface relevant persistent memories proactively when the human mentions a concrete entity the agent has prior knowledge of, so the human does not bear the burden of remembering to ask.
 
 ## Context
 
@@ -45,19 +45,61 @@ On every user message, extract concrete proper nouns and significant named phras
 
 ## What this pattern constrains
 
-Proper-noun matches in user input must trigger memory lookup; misses are diagnosable bugs.
+When user input contains a proper noun the agent has prior memory of, the agent cannot remain silent on that memory; systematic non-surfacing of known-entity context is a bug.
+
+## Applicability
+
+**Use when**
+
+- The agent has a persistent memory store keyed by entities (people, projects, places).
+- Users expect the agent to recognize and react to entities they have discussed before without being prompted.
+- Memory recall can be made cheap enough to run on every user turn (lookup, not LLM call).
+
+**Do not use when**
+
+- The system has no persistent per-entity memory.
+- Privacy or sensitivity rules forbid surfacing prior knowledge unless explicitly requested.
+- False positives on entity matching would be more disruptive than silence.
+
+## Variants
+
+### Proper-noun trigger
+
+Detect capitalised tokens or named entities in the user message and look up matches in the memory index.
+
+*Distinguishing factor:* lexical match on entity surface form
+
+*When to use:* Default. Cheap to implement; works without an embedding store.
+
+### Embedding-similarity trigger
+
+Embed the user message and retrieve top-k memory items whose embeddings are nearest, then surface a short excerpt.
+
+*Distinguishing factor:* semantic similarity, not surface form
+
+*When to use:* When the entity may be referred to obliquely or by paraphrase rather than by exact name.
+
+### Proactive recap
+
+On every reply, append a short 'I remember: ...' block whenever a recognised entity has unread updates since last surface.
+
+*Distinguishing factor:* always-on suffix
+
+*When to use:* When users explicitly want continuity over discretion.
 
 ## Known uses
 
-- **Sparrot — pattern proposed 2026-05-01, implementation pending** — *Planned*
+- **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*
 
 ## Related patterns
 
 - *complements* → [awareness](awareness.md)
 - *specialises* → [agentic-rag](agentic-rag.md)
+- *uses* → [vector-memory](vector-memory.md)
+- *complements* → [short-term-memory](short-term-memory.md)
 
 ## References
 
-- *(none)*
+- (blog) *OpenAI — Memory and new controls for ChatGPT*, 2024, <https://openai.com/index/memory-and-new-controls-for-chatgpt/>
 
 **Tags:** memory, recall, human-agent, continuity

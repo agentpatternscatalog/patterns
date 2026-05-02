@@ -61,6 +61,7 @@ The loop terminates after N iterations regardless of agent's own opinion.
 - *complements* → [stop-cancel](stop-cancel.md)
 - *used-by* → [outer-inner-agent-loop](outer-inner-agent-loop.md)
 - *complements* → [agent-as-tool-embedding](agent-as-tool-embedding.md)
+- *complements* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
 
 ## References
 

@@ -53,6 +53,8 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 - *uses* → [hippocampal-rehearsal](hippocampal-rehearsal.md)
 - *composes-with* → [append-only-thought-stream](append-only-thought-stream.md)
 - *alternative-to* → [memgpt-paging](memgpt-paging.md)
+- *composes-with* → [salience-attention-mechanism](salience-attention-mechanism.md)
+- *complements* → [preoccupation-tracking](preoccupation-tracking.md)
 
 ## References
 

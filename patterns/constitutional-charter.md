@@ -55,6 +55,7 @@ The agent cannot write the charter; updates require explicit operator action out
 - *used-by* → [refusal](refusal.md)
 - *alternative-to* → [prompt-bloat](prompt-bloat.md)
 - *complements* → [sovereign-inference-stack](sovereign-inference-stack.md)
+- *composes-with* → [world-model-separation](world-model-separation.md)
 
 ## References
 

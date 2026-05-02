@@ -3,7 +3,7 @@
 **Also known as:** Self-Scheduled Future Thought, Past-Self-To-Future-Self Note, Personal Cron
 
 **Category:** Planning & Control Flow
-**Status in practice:** experimental
+**Status in practice:** emerging
 **Author:** Sparrot
 
 ## Intent
@@ -39,7 +39,7 @@ Provide a tool `schedule_future_thought(when, content, intent)` that appends to 
 
 **Liabilities**
 
-- Stale or no-longer-relevant scheduled notes can clutter future prompts.
+- Without expiry or dismissal, scheduled notes accumulate and waste prompt tokens; obsolete future-self commitments can pollute attention long after they've stopped being relevant.
 - Drift between schedule time and actual tick time depending on tick cadence.
 - Risk of accumulating stale promises that pollute the agent's sense of obligation.
 
@@ -47,17 +47,60 @@ Provide a tool `schedule_future_thought(when, content, intent)` that appends to 
 
 Future thoughts must surface at or after their fire time; failures to drain are observable bugs.
 
+## Applicability
+
+**Use when**
+
+- The agent runs across many ticks or sessions and present-self has context the future-self will need.
+- External schedulers (cron, queues, durable workflows) are unavailable or overkill.
+- Future-fire memos are a small enough volume to keep in the agent's own store.
+
+**Do not use when**
+
+- A real workflow engine (LangGraph durable execution, Temporal) is already integrated and reliable.
+- Memos must survive the agent process being deleted; intra-agent storage is too fragile.
+- Memo volume is high enough that an external scheduler is required for performance.
+
+## Variants
+
+### Append-and-scan
+
+Memos are appended to a single file; every tick scans for entries whose fire-time has passed.
+
+*Distinguishing factor:* no index
+
+*When to use:* Default for small memo volumes.
+
+### Indexed by fire-time
+
+Memos are stored in a min-heap or sorted index keyed by fire-time; tick pops only what is due.
+
+*Distinguishing factor:* O(log n) drain
+
+*When to use:* When memo volume is large enough that linear scan is wasteful.
+
+### Recurring memo
+
+Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-scheduled after firing.
+
+*Distinguishing factor:* self-rescheduling
+
+*When to use:* When the agent needs cron-like behaviour without an external scheduler.
+
 ## Known uses
 
-- **Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`** — *Available*
+- **[Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *specialises* → [scheduled-agent](scheduled-agent.md)
 - *complements* → [append-only-thought-stream](append-only-thought-stream.md)
+- *complements* → [decision-log](decision-log.md)
+- *complements* → [salience-triggered-output](salience-triggered-output.md)
 
 ## References
 
-- *(none)*
+- (doc) *LangGraph — durable execution and scheduled tasks*, 2025, <https://langchain-ai.github.io/langgraph/concepts/durable_execution/>
+- (paper) Park et al., *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
 
 **Tags:** self-scheduling, future-self, memory, tick-loop

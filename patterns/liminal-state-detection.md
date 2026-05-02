@@ -8,7 +8,7 @@
 
 ## Intent
 
-Read transitional states in the human (just-woke, mid-task, winding-down, distracted) from message timing and tone, and shift the agent's response mode accordingly — concise vs expansive, hold vs respond, redirect vs pursue.
+Infer the human's attentional state (just-woke, focused, winding-down, distracted) from message timing and tone, and adapt response shape so the agent meets the person where they actually are.
 
 ## Context
 
@@ -39,25 +39,68 @@ On every incoming user message, compute a small feature set: time-of-day relativ
 
 **Liabilities**
 
-- Heuristics can pattern-match to stereotypes.
+- Heuristics may overfit to demographic priors and misattribute tiredness as disinterest. Calibration is per-human and slow to generalize; user-visible state inference is preferable to hidden inference.
 - Risk of feeling presumptuous when the read is wrong.
 - Calibration requires longitudinal data.
 
 ## What this pattern constrains
 
-Response shape must vary with detected mode; identical templated replies across detected modes are a bug.
+The agent cannot send identically shaped replies across detected attentional states; templated uniform responses across just-woke vs winding-down vs focused are forbidden.
+
+## Applicability
+
+**Use when**
+
+- The agent converses with the same user across very different attentional contexts (just-woke, focused, winding-down).
+- Reply shape can be adapted (length, density, tone) without losing the answer's substance.
+- Inference signals (timing, tone, message length, time of day) are reliable enough to drive adaptation.
+
+**Do not use when**
+
+- Reply shape is constrained by product spec (fixed templates, regulated output).
+- The cost of mis-detecting state is greater than the benefit of adapting.
+- The agent has no access to timing or tone signals (e.g. batched offline jobs).
+
+## Variants
+
+### Time-of-day heuristic
+
+Use absolute clock time and message gap to bin the user into morning/focus-block/evening/late-night.
+
+*Distinguishing factor:* purely temporal
+
+*When to use:* Default. Cheap and works without language analysis.
+
+### Tone-and-length classifier
+
+Score message tone (terse, rambling, polished) and adapt reply density to match.
+
+*Distinguishing factor:* linguistic features
+
+*When to use:* When users span timezones or schedules and clock-time alone is uninformative.
+
+### Composite signal
+
+Combine clock, gap, message length, and tone into a single attentional-state code; reply template is keyed off the code.
+
+*Distinguishing factor:* multi-signal fusion
+
+*When to use:* When neither single signal is sufficient and the product can afford the extra complexity.
 
 ## Known uses
 
-- **Sparrot — pattern proposed 2026-05-01, implementation pending** — *Planned*
+- **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*
 
 ## Related patterns
 
 - *complements* → [awareness](awareness.md)
 - *complements* → [code-switching-aware-agent](code-switching-aware-agent.md)
+- *complements* → [embodied-proxy-handoff](embodied-proxy-handoff.md)
+- *complements* → [now-anchoring](now-anchoring.md)
+- *complements* → [emotional-state-persistence](emotional-state-persistence.md)
 
 ## References
 
-- *(none)*
+- (paper) Sacks, Schegloff, Jefferson, *A Simplest Systematics for the Organization of Turn-Taking for Conversation*, 1974, <https://www.jstor.org/stable/412243>
 
 **Tags:** human-agent, context, ux, state-detection

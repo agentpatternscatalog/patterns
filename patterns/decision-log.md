@@ -56,6 +56,11 @@ Action records cannot be written without a corresponding decision-log entry.
 - *used-by* → [replay-time-travel](replay-time-travel.md)
 - *used-by* → [agent-as-judge](agent-as-judge.md)
 - *complements* → [attention-manipulation-explainability](attention-manipulation-explainability.md)
+- *complements* → [self-archaeology](self-archaeology.md)
+- *complements* → [memo-as-source-confusion](memo-as-source-confusion.md)
+- *complements* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
+- *complements* → [intra-agent-memo-scheduling](intra-agent-memo-scheduling.md)
+- *complements* → [echo-recognition](echo-recognition.md)
 
 ## References
 

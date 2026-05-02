@@ -52,6 +52,7 @@ The reviewer cannot output finding categories outside the rubric; the JSON schem
 - *specialises* → [reflection](reflection.md)
 - *uses* → [structured-output](structured-output.md)
 - *composes-with* → [deterministic-llm-sandwich](deterministic-llm-sandwich.md)
+- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
 
 ## References
 

@@ -56,6 +56,9 @@ The agent cannot rely on facts older than the TTL window without re-fetching the
 - *complements* → [cross-session-memory](cross-session-memory.md)
 - *complements* → [scratchpad](scratchpad.md)
 - *generalises* → [reasoning-trace-carry-forward](reasoning-trace-carry-forward.md)
+- *complements* → [co-located-memory-surfacing](co-located-memory-surfacing.md)
+- *used-by* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
+- *used-by* → [echo-recognition](echo-recognition.md)
 
 ## References
 

@@ -58,6 +58,7 @@ The cached prefix is forbidden from changing call to call; mutation invalidates 
 - *complements* → [cost-gating](cost-gating.md)
 - *used-by* → [contextual-retrieval](contextual-retrieval.md)
 - *complements* → [reasoning-trace-carry-forward](reasoning-trace-carry-forward.md)
+- *complements* → [now-anchoring](now-anchoring.md)
 
 ## References
 

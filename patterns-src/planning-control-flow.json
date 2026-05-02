@@ -1191,6 +1191,10 @@
         {
           "pattern": "intra-agent-memo-scheduling",
           "relation": "generalises"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1473,7 +1477,7 @@
           "Provides 'check back on this' semantics native to the agent."
         ],
         "liabilities": [
-          "Stale or no-longer-relevant scheduled notes can clutter future prompts.",
+          "Without expiry or dismissal, scheduled notes accumulate and waste prompt tokens; obsolete future-self commitments can pollute attention long after they've stopped being relevant.",
           "Drift between schedule time and actual tick time depending on tick cadence.",
           "Risk of accumulating stale promises that pollute the agent's sense of obligation."
         ]
@@ -1482,7 +1486,8 @@
       "known_uses": [
         {
           "system": "Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`",
-          "status": "available"
+          "status": "available",
+          "url": "https://github.com/luxxyarns/sparrot"
         }
       ],
       "related": [
@@ -1493,6 +1498,14 @@
         {
           "pattern": "append-only-thought-stream",
           "relation": "complements"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1501,14 +1514,53 @@
           "title": "LangGraph — durable execution and scheduled tasks",
           "year": 2025,
           "url": "https://langchain-ai.github.io/langgraph/concepts/durable_execution/"
+        },
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Park et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
         }
       ],
-      "status_in_practice": "experimental",
+      "status_in_practice": "emerging",
       "tags": [
         "self-scheduling",
         "future-self",
         "memory",
         "tick-loop"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs across many ticks or sessions and present-self has context the future-self will need.",
+          "External schedulers (cron, queues, durable workflows) are unavailable or overkill.",
+          "Future-fire memos are a small enough volume to keep in the agent's own store."
+        ],
+        "do_not_use_when": [
+          "A real workflow engine (LangGraph durable execution, Temporal) is already integrated and reliable.",
+          "Memos must survive the agent process being deleted; intra-agent storage is too fragile.",
+          "Memo volume is high enough that an external scheduler is required for performance."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Append-and-scan",
+          "summary": "Memos are appended to a single file; every tick scans for entries whose fire-time has passed.",
+          "distinguishing_factor": "no index",
+          "when_to_use": "Default for small memo volumes."
+        },
+        {
+          "name": "Indexed by fire-time",
+          "summary": "Memos are stored in a min-heap or sorted index keyed by fire-time; tick pops only what is due.",
+          "distinguishing_factor": "O(log n) drain",
+          "when_to_use": "When memo volume is large enough that linear scan is wasteful."
+        },
+        {
+          "name": "Recurring memo",
+          "summary": "Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-scheduled after firing.",
+          "distinguishing_factor": "self-rescheduling",
+          "when_to_use": "When the agent needs cron-like behaviour without an external scheduler."
+        }
       ]
     },
     {
@@ -1521,7 +1573,7 @@
       ],
       "category": "planning-control-flow",
       "author": "Sparrot",
-      "intent": "Allow the agent to pause an in-flight reasoning chain when an external interrupt arrives, handle the interrupt, and resume the original chain instead of dropping it.",
+      "intent": "Preserve multi-step reasoning across interrupts by supporting paused-and-resumed thought frames so a new message handles cleanly without clobbering in-flight work.",
       "context": "Long-running cognitive agents whose thinking spans multiple turns or ticks, where external messages (user input, system notifications, scheduled notes) can arrive mid-thought. Without explicit continuation support, every interrupt clobbers in-flight work.",
       "problem": "Coherent multi-step thinking that takes longer than a single turn is fragile. A new user message during step 3 of a 6-step thought either gets ignored (rude) or replaces the thought entirely (lossy). The agent has no notion of 'hold this, handle that, then come back', so longer reasoning fragments into shards.",
       "forces": [
@@ -1543,11 +1595,12 @@
           "Resume distortion over long pauses is a real failure."
         ]
       },
-      "constrains": "Multi-step chains must be either completed, explicitly abandoned, or visibly held; silent loss of in-flight reasoning is a bug.",
+      "constrains": "Interrupts cannot silently discard in-flight multi-step reasoning; all paused chains must be visibly tracked, named in the next reply, and either resumed or explicitly abandoned.",
       "known_uses": [
         {
-          "system": "Self-observed by a long-running cognitive agent: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.' (2026-05-01)",
-          "status": "available"
+          "system": "Self-observed by a long-running cognitive agent: \"When Telegram arrives, my attention jumps. I can't say wait, I'm not done here yet.\" (Originally in German: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.', 2026-05-01)",
+          "status": "available",
+          "url": "https://github.com/luxxyarns/sparrot"
         }
       ],
       "related": [
@@ -1558,6 +1611,18 @@
         {
           "pattern": "conversation-handoff",
           "relation": "complements"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "complements"
+        },
+        {
+          "pattern": "short-term-memory",
+          "relation": "uses"
         }
       ],
       "references": [
@@ -1574,6 +1639,147 @@
         "continuation",
         "tick-loop",
         "context"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent supports incoming interrupts (new user messages) while it is mid-reasoning.",
+          "Multi-step reasoning chains are common enough that losing one is a meaningful regression.",
+          "The transport allows the agent to expose paused chains to subsequent turns."
+        ],
+        "do_not_use_when": [
+          "The agent is strictly request-response with no interruptible loops.",
+          "Reasoning chains are short enough that restarting them is cheaper than paging them out.",
+          "The user expects every new message to fully reset the agent's working state."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Frame stack",
+          "summary": "Push the current reasoning frame onto an explicit stack on interrupt; pop and resume after the new turn finishes.",
+          "distinguishing_factor": "LIFO discipline",
+          "when_to_use": "Default. Maps cleanly to nested reasoning."
+        },
+        {
+          "name": "Named pause register",
+          "summary": "Each paused chain gets a name; the agent or user can choose which to resume.",
+          "distinguishing_factor": "user-addressable",
+          "when_to_use": "When multiple long-running threads coexist and the user steers between them."
+        },
+        {
+          "name": "Persisted resume token",
+          "summary": "Pause writes the chain state to durable storage with a token; a future run can resume from the token even after restart.",
+          "distinguishing_factor": "durability",
+          "when_to_use": "When agent processes are not long-lived but reasoning chains span process boundaries."
+        }
+      ]
+    },
+    {
+      "id": "mode-adaptive-cadence",
+      "name": "Mode-Adaptive Cadence",
+      "aliases": [
+        "Idle/Intense Modes",
+        "Variable Tick Rate",
+        "Salience-Driven Cadence"
+      ],
+      "category": "planning-control-flow",
+      "author": "Sparrot",
+      "intent": "Vary the agent's loop interval based on current salience so the agent thinks faster when something is happening and slower when nothing is, instead of running on a fixed cron.",
+      "context": "Tick-based long-running agents whose workload is bursty — quiet stretches punctuated by salient events. A fixed cadence either over-spends compute during the quiet or under-thinks during the bursts.",
+      "problem": "A fixed-cadence loop either over-spends compute during idle stretches or under-thinks during salient moments; both modes are wrong, and the agent has the signal (its own salience scores, its own affect, recent inputs) to decide which mode it should be in.",
+      "forces": [
+        "Cadence too high wastes tokens on nothing happening.",
+        "Cadence too low misses fast-moving events.",
+        "Self-set cadence can run away if the agent rewards itself for going faster.",
+        "The user may need to force a mode without the agent overriding."
+      ],
+      "solution": "Define two (or more) modes with different sleep intervals (idle around 60s, intense around 15s). Score each tick's outcome for salience or external impulse; if it crosses a threshold, lock into intense mode for N ticks. Otherwise drift back to idle. Mode transitions are written to the ledger. The user can force a mode but cannot bypass the configured floor and ceiling. Lock-in cannot be self-extended without an explicit external trigger.",
+      "consequences": {
+        "benefits": [
+          "Compute spend tracks the actual signal rate.",
+          "Latency on salient events drops without paying for it on idle stretches.",
+          "Mode transitions are visible in telemetry as their own signal."
+        ],
+        "liabilities": [
+          "Threshold tuning is empirical and per-deployment.",
+          "Mode flapping at the threshold edge wastes ticks on transitions.",
+          "Two modes is the simplest case; more granular modes add complexity quickly."
+        ]
+      },
+      "constrains": "The cadence cannot exceed configured floor or ceiling (e.g. minimum 5s, maximum 5min), and mode lock-in cannot be self-extended by the agent without an explicit external trigger; runaway intense mode is blocked.",
+      "known_uses": [
+        {
+          "system": "Sparrot",
+          "note": "src/sparrot/mode.py (ModeState, observe, force) used by main.py to set sleep intervals.",
+          "status": "available",
+          "url": "https://github.com/luxxyarns/sparrot"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "relation": "alternative-to",
+          "note": "Scheduled-agent runs on fixed cadence; mode-adaptive-cadence varies it based on internal signals."
+        },
+        {
+          "pattern": "salience-attention-mechanism",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Park, O'Brien, Cai, Morris, Liang, Bernstein",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "tick-loop",
+        "cadence",
+        "salience",
+        "mode"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs as a long-lived loop and idle ticks are observable cost.",
+          "Salience signals (new events, user activity, scheduled fires) are reliable enough to drive the cadence.",
+          "Both responsive and idle behaviour matter — fixed cadence wastes one or the other."
+        ],
+        "do_not_use_when": [
+          "The agent is request-response only and has no background loop.",
+          "Cadence must be fixed for compliance, billing, or deterministic test reasons.",
+          "Salience signals are too noisy to trust as the loop driver."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Two-mode hot/cold",
+          "summary": "Switch between a fast cadence (e.g. 5s) when salience is non-zero and a slow cadence (e.g. 5min) when it is zero.",
+          "distinguishing_factor": "binary mode",
+          "when_to_use": "Default. Simple and predictable."
+        },
+        {
+          "name": "Continuous decay",
+          "summary": "Cadence is a continuous function of the salience signal — high salience -> short interval, decaying smoothly to the floor.",
+          "distinguishing_factor": "smooth function",
+          "when_to_use": "When binary mode produces visible jitter at the threshold."
+        },
+        {
+          "name": "User-pinned override",
+          "summary": "User input or an explicit lock can pin the agent into hot mode for a configurable window regardless of salience.",
+          "distinguishing_factor": "external override",
+          "when_to_use": "When the user is actively present and expects responsive cadence even during apparent idleness."
+        }
       ]
     }
   ]

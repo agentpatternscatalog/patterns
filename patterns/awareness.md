@@ -53,6 +53,9 @@ Tool calls and self-references must match the awareness state; mismatches are fl
 - *complements* → [tool-use](tool-use.md)
 - *specialises* → [model-card](model-card.md)
 - *complements* → [tool-discovery](tool-discovery.md)
+- *complements* → [preoccupation-tracking](preoccupation-tracking.md)
+- *complements* → [emotional-state-persistence](emotional-state-persistence.md)
+- *complements* → [world-model-separation](world-model-separation.md)
 
 ## References
 

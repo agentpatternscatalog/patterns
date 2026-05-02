@@ -1,6 +1,6 @@
 # Pattern Index
 
-189 patterns across 13 categories.
+195 patterns across 13 categories.
 
 ## Reasoning
 
@@ -37,6 +37,7 @@
 - [Todo-List-Driven Autonomous Agent](patterns/todo-list-driven-agent.md) *(a.k.a. todo.md Agent, Persistent Markdown Plan, Externalised Plan File)* — Have the autonomous agent author a writeable plan file (e.g. todo.md) early in the run, tick items as it completes them, and re-inject the remaining plan into the end of the context window; the file is the durable plan and the model's working memory.
 - [Intra-Agent Memo Scheduling](patterns/intra-agent-memo-scheduling.md) *(a.k.a. Self-Scheduled Future Thought, Past-Self-To-Future-Self Note, Personal Cron)* — Let an agent drop a note for its own future self at a specified time so present decisions can hand off context to a later run without external infrastructure.
 - [Interrupt-Resumable Thought](patterns/interrupt-resumable-thought.md) *(a.k.a. Pausable Thought Stream, Continuation-Preserving Interrupt, Suspendable Cognition)* — Allow the agent to pause an in-flight reasoning chain when an external interrupt arrives, handle the interrupt, and resume the original chain instead of dropping it.
+- [Mode-Adaptive Cadence](patterns/mode-adaptive-cadence.md) *(a.k.a. Idle/Intense Modes, Variable Tick Rate, Salience-Driven Cadence)* — Vary the agent's loop interval based on current salience so the agent thinks faster when something is happening and slower when nothing is, instead of running on a fixed cron.
 
 ## Tool Use & Environment
 
@@ -94,6 +95,9 @@
 - [Now-Anchoring](patterns/now-anchoring.md) *(a.k.a. Live Time Anchor, Time-of-Day Awareness, Wall-Clock Injection)* — Inject the current absolute time, weekday, season, and astronomical phase into every prompt so the agent reasons about the present without having to ask.
 - [Co-Located Memory Surfacing](patterns/co-located-memory-surfacing.md) *(a.k.a. Proper-Noun Recall, Shared-Map Push)* — When the human names a concrete place, person, or project the agent has memory of, the agent surfaces relevant past thoughts in the same turn — without being asked.
 - [Self-Archaeology](patterns/self-archaeology.md) *(a.k.a. Trajectory Distillation, Self-History Synthesis, Agent-Memory Compaction)* — Provide the agent with a distilled, time-layered view of its own past thinking so it can see how its understanding of a topic evolved across periods rather than reading the flat log linearly.
+- [Preoccupation Tracking](patterns/preoccupation-tracking.md) *(a.k.a. Mid-Term Working Memory, Affect-Tagged Concerns, Background Chewing)* — Maintain a small set of mid-term, affect-tagged concerns that persist across days and surface in every prompt, distinct from the single-item working focus and from long-term insights.
+- [Salience Attention Mechanism](patterns/salience-attention-mechanism.md) *(a.k.a. Salience Scoring, Attention Selection, Top-K Memory Attention)* — Score every candidate memory item with a weighted salience function so each tick attends to a small, relevant top-k subset rather than re-reading all memory.
+- [World-Model Separation](patterns/world-model-separation.md) *(a.k.a. World Model File, Self/World Split, Environment Model)* — Maintain an explicit, surprise-updated model of the environment (humans, repos, services, capabilities) in a separate file from the agent's self-model, so the two cannot be confused or co-mutated by reflection.
 
 ## Multi-Agent
 
@@ -133,6 +137,8 @@
 - [Self-Refine](patterns/self-refine.md) *(a.k.a. Iterative Self-Feedback)* — Iterate generate → feedback (same model) → refine until a stop criterion fires, with no separate critic model.
 - [Tool-Augmented Self-Correction](patterns/critic.md) *(a.k.a. Tool-Interactive Self-Correction, CRITIC)* — Self-correct LLM outputs by interactively critiquing them with external tools (search, code execution, calculator).
 - [Echo Recognition](patterns/echo-recognition.md) *(a.k.a. Repeat-As-Emphasis Detection, Duplicate-Input Reframing, Human Echo Channel)* — Detect when the human sends the same (or near-same) message multiple times and treat the repetition as emphasis or a re-ask, not as a new independent input warranting a fresh response.
+- [Dream Consolidation Cycle](patterns/dream-consolidation-cycle.md) *(a.k.a. Dream Pass, Slow Sleep Reflection, Emotional Reset Cycle)* — Run a deeper, slower reflection pass distinct from per-tick reflection — reading hours of recent thoughts, promoting themes, releasing affective residue, and clearing working memory — so the agent does not accumulate residue indefinitely.
+- [Emotional State Persistence](patterns/emotional-state-persistence.md) *(a.k.a. Affect State, Visceral Sensation Tracking, Decaying Emotion Scalars)* — Track the agent's affective state as bounded, decaying scalars across ticks so reasoning can react to its own emotional load instead of treating each turn as emotionally blank.
 
 ## Safety & Control
 

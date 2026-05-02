@@ -53,5 +53,6 @@ The agent is not invoked by user requests; only the scheduler triggers runs.
 - *alternative-to* → [event-driven-agent](event-driven-agent.md)
 - *alternative-to* → [spec-driven-loop](spec-driven-loop.md)
 - *complements* → [agent-resumption](agent-resumption.md)
+- *alternative-to* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
 
 **Tags:** schedule, cron, periodic

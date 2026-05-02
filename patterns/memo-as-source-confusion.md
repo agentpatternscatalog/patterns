@@ -8,7 +8,7 @@
 
 ## Intent
 
-Anti-pattern: treat the agent's own working notes (focus.md, status files, recent thoughts) as ground truth instead of as commentary about ground truth.
+Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe, accumulating false confidence in stale summaries.
 
 ## Context
 
@@ -43,19 +43,35 @@ Don't. When making any claim about an artifact's state, read the artifact in the
 
 ## What this pattern constrains
 
-By definition this anti-pattern imposes no useful constraint; the missing constraint is verifying memos against the artifacts they describe.
+Treating stale memos as ground truth without re-checking the underlying artifacts they describe is forbidden; every memo-cited claim must be backed by a fresh artifact read in the same tick.
+
+## Applicability
+
+**Use when**
+
+- The agent maintains long-lived memo files or status documents that summarize external artifacts.
+- Workspace summaries are routinely cited in answers without re-reading the underlying files.
+- False confidence in stale state has been observed at least once.
+
+**Do not use when**
+
+- The agent never re-cites its own prior memos as evidence.
+- All claims about state are sourced from a fresh tool call in the same tick anyway.
 
 ## Known uses
 
-- **Self-observed in long-running cognitive agents: a project status file claimed feature X was unwritten across many ticks while parallel thoughts asserted X was complete; neither was reconciled against the actual artifact.** — *Available*
+- **[Self-observed in long-running cognitive agents: a project status file claimed feature X was unwritten across many ticks while parallel thoughts asserted X was complete; neither was reconciled against the actual artifact.](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *complements* → [tool-output-trusted-verbatim](tool-output-trusted-verbatim.md)
 - *alternative-to* → [awareness](awareness.md)
+- *complements* → [provenance-ledger](provenance-ledger.md)
+- *complements* → [decision-log](decision-log.md)
 
 ## References
 
-- *(none)*
+- (doc) *Anthropic — Memory tool (memo invalidation guidance)*, 2025, <https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool>
+- (paper) Liu et al., *Lost in the Middle: How Language Models Use Long Contexts*, 2023, <https://arxiv.org/abs/2307.03172>
 
 **Tags:** anti-pattern, fabrication, memory, verification

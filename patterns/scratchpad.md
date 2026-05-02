@@ -54,6 +54,7 @@ Scratchpad contents are visible only to the agent loop; user-facing output draws
 - *uses* → [chain-of-thought](chain-of-thought.md)
 - *complements* → [extended-thinking](extended-thinking.md)
 - *generalises* → [todo-list-driven-agent](todo-list-driven-agent.md)
+- *alternative-to* → [preoccupation-tracking](preoccupation-tracking.md)
 
 ## References
 

@@ -54,6 +54,9 @@ Past events older than the compaction horizon are accessible only via summary, n
 - *complements* → [reflexion](reflexion.md)
 - *used-by* → [context-window-packing](context-window-packing.md)
 - *complements* → [short-term-memory](short-term-memory.md)
+- *complements* → [self-archaeology](self-archaeology.md)
+- *complements* → [salience-attention-mechanism](salience-attention-mechanism.md)
+- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
 
 ## References
 

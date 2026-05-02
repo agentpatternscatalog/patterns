@@ -58,6 +58,7 @@ Each request class is bound to a model tier; agents cannot escalate without rout
 - *used-by* → [dual-system-gui-agent](dual-system-gui-agent.md)
 - *generalises* → [open-weight-cascade](open-weight-cascade.md)
 - *complements* → [multilingual-voice-agent](multilingual-voice-agent.md)
+- *used-by* → [degenerate-output-detection](degenerate-output-detection.md)
 
 ## References
 

@@ -51,5 +51,6 @@ A mutation cannot land on a single tick's say-so; it requires K consecutive endo
 
 - *complements* → [constitutional-charter](constitutional-charter.md)
 - *complements* → [inner-critic](inner-critic.md)
+- *used-by* → [world-model-separation](world-model-separation.md)
 
 **Tags:** safety, consensus, mutation

@@ -52,6 +52,9 @@ Output is forbidden unless the salience score exceeds the configured threshold.
 - *used-by* → [bidirectional-impulse-channel](bidirectional-impulse-channel.md)
 - *complements* → [streaming-typed-events](streaming-typed-events.md)
 - *complements* → [event-driven-agent](event-driven-agent.md)
+- *complements* → [degenerate-output-detection](degenerate-output-detection.md)
+- *complements* → [intra-agent-memo-scheduling](intra-agent-memo-scheduling.md)
+- *complements* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
 
 ## References
 

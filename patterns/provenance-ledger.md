@@ -59,6 +59,9 @@ Self-edits and other recorded actions are rejected if they lack a valid justific
 - *complements* → [model-card](model-card.md)
 - *alternative-to* → [black-box-opaqueness](black-box-opaqueness.md)
 - *used-by* → [sandbox-escape-monitoring](sandbox-escape-monitoring.md)
+- *complements* → [memo-as-source-confusion](memo-as-source-confusion.md)
+- *used-by* → [emotional-state-persistence](emotional-state-persistence.md)
+- *complements* → [world-model-separation](world-model-separation.md)
 
 ## References
 

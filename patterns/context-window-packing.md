@@ -55,5 +55,6 @@ Total tokens passed to the model must not exceed the window minus the reserved r
 - *complements* → [dynamic-scaffolding](dynamic-scaffolding.md)
 - *used-by* → [todo-list-driven-agent](todo-list-driven-agent.md)
 - *used-by* → [reasoning-trace-carry-forward](reasoning-trace-carry-forward.md)
+- *alternative-to* → [salience-attention-mechanism](salience-attention-mechanism.md)
 
 **Tags:** context, tokens, budget

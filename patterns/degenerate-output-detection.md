@@ -3,7 +3,7 @@
 **Also known as:** Anti-Parrot Guard, Self-Repeat Circuit Breaker, Loop-Output Detector
 
 **Category:** Safety & Control
-**Status in practice:** experimental
+**Status in practice:** emerging
 **Author:** Sparrot
 
 ## Intent
@@ -45,20 +45,64 @@ Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing 
 
 ## What this pattern constrains
 
-No two consecutive outgoing messages may exceed the similarity threshold without intervention.
+Identical or near-identical consecutive outputs are forbidden; detected loops must be visibly broken (escalation marker, model swap, or explicit abandonment), never shipped silently.
+
+## Applicability
+
+**Use when**
+
+- The agent produces outputs in a loop where consecutive replies can be compared.
+- Near-duplicate outputs are observable failure mode (model wedged, decoding loop, prompt collapse).
+- Cost of detection (similarity check) is small relative to cost of shipping the duplicate.
+
+**Do not use when**
+
+- Outputs are legitimately repetitive by design (e.g. a heartbeat ping).
+- The agent has only single-turn interactions with no comparison baseline.
+- False positives on near-duplicate detection would be more disruptive than the loop itself.
+
+## Variants
+
+### String-similarity check
+
+Compare the candidate output to the previous N outputs by Levenshtein or token-set ratio; reject above threshold.
+
+*Distinguishing factor:* lexical comparison
+
+*When to use:* Default. Cheap and good enough for most loops.
+
+### Embedding-similarity check
+
+Embed candidate and previous outputs; reject if cosine similarity exceeds a threshold.
+
+*Distinguishing factor:* semantic comparison
+
+*When to use:* When paraphrased loops slip past lexical checks.
+
+### Detect-and-escalate
+
+On detected loop, retry with a stronger model or a different decoding strategy (higher temperature, nucleus sampling) instead of dropping.
+
+*Distinguishing factor:* recover, not just reject
+
+*When to use:* When the agent must produce *some* output and silence is not acceptable.
 
 ## Known uses
 
-- **Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation** — *Available*
+- **[Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *complements* → [provider-fallback](provider-fallback.md)
 - *alternative-to* → [same-model-self-critique](same-model-self-critique.md)
 - *specialises* → [circuit-breaker](circuit-breaker.md)
+- *complements* → [echo-recognition](echo-recognition.md)
+- *complements* → [salience-triggered-output](salience-triggered-output.md)
+- *uses* → [multi-model-routing](multi-model-routing.md)
 
 ## References
 
-- *(none)*
+- (doc) *Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)*, 2024, <https://huggingface.co/docs/transformers/generation_strategies>
+- (paper) Holtzman, Buys, Du, Forbes, Choi, *The Curious Case of Neural Text Degeneration*, 2020, <https://arxiv.org/abs/1904.09751>
 
 **Tags:** safety, anti-loop, provider-routing, self-monitoring

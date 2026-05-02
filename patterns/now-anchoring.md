@@ -8,11 +8,11 @@
 
 ## Intent
 
-Inject the current absolute time, weekday, season, and astronomical phase into every prompt so the agent reasons about the present without having to ask.
+Ground the agent's reasoning in the current absolute time without requiring tool calls, so every reply is implicitly time-aware.
 
 ## Context
 
-Long-running agents whose runtime spans hours or days, especially those holding conversations with humans whose temporal context (morning vs night, weekday vs weekend, season) shifts the meaning of words like 'soon', 'recently', or 'today'.
+Long-running agents whose runtime spans hours or days, especially those holding conversations with humans whose temporal context (morning vs night, weekday vs weekend, season) shifts the meaning of words like 'soon', 'recently', or 'today'. Now-anchoring lives in the memory category not because it stores anything across turns, but because it provides the temporal grounding every other contextual reasoning step depends on.
 
 ## Problem
 
@@ -45,19 +45,62 @@ On every prompt assembly, compute a small block: ISO local time, ISO UTC, weekda
 
 ## What this pattern constrains
 
-Every prompt must contain a freshly computed time block; stale or absent blocks indicate a build error.
+Prompts assembled for inference must include a freshly computed current-time anchor; reasoning from a stale or absent time block is a deployment bug, not a model limitation.
+
+## Applicability
+
+**Use when**
+
+- The agent's runtime spans more than a few minutes and absolute wall-clock time matters to its replies.
+- Users frequently use temporal language ('today', 'tonight', 'this week') and expect the agent to interpret it correctly.
+- Tool calls just to fetch current time would inflate latency or token cost.
+
+**Do not use when**
+
+- The agent runs in a single short request where time is irrelevant (e.g. a stateless math tool).
+- Strict prompt caching requires byte-identical prompts and the time block would invalidate the cache.
+- The host already provides a time-aware system prompt header.
+
+## Variants
+
+### Minimal time block
+
+Inject only ISO local time and weekday into the system prompt at every assembly.
+
+*Distinguishing factor:* smallest possible footprint
+
+*When to use:* Default for cost-sensitive deployments.
+
+### Rich temporal block
+
+Inject ISO local + UTC, weekday, day-of-year, ISO week, season (hemisphere-aware), and moon phase.
+
+*Distinguishing factor:* astronomical and calendrical context
+
+*When to use:* Long-running cognitive agents that benefit from grounding their thinking-aloud in seasonal/lunar context.
+
+### Cache-friendly stub
+
+Place the time block outside the cached prefix so the cache key is stable; inject it as a separate user-role preamble.
+
+*Distinguishing factor:* preserves prompt-cache hit rate
+
+*When to use:* When prompt caching is critical to cost and the cached prefix is large.
 
 ## Known uses
 
-- **Sparrot — `memory._now_context()`** — *Available*
+- **[Sparrot — `memory._now_context()`](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *specialises* → [awareness](awareness.md)
 - *complements* → [scheduled-agent](scheduled-agent.md)
+- *complements* → [prompt-caching](prompt-caching.md)
+- *complements* → [embodied-proxy-handoff](embodied-proxy-handoff.md)
+- *complements* → [liminal-state-detection](liminal-state-detection.md)
 
 ## References
 
-- *(none)*
+- (doc) *Anthropic — System prompts (date and context injection)*, 2025, <https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/system-prompts>
 
 **Tags:** temporal, awareness, always-on, prompt-engineering

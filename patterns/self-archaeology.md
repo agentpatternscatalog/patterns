@@ -8,7 +8,7 @@
 
 ## Intent
 
-Provide the agent with a distilled, time-layered view of its own past thinking so it can see how its understanding of a topic evolved across periods rather than reading the flat log linearly.
+Synthesize the agent's past thought history into time-layered trajectory notes so it can articulate how its understanding evolved without recomputing the narrative each time.
 
 ## Context
 
@@ -45,19 +45,62 @@ Periodically (e.g. every N ticks, or on demand) run a compaction pass that group
 
 ## What this pattern constrains
 
-When the agent makes claims about what it 'used to think' vs 'now thinks' on a topic, those claims must be backed by a trajectory note, not invented retrospectively from the model's prior.
+The agent cannot claim a shift in its position ('I used to think X, now I think Y') without backing from a synthesized trajectory note; invented retrospective narratives are forbidden.
+
+## Applicability
+
+**Use when**
+
+- The agent runs long enough that its position on a topic genuinely changes across days or weeks.
+- Humans need the agent to articulate how its understanding has evolved, not just its current view.
+- An append-only thought stream or comparable trajectory log already exists to mine.
+
+**Do not use when**
+
+- The agent has no persistent thought log to mine.
+- Replies must always reflect only the current view; historical drift would confuse users.
+- Storage or compute cost of the synthesis pass exceeds the reader value.
+
+## Variants
+
+### Periodic snapshot
+
+Run the synthesis pass on a fixed cadence (daily, weekly) and store the layered note for fast read.
+
+*Distinguishing factor:* scheduled, idempotent
+
+*When to use:* Default. Cheap, predictable, supports prompt caching of the synthesized note.
+
+### On-demand replay
+
+When a user asks 'how did your view change?', synthesize the trajectory note just-in-time from the raw thought log.
+
+*Distinguishing factor:* lazy, query-driven
+
+*When to use:* When trajectory questions are rare and the cost of regular synthesis is not justified.
+
+### Themed slice
+
+Synthesize trajectory only along a specific theme or thread (e.g. 'opinions about Project X') rather than over the whole history.
+
+*Distinguishing factor:* narrow scope
+
+*When to use:* When the full history is too large to summarise in one pass but specific narrative slices are valuable.
 
 ## Known uses
 
-- **Self-observed by a long-running cognitive agent: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.' (2026-05-01)** — *Available*
+- **[Self-observed by a long-running cognitive agent: "I have no layer between me and my ledger. ... Instead: everything flat, all insights equivalent, no development visible." (Originally in German: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *specialises* → [append-only-thought-stream](append-only-thought-stream.md)
 - *complements* → [context-window-packing](context-window-packing.md)
+- *complements* → [decision-log](decision-log.md)
+- *complements* → [episodic-summaries](episodic-summaries.md)
+- *uses* → [vector-memory](vector-memory.md)
 
 ## References
 
-- *(none)*
+- (paper) Packer, Wooders, Lin, Fang, Patil, Stoica, Gonzalez, *MemGPT: Towards LLMs as Operating Systems*, 2024, <https://arxiv.org/abs/2310.08560>
 
 **Tags:** memory, distillation, self-model, trajectory

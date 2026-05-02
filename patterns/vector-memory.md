@@ -54,6 +54,9 @@ The agent reads memory only through the retriever; full-store scans are not part
 - *used-by* → [memgpt-paging](memgpt-paging.md)
 - *specialises* → [naive-rag](naive-rag.md) — Vector Memory is RAG over the agent's own past.
 - *alternative-to* → [knowledge-graph-memory](knowledge-graph-memory.md)
+- *used-by* → [self-archaeology](self-archaeology.md)
+- *used-by* → [co-located-memory-surfacing](co-located-memory-surfacing.md)
+- *complements* → [salience-attention-mechanism](salience-attention-mechanism.md)
 
 ## References
 

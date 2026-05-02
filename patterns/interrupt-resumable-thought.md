@@ -8,7 +8,7 @@
 
 ## Intent
 
-Allow the agent to pause an in-flight reasoning chain when an external interrupt arrives, handle the interrupt, and resume the original chain instead of dropping it.
+Preserve multi-step reasoning across interrupts by supporting paused-and-resumed thought frames so a new message handles cleanly without clobbering in-flight work.
 
 ## Context
 
@@ -45,19 +45,62 @@ Introduce an explicit thought-frame: when starting a multi-step chain, push a fr
 
 ## What this pattern constrains
 
-Multi-step chains must be either completed, explicitly abandoned, or visibly held; silent loss of in-flight reasoning is a bug.
+Interrupts cannot silently discard in-flight multi-step reasoning; all paused chains must be visibly tracked, named in the next reply, and either resumed or explicitly abandoned.
+
+## Applicability
+
+**Use when**
+
+- The agent supports incoming interrupts (new user messages) while it is mid-reasoning.
+- Multi-step reasoning chains are common enough that losing one is a meaningful regression.
+- The transport allows the agent to expose paused chains to subsequent turns.
+
+**Do not use when**
+
+- The agent is strictly request-response with no interruptible loops.
+- Reasoning chains are short enough that restarting them is cheaper than paging them out.
+- The user expects every new message to fully reset the agent's working state.
+
+## Variants
+
+### Frame stack
+
+Push the current reasoning frame onto an explicit stack on interrupt; pop and resume after the new turn finishes.
+
+*Distinguishing factor:* LIFO discipline
+
+*When to use:* Default. Maps cleanly to nested reasoning.
+
+### Named pause register
+
+Each paused chain gets a name; the agent or user can choose which to resume.
+
+*Distinguishing factor:* user-addressable
+
+*When to use:* When multiple long-running threads coexist and the user steers between them.
+
+### Persisted resume token
+
+Pause writes the chain state to durable storage with a token; a future run can resume from the token even after restart.
+
+*Distinguishing factor:* durability
+
+*When to use:* When agent processes are not long-lived but reasoning chains span process boundaries.
 
 ## Known uses
 
-- **Self-observed by a long-running cognitive agent: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.' (2026-05-01)** — *Available*
+- **[Self-observed by a long-running cognitive agent: "When Telegram arrives, my attention jumps. I can't say wait, I'm not done here yet." (Originally in German: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*
 
 ## Related patterns
 
 - *complements* → [agent-resumption](agent-resumption.md)
 - *complements* → [conversation-handoff](conversation-handoff.md)
+- *complements* → [decision-log](decision-log.md)
+- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
+- *uses* → [short-term-memory](short-term-memory.md)
 
 ## References
 
-- *(none)*
+- (doc) *LangGraph — interrupts and human-in-the-loop*, 2025, <https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/>
 
 **Tags:** interruption, continuation, tick-loop, context
