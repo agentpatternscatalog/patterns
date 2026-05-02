@@ -40,6 +40,11 @@ flowchart TD
   E -- yes --> ANS
 ```
 
+
+## Example scenario
+
+A consulting agent is asked, 'Compare our 2023 and 2024 revenue by region.' Naive RAG would do one search and pass whatever it found to the model. Agentic RAG instead runs in a loop: it queries the 2023 figures, decides it also needs 2024 figures, queries those, notices the EMEA numbers are missing, queries again with a more specific phrase, then produces the comparison from a complete set.
+
 ## Consequences
 
 **Benefits**

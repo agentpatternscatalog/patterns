@@ -38,6 +38,11 @@ flowchart LR
   Rev[Post-hoc reviewer] -->|query| L
 ```
 
+
+## Example scenario
+
+A trading agent decided to short a position at 14:32. At 16:00, the trade lost money. The decision log shows: at 14:32 the agent considered three signals (RSI was low, volume spiked, news sentiment was negative), weighted them, and chose short. The human reviewer can now ask 'was the weighting wrong?' instead of 'what was the agent thinking?'
+
 ## Consequences
 
 **Benefits**

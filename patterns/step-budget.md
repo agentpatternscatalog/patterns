@@ -27,6 +27,35 @@ Soft termination conditions (model says 'done') fail open; the agent never says 
 
 Define a numeric cap (max_steps=N) in the agent loop. Increment per tool call or per loop iteration. When N is hit, terminate the loop and return the best partial answer with a note that the cap was reached.
 
+
+## Applicability
+
+**Use when**
+
+- The agent has any kind of loop (ReAct, plan-execute, debate).
+- Cost or latency must have a hard ceiling regardless of the agent's opinion.
+- Runaway behaviour must be impossible by construction.
+
+**Do not use when**
+
+- Never. Step Budget is universal hardening for any agent loop.
+
+## Example scenario
+
+An autonomous bug-fixing agent is given a step budget of 30. After 30 rounds of think-act-observe, the loop halts even if the agent insists it is 'almost done.' This stops a confused agent from spinning forever and racking up a $50 OpenAI bill on what should have been a five-minute task.
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Active
+  Active --> Active : iter < N (continue)
+  Active --> Halted : iter == N
+  Active --> Done : answer produced
+  Halted --> [*]
+  Done --> [*]
+```
+
 ## Consequences
 
 **Benefits**

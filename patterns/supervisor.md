@@ -57,6 +57,11 @@ flowchart TD
   Sup --> Out[Aggregate or escalate]
 ```
 
+
+## Example scenario
+
+A customer-service platform routes incoming chats. A supervisor agent classifies each request: billing, technical, or sales. It dispatches each to the matching specialist agent, which has its own prompt, tool set, and ticket-system access. The supervisor doesn't try to be good at all three roles — it just routes and aggregates.
+
 ## Consequences
 
 **Benefits**

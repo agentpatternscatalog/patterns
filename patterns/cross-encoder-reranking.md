@@ -27,6 +27,35 @@ Top-k from cheap retrieval contains both relevant and irrelevant candidates; the
 
 Two-stage retrieval. Stage 1: cheap retrieve (BM25, dense, hybrid) returns top-N. Stage 2: cross-encoder scores each (query, candidate) jointly. Return top-K << N to the generator.
 
+
+## Applicability
+
+**Use when**
+
+- Initial retrieval returns a noisy top-100 and accuracy of top-5 matters.
+- Inference budget can afford a cross-encoder pass on each candidate.
+- Downstream LLM context can only fit a small number of chunks.
+
+**Do not use when**
+
+- Latency target is sub-100ms end-to-end; cross-encoders blow it.
+- Initial retrieval is already precise (e.g., exact ID lookup).
+- Inference cost is the bottleneck and recall@k from the bi-encoder is good enough.
+
+## Example scenario
+
+A legal-research agent retrieves 100 candidate paragraphs from a corpus of contracts that mention 'force majeure'. Many are off-topic. Before showing them to the LLM, a small cross-encoder model scores each candidate against the user's exact question, picks the top 5, and discards the rest. The LLM only ever reads the sharpest results.
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Q[Query] --> Retr[Bi-encoder retrieval, top-100]
+  Retr --> CE[Cross-encoder scores query against each candidate]
+  CE --> Rank[Rerank by score]
+  Rank --> Top[Top-5 to LLM]
+```
+
 ## Consequences
 
 **Benefits**

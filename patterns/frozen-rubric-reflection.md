@@ -27,6 +27,38 @@ Free-form 'review your work' produces inconsistent reviews because the model inv
 
 A fixed rubric file (or schema) lists exactly the categories the reviewer may flag. The reviewer prompt includes the rubric and a JSON Schema enforcing it. Temperature is zero. Output validates against the schema; new finding categories are rejected.
 
+
+## Applicability
+
+**Use when**
+
+- Review criteria should be stable across runs so verdicts compare.
+- Auditors need an explicit list of categories the model checked.
+- Reflection drift across calls is producing inconsistent reviews.
+
+**Do not use when**
+
+- Defects of interest do not fit any predefined rubric category.
+- The domain shifts faster than the rubric can be re-authored.
+- Exploratory critique is the goal; a rubric narrows it too much.
+
+## Example scenario
+
+A code-review agent reviews every pull request against a fixed checklist: tests added? naming consistent? error handling? security risk? Without the fixed list, the reviewer would invent new criteria each call and reviews would not be comparable across PRs. Reviewers can only score against the listed criteria — they cannot make new ones up mid-review.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Author
+  participant Reviewer
+  participant Rubric
+  Author->>Reviewer: draft
+  Rubric-->>Reviewer: fixed criteria (read-only)
+  Reviewer->>Reviewer: score draft against each criterion
+  Reviewer-->>Author: structured feedback per criterion
+```
+
 ## Consequences
 
 **Benefits**

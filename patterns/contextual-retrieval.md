@@ -46,6 +46,11 @@ flowchart LR
   J --> BM[Index BM25]
 ```
 
+
+## Example scenario
+
+A 200-page company handbook is split into 600 chunks for retrieval. One chunk says 'the deadline is the 15th of the following month' — but a query for 'invoice deadline' won't match because the chunk doesn't say 'invoice'. Contextual Retrieval prepends a one-sentence context to each chunk: 'This chunk discusses invoice payment timing.' Now the embedding carries the context the original chunk lost when it was split.
+
 ## Consequences
 
 **Benefits**

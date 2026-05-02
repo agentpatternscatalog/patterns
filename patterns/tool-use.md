@@ -33,6 +33,42 @@ Define a typed tool palette. The model emits tool calls conforming to a JSON Sch
 Model -> tool_call(name, args:JSON) -> Validator -> Executor -> tool_result(JSON) -> Model.
 ```
 
+
+## Applicability
+
+**Use when**
+
+- The model must affect external state or query authoritative systems.
+- Operations are typed and a JSON Schema can describe them.
+- Audit and validation need to live outside the model.
+
+**Do not use when**
+
+- The deliverable is free prose; structuring it as a tool call is overhead.
+- The underlying API has no schema and cannot be wrapped cheaply.
+- Calls are extremely high-frequency and per-call validation is the bottleneck.
+
+## Example scenario
+
+A customer-support agent receives 'cancel my order #4471.' Instead of writing free-form text the surrounding code has to parse, it emits a structured call: cancel_order({order_id: '4471'}). A validator checks the call against the API's schema; the executor runs it; the agent gets back {status: 'cancelled', refund_amount: 49.99}. The model never has to guess at field names or formatting.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Model
+  participant Validator
+  participant Executor
+  Model->>Validator: tool_call(name, args:JSON)
+  Validator->>Validator: validate against JSON Schema
+  alt valid
+    Validator->>Executor: dispatch
+    Executor-->>Model: tool_result(JSON)
+  else invalid
+    Validator-->>Model: typed error
+  end
+```
+
 ## Consequences
 
 **Benefits**

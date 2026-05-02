@@ -27,6 +27,40 @@ Generating citations after the answer hides them until the end; trusting the mod
 
 Define a streaming event vocabulary that includes citation events linked to source ids. The model is prompted to emit citation markers; the host extracts them into typed events alongside text deltas. The UI renders sources progressively. Final output includes a citation map.
 
+
+## Applicability
+
+**Use when**
+
+- Outputs cite documents and users need to verify each claim.
+- Regulatory or audit requirements demand source attribution at the span level.
+- Trust depends on traceability from claim back to evidence.
+
+**Do not use when**
+
+- Outputs are creative and not grounded in retrievable documents.
+- Latency-critical paths cannot afford citation rendering overhead.
+- Citations would be noise — speed is more valuable than verifiability.
+
+## Example scenario
+
+A medical-information agent answers 'what are the side effects of metformin?' As the answer streams to the user, each clinical claim arrives with a citation pointing back to the exact paragraph in the prescribing-information PDF. The user can click any sentence to verify the source — they don't have to trust the model alone.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant LLM
+  participant Stream
+  participant UI
+  loop while generating
+    LLM->>Stream: token
+    Stream->>UI: paint token
+    LLM->>Stream: cite[doc:42, span:300-340]
+    Stream->>UI: linkify span to source
+  end
+```
+
 ## Consequences
 
 **Benefits**

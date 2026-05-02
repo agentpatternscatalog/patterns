@@ -27,6 +27,39 @@ Tool definitions are vendor-specific; the same capability is re-implemented per 
 
 Tools live behind a server speaking a common protocol. Hosts list available tools, call them with typed arguments, and receive typed results. The protocol covers discovery, invocation, errors, and (in some implementations) prompts and resources alongside tools.
 
+
+## Applicability
+
+**Use when**
+
+- Tool palettes need to be portable across multiple host applications.
+- Multiple clients (IDEs, agents, CLIs) consume the same tool set.
+- Tools are written in different languages and a transport-level protocol is needed.
+
+**Do not use when**
+
+- Single host, single language, no portability requirement; native function calls are simpler.
+- Tool latency is dominated by transport overhead and the extra hop hurts.
+- Audit boundaries demand the tool live in the same process as the agent.
+
+## Example scenario
+
+A developer writes a 'GitHub PR review' tool once and exposes it via Model Context Protocol. Now it works in Claude Desktop, in Cursor, in their custom CLI agent, and in their teammate's VS Code agent — without rewriting the integration four times. The host and the tool only need to agree on MCP, not on each other's internal details.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Host
+  participant Server
+  Host->>Server: initialize
+  Server-->>Host: capabilities (tools, resources, prompts)
+  Host->>Server: tools/list
+  Server-->>Host: typed tool catalog
+  Host->>Server: tools/call(name, args)
+  Server-->>Host: typed result
+```
+
 ## Consequences
 
 **Benefits**

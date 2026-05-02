@@ -42,6 +42,11 @@ sequenceDiagram
   Runner-->>Agent: execution result
 ```
 
+
+## Example scenario
+
+An email-drafting agent prepares replies to 80 inbox messages overnight. Rather than send them automatically (risky) or block waiting on each one (slow), the agent writes them to an approval queue. In the morning the user reviews 80 draft replies and clicks 'send' or 'reject' on each. The agent kept moving through the inbox while waiting for the human.
+
 ## Consequences
 
 **Benefits**

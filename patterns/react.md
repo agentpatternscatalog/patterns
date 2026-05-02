@@ -33,6 +33,40 @@ On each step the agent emits Thought (private reasoning), Action (one tool call)
 [Thought_i, Action_i, Observation_i] for i in 1..N, then Answer.
 ```
 
+
+## Applicability
+
+**Use when**
+
+- The next action depends on what was learned from the previous action.
+- The agent needs tool access during a multi-step task.
+- Outputs from tools are short and inspectable so the model can react to them.
+
+**Do not use when**
+
+- The full plan is known up front; Plan-and-Execute commits earlier.
+- Latency is critical; each iteration adds a model round-trip.
+- Tool results are large; they will dominate the context window.
+
+## Example scenario
+
+A travel-planning chatbot is asked, 'Find me a flight from Oslo to Tokyo next Tuesday under €800.' It thinks: 'I should check flights.' It calls a flight-search tool. The result shows three options. It thinks again: 'The cheapest is on a Tuesday morning — that fits.' Each step it sees what the previous tool call returned, then decides what to do next.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Model
+  participant Tool
+  participant User
+  loop until answer or step budget exhausted
+    Model->>Model: Thought
+    Model->>Tool: Action
+    Tool-->>Model: Observation
+  end
+  Model->>User: Answer
+```
+
 ## Consequences
 
 **Benefits**

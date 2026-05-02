@@ -33,6 +33,43 @@ Two-stage loop. Planner: produce an ordered list of steps with explicit dependen
 Planner -> [Step_1, Step_2, ..., Step_N] -> Executor -> Result. On failure, return to Planner.
 ```
 
+
+## Applicability
+
+**Use when**
+
+- The task decomposes cleanly into mostly-independent steps.
+- The world is stable enough that a plan made once is still good to execute.
+- Cost of replanning per step would dominate the run.
+
+**Do not use when**
+
+- Each step's outcome materially changes what the next step should be — ReAct fits.
+- The task is a single step; planning is overhead.
+- Steps are tightly interdependent and a DAG with placeholders fits better — see ReWOO or LLMCompiler.
+
+## Example scenario
+
+An office-assistant agent is told, 'Book a team offsite in Barcelona for ten people next month, find a restaurant for dinner, and email everyone the schedule.' Up front it writes a five-step plan: search venues, pick one, search restaurants, pick one, send emails. The executor walks the plan in order. Because the venue list does not depend on what restaurants exist, planning once is cheaper than re-thinking every step.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Planner
+  participant Executor
+  participant Tool
+  User->>Planner: goal
+  Planner->>Planner: decompose into ordered steps
+  Planner-->>Executor: plan
+  loop per step
+    Executor->>Tool: action
+    Tool-->>Executor: result
+  end
+  Executor-->>User: outcome
+```
+
 ## Consequences
 
 **Benefits**
