@@ -43,6 +43,10 @@ Plain-process tools share the host's privileges, language-specific sandboxes (e.
 
 Define a Wasm Component Model interface for skills: each skill compiles to a Wasm module and ships with a manifest declaring (filesystem paths, network hosts, env vars, syscalls) it needs. The host runtime instantiates a fresh sandbox per call with only those capabilities. Skills can be authored in any language compiling to Wasm. The host treats the manifest as the contract; missing-capability calls fail at the boundary.
 
+## Example scenario
+
+A team wants to let the community contribute third-party skills to their agent but plain-process tools share the host's privileges and per-skill containers are too heavy. They define a Wasm Component Model interface for skills: each compiles to a Wasm module shipped with a manifest declaring filesystem paths, network hosts, env vars, and syscalls it needs. The Wasm runtime enforces those capabilities. Untrusted skills can run safely alongside trusted ones because a misbehaving skill cannot weaken the host's sandbox.
+
 ## Structure
 
 ```

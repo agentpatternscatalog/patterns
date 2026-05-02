@@ -43,6 +43,10 @@ Free-form multi-agent chat hallucinates context, drifts off-task, and produces n
 
 Encode the SOP as: (a) a fixed set of named roles each with role-specific prompt and tool palette, (b) an ordered sequence of phases, (c) a typed artefact contract for each phase boundary (e.g. PRD → design doc → code → test plan → user manual). Agents communicate via the artefacts; a shared message pool plus a subscription filter routes only relevant context to each role.
 
+## Example scenario
+
+A four-agent product-development chat keeps drifting because agents talk free-form and re-do each other's work. The team rewrites it as an SOP-encoded pipeline: PM writes a typed PRD artefact, Architect transforms PRD into an Architecture artefact, Engineer transforms Architecture into Code, QA transforms Code into Test Report. Each phase boundary is a typed contract, not a chat. Drift stops, the trail is auditable, and review focuses on the artefacts rather than the conversation.
+
 ## Structure
 
 ```

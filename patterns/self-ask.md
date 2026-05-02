@@ -48,6 +48,10 @@ Prompt the model to interleave sub-questions and their answers. Each sub-questio
 - **Self-Ask + Search** — Each sub-question is delegated to a web/search tool whose answer is spliced back into the trace.
 - **Self-Ask + RAG** — Sub-questions are answered by a retrieval pipeline over a private corpus rather than the open web.
 
+## Example scenario
+
+A QA agent fails on multi-hop questions like 'which of the founder's PhD advisors won a Turing Award?' even though it knows each fact. The team prompts it to emit explicit follow-up sub-questions ('who was the founder's PhD advisor?', 'did that person win a Turing Award?'), answer each via search, then compose. Multi-hop accuracy jumps because the compositionality gap is closed by externalising the steps the model otherwise short-circuits.
+
 ## Consequences
 
 **Benefits**

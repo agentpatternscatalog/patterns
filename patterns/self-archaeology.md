@@ -87,6 +87,10 @@ Synthesize trajectory only along a specific theme or thread (e.g. 'opinions abou
 
 *When to use:* When the full history is too large to summarise in one pass but specific narrative slices are valuable.
 
+## Example scenario
+
+A long-running agent is asked 'how has your view of the project's risks evolved'; reading its raw thought log gives every entry equal weight and produces a flat recitation. The team adds a periodic compaction pass that groups recent thoughts by topic, extracts the position the agent held in each period, and writes time-layered trajectory notes. Now the agent can answer with 'in week 1 I worried about latency; week 3 I revised to data-quality; today I think the binding risk is staffing,' and the answer is grounded in synthesis rather than recomputed each time.
+
 ## Known uses
 
 - **[Self-observed by a long-running cognitive agent: "I have no layer between me and my ledger. ... Instead: everything flat, all insights equivalent, no development visible." (Originally in German: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*

@@ -48,6 +48,10 @@ Surface a stop control in the UI. On click, propagate a cancellation token throu
 - **Hard cancel** — Abort in-flight HTTP / tool calls immediately via cancellation tokens; smaller cost cap, more chance of inconsistent state.
 - **Cancel-with-resume** — Cancel writes partial state to a checkpoint so the run can be resumed (rather than restarted) on the next user turn.
 
+## Example scenario
+
+A user kicks off an agent run that is going off-track within five seconds; right now there is no UI control to stop it and they wait two minutes for completion while cost burns. The team adds a stop control that propagates a cancellation token through the agent loop, tool calls, and provider streams, cleans up partial state, and surfaces what was done. Wrong-direction runs cost seconds rather than minutes and users feel in control.
+
 ## Consequences
 
 **Benefits**

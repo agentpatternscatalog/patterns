@@ -49,6 +49,10 @@ Define a JSON Schema (or Pydantic / Zod / equivalent). Pass it to the model via 
 - **Local grammar-constrained decoding** — Open-weights stack constrains decoding to a regex/CFG/JSON Schema (Outlines, llama.cpp grammars, Guidance).
 - **Validate-and-retry** — Generate free-form, validate against schema, on failure prompt the model with the validator error and retry up to N times.
 
+## Example scenario
+
+A pipeline that consumes model output as JSON keeps breaking on smart quotes, surprise prose preambles, and trailing commas. Post-hoc parsing is a tar pit. The team defines a JSON Schema, passes it via the provider's structured-output mode, validates the result, and retries on validation failure with a low cap. The 'flaky model' bug class disappears because the model is now constrained to the typed shape at decode time.
+
 ## Consequences
 
 **Benefits**

@@ -87,6 +87,10 @@ Filter memory by tags or namespaces first, then apply salience scoring within th
 
 *When to use:* When memory is multi-tenant or the agent has structural reasons (current task, persona) to ignore most of it.
 
+## Example scenario
+
+A long-running personal agent has months of memory; dumping it all into context is impossible and grabbing the most recent items misses the user's recurring goals. The team scores each candidate memory with a weighted sum of novelty, goal-relevance, recency, prediction-error, and a fatigue penalty. Each tick attends to top-k items only. Surprising long-tail facts rise above last-hour chatter when they actually matter, and token usage per tick stays flat as memory grows.
+
 ## Known uses
 
 - **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*

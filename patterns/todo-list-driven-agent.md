@@ -43,6 +43,10 @@ In-context plans drift to the middle of the window where the model attends least
 
 Early in the run, the agent writes its plan as a checklist file (todo.md) in its sandbox. Each turn: read the file, work the next unticked item, update the file (tick the item, add follow-ups, drop dead-ends). Re-inject the unticked tail of the file into the prompt before the model's next turn. The file outlives any single context window. Paired with a sandboxed VM that gives the agent persistent storage and basic tools (browser, shell, file editor).
 
+## Example scenario
+
+A long autonomous coding run gets context-truncated halfway through and the agent forgets which sub-tasks are done. The team gives it a `todo.md` it must author early in the run as a checklist; each turn it reads the file, works the next unticked item, updates the file, and re-injects the remaining plan into context. Now a context truncation or a process restart can resume cleanly because durable plan and working memory live on disk, not in the window.
+
 ## Structure
 
 ```

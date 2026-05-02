@@ -42,6 +42,10 @@ Without a place to crystallise repeated work, every run starts from scratch.
 
 A directory (often `skills/*.py` or `skills/*.md`) where the agent can write new modules. A loader (importlib in Python, dynamic import in JS) makes them callable. A critic gates additions. Old skills are versioned, not overwritten silently.
 
+## Example scenario
+
+An agent that fetches similar reports every week keeps re-deriving the same scrape-clean-summarise pipeline from scratch. The team gives it a `skills/` directory: when the agent finishes a recurring task it can write a small reusable module (with a critic gating the addition); subsequent runs import and call it directly. Over a few months the agent crystallises a library of named skills for the domain and recurring tasks complete in a fraction of the original turns.
+
 ## Consequences
 
 **Benefits**

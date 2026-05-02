@@ -42,6 +42,10 @@ Agent runs are non-deterministic and state-laden; without replay, debugging is r
 
 Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.
 
+## Example scenario
+
+A support agent gives a strange reply to a user three days ago and the team cannot reproduce it locally because too much state has changed. They open the trace store, jump to step 7, swap in the new system prompt, and re-run forward; the new prompt fixes the issue, the old one reproduces it exactly. They commit the fix with the trace ID in the changelog. Replay turns 'this happened once' bugs into deterministic tests.
+
 ## Consequences
 
 **Benefits**

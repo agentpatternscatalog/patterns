@@ -42,6 +42,10 @@ Centralised supervisors become bottlenecks at scale; some tasks (negotiation, si
 
 Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).
 
+## Example scenario
+
+A team simulates negotiation strategies among many parties; a centralised supervisor would bottleneck and would also impose a single policy on all parties. They run many peer agents on a shared message bus, each with its own goals and policies, no central coordinator, and environment-level termination conditions. Coordination emerges from interaction rather than instruction; the simulation produces patterns the team did not pre-script.
+
 ## Consequences
 
 **Benefits**

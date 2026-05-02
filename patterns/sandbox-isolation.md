@@ -42,6 +42,10 @@ An agent with full host access can damage the host (delete files, exfiltrate dat
 
 Run code in a container, microVM, WASM runtime, or restricted subprocess with minimal privileges. Filesystem is read-only or scoped to a working directory. Network is allowlisted or blocked. Resource limits cap CPU/memory/time. Persistent state is ephemeral by default.
 
+## Example scenario
+
+A coding agent runs LLM-emitted shell commands directly on the developer's host and one day a `rm -rf` lands in the wrong directory. The team moves all agent-emitted execution into a microVM with read-only base filesystem, a scoped working directory, network allowlist, and CPU and memory caps. A subsequent destructive command is contained to a disposable VM and the host stays intact; the agent product stops being one mistake away from a nuked laptop.
+
 ## Consequences
 
 **Benefits**

@@ -888,6 +888,7 @@
         "Stale reasoning leaks bias into the next task."
       ],
       "solution": "Define an episode as: from one user turn to the next user turn (inclusive of all intervening tool calls and tool results). Within an episode, preserve assistant reasoning_content as part of the context concatenation across all turns. At the next user turn boundary, drop reasoning_content from prior episodes (the API silently ignores it when passed across boundaries). The user-visible content remains in history; only the reasoning trace is episode-scoped.",
+      "example_scenario": "An agent built on a reasoning model debugs flaky CI by calling a log-fetch tool. Without trace carry-forward, the model emits its hidden reasoning, calls the tool, then on the result turn the reasoning is dropped and it forgets why it asked for those logs and re-derives from scratch, sometimes incorrectly. The team scopes an episode from one user turn to the next and preserves reasoning_content across all intervening tool calls, dropping it only at the next user turn. Tool-result interpretations stop drifting and token usage stays bounded.",
       "structure": "User -> [reasoning + tool_call] -> tool_result -> [reasoning + tool_call] -> tool_result -> [reasoning + final_content] -> User. Within episode: preserve reasoning. Across episodes: drop reasoning, keep content.",
       "consequences": {
         "benefits": [
@@ -980,6 +981,7 @@
         "Scratchpad content can leak via traces."
       ],
       "solution": "Provide a tool or convention for writing to a scratchpad (a section of the prompt, a tool call, a file). The agent reads from and writes to it across turns. The user-visible response is separate. The scratchpad is purged at task completion or expires with the session.",
+      "example_scenario": "A research agent that has to read ten papers and answer one question keeps repeating itself in the visible response because every intermediate note is also output to the user. The team adds a scratchpad tool: the agent writes intermediate notes to a private buffer it can reread on later turns; the user-visible response is composed at the end. Responses become tight while the agent's working memory stays rich.",
       "consequences": {
         "benefits": [
           "Intermediate work persists without cluttering output.",
@@ -1068,6 +1070,7 @@
         "Multi-tenant prompt injection becomes a real attack surface."
       ],
       "solution": "Session state is keyed by per-user identity (OAuth/JWT subject). Reads and writes carry that identity end-to-end. Caches are scoped per user. Prompts never include another user's content.",
+      "example_scenario": "A multi-tenant assistant uses a shared vector cache across all users and one day a competitive-intelligence answer for tenant A surfaces in tenant B's context because the embedding match was strong. The team scopes every cache key, every memory backend read, and every prompt context to the per-user OAuth subject end-to-end. Cross-tenant contamination becomes structurally impossible rather than 'we hope it doesn't happen.'",
       "consequences": {
         "benefits": [
           "Privacy and security boundary is explicit and testable.",
@@ -1170,6 +1173,7 @@
         "Multi-device sessions complicate where state lives."
       ],
       "solution": "Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.",
+      "example_scenario": "A chat assistant replays the entire conversation each turn and by message thirty the prompt is bloated with stale facts and the cost-per-turn has tripled. The team defines a typed thread state (recent messages, current screen, active plan, agent step) persisted with a 24-hour TTL and reloads only that on the next turn. Token cost per turn flatlines; the assistant still feels continuous within a session and resets cleanly on TTL.",
       "consequences": {
         "benefits": [
           "Continuity without full-history replay.",
@@ -1273,6 +1277,7 @@
         "Forgetting is achieved by deletion or decay; both have failure modes."
       ],
       "solution": "Each memory item is embedded and indexed. At query time, embed the query (or a summary of current state), retrieve top-k most similar memories, prepend to context. Optional decay (boost recent, age old) and salience weighting.",
+      "example_scenario": "A long-running personal agent's append-only thought log grows past a million entries; finding relevant past becomes hopeless and dumping it all into context is impossible. The team embeds each memory item, indexes it in a vector store, and at query time retrieves top-k semantically similar items (plus optional recency boost). Now 'what did I decide about latency three months ago' returns the actual right entries rather than the most recent or none, and prompt size stays bounded as memory grows.",
       "consequences": {
         "benefits": [
           "Semantically relevant past surfaces automatically.",
@@ -1591,6 +1596,7 @@
         "An agent that cannot see its trajectory cannot meaningfully say 'I changed my mind on X here is why'."
       ],
       "solution": "Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a separate dedicated directory (e.g. `trajectories/<topic>.md`) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.",
+      "example_scenario": "A long-running agent is asked 'how has your view of the project's risks evolved'; reading its raw thought log gives every entry equal weight and produces a flat recitation. The team adds a periodic compaction pass that groups recent thoughts by topic, extracts the position the agent held in each period, and writes time-layered trajectory notes. Now the agent can answer with 'in week 1 I worried about latency; week 3 I revised to data-quality; today I think the binding risk is staffing,' and the answer is grounded in synthesis rather than recomputed each time.",
       "consequences": {
         "benefits": [
           "The agent can articulate its own learning path.",
@@ -1702,6 +1708,7 @@
         "Rumination loops reward the same items over and over without a fatigue term."
       ],
       "solution": "Score each candidate memory item `m` with a weighted sum: `alpha * novelty(m) + beta * goal_relevance(m) + gamma * recency(m) + delta * prediction_error(m) - epsilon * fatigue(m)`. Pick the top-k into the working set for the next tick. Persist the weights in a tunable config so a reflection pass can adjust them. The fatigue term penalises items that have already been attended to many times in the recent window, breaking rumination loops.",
+      "example_scenario": "A long-running personal agent has months of memory; dumping it all into context is impossible and grabbing the most recent items misses the user's recurring goals. The team scores each candidate memory with a weighted sum of novelty, goal-relevance, recency, prediction-error, and a fatigue penalty. Each tick attends to top-k items only. Surprising long-tail facts rise above last-hour chatter when they actually matter, and token usage per tick stays flat as memory grows.",
       "consequences": {
         "benefits": [
           "Bounded attention cost per tick regardless of memory store size.",
@@ -1929,6 +1936,7 @@
         "The agent benefits from seeing them side by side but not mixed."
       ],
       "solution": "Maintain `world.md` (plus optional substructure: humans, repos, services, capabilities) as a separate, reflection-writable file. Personality, charter, and boundaries live in their own files with separate write paths. Surprise events (prediction error against `world.md`) trigger a focused world-update pass; self-update is a different pass with different gating. The tick prompt loads both, but they are visibly distinct sections.",
+      "example_scenario": "A long-running agent's reflection pass corrupts its own personality file because the same store mixes 'what I am' with 'what is around me' and a surprise update overwrites a self-charter line. The team splits state: `world.md` (humans, repos, services, capabilities) is reflection-writable; personality, charter, and boundaries live in separate files with separate write-protection. Surprise-driven world updates can no longer mutate self-model, and the agent stops drifting in identity when the environment changes.",
       "consequences": {
         "benefits": [
           "Self-model stability is decoupled from environment churn.",

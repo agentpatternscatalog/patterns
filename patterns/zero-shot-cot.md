@@ -48,6 +48,10 @@ Append a trigger phrase ('Let's think step by step', 'Let's work through this ca
 - **Optimised trigger CoT** — Replace the human-written phrase with one searched by an automatic prompt optimiser (APE, Zhou et al. 2022).
 - **Plan-then-solve CoT** — Two-phase trigger: first 'Devise a plan', then 'Carry out the plan and solve' (Wang et al. 2023, Plan-and-Solve).
 
+## Example scenario
+
+A team is building agent prompts for fifty different tasks and writing few-shot CoT exemplars per task is unaffordable. They append a single trigger phrase ('Let's think step by step') to each prompt; the model produces reasoning before its answer with no exemplars required. Quality on multi-step tasks climbs immediately; for the few tasks where zero-shot CoT is not enough, they reach for few-shot or self-consistency on top.
+
 ## Consequences
 
 **Benefits**

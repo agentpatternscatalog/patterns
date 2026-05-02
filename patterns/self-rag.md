@@ -48,6 +48,10 @@ A critic model is first trained to label data with reflection tokens. The genera
 - **Tree-decoding Self-RAG** — Sample multiple continuations at each reflection token and pick the highest-scoring branch by the [IsSup]/[IsUse] tokens.
 - **Adaptive-retrieval Self-RAG** — Use [Retrieve] confidence to skip retrieval entirely on easy queries while still verifying [IsSup] before answering.
 
+## Example scenario
+
+A document-QA agent always retrieves three chunks per query, even for trivial questions, and always generates an answer regardless of whether the retrieved chunks support one. The team fine-tunes a Self-RAG variant that emits inline reflection tokens: `[Retrieve]` decides per-query whether to retrieve, `[IsRel]` filters retrieved chunks, `[IsSup]` checks whether the generated claim is supported. Useless retrievals drop and unsupported answers are flagged before they reach the user.
+
 ## Consequences
 
 **Benefits**

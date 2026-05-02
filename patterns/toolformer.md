@@ -42,6 +42,10 @@ Prompt-based tool calling is brittle and capability-limited; supervised fine-tun
 
 Generate candidate tool calls during training. Insert each into a context. Score whether the resulting completion is improved (perplexity drop on the gold continuation). Keep helpful insertions as training data. Fine-tune the model to emit tool calls in those positions.
 
+## Example scenario
+
+A team wants their model to call a calculator and a search tool reliably without writing thousands of human-labelled tool-use traces. They use Toolformer-style self-supervision: at training time, candidate tool calls are inserted into many contexts and scored by whether the resulting completion's perplexity drops on the gold continuation; helpful insertions become training data. The fine-tuned model learns when and how to call tools without any human annotation.
+
 ## Consequences
 
 **Benefits**

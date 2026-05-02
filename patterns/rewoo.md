@@ -42,6 +42,10 @@ Token cost in ReAct grows linearly with steps because each observation re-enters
 
 Three roles. Planner emits a DAG with steps `t1 = ToolA(x); t2 = ToolB(#t1)` using variable references. Worker executes each tool in dependency order. Solver reads the resolved trace and produces the final answer. The planner never sees observations.
 
+## Example scenario
+
+A research agent built with ReAct burns tokens because each tool observation re-enters the prompt for the next reasoning turn; an eight-step task quadratic-blows. The team rewrites it as ReWOO: planner emits a DAG with placeholder variables (`t1 = Search(x); t2 = Summarise(#t1)`), a worker resolves the DAG, and a solver reads the final trace once. Total tokens drop sharply on multi-tool tasks while quality holds.
+
 ## Structure
 
 ```

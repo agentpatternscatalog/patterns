@@ -42,6 +42,10 @@ Letting vendor shapes leak into the agent's context wastes tokens and ties the a
 
 A translation module sits between the agent's tool palette and the upstream API. Inbound: vendor JSON is mapped into the domain shape. Outbound: domain edits become signed vendor calls. The agent sees one consistent shape regardless of how many backends sit behind it.
 
+## Example scenario
+
+An agent integrates with a legacy ERP whose API returns 47-field nested objects with vendor-specific casing and undocumented enums. Letting these shapes leak into the agent's context wastes tokens and ties the agent's reasoning to upstream churn. The team puts a translation layer between the agent's tool palette and the ERP: inbound vendor JSON maps to a clean domain shape, outbound domain edits become signed vendor calls. The agent sees a small typed surface and the ERP can re-shape its API without breaking the agent.
+
 ## Consequences
 
 **Benefits**

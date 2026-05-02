@@ -87,6 +87,10 @@ World-model writes require an explicit surprise signal (observation diverged fro
 
 *When to use:* When the world model would otherwise drift from incidental, low-information observations.
 
+## Example scenario
+
+A long-running agent's reflection pass corrupts its own personality file because the same store mixes 'what I am' with 'what is around me' and a surprise update overwrites a self-charter line. The team splits state: `world.md` (humans, repos, services, capabilities) is reflection-writable; personality, charter, and boundaries live in separate files with separate write-protection. Surprise-driven world updates can no longer mutate self-model, and the agent stops drifting in identity when the environment changes.
+
 ## Known uses
 
 - **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*

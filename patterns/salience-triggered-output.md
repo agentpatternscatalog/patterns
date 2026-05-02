@@ -48,6 +48,10 @@ Score every internal event for salience (novelty + goal-relevance + recency + pr
 - **Rate-limited threshold** — Threshold plus a per-window emission cap so a runaway high-salience burst cannot spam the user.
 - **Adaptive-threshold** — Threshold itself moves with recent emission rate and user feedback (mute/snooze) so the agent self-calibrates noisiness.
 
+## Example scenario
+
+An always-on monitoring agent emits one line per second; users mute the channel within an hour and stop reading it. The team adds a salience score (novelty + goal-relevance minus fatigue) and an output threshold. The agent now stays silent while nothing surprising is happening and speaks up the moment a metric breaks pattern. Read-through rate goes up because the channel becomes a signal rather than noise.
+
 ## Consequences
 
 **Benefits**

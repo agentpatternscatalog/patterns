@@ -48,6 +48,10 @@ Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta 
 - **WebSocket typed events** — Bidirectional WebSocket carrying the same typed vocabulary; needed when the client also pushes events mid-stream.
 - **HTTP chunked + frame protocol** — Plain chunked HTTP carrying length-prefixed JSON frames; used where SSE/WebSocket are blocked by middleboxes.
 
+## Example scenario
+
+A chat product streams a single text channel; the UI cannot tell apart token text, structured cards, suggestions, and tool progress until everything is rendered. The team switches to typed events over SSE: `text_delta`, `card`, `suggestions`, `tool_start`, `tool_end`, `done`, `error`. The client routes each event to the right widget as it arrives; perceived latency drops, structured content renders early, and the UI gains progress indicators.
+
 ## Consequences
 
 **Benefits**

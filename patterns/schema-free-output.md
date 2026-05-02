@@ -42,6 +42,10 @@ The model invents punctuation, formatting, and field names. Parsers fail in non-
 
 Don't. Use structured-output (JSON Schema, Pydantic, function calling). See structured-output, tool-use.
 
+## Example scenario
+
+A team ships an agent whose downstream consumes free-form model output by regex-parsing 'looks like JSON.' Edge cases (smart quotes, missing commas, surprise prose preamble) fail in non-obvious ways, and post-mortems blame the model when most failures are parser bugs. They stop doing this and switch to structured output with a JSON Schema, validating against it and retrying on parse failure. The 'flaky model' framing dissolves into a parser-bug fix.
+
 ## Consequences
 
 **Liabilities**

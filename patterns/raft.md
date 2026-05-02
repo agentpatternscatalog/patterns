@@ -48,6 +48,10 @@ Construct training examples where some documents are oracle and others are distr
 - **CoT-RAFT** — Couples RAFT with chain-of-thought rationales that explicitly cite oracle passages by quote, not just identifier.
 - **Domain-mix RAFT** — Fine-tune on training data drawn from several domains with shared distractor structure, trading per-domain ceiling for transfer.
 
+## Example scenario
+
+A clinical-coding RAG assistant keeps citing topically-similar but wrong ICD chapters when the retriever pulls in adjacent conditions. The team builds a RAFT-style training set where each prompt has the oracle code reference plus three convincing distractors, and the gold answer cites only the oracle. After fine-tuning, the model learns to ignore distractors even when they dominate the retrieved context. Production accuracy on the long-tail comorbidity codes climbs without changing the retriever.
+
 ## Consequences
 
 **Benefits**

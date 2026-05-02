@@ -42,6 +42,10 @@ A single-tick edit can capture momentary confusion as a lasting rule.
 
 Mutation proposals are written to a holding area. A subsequent tick must confirm the proposal (still endorses it given fresh context). After K consecutive confirms, the mutation lands. Explicit user approval bypasses the wait.
 
+## Example scenario
+
+A long-running personal agent reads a frustrated user message and proposes a new persistent rule: 'never offer suggestions before being asked.' Under single-tick mutation the rule would land immediately and degrade the agent for weeks. Instead the proposal goes to a holding area; the next tick re-reads the rule against fresh context and the user's later message ('actually keep proposing, I just hated that one') and declines to confirm. The mutation expires unwritten. Only rules that survive K consecutive endorsements join the durable charter.
+
 ## Consequences
 
 **Benefits**

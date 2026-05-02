@@ -48,6 +48,10 @@ Decompose the problem into thought steps. At each node, sample several candidate
 - **DFS Tree of Thoughts** — Go deep first and backtrack on dead ends; suits long horizons with cheap pruning.
 - **Beam-search ToT** — Keep only the top-k highest-scoring partial paths at each depth; bounded cost.
 
+## Example scenario
+
+A puzzle-solving agent using chain-of-thought commits to its first reasoning trace; when an early step is wrong it cannot recover. The team rebuilds it as Tree of Thoughts: at each node the model samples several candidate next thoughts, evaluates each (model self-eval or programmatic check), and BFS or beam-explores the tree, backtracking from dead ends. Per-problem cost is higher but solve-rate on the harder puzzle class climbs because the agent can compare and unwind.
+
 ## Consequences
 
 **Benefits**

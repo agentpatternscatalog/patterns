@@ -49,6 +49,10 @@ Pick the inference-time technique that fits: best-of-N for verifier-amenable tas
 - **Tree / beam search** — Explore a branching search tree with a value model pruning low-promise branches (ToT, LATS, MCTS-style).
 - **Compute-optimal routing** — Pick parallel vs sequential vs deeper-thinking per question based on difficulty estimate (Snell et al. 2024).
 
+## Example scenario
+
+A team has a hard math benchmark where their current model underperforms; the obvious move is to wait for a larger model. Instead they apply test-time compute scaling: best-of-N sampling with a verifier for verifier-amenable items, self-consistency for sampling-amenable items, tree search for combinatorial items, extended thinking for sequential reasoning. Per-item cost rises but accuracy on the benchmark beats the next-tier model at lower total cost.
+
 ## Consequences
 
 **Benefits**

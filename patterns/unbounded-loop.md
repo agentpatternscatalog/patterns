@@ -42,6 +42,10 @@ The agent wanders, retries, or loops on errors. Cost is unbounded. User waits.
 
 Don't. Set max_steps. Add a stop hook. See step-budget, the-stop-hook.
 
+## Example scenario
+
+A team ships an agent without a step budget, trusting the model to decide when to stop. On a flaky network it retries the same tool forever; on an ambiguous task it wanders for forty turns and bills accordingly. The post-mortem is brief: they add `max_steps` and a stop-hook predicate. Cost becomes bounded by construction and the same incident class disappears from the support queue.
+
 ## Consequences
 
 **Liabilities**

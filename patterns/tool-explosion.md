@@ -42,6 +42,10 @@ Past about 20 tools, model selection accuracy drops sharply; the agent picks wro
 
 Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a tested threshold. Measure function-calling accuracy as a release gate.
 
+## Example scenario
+
+A team exposes all 80 tools to the agent on every request, expecting the model to pick the right one. Function-calling accuracy collapses past 20 tools and the agent picks wrong tools or invents wrong arguments. They stop doing this and add a tool-loadout step that selects a small task-relevant subset per request, cap the exposed set at a tested threshold, and add function-calling accuracy as a release gate.
+
 ## Consequences
 
 **Liabilities**

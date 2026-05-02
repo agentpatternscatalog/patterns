@@ -42,6 +42,10 @@ Any secret that reaches the model is now in the chat log, the trace store, the e
 
 Tool runtime resolves credentials from typed references the agent emits (e.g., `{auth: 'github_token_for_user_42'}`). Credential values are injected outside the model context. Input/output guards reject any payload matching credential signatures. Provenance ledger and traces are scrubbed at write time.
 
+## Example scenario
+
+A debugging session shows that a customer's GitHub PAT once appeared in the model's input and therefore in the prompt log, the eval harness export, and the third-party model vendor's training-data request form. Containment is impossible after the fact. The team rebuilds tool calls so the agent emits only typed references like `{auth: 'github_token_for_user_42'}` and the tool runtime resolves the credential outside the model context. Plaintext secrets never enter the chat log again.
+
 ## Consequences
 
 **Benefits**

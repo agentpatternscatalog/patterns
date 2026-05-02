@@ -48,6 +48,10 @@ EM-style loop. (E-step) Generate many responses per problem. Filter by reward (c
 - **ReST-EM** — Expectation-maximisation framing where the E-step samples and filters by a binary correctness reward and the M-step fine-tunes.
 - **STaR rationalisation** — When sampling fails, hint the model with the correct answer to obtain a rationale, then add the rationalised example to training.
 
+## Example scenario
+
+A team wants a small in-house model to solve grade-school math without paying to label rationales. They run ReST-EM: sample many CoT solutions per problem, keep only those whose final answer matches ground truth, fine-tune on the kept set, then sample again. Each round yields a stronger sampler whose kept fraction grows. After three iterations the small model lands within a few points of a much larger zero-shot baseline at a fraction of inference cost.
+
 ## Consequences
 
 **Benefits**

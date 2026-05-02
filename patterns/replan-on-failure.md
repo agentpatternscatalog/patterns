@@ -42,6 +42,10 @@ Plans are made under incomplete information; without replanning, the executor ei
 
 Define replan triggers (tool error, unexpected observation, observer dissent). When triggered, the executor pauses and the planner runs again with the failure context. The new plan replaces the old one; partial progress is preserved if compatible.
 
+## Example scenario
+
+A travel-booking agent has a plan that assumes a particular hotel API is up; the API returns 500 on every retry. Without replan-on-failure the agent grinds the same dead branch until budget exhausts. Instead, the tool error trips a replan trigger: the planner is invoked again with the failure context, drops the dead branch, picks an alternate provider, and proceeds. The user sees one extra second of latency and a successful booking instead of a timeout.
+
 ## Consequences
 
 **Benefits**

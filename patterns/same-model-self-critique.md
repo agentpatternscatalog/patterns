@@ -42,6 +42,10 @@ The critic shares the producer's blind spots. Wrong answers are reinforced as co
 
 Don't pretend it is independent. Either accept that self-critique catches surface errors only, or use a different model family for the critic. See reflection, evaluator-optimizer, llm-as-judge.
 
+## Example scenario
+
+A team ships an agent where the same model writes an answer and then 'self-critiques' it before returning, and treats the critique as independent verification. Replication studies and their own evals show the critic confidently endorses confidently-wrong answers because it shares the producer's blind spots. They stop pretending independence: they either accept that self-critique catches surface errors only, or they swap the critic to a different model family.
+
 ## Consequences
 
 **Liabilities**
