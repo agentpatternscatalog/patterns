@@ -52,6 +52,24 @@ Surface a stop control in the UI. On click, propagate a cancellation token throu
 
 A user kicks off an agent run that is going off-track within five seconds; right now there is no UI control to stop it and they wait two minutes for completion while cost burns. The team adds a stop control that propagates a cancellation token through the agent loop, tool calls, and provider streams, cleans up partial state, and surfaces what was done. Wrong-direction runs cost seconds rather than minutes and users feel in control.
 
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant UI as UI
+  participant L as Agent loop
+  participant T as Tool / provider
+  U->>UI: click Stop
+  UI->>L: cancellation token
+  L->>T: propagate cancel
+  T-->>L: aborted
+  L->>L: clean up partial state
+  L-->>UI: done(partial, cancelled)
+  UI-->>U: show what was done
+```
+
 ## Consequences
 
 **Benefits**

@@ -53,6 +53,22 @@ A four-agent product-development chat keeps drifting because agents talk free-fo
 Role_A -- artefact_1 --> Role_B -- artefact_2 --> Role_C ... ; shared message pool; per-role subscription filter.
 ```
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  PM[Product role] -->|PRD| Arch[Architect role]
+  Arch -->|design doc| Dev[Developer role]
+  Dev -->|code| QA[QA role]
+  QA -->|test plan| Doc[Tech-writer role]
+  Doc -->|user manual| Done[Release]
+  Pool[(Shared message pool<br/>+ subscription filter)] -.routes.-> PM
+  Pool -.routes.-> Arch
+  Pool -.routes.-> Dev
+  Pool -.routes.-> QA
+```
+
 ## Consequences
 
 **Benefits**

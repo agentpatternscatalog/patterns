@@ -46,6 +46,21 @@ Implement a stop hook function that runs after each step. It returns one of: con
 
 An agent's loop terminates when 'the model says it is done', which fails when the model is uncertain or stuck and the loop runs to budget. The team adds an explicit stop-hook predicate that runs after each step and returns continue, stop-success, or stop-failure based on target reached, step budget, error class, or stagnation detection. Termination becomes a programmatic decision rather than a wish, and unbounded loops become impossible by construction.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Step[Agent step] --> Hook[Stop hook]
+  Hook --> R{Predicate}
+  R -->|target reached| OK[stop-success]
+  R -->|step budget hit| Halt[stop-failure]
+  R -->|error encountered| Halt
+  R -->|stagnation detected| Halt
+  R -->|none of the above| Cont[continue]
+  Cont --> Step
+```
+
 ## Consequences
 
 **Benefits**

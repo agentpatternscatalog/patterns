@@ -46,6 +46,20 @@ Each memory item is embedded and indexed. At query time, embed the query (or a s
 
 A long-running personal agent's append-only thought log grows past a million entries; finding relevant past becomes hopeless and dumping it all into context is impossible. The team embeds each memory item, indexes it in a vector store, and at query time retrieves top-k semantically similar items (plus optional recency boost). Now 'what did I decide about latency three months ago' returns the actual right entries rather than the most recent or none, and prompt size stays bounded as memory grows.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Mem[New memory item] --> Emb[Embed]
+  Emb --> Idx[(Vector index)]
+  Q[Query / current state] --> QEmb[Embed]
+  QEmb --> Top[Retrieve top-k similar]
+  Idx --> Top
+  Top --> Decay[Apply decay / salience weighting]
+  Decay --> Ctx[Prepend to context]
+```
+
 ## Consequences
 
 **Benefits**

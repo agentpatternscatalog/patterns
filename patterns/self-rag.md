@@ -52,6 +52,24 @@ A critic model is first trained to label data with reflection tokens. The genera
 
 A document-QA agent always retrieves three chunks per query, even for trivial questions, and always generates an answer regardless of whether the retrieved chunks support one. The team fine-tunes a Self-RAG variant that emits inline reflection tokens: `[Retrieve]` decides per-query whether to retrieve, `[IsRel]` filters retrieved chunks, `[IsSup]` checks whether the generated claim is supported. Useless retrievals drop and unsupported answers are flagged before they reach the user.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Query] --> Gen[Generator emits inline tokens]
+  Gen --> R{[Retrieve]?}
+  R -- yes --> Ret[Retrieve evidence]
+  R -- no --> Skip[Skip retrieval]
+  Ret --> Rel{[IsRel]?}
+  Rel -- relevant --> Use[Use evidence]
+  Rel -- not --> Drop[Drop chunk]
+  Use --> Sup{[IsSup]?}
+  Skip --> Sup
+  Sup -- supported --> UseT{[IsUse]?}
+  UseT --> Ans[Answer]
+```
+
 ## Consequences
 
 **Benefits**

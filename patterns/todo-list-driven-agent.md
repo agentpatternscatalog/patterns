@@ -53,6 +53,23 @@ A long autonomous coding run gets context-truncated halfway through and the agen
 Sandbox VM (browser, shell, files) + agent loop: read(todo.md) -> select next item -> act -> update(todo.md) -> repeat.
 ```
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Start[Run starts] --> Plan[Agent authors todo.md]
+  Plan --> Loop[Each turn]
+  Loop --> R[Read todo.md]
+  R --> Pick[Select next unticked item]
+  Pick --> Act[Act + tool calls]
+  Act --> Upd[Tick item / add follow-ups / drop dead-ends]
+  Upd --> Inject[Re-inject unticked tail into prompt]
+  Inject --> Loop
+  Upd --> Done{All ticked?}
+  Done -- yes --> End[Finish run]
+```
+
 ## Consequences
 
 **Benefits**

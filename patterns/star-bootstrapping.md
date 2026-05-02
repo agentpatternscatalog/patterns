@@ -52,6 +52,21 @@ Prompt the base model with CoT to generate rationale + answer pairs. Keep pairs 
 
 A team has a small base model that knows facts but cannot reliably reason. They prompt it with CoT to generate (rationale, answer) pairs across a dataset with ground-truth answers. They keep pairs whose answer is right; for wrong answers they 'rationalize' (give the model the right answer and ask for a rationale). They fine-tune on the kept set, then iterate. After two STaR rounds the model's reasoning capability climbs without any human-written rationales.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Base[Base model] --> Gen[Generate CoT rationale + answer]
+  Gen --> Check{Answer matches ground truth?}
+  Check -- yes --> Keep[Keep pair]
+  Check -- no --> Hint[Rationalize: hint correct answer]
+  Hint --> Re[Re-generate justifying rationale]
+  Re --> Keep
+  Keep --> FT[Fine-tune on kept + rationalised pairs]
+  FT --> Base
+```
+
 ## Consequences
 
 **Benefits**

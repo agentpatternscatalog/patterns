@@ -52,6 +52,23 @@ Decompose the problem into thought steps. At each node, sample several candidate
 
 A puzzle-solving agent using chain-of-thought commits to its first reasoning trace; when an early step is wrong it cannot recover. The team rebuilds it as Tree of Thoughts: at each node the model samples several candidate next thoughts, evaluates each (model self-eval or programmatic check), and BFS or beam-explores the tree, backtracking from dead ends. Per-problem cost is higher but solve-rate on the harder puzzle class climbs because the agent can compare and unwind.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Root[Root state] --> A[Thought A]
+  Root --> B[Thought B]
+  Root --> C[Thought C]
+  A --> A1[Next thought]
+  A --> A2[Next thought]
+  B --> B1[Next thought]
+  A1 -->|eval: low| Prune[Prune]
+  A2 -->|eval: high| Deeper[Continue]
+  B1 -->|eval: high| Deeper
+  Deeper --> Best[Return best leaf]
+```
+
 ## Consequences
 
 **Benefits**

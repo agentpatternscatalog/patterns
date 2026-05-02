@@ -46,6 +46,20 @@ Wrap deterministic tools in a cache layered on `(tool_name, normalised_args)`. S
 
 An agent that researches companies calls the same `get_company_profile(domain)` tool four times per session because different sub-tasks need it. Latency and per-call cost stack up. The team wraps deterministic tools in a cache keyed on `(tool_name, normalised_args)` with TTLs by tool type; per-user scoping keeps tenant-sensitive results from crossing accounts. Repeat calls return immediately, the underlying tool quota lasts longer, and session latency drops.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Call[Tool call] --> Key[Key = tool_name + normalised_args + auth_subject]
+  Key --> Cache{Cache hit?}
+  Cache -- yes --> Hit[Return cached result]
+  Cache -- no --> Tool[Invoke underlying tool]
+  Tool --> Store[Store with TTL]
+  Store --> Out[Return result]
+  Hit --> Out
+```
+
 ## Consequences
 
 **Benefits**

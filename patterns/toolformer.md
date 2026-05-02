@@ -46,6 +46,19 @@ Generate candidate tool calls during training. Insert each into a context. Score
 
 A team wants their model to call a calculator and a search tool reliably without writing thousands of human-labelled tool-use traces. They use Toolformer-style self-supervision: at training time, candidate tool calls are inserted into many contexts and scored by whether the resulting completion's perplexity drops on the gold continuation; helpful insertions become training data. The fine-tuned model learns when and how to call tools without any human annotation.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Ctx[Training context] --> Cand[Generate candidate tool calls]
+  Cand --> Ins[Insert into context]
+  Ins --> Score[Score: perplexity drop on gold continuation?]
+  Score -- helpful --> Keep[Keep as training example]
+  Score -- not --> Drop[Drop]
+  Keep --> FT[Fine-tune model to emit calls in those positions]
+```
+
 ## Consequences
 
 **Benefits**

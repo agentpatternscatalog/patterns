@@ -29,6 +29,21 @@ When self-model and world-model live in the same store (one big personality file
 
 Maintain `world.md` (plus optional substructure: humans, repos, services, capabilities) as a separate, reflection-writable file. Personality, charter, and boundaries live in their own files with separate write paths. Surprise events (prediction error against `world.md`) trigger a focused world-update pass; self-update is a different pass with different gating. The tick prompt loads both, but they are visibly distinct sections.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Obs[Observation] --> Pred{Prediction error?}
+  Pred -- yes --> WPass[World-update pass]
+  WPass --> WFile[(world.md)]
+  Pred -- no --> Skip[No write]
+  Refl[Self-reflection trigger] --> SPass[Self-update pass]
+  SPass --> SFile[(charter / personality / boundaries)]
+  WFile --> Tick[Tick prompt: distinct sections]
+  SFile --> Tick
+```
+
 ## Consequences
 
 **Benefits**

@@ -46,6 +46,21 @@ On startup (or periodically), the agent queries a tool registry (MCP server, int
 
 An agent's tool palette is hardcoded at build time and every new internal capability needs a redeploy of the agent. The team moves to runtime tool discovery: on startup the agent queries an internal MCP-style registry, loads advertised tools with typed schemas, and refreshes periodically. New capabilities ship by registering a tool, no agent redeploy, and the schema-typed advertisement protects against drift between agent and tool.
 
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant A as Agent
+  participant R as Tool registry (MCP / directory)
+  participant T as Tool
+  A->>R: list_tools (on startup / refresh)
+  R-->>A: advertised tools + typed schemas
+  A->>A: load into palette
+  A->>T: call tool(args)
+  T-->>A: typed result
+```
+
 ## Consequences
 
 **Benefits**

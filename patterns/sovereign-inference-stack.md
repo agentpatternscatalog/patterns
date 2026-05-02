@@ -53,6 +53,26 @@ A bank wants an internal coding assistant but legal flatly forbids any source-co
 Boundary { Inference + Tools + Memory + Logs + Eval } -- only public artefacts (UI responses) leave.
 ```
 
+
+## Diagram
+
+```mermaid
+flowchart TB
+  subgraph Boundary[Operator-controlled boundary]
+    Inf[On-prem inference]
+    Tools[Tool gateway]
+    Vec[(Vector store)]
+    Logs[(Audit log)]
+    Eval[Eval harness]
+  end
+  U[User UI] --> Inf
+  Inf --> Tools
+  Tools --> Vec
+  Inf --> Logs
+  Inf -.never crosses.-x Ext[Third-party API]
+  Inf --> U
+```
+
 ## Consequences
 
 **Benefits**

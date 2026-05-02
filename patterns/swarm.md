@@ -46,6 +46,19 @@ Agents interact via a shared message bus, chat, or environment. Each agent has i
 
 A team simulates negotiation strategies among many parties; a centralised supervisor would bottleneck and would also impose a single policy on all parties. They run many peer agents on a shared message bus, each with its own goals and policies, no central coordinator, and environment-level termination conditions. Coordination emerges from interaction rather than instruction; the simulation produces patterns the team did not pre-script.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]
+  A2[Peer agent 2] <--> Bus
+  A3[Peer agent 3] <--> Bus
+  A4[Peer agent N] <--> Bus
+  Bus --> Term{Env-level termination<br/>time / consensus / trigger}
+  Term --> Out[Emergent outcome]
+```
+
 ## Consequences
 
 **Benefits**

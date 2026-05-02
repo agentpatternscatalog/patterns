@@ -53,6 +53,20 @@ A team wants to let the community contribute third-party skills to their agent b
 Host runtime { capability gate } -> Wasm sandbox(skill_module, manifest) -> deterministic IO -> result.
 ```
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Skill[Skill source<br/>Rust / Python / TS / Go] --> WasmMod[Compile to Wasm module]
+  WasmMod --> Pkg[Module + capability manifest<br/>fs / net / env / syscalls]
+  Pkg --> Host[Host runtime]
+  Host --> Gate{Capability gate}
+  Gate -- declared --> Sand[Fresh Wasm sandbox per call]
+  Gate -- undeclared --> Fail[Fail at boundary]
+  Sand --> Result[Return result to agent]
+```
+
 ## Consequences
 
 **Benefits**

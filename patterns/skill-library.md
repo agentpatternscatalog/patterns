@@ -46,6 +46,20 @@ A directory (often `skills/*.py` or `skills/*.md`) where the agent can write new
 
 An agent that fetches similar reports every week keeps re-deriving the same scrape-clean-summarise pipeline from scratch. The team gives it a `skills/` directory: when the agent finishes a recurring task it can write a small reusable module (with a critic gating the addition); subsequent runs import and call it directly. Over a few months the agent crystallises a library of named skills for the domain and recurring tasks complete in a fraction of the original turns.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Run[Agent run] --> Need{Repeating routine?}
+  Need -- yes --> Write[Write new skill module]
+  Write --> Critic{Critic gate}
+  Critic -- pass --> Lib[(skills/ directory<br/>versioned)]
+  Critic -- fail --> Reject[Reject / revise]
+  Lib --> Load[Loader: importlib / dynamic import]
+  Load --> Next[Next run can call skill]
+```
+
 ## Consequences
 
 **Benefits**

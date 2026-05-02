@@ -52,6 +52,24 @@ Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta 
 
 A chat product streams a single text channel; the UI cannot tell apart token text, structured cards, suggestions, and tool progress until everything is rendered. The team switches to typed events over SSE: `text_delta`, `card`, `suggestions`, `tool_start`, `tool_end`, `done`, `error`. The client routes each event to the right widget as it arrives; perceived latency drops, structured content renders early, and the UI gains progress indicators.
 
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Srv as Agent server
+  participant Cli as Client UI
+  Srv-->>Cli: tool_start
+  Srv-->>Cli: text_delta (token)
+  Srv-->>Cli: text_delta (token)
+  Srv-->>Cli: card (structured)
+  Srv-->>Cli: tool_end
+  Srv-->>Cli: suggestions
+  Srv-->>Cli: done
+  Note over Cli: route each typed event<br/>to the right component
+  Note over Cli,Srv: reconnect with last-event-id
+```
+
 ## Consequences
 
 **Benefits**

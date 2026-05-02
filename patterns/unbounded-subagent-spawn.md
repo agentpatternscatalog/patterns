@@ -46,6 +46,24 @@ Don't. Maintain a global step budget across all descendants of a root request. C
 
 A research orchestrator decomposes a topic into ten sub-topics, each spawning a sub-agent; each of those decomposes into ten more sub-agents, and there is no global cap. One run consumes the month's budget in fifteen minutes through fan-out alone, even though each individual loop has a step budget. The team adds a global step budget across all descendants of a root request, caps fan-out per supervisor (5-10 children), and tracks `parent_run_id` so the agent tree is inspectable and killable as a whole.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Root[Root request] --> Sup[Supervisor]
+  Sup --> A1[Sub-agent A]
+  Sup --> A2[Sub-agent B]
+  A1 --> A1a[Sub-sub-agent]
+  A1 --> A1b[Sub-sub-agent]
+  A2 --> A2a[Sub-sub-agent]
+  A1a --> A1aX[Sub-sub-sub-agent ...]
+  A1aX -.no global cap.-> Boom[Cost explosion]
+  Sup -.fix.-> GB[Global step budget across descendants]
+  GB --> FC[Cap fan-out per supervisor]
+  FC --> Trk[Track parent_run_id for inspectability]
+```
+
 ## Consequences
 
 **Liabilities**

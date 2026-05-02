@@ -46,6 +46,20 @@ Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a teste
 
 A team exposes all 80 tools to the agent on every request, expecting the model to pick the right one. Function-calling accuracy collapses past 20 tools and the agent picks wrong tools or invents wrong arguments. They stop doing this and add a tool-loadout step that selects a small task-relevant subset per request, cap the exposed set at a tested threshold, and add function-calling accuracy as a release gate.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Reg[Tool registry: 80+ tools] --> Exp[Expose ALL to model]
+  Exp --> Pick[Model picks tool]
+  Pick -.>20 tools.-> Wrong[Wrong tool / wrong args]
+  Wrong --> Drop[Accuracy collapse]
+  Exp -.fix.-> LO[tool-loadout: pick per-task subset]
+  LO --> Cap[Cap exposed set at tested threshold]
+  Cap --> OK[Stable selection accuracy]
+```
+
 ## Consequences
 
 **Liabilities**

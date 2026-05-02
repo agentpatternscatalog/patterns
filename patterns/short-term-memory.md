@@ -46,6 +46,20 @@ Define a typed state object per thread (messages, current screen, active plan, a
 
 A chat assistant replays the entire conversation each turn and by message thirty the prompt is bloated with stale facts and the cost-per-turn has tripled. The team defines a typed thread state (recent messages, current screen, active plan, agent step) persisted with a 24-hour TTL and reloads only that on the next turn. Token cost per turn flatlines; the assistant still feels continuous within a session and resets cleanly on TTL.
 
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Empty
+  Empty --> Active: first turn
+  Active --> Active: turn N updates state
+  Active --> Active: reload typed slice
+  Active --> Expired: TTL elapsed
+  Expired --> Empty: reset
+  Active --> [*]: session end
+```
+
 ## Consequences
 
 **Benefits**

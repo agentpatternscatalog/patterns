@@ -53,6 +53,23 @@ Pick the inference-time technique that fits: best-of-N for verifier-amenable tas
 
 A team has a hard math benchmark where their current model underperforms; the obvious move is to wait for a larger model. Instead they apply test-time compute scaling: best-of-N sampling with a verifier for verifier-amenable items, self-consistency for sampling-amenable items, tree search for combinatorial items, extended thinking for sequential reasoning. Per-item cost rises but accuracy on the benchmark beats the next-tier model at lower total cost.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Request] --> Class{Task class?}
+  Class -->|verifier-amenable| BoN[Best-of-N]
+  Class -->|sampling-amenable| SC[Self-consistency]
+  Class -->|combinatorial| Tree[Tree search]
+  Class -->|sequential| ET[Extended thinking]
+  BoN --> Comp[Compose where complementary]
+  SC --> Comp
+  Tree --> Comp
+  ET --> Comp
+  Comp --> Out[Answer at tuned compute budget]
+```
+
 ## Consequences
 
 **Benefits**

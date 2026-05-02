@@ -46,6 +46,20 @@ Don't. Validate every tool result against a schema. Cap response size. Sanitise 
 
 A team's agent treats every tool response as trusted gospel, with schema validation off, size cap off, no trust labels. Real tools then do what real tools do: a 200 OK with `{error: 'rate limit'}`, a 12MB HTML blob with embedded scripts, a JSON field whose 'description' contains a prompt-injection payload. The agent ingests it all and misbehaves. They stop doing this and validate, cap, sanitise, and apply tool-output-poisoning defenses at the boundary.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  T[Tool returns response] --> Tr{Trust verbatim?}
+  Tr -- yes anti-pattern --> Ing[Ingest into context as-is]
+  Ing --> Bad[200 OK errors / oversized blob /<br/>injected instructions / scripts]
+  Bad --> Mis[Agent misbehaves silently]
+  Tr -.fix.-> Val[Validate against schema]
+  Val --> Cap[Cap size + sanitise]
+  Cap --> Lab[Attach trust label]
+```
+
 ## Consequences
 
 **Liabilities**

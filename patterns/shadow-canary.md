@@ -46,6 +46,23 @@ Route a fraction of real traffic through both champion and challenger. Champion'
 
 A team wants to upgrade the underlying model on an in-production agent but pre-release evals miss real-traffic regressions. They route ten percent of real traffic through both champion (current) and challenger (candidate); only champion's reply reaches the user. A judge model diffs the two on agreed metrics over a week. They catch a regression on a niche legal-style query that no eval covered, fix it, then promote the challenger.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  U[User request] --> Split[Traffic split]
+  Split --> Champ[Champion agent]
+  Split --> Chall[Challenger agent]
+  Champ --> Resp[User response]
+  Chall --> Log[Shadow log]
+  Champ --> Diff[Diff metrics:<br/>judge / exact-match / latency / cost]
+  Log --> Diff
+  Diff --> Gate{Lift?}
+  Gate -- yes --> Promote[Promote challenger]
+  Gate -- regression --> Revert[Revert]
+```
+
 ## Consequences
 
 **Benefits**

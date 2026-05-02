@@ -46,6 +46,22 @@ Don't. Set max_steps. Add a stop hook. See step-budget, the-stop-hook.
 
 A team ships an agent without a step budget, trusting the model to decide when to stop. On a flaky network it retries the same tool forever; on an ambiguous task it wanders for forty turns and bills accordingly. The post-mortem is brief: they add `max_steps` and a stop-hook predicate. Cost becomes bounded by construction and the same incident class disappears from the support queue.
 
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Step
+  Step --> Tool: call tool
+  Tool --> Step: result
+  Step --> Step: model says 'not done'
+  Step --> Burn: no step cap (anti-pattern)
+  Burn --> Burn: loops forever
+  Step --> Done: step-budget hit (fix)
+  Step --> Done: stop-hook predicate true (fix)
+  Done --> [*]
+```
+
 ## Consequences
 
 **Liabilities**

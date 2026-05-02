@@ -46,6 +46,20 @@ Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same
 
 A coding agent writes a function that compiles but uses an awkward API surface. Running through a Self-Refine loop where the same model produces concrete improvement points against a checklist (clarity, names, error handling), then refines, yields a noticeably cleaner function in the second pass. The team caps it at three iterations or a no-op feedback signal, accepting that self-critique catches surface issues only and not deep correctness bugs.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]
+  FB --> Stop{No more issues?}
+  Stop -- no --> Ref[Refine: same model rewrites]
+  Ref --> FB
+  Stop -- yes --> Out[Final output]
+  FB -.cap.-> MaxIt[Max iterations]
+  MaxIt --> Out
+```
+
 ## Consequences
 
 **Benefits**

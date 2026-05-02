@@ -46,6 +46,19 @@ Write the specification as a markdown file (PROMPT.md, fix_plan.md, or similar).
 
 A small team has one engineer who knows the agent's behaviour by heart but the spec lives in their head and is unaudited. They write PROMPT.md as the agent's spec, the agent reads it each iteration and may update it under controlled conditions. New engineers read the markdown to understand intent; reviewers diff spec changes; behaviour drift becomes visible because it shows up as a spec edit rather than a silent prompt change.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Author[Human author] -->|writes| Spec[(PROMPT.md / fix_plan.md)]
+  Spec --> Agent[Agent loop]
+  Agent -->|reads each iter| Spec
+  Agent -->|controlled writes| Spec
+  Spec --> Done{Spec defines 'done'?}
+  Done -->|yes| Stop[Stop loop]
+```
+
 ## Consequences
 
 **Benefits**

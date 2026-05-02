@@ -46,6 +46,19 @@ Before the main loop, classify the request and select N relevant tools (rule-bas
 
 A general-purpose agent has access to a 100-tool registry and selection accuracy is poor because the model cannot keep that many tool descriptions in working attention. The team adds a quick classifier ahead of the main loop that picks N relevant tools per request (rule-based by routed lane, or model-based). The agent's main loop now sees only the curated subset; selection accuracy and latency both improve.
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  Req[Request] --> Cls[Classifier: rule or model]
+  Reg[(Full tool registry: 100s)] --> Cls
+  Cls --> Sub[Selected subset N tools]
+  Sub --> Main[Main agent inference]
+  Main --> Out[Tool calls within subset]
+  Reg -.outside subset.-x Main
+```
+
 ## Consequences
 
 **Benefits**

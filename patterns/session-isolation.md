@@ -46,6 +46,21 @@ Session state is keyed by per-user identity (OAuth/JWT subject). Reads and write
 
 A multi-tenant assistant uses a shared vector cache across all users and one day a competitive-intelligence answer for tenant A surfaces in tenant B's context because the embedding match was strong. The team scopes every cache key, every memory backend read, and every prompt context to the per-user OAuth subject end-to-end. Cross-tenant contamination becomes structurally impossible rather than 'we hope it doesn't happen.'
 
+
+## Diagram
+
+```mermaid
+flowchart LR
+  U1[User A request] -->|sub=A| Auth[Identity carrier]
+  U2[User B request] -->|sub=B| Auth
+  Auth --> Key[Scope by user identity]
+  Key --> StateA[(State / cache for A)]
+  Key --> StateB[(State / cache for B)]
+  StateA -.never crosses.- StateB
+  StateA --> Agent[Agent loop]
+  StateB --> Agent
+```
+
 ## Consequences
 
 **Benefits**

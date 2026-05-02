@@ -42,6 +42,21 @@ A single agent that handles everything has either too few tools (limiting capabi
 
 A supervisor classifies requests and dispatches them to a specialised agent. Each specialist has its own prompt, tools, and possibly its own model. The supervisor may receive results back and decide whether to escalate or respond.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Req[User request] --> Sup[Supervisor: classify + dispatch]
+  Sup --> S1[Specialist A<br/>own prompt + tools + model]
+  Sup --> S2[Specialist B]
+  Sup --> S3[Specialist C]
+  S1 --> Sup
+  S2 --> Sup
+  S3 --> Sup
+  Sup --> Out[Aggregate or escalate]
+```
+
 ## Consequences
 
 **Benefits**

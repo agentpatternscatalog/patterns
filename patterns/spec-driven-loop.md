@@ -46,6 +46,20 @@ An outer shell loop (`while :; do cat PROMPT.md | claude-code ; done`) runs the 
 
 A team is fixing a long-tail bug list across a large repo. A free-form chat session wanders, plans become stale, and progress is hard to measure. They write a deterministic outer loop (`while :; do cat PROMPT.md | claude-code; done`) where the prompt names one task, references a fix_plan.md the agent itself updates, and exits when the spec is satisfied. Progress becomes legible: tasks tick off, the loop terminates, and resuming after interruption is a no-op.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Start[Outer shell loop] --> Read[Read PROMPT.md + fix_plan.md]
+  Read --> Run[Run agent on one task]
+  Run --> Edit[Agent updates fix_plan.md]
+  Edit --> Test[Run test suite]
+  Test --> Gate{Spec satisfied?}
+  Gate -- no --> Start
+  Gate -- yes --> Done[Exit loop]
+```
+
 ## Consequences
 
 **Benefits**

@@ -46,6 +46,26 @@ Run the same prompt N times with non-zero temperature. Extract the answer from e
 
 A math-tutoring agent at zero temperature gives one wrong answer per ten problems and is confidently wrong every time. The team samples each problem five times at temperature 0.7, extracts the numeric answer from each, and majority-votes. The right answer is the one most chains converge on; variance across samples becomes a useful 'unsure' signal. Per-problem cost is five times higher, but accuracy on the long-tail of tricky problems climbs noticeably.
 
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Same prompt] --> S1[Sample 1<br/>temp > 0]
+  Q --> S2[Sample 2]
+  Q --> S3[Sample N]
+  S1 --> Ex[Extract answer]
+  S2 --> Ex
+  S3 --> Ex
+  Ex --> Agg{Aggregate}
+  Agg -->|discrete| Vote[Majority vote]
+  Agg -->|numeric| Med[Median]
+  Agg -->|free-form| Judge[Judge model]
+  Vote --> Out[Final answer + variance signal]
+  Med --> Out
+  Judge --> Out
+```
+
 ## Consequences
 
 **Benefits**
