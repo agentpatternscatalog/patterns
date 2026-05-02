@@ -42,6 +42,12 @@ Query-document length and style asymmetry hurts dense retrieval recall on short 
 
 On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.
 
+## Variants
+
+- **Single-draft HyDE** — Generate one hypothetical answer and use its embedding as the query.
+- **Multi-draft HyDE** — Generate N hypothetical answers, embed each, and average or take the union of their top-k retrievals.
+- **Hybrid HyDE** — Average the hypothetical-answer embedding with the original query embedding to hedge against off-topic drafts.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,12 @@ Naive RAG retrieves local chunks and cannot answer global queries; chunk-level r
 
 Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.
 
+## Variants
+
+- **Global GraphRAG (map-reduce)** — Map the query over community summaries, reduce to a single answer; suits corpus-wide sensemaking.
+- **Local GraphRAG** — Anchor on a named entity and walk its neighbourhood in the graph; suits entity-specific questions.
+- **DRIFT GraphRAG** — Hybrid that starts local around a seed entity and progressively widens to community-level context if the local context is insufficient (Microsoft DRIFT).
+
 ## Consequences
 
 **Benefits**

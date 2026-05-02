@@ -42,6 +42,12 @@ Agents that emit on every cycle are noisy; agents that only emit on user request
 
 Score every internal event for salience (novelty + goal-relevance + recency + prediction-error - fatigue). When the score for a candidate output crosses a threshold, emit. Otherwise log and move on. Rate-limit emissions per time window.
 
+## Variants
+
+- **Threshold-only** — Emit when a fixed salience score exceeds a static threshold; simplest but drifts with context.
+- **Rate-limited threshold** — Threshold plus a per-window emission cap so a runaway high-salience burst cannot spam the user.
+- **Adaptive-threshold** — Threshold itself moves with recent emission rate and user feedback (mute/snooze) so the agent self-calibrates noisiness.
+
 ## Consequences
 
 **Benefits**

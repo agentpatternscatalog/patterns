@@ -42,6 +42,12 @@ Waiting for the complete answer feels slow; a single text stream loses the struc
 
 Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta (token), card (structured), suggestions, tool_start, tool_end, done, error. The client routes each event to the right UI component. Reconnect with last-event-id resumption.
 
+## Variants
+
+- **SSE typed events** — Server-Sent Events with a typed event vocabulary (`text_delta`, `card`, `tool_start`, `done`, `error`) — the dominant production shape.
+- **WebSocket typed events** — Bidirectional WebSocket carrying the same typed vocabulary; needed when the client also pushes events mid-stream.
+- **HTTP chunked + frame protocol** — Plain chunked HTTP carrying length-prefixed JSON frames; used where SSE/WebSocket are blocked by middleboxes.
+
 ## Consequences
 
 **Benefits**

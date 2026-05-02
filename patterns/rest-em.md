@@ -42,6 +42,12 @@ Pure prompting plateaus; full RL with PPO is unstable and expensive; supervised 
 
 EM-style loop. (E-step) Generate many responses per problem. Filter by reward (correctness against ground truth or executable test). (M-step) Fine-tune on the filtered set. Iterate. Variants: ReST (DeepMind, RL-shaped), ReST-EM (Singh et al., expectation-maximisation framing).
 
+## Variants
+
+- **ReST (DeepMind)** — Reward-shaped self-training with explicit grow/improve phases and a learned reward model on text quality.
+- **ReST-EM** — Expectation-maximisation framing where the E-step samples and filters by a binary correctness reward and the M-step fine-tunes.
+- **STaR rationalisation** — When sampling fails, hint the model with the correct answer to obtain a rationale, then add the rationalised example to training.
+
 ## Consequences
 
 **Benefits**

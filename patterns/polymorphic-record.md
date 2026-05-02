@@ -42,6 +42,12 @@ Separate schemas per sub-type duplicate work and break clients that do not under
 
 Define a core schema with the common fields and a discriminator (e.g. `material_type`). Sub-type fields live in a namespaced extension block (e.g. `yarn: {...}` for yarn-specific). Clients that do not understand a sub-type still read the core fields and round-trip the rest without data loss.
 
+## Variants
+
+- **Discriminator + per-type extension block** — Core record carries `type`; sub-type fields live under a namespaced extension (`yarn: {...}`).
+- **oneOf / discriminator (OpenAPI)** — Sub-types are full schemas in a `oneOf`, keyed by a discriminator field; validators enforce the right schema per record.
+- **Inline polymorphism (FHIR `value[x]`)** — Sub-type information is encoded in the field name itself (`valueQuantity`, `valueString`); no separate discriminator needed.
+
 ## Consequences
 
 **Benefits**

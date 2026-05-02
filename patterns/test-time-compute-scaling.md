@@ -42,6 +42,13 @@ Naive single-pass inference under-uses available compute; many hard tasks have i
 
 Pick the inference-time technique that fits: best-of-N for verifier-amenable tasks, self-consistency for sampling-amenable tasks, tree search for combinatorial tasks, extended thinking for sequential reasoning. Compose techniques where complementary. Tune the compute budget per task class.
 
+## Variants
+
+- **Parallel sampling (best-of-N)** — Draw N independent samples and pick the best by a verifier or majority vote.
+- **Sequential revision** — One sample is iteratively revised by the same model conditioned on its previous attempt.
+- **Tree / beam search** — Explore a branching search tree with a value model pruning low-promise branches (ToT, LATS, MCTS-style).
+- **Compute-optimal routing** — Pick parallel vs sequential vs deeper-thinking per question based on difficulty estimate (Snell et al. 2024).
+
 ## Consequences
 
 **Benefits**

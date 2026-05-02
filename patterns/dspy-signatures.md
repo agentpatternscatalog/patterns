@@ -27,6 +27,12 @@ Hand-crafted prompts are brittle, model-specific, and drift over time; teams rei
 
 Define each step as a typed signature (input fields → output fields). Compose signatures into modules. Run a teleprompter (optimizer) that generates few-shot examples and refines instructions against a held-out metric. The compiled artefact replaces hand-tuned prompts.
 
+## Variants
+
+- **BootstrapFewShot signature** — Compile signatures by sampling demonstrations from a labelled set and keeping those that score above a metric threshold.
+- **MIPRO signature optimisation** — Joint Bayesian optimisation over instructions and demonstrations rather than demonstrations alone.
+- **Assertion-guarded signatures** — Signatures carry runtime assertions (`dspy.Assert`); the optimiser learns to satisfy them, and violations trigger backtracking at inference.
+
 ## Consequences
 
 **Benefits**

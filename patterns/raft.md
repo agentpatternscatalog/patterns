@@ -42,6 +42,12 @@ Generic RAG models are fooled by topically-similar distractors; the answer drift
 
 Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.
 
+## Variants
+
+- **Oracle-only RAFT** — Training examples mix oracle and distractor documents and the model is taught to cite oracle and ignore distractors.
+- **CoT-RAFT** — Couples RAFT with chain-of-thought rationales that explicitly cite oracle passages by quote, not just identifier.
+- **Domain-mix RAFT** — Fine-tune on training data drawn from several domains with shared distractor structure, trading per-domain ceiling for transfer.
+
 ## Consequences
 
 **Benefits**

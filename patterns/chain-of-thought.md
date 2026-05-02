@@ -27,6 +27,13 @@ LLMs given only (input, output) exemplars fail at problems whose answers depend 
 
 Prompt the model with exemplars showing intermediate reasoning, or use a zero-shot trigger ('Let's think step by step') before answering. The reasoning trace is visible and parseable.
 
+## Variants
+
+- **Few-shot CoT** — Provide exemplars with full reasoning traces in the prompt; the model imitates the trace format on the new instance (Wei et al. 2022).
+- **Zero-shot CoT** — Skip exemplars; trigger reasoning with a phrase like 'Let's think step by step' (Kojima et al. 2022).
+- **Self-consistency CoT** — Sample many CoT traces at temperature, then take the majority-vote answer rather than the first trace (Wang et al. 2023).
+- **Auto-CoT** — Automatically construct exemplars by clustering questions and generating zero-shot CoT for each cluster representative (Zhang et al. 2022).
+
 ## Consequences
 
 **Benefits**

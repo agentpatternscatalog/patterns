@@ -27,6 +27,12 @@ Pure request/response chat misses the long-running case; pure push notifications
 
 A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal ...`, `!forget ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.
 
+## Variants
+
+- **Command-prefix channel** — User commands begin with a sigil (`!rule`, `!goal`) that bypasses the model and writes directly to memory; the agent pushes inline messages.
+- **Out-of-band push** — User and agent share the same chat for prompts, but the agent sends salience-triggered pushes through a separate notification surface (toast, email).
+- **Always-on REPL channel** — User and agent both type into a shared REPL with the agent running a continuous loop; both can interrupt the other.
+
 ## Consequences
 
 **Benefits**

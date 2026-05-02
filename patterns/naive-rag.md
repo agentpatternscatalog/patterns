@@ -42,6 +42,12 @@ Parametric LMs hallucinate, cannot cite, and cannot be updated without retrainin
 
 Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed the query, retrieve top-k by similarity, prepend chunks to the prompt, generate. The simplest production RAG pipeline.
 
+## Variants
+
+- **Dense-only naive RAG** — Single dense vector index; top-k by cosine similarity (the canonical Lewis 2020 / DPR shape).
+- **Sparse-only naive RAG** — BM25 / keyword index without embeddings; cheap and strong on exact-term queries.
+- **Hybrid naive RAG** — Run both dense and BM25 retrieval, fuse with RRF, pass top-k to the generator.
+
 ## Consequences
 
 **Benefits**

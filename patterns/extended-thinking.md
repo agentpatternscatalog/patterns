@@ -27,6 +27,13 @@ Static prompt-based CoT mixes reasoning into the response; reasoning models offe
 
 Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthropic Claude extended thinking budget_tokens, Gemini thinking budget). Set budget per request based on task difficulty (cheap for routing, expensive for hard reasoning). Monitor reasoning-token consumption.
 
+## Variants
+
+- **Token-budget thinking** — Caller sets an integer token budget for hidden reasoning (Anthropic Claude `budget_tokens`, Gemini thinking budget).
+- **Effort-level thinking** — Caller picks a qualitative effort level (low/medium/high) and the provider decides the underlying budget (OpenAI o-series `reasoning.effort`).
+- **Interleaved thinking** — Reasoning blocks may be emitted between tool calls within one turn rather than only at the start (Anthropic interleaved thinking).
+- **Summary-exposed thinking** — Hidden reasoning is kept private but a short summary of it is returned to the caller for UX (OpenAI reasoning summaries).
+
 ## Consequences
 
 **Benefits**

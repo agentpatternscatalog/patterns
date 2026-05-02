@@ -42,6 +42,12 @@ Few-shot CoT requires exemplar curation per task type; that effort scales poorly
 
 Append a trigger phrase ('Let's think step by step', 'Let's work through this carefully') to the prompt. The model produces reasoning before its answer with no exemplar required. Optionally extract the final answer with a follow-up prompt.
 
+## Variants
+
+- **Trigger-phrase CoT** — Append a fixed phrase like 'Let's think step by step' to elicit reasoning (Kojima et al. 2022).
+- **Optimised trigger CoT** — Replace the human-written phrase with one searched by an automatic prompt optimiser (APE, Zhou et al. 2022).
+- **Plan-then-solve CoT** — Two-phase trigger: first 'Devise a plan', then 'Carry out the plan and solve' (Wang et al. 2023, Plan-and-Solve).
+
 ## Consequences
 
 **Benefits**

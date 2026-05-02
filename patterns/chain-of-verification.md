@@ -27,6 +27,13 @@ When the model verifies its own draft in the same context, the draft biases foll
 
 Four-step pipeline. Draft: produce initial answer. Plan: generate verification questions covering claims in the draft. Execute: answer each question in isolation, without seeing the original draft. Revise: rewrite the draft using the verification answers.
 
+## Variants
+
+- **Joint CoVe** — Generate verification questions and answer them in a single prompt; cheapest but lets the draft bias the checks.
+- **Two-step CoVe** — Plan questions in one call, answer them in a second call that does not see the draft.
+- **Factored CoVe** — Answer each verification question in its own isolated prompt so checks cannot reinforce each other (highest quality).
+- **Factor+Revise CoVe** — Factored execution plus an explicit cross-check step that flags inconsistencies between draft and verification answers before revising.
+
 ## Consequences
 
 **Benefits**

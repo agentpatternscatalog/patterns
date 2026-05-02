@@ -42,6 +42,13 @@ Free-form output requires fragile post-hoc parsing; the model produces near-JSON
 
 Define a JSON Schema (or Pydantic / Zod / equivalent). Pass it to the model via the provider's structured-output mode. Validate the output. Reject and retry on validation failure. Cap retries.
 
+## Variants
+
+- **Provider strict JSON mode** — Provider-side constrained decoding against a JSON Schema (OpenAI Structured Outputs, Anthropic tool-use schemas).
+- **Tool/function-call schema** — Schema is declared as a tool's input shape; the model emits a tool call rather than free-form text.
+- **Local grammar-constrained decoding** — Open-weights stack constrains decoding to a regex/CFG/JSON Schema (Outlines, llama.cpp grammars, Guidance).
+- **Validate-and-retry** — Generate free-form, validate against schema, on failure prompt the model with the validator error and retry up to N times.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,12 @@ Without an interrupt, users wait for completion or for the page to die; agents c
 
 Surface a stop control in the UI. On click, propagate a cancellation token through the agent loop, tool calls, and provider streams. Clean up partial state. Show what was done. Optionally save partial output for later resumption.
 
+## Variants
+
+- **Soft cancel** — Stop further model and tool calls but let in-flight calls finish; preserves partial output and logs cleanly.
+- **Hard cancel** — Abort in-flight HTTP / tool calls immediately via cancellation tokens; smaller cost cap, more chance of inconsistent state.
+- **Cancel-with-resume** — Cancel writes partial state to a checkpoint so the run can be resumed (rather than restarted) on the next user turn.
+
 ## Consequences
 
 **Benefits**

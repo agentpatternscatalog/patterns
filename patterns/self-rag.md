@@ -42,6 +42,12 @@ Static retrieve-then-generate retrieves regardless of need and generates regardl
 
 A critic model is first trained to label data with reflection tokens. The generator is then fine-tuned on the labeled data to emit four reflection tokens inline at inference: [Retrieve], [IsRel] (is retrieved evidence relevant?), [IsSup] (is generation supported?), [IsUse] (is generation useful?). The host enforces the reflection grammar and uses tokens to control flow.
 
+## Variants
+
+- **Greedy Self-RAG** — Always emit reflection tokens; do not branch; cheapest inference.
+- **Tree-decoding Self-RAG** — Sample multiple continuations at each reflection token and pick the highest-scoring branch by the [IsSup]/[IsUse] tokens.
+- **Adaptive-retrieval Self-RAG** — Use [Retrieve] confidence to skip retrieval entirely on easy queries while still verifying [IsSup] before answering.
+
 ## Consequences
 
 **Benefits**

@@ -27,6 +27,12 @@ Naive chunking destroys context; queries that name entities by full name miss ch
 
 For each chunk, prompt an LLM with the parent document and the chunk; receive a short description that situates the chunk. Prepend that description to the chunk. Embed the prepended chunk. Store BM25 over both prepended chunks (Contextual BM25) and dense vectors (Contextual Embeddings). Compose with reranking for further gains.
 
+## Variants
+
+- **LLM-generated context prefix** — An LLM produces a short situating sentence per chunk from the parent document (the canonical Anthropic recipe).
+- **Metadata-as-context** — Use existing structural metadata (document title, section heading, date, author) as the prepended context instead of an LLM-generated one.
+- **Contextual BM25 + Contextual Embeddings** — Index the prepended chunks twice — once for BM25 and once for dense vectors — and fuse at query time.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,12 @@ Tree of Thoughts cannot combine partial solutions or reuse intermediate results 
 
 Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.
 
+## Variants
+
+- **Generate-only GoT** — Only the generate operator is used, but multiple thoughts per node give a tree-like shape inside the DAG.
+- **Aggregate-heavy GoT** — Aggregate operator merges sibling thoughts repeatedly, ideal for sort/merge or set-union style problems.
+- **Refine-loop GoT** — A single thought is refined in a self-loop until a score plateau, with periodic aggregation against earlier versions.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,12 @@ CoT generalises poorly out of distribution; the model needs explicit scaffolding
 
 Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.
 
+## Variants
+
+- **Static decomposition L2M** — Subproblems are produced once up front and then solved in order without revisiting the plan.
+- **Dynamic decomposition L2M** — After each subproblem is answered, the model may revise the remaining subproblem list before continuing.
+- **Tool-augmented L2M** — Each subproblem step may call a tool (calculator, search) instead of being answered by the model alone.
+
 ## Consequences
 
 **Benefits**

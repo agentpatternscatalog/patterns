@@ -42,6 +42,12 @@ Chain-of-Thought commits to a single trace; if an early step is wrong the model 
 
 Decompose the problem into thought steps. At each node, sample several candidate next thoughts. Evaluate each (model self-evaluation or programmatic check). Apply BFS/DFS/beam to explore the tree. Backtrack from dead ends. Return the best leaf.
 
+## Variants
+
+- **BFS Tree of Thoughts** — Expand all nodes at depth d before moving to d+1; suits short, evaluable thought steps.
+- **DFS Tree of Thoughts** — Go deep first and backtrack on dead ends; suits long horizons with cheap pruning.
+- **Beam-search ToT** — Keep only the top-k highest-scoring partial paths at each depth; bounded cost.
+
 ## Consequences
 
 **Benefits**

@@ -27,6 +27,12 @@ Naive RAG passes every retrieval into the generator; bad retrievals corrupt outp
 
 After retrieval, a lightweight evaluator (T5-based or similar) grades each document as Correct, Ambiguous, or Incorrect. Correct documents go forward as-is. Ambiguous documents trigger a web search for additional evidence. Incorrect documents are discarded and replaced via web search. The generator receives the corrected document set.
 
+## Variants
+
+- **Three-grade CRAG** — Evaluator labels each retrieval Correct / Ambiguous / Incorrect; only Ambiguous and Incorrect trigger fallback (the canonical paper recipe).
+- **Binary CRAG** — Simplified two-grade variant (good / bad) used when a calibrated three-way evaluator is unavailable.
+- **Decompose-and-recompose CRAG** — For Correct documents, additionally strip irrelevant strips and recompose only the relevant strips before passing to the generator.
+
 ## Consequences
 
 **Benefits**

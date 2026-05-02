@@ -28,6 +28,12 @@ Mono-language pipelines mis-tokenise, mis-detect, or refuse mixed-language input
 
 Adopt a three-part discipline. (1) Tokenise on Unicode + Latin without assuming a single script per turn. (2) Run language detection at clause level, not utterance level, so mixed-language tagging is preserved. (3) Choose models trained explicitly on code-switched corpora for the relevant language pair; if not available, prompt-engineer with code-switched few-shot examples. Tool slot extraction (entities like place names, times) must accept either script; normalise *after* extraction, not before.
 
+## Variants
+
+- **Native code-switched model** — Use a foundation model explicitly trained on code-switched corpora (Sarvam, IndicLLM); no extra detection layer.
+- **Per-clause language tagging** — Run a clause-level language detector and route each clause to the appropriate sub-pipeline before recombining.
+- **Few-shot code-switched prompting** — When no code-switched-trained model is available, supply few-shot exemplars in the same code-switched register as expected input.
+
 ## Structure
 
 ```

@@ -42,6 +42,12 @@ Without supervised rationale data, fine-tuning for reasoning is constrained; pur
 
 Prompt the base model with CoT to generate rationale + answer pairs. Keep pairs where the answer matches ground truth. **Rationalization**: when a generated rationale yields the wrong answer, prompt the model with the correct answer as a hint and ask for a rationale that justifies it; add the rationalized example to training. Fine-tune on the kept + rationalized pairs. Repeat: the fine-tuned model generates better rationales next round; iterate.
 
+## Variants
+
+- **Vanilla STaR** — Generate rationale+answer; keep pairs whose answer matches ground truth; fine-tune on those.
+- **STaR with rationalisation** — On failure, prompt the model with the correct answer as a hint, accept the resulting rationale, and add it to the training set.
+- **Quiet-STaR** — Train the model to generate token-level rationales for every token, not only at problem boundaries (Zelikman et al. 2024).
+
 ## Consequences
 
 **Benefits**

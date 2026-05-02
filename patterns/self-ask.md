@@ -42,6 +42,12 @@ The 'compositionality gap': models know each fact in isolation but fail to combi
 
 Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.
 
+## Variants
+
+- **Self-Ask (model-only)** — Sub-questions are answered by the same model from its parametric memory.
+- **Self-Ask + Search** — Each sub-question is delegated to a web/search tool whose answer is spliced back into the trace.
+- **Self-Ask + RAG** — Sub-questions are answered by a retrieval pipeline over a private corpus rather than the open web.
+
 ## Consequences
 
 **Benefits**

@@ -42,6 +42,12 @@ Rigid schemas break when fields are added; permissive schemas become incoherent.
 
 Define a versioned envelope (`{schema_version, type, payload}`). Reserve namespaces for extensions (`x-vendor.foo`, `extensions: {...}`). Old clients ignore unknown extensions. Bumps to schema_version are the only breaking-change signal.
 
+## Variants
+
+- **Reserved field numbers** — Protobuf-style: reserve numeric tags up front so future fields cannot collide with old ones (Protocol Buffers).
+- **Vendor-namespaced extensions** — Allow `x-vendor.foo` keys outside the core schema; old clients ignore unknown `x-` keys (OpenAPI, JSON Schema).
+- **Versioned envelope** — Wrap payload in `{schema_version, type, payload}`; bumps to `schema_version` are the only breaking-change signal.
+
 ## Consequences
 
 **Benefits**
