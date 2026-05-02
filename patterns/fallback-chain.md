@@ -31,6 +31,22 @@ Define an ordered chain of handlers. Each handler returns either a confident ans
 
 A translation feature uses a primary high-quality model, but during incidents that model returns 502s and users see error messages. The team configures a Fallback Chain: try the primary model, on failure or low-confidence output try a secondary model, on failure of that try a smaller local model with a 'degraded quality' indicator. The user gets a translation in every case; the team gets visibility into how often each layer is used.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Query] --> H1[Handler 1]
+  H1 --> C1{Confident?}
+  C1 -- yes --> Out[Answer]
+  C1 -- no --> H2[Handler 2]
+  H2 --> C2{Confident?}
+  C2 -- yes --> Out
+  C2 -- no --> H3[Handler 3]
+  H3 --> C3{Confident?}
+  C3 -- yes --> Out
+  C3 -- no --> IDK["I don't know"]
+```
+
 ## Consequences
 
 **Benefits**

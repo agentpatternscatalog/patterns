@@ -31,6 +31,22 @@ Define per-feature fallback behaviour. On dependency failure, downgrade (text-on
 
 A multimodal customer-support bot relies on a vision model to read screenshots, a vector store for citations, and a code sandbox for repro. During an outage of the vision provider, every screenshot upload returns a 503 and the whole conversation errors out. The team adds graceful degradation: when vision fails the bot falls back to asking the user to describe the screenshot in words and tells them so plainly; when retrieval is down it answers from the model's own knowledge with a visible 'no sources today' badge. Outages now feel like reduced service rather than total failure.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  R[Request] --> Dep{Dependency healthy?}
+  Dep -- yes --> Full[Full feature path]
+  Dep -- vision down --> T[Text-only mode]
+  Dep -- retrieval down --> NC[Reply without citations]
+  Dep -- code exec down --> Sum[Simple summary mode]
+  T --> Disc[Disclose degraded mode]
+  NC --> Disc
+  Sum --> Disc
+  Disc --> Resp[Response to user]
+  Full --> Resp
+```
+
 ## Consequences
 
 **Benefits**

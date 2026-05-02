@@ -23,7 +23,6 @@ Fully autonomous action at risky boundaries combines model confidence with conse
 - Approval-fatigue: too many gates train users to click through.
 - Asynchronous approval stalls the loop.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Identify the boundary. Pause the loop. Surface the proposed action with enough c
 ## Example scenario
 
 A finance ops agent automates supplier payments end to end. After an incident where it paid $42k to a typo-squatted vendor domain, the team installs human-in-the-loop at the payment-execution boundary: the agent prepares the full payment proposal, surfaces vendor name, amount, IBAN, and the source invoice, then pauses for an explicit approve or reject from the on-call operator. Reject sends the proposal back for replan. The decision and the operator id are logged. Auto-payments resume but the bad-vendor class of incident stops.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Loop[Agent loop] --> Bnd{At approval boundary?}
+  Bnd -- no --> Loop
+  Bnd -- yes --> Pause[Pause + surface proposed action]
+  Pause --> H{Human decides}
+  H -- approve --> Resume[Resume action]
+  H -- reject --> Replan[Abort or replan]
+  Resume --> Log[Log decision]
+  Replan --> Log
+```
 
 ## Consequences
 

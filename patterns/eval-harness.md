@@ -31,6 +31,20 @@ Build a golden dataset of (input, expected output) pairs. Run candidate versions
 
 A team intuits that switching from one model to another 'feels better' for their RAG agent and pushes the change. Two days later, users complain that summaries are now missing key facts. They build an Eval Harness: a held-out dataset of representative queries, a scoring function for each, and a runner that scores any candidate version. Now changes that 'feel better' get a number; the regression on factual recall would have been visible before deploy.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  G[Golden dataset] --> Champ[Run champion]
+  G --> Chal[Run challenger]
+  Champ --> Sc1[Score]
+  Chal --> Sc2[Score]
+  Sc1 --> Cmp{Lift vs regression?}
+  Sc2 --> Cmp
+  Cmp -- lift --> Promote[Promote challenger]
+  Cmp -- regression --> Block[Block]
+```
+
 ## Consequences
 
 **Benefits**

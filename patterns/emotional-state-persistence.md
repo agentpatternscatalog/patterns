@@ -87,6 +87,19 @@ Scalars only enter the prompt context when they exceed a threshold; below thresh
 
 *When to use:* When low-level affect should not bias every tick but spikes should.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Baseline
+  Baseline --> Affected: event delta
+  Affected --> Decaying: time passes
+  Decaying --> Baseline: half-life elapsed
+  Affected --> Affected: another event
+  Decaying --> Affected: re-trigger
+  Affected --> Reflected: reflection pass reads snapshot
+```
+
 ## Example scenario
 
 A long-running personal agent has had a tense exchange in the morning, a routine reminder at lunch, and a celebratory message in the afternoon, but each tick reads to the model as emotionally blank. So at 5pm it pushes a hard challenge to a user it should be holding lightly. The team materialises Emotional State Persistence: bounded, decaying scalars (tension, warmth, fatigue) are written into the agent's context each turn and updated by reflection. The model now adapts cadence and risk-taking to its own current load instead of treating every turn as fresh.

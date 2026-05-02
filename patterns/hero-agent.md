@@ -23,7 +23,6 @@ The agent's prompt becomes a monolith. Tools conflict. The model is confused abo
 - Splitting feels like premature optimisation.
 - One-prompt is fastest to ship and slowest to maintain.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,19 @@ Don't. Once the prompt exceeds a few hundred lines or the tool count exceeds abo
 ## Example scenario
 
 A startup ships a single 'do-everything' assistant whose system prompt grew to 1800 lines and whose tool list passed forty entries. Latency triples, the model confuses calendar tools with email tools, and the cheapest 'what time is it' request now costs as much as a full research query. They diagnose hero-agent as the named anti-pattern and extract specialists: a small router up front, a calendar agent, a mail agent, a research agent. The monolith stays only as an escape hatch and the prompt shrinks by 80 percent.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  P[Single giant prompt] --> H[Hero agent]
+  H --> T1[Tool 1]
+  H --> T2[Tool 2]
+  H --> Tn[Tool ...N]
+  Tn -.too many.-> Bug[Prompt + tool soup]
+  Bug -.fix.-> R[Extract specialists]
+  R --> Route[Routing / supervisor / multi-model-routing]
+```
 
 ## Consequences
 

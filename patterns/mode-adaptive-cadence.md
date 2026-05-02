@@ -91,6 +91,19 @@ User input or an explicit lock can pin the agent into hot mode for a configurabl
 
 *When to use:* When the user is actively present and expects responsive cadence even during apparent idleness.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle: ~60s sleep
+  Idle --> Intense: salience crosses threshold
+  Intense --> Intense: lock-in for N ticks
+  Intense --> Idle: lock expires + low salience
+  Idle --> Idle: drift
+  note right of Intense: ~15s sleep
+  note right of Idle: bounded by floor / ceiling
+```
+
 ## Known uses
 
 - **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*

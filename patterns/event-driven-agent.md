@@ -31,6 +31,21 @@ Subscribe to event source (webhook, queue, watcher). On event, validate, dedupli
 
 A monitoring agent polls a status endpoint every thirty seconds to see whether a build has finished. Most polls find nothing, burning tokens. The team flips to Event-Driven Agent: the build system fires a webhook on completion, and the agent wakes up only when an event arrives. Latency to react drops from up to thirty seconds to roughly the webhook round-trip, and idle cost drops to near zero.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Src as Event source
+  participant H as Handler
+  participant A as Agent
+  Src->>H: event (webhook / queue / file change)
+  H->>H: validate + dedupe
+  H->>H: rate limit check
+  H->>A: invoke with payload
+  A-->>H: result
+  H->>Src: ack
+```
+
 ## Consequences
 
 **Benefits**

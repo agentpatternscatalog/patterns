@@ -23,7 +23,6 @@ Bespoke point-to-point integrations do not scale; each new agent pair requires f
 - Auth and trust across organisational boundaries.
 - Versioning: protocols evolve faster than legacy agents.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Adopt a protocol (Google A2A, Anthropic MCP, in-house equivalents) that covers c
 ## Example scenario
 
 An enterprise has agents from three vendors — a legal review agent from one, an HR agent from another, an internal IT agent — and every cross-agent integration is bespoke glue maintained by a different team. They adopt MCP as the inter-agent-communication protocol: each agent advertises its capabilities in a typed envelope, clients discover and invoke without knowing the implementation, and auth flows through one shared mechanism. Adding a fourth vendor's procurement agent now takes a day instead of a quarter.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant C as Client agent
+  participant R as Registry / discovery
+  participant S as Server agent
+  S->>R: advertise capabilities
+  C->>R: discover capability
+  R-->>C: endpoint + auth
+  C->>S: typed task envelope
+  S-->>C: typed result envelope
+```
 
 ## Consequences
 

@@ -31,6 +31,20 @@ Maintain a library of scaffolds (few-shot examples, schemas, hints) keyed by tas
 
 A general-purpose coding assistant carries 4k tokens of examples, schemas, and hints in its prompt for every request, including 'rename this variable'. The scaffolding burns tokens on trivial tasks and is sometimes misleading. The team uses Dynamic Scaffolding: a lightweight classifier identifies the task type and only injects the relevant scaffolding — schemas for SQL tasks, refactor exemplars for refactor tasks, nothing extra for renames. Token cost drops on easy tasks and hard tasks get richer help than before.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  R[Incoming task] --> C{Classify task type}
+  C -- SQL --> S1[Inject schema scaffold]
+  C -- refactor --> S2[Inject refactor exemplars]
+  C -- rename --> S3[No scaffold]
+  S1 --> P[Assemble prompt]
+  S2 --> P
+  S3 --> P
+  P --> M[Model] --> A[Audit which scaffolds fired]
+```
+
 ## Consequences
 
 **Benefits**

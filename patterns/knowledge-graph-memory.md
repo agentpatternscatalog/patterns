@@ -23,7 +23,6 @@ Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries
 - Schema design for the graph is a separate engineering effort.
 - Updates and deletions need referential integrity.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Extract entities and relations from observations into a graph store (Neo4j, RDF,
 ## Example scenario
 
 An ops agent for a 400-person company is asked 'who would approve a $5k purchase in the design org?' Vector memory returns three semantically similar past tickets but cannot answer the structural question. The team adds knowledge-graph-memory: people, roles, reporting lines, and approval thresholds are extracted from the HRIS and intranet into a Neo4j graph. The agent now answers via a Cypher traversal — 'design-org → manager → director with approval ≥ $5k' — and combines that with vector recall of past similar approvals.
+
+## Diagram
+
+```mermaid
+classDiagram
+  class Entity { +id +type +attrs }
+  class Relation { +subject +predicate +object }
+  class GraphStore { +neo4j_or_rdf_or_json }
+  class VectorIndex { +entry_points }
+  Entity --> Relation : participates_in
+  Relation --> GraphStore : persisted_in
+  VectorIndex ..> Entity : finds entry points
+  GraphStore ..> Relation : Cypher / SPARQL traversal
+```
 
 ## Consequences
 

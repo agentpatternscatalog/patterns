@@ -23,7 +23,6 @@ Single-agent research is bottlenecked on serial token generation; generic orches
 - Synthesis quality bounded by lead agent's reasoning over fragmented results.
 - Information overlap across sub-agents is wasted compute.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,23 @@ Lead agent receives the user query, plans a set of parallel research questions, 
 ## Example scenario
 
 An investment research firm asks an agent to write a brief on a niche industrial-equipment market by Friday. A single agent takes hours and misses half the relevant sources. They restructure as lead-researcher: the lead reads the brief, plans five parallel research questions (market size, top vendors, regulatory landscape, recent M&A, customer reviews), and dispatches each to a sub-agent that searches independently. Findings come back as structured records; the lead synthesises them and dispatches a follow-up sub-agent for one gap it spots. Wall-clock time drops from hours to twenty minutes.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[User query] --> L[Lead researcher: plan]
+  L --> S1[Sub-agent: question 1]
+  L --> S2[Sub-agent: question 2]
+  L --> S3[Sub-agent: question 3]
+  S1 -.findings.-> L
+  S2 -.findings.-> L
+  S3 -.findings.-> L
+  L --> Syn{Gaps?}
+  Syn -- yes --> Sn[Spawn extra sub-agent]
+  Sn -.findings.-> L
+  Syn -- no --> Ans[Synthesised answer]
+```
 
 ## Consequences
 

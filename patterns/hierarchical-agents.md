@@ -23,7 +23,6 @@ Flat supervisor patterns scale poorly: one supervisor with N specialists has pro
 - Inter-level communication needs a contract.
 - Failure recovery: which level retries?
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,22 @@ Each non-leaf agent receives a task, decomposes it, and dispatches sub-tasks to 
 ## Example scenario
 
 A consulting firm builds a market-research agent with one supervisor and twenty specialist tools: data-fetch, summarise, compare, draw-chart, and so on. As they add specialists for new verticals, the supervisor prompt balloons and the agent starts forgetting which tool to call. They restructure as hierarchical-agents: a root research-manager dispatches to vertical managers (healthcare, fintech), each of whom dispatches to leaf specialists for their domain. Depth and breadth are both capped, and adding a new vertical no longer touches the root prompt.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Root[Manager: top-level task] --> M1[Sub-manager A]
+  Root --> M2[Sub-manager B]
+  M1 --> S1[Specialist leaf]
+  M1 --> S2[Specialist leaf]
+  M2 --> S3[Specialist leaf]
+  S1 -.result.-> M1
+  S2 -.result.-> M1
+  S3 -.result.-> M2
+  M1 -.synthesis.-> Root
+  M2 -.synthesis.-> Root
+```
 
 ## Consequences
 

@@ -24,7 +24,6 @@ Desktop Computer Use action sets (mouse, keyboard, scroll wheel) and Browser Age
 - Screen size is small; what fits on one screen does not generalise.
 - Visual state is the source of truth, but text is what the model reasons in.
 
-
 ## Applicability
 
 **Use when**
@@ -52,6 +51,19 @@ Screenshot + history -> agent -> action_call(tap|swipe|type|...) -> device -> ne
 ## Example scenario
 
 A team tries to reuse their desktop computer-use agent on Android by injecting mouse-and-keyboard actions through ADB. The agent fights the touch interface, mistakes long-press menus for hover tooltips, and cannot find the back button. They rebuild as a mobile-ui-agent: a touch-native action vocabulary (tap, long-press, swipe, type, back, home), screenshots with extracted UI element annotations, and the model reasons about which element to act on instead of which pixel. The agent completes mobile flows like food ordering and ride-booking end to end.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Phone
+  participant Agent
+  Phone->>Agent: screenshot (+ optional UI annotations)
+  Agent->>Agent: reason about target element
+  Agent->>Phone: tap(x,y) / long_press / swipe / type / back / home
+  Phone-->>Agent: next screenshot
+  Note over Agent,Phone: Action vocabulary specialised per Android / iOS
+```
 
 ## Consequences
 

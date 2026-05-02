@@ -23,7 +23,6 @@ Long-context models still degrade with size; chunked processing without coordina
 - Conflicts between chunk answers need a resolver.
 - Aggregation must not become its own context-window problem.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,21 @@ Map: split input into chunks; process each independently (per-chunk LLM call). R
 ## Example scenario
 
 A compliance team needs to extract every clause about data-residency from a 1200-page set of vendor contracts. A single long-context call drops clauses past page 400 and conflates two vendors. The team applies map-reduce: each contract is chunked, each chunk runs a clause-extraction prompt in parallel, and a reduce step aggregates per-vendor with a confidence-calibration prompt that resolves contradictions between chunks. Coverage rises and the run completes in twelve minutes instead of an hour-long sequential crawl.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  In[Oversize input] --> Sp[Split into chunks]
+  Sp --> M1[Map: per-chunk LLM call]
+  Sp --> M2[Map: per-chunk LLM call]
+  Sp --> M3[Map: per-chunk LLM call]
+  M1 --> Red[Reduce: structured aggregation]
+  M2 --> Red
+  M3 --> Red
+  Red --> Cal[Confidence calibration]
+  Cal --> Out[Final answer]
+```
 
 ## Consequences
 

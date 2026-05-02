@@ -23,7 +23,6 @@ Without a runbook, detection produces alerts that wake the on-call but do not le
 - Containment vs forensic preservation tension.
 - Communication clocks for regulators (GDPR 72h, EU AI Act serious incident) constrain runbook latency.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,19 @@ Maintain a runbook covering: severity levels, on-call paths, containment steps (
 ## Example scenario
 
 A multi-tenant chat platform discovers at 02:14 that an agent has been emailing one customer's support transcripts to another customer's address for the past nine hours. The on-call has alerts but no plan, and the first hour goes to arguing about whether to kill the service. After the post-mortem the team writes an incident-response-runbook covering severity levels, kill-switch invocation, trace pinning beyond normal retention, customer-notification templates, and regulator timelines. The next incident is contained in eight minutes.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Alert[Alert: kill-switch / sandbox-escape / cost spike] --> Sev{Severity}
+  Sev --> OnCall[Page on-call]
+  OnCall --> Cont[Containment: kill-switch / reroute]
+  Cont --> Pres[Pin traces beyond retention]
+  Pres --> Comp[Compensating actions]
+  Comp --> Comm[Customer + regulator comms]
+  Comm --> PM[Post-mortem]
+```
 
 ## Consequences
 

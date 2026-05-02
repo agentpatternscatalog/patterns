@@ -23,7 +23,6 @@ ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit 
 - Branch ranking determines whether search beats greedy.
 - Memory of failed branches must not leak into successful ones.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,19 @@ Apply Monte Carlo Tree Search (MCTS) to the agent loop. Each node is a partial t
 ## Example scenario
 
 A coding agent given an ambiguous bug report tries the first plausible fix, finds it wrong on the test suite, then thrashes because its single chain-of-thought has already committed to that frame. The team rebuilds the loop as LATS: each partial trajectory is a node, expansion samples alternative next actions, the test suite acts as the value signal, and UCT selects the next node to explore. When a branch fails its tests the agent backtracks instead of digging in. Hard bugs that previously needed a human now resolve autonomously.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Root[Partial trajectory] --> Sel[UCT selection]
+  Sel --> Exp[Expansion: sample next thoughts/actions]
+  Exp --> Sim[Simulate]
+  Sim --> Val[Value estimate]
+  Val --> Back[Backpropagate up tree]
+  Back --> Sel
+  Sel -.failing branch.-> BT[Backtrack instead of commit]
+```
 
 ## Consequences
 

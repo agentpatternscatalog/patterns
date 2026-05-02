@@ -31,6 +31,21 @@ Build a tree of goals. The root is the user's goal. Each non-leaf goal decompose
 
 A team building a procurement assistant gives it a single brief: 'renew our cloud contracts before Q4'. Asked in one shot, the agent produces a three-paragraph summary and stalls. They wrap the agent in a goal-decomposition tree: the root splits into inventory-current-contracts, gather-renewal-quotes, and negotiate-and-sign, each of which decomposes again until each leaf is a concrete email or spreadsheet update. Progress now shows up at every level, and the negotiate branch surfaces as 'stuck' for two weeks instead of vanishing into the summary.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  G[Root goal] --> S1[Sub-goal A]
+  G --> S2[Sub-goal B]
+  G --> S3[Sub-goal C]
+  S1 --> L1[Leaf: actionable step]
+  S1 --> L2[Leaf: actionable step]
+  S2 --> S2a[Sub-goal B.1]
+  S2a --> L3[Leaf]
+  S3 --> L4[Leaf]
+  L4 -.stuck.-> Surface[Surface stuck branch]
+```
+
 ## Consequences
 
 **Benefits**

@@ -23,7 +23,6 @@ Archived items might as well not exist if the agent never thinks about them agai
 - Lifting too aggressively floods the working tier.
 - The lifted item is now a duplicate of the archive copy.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,18 @@ When salience scoring matches against archived items (embedding similarity, keyw
 ## Example scenario
 
 A long-running personal agent archives anything older than seven days into cold storage. When the user mentions 'the dentist thing' six weeks later, the agent has no idea what they mean. The team adds hippocampal-rehearsal: the salience scorer also runs against archived items, and when the embedding similarity for 'dentist' clears the threshold, the original archived note ('molar crown, scheduled Nov 14') is reactivated into short-term memory for the next several cycles. The agent picks up the thread without the user explaining anything.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  In[New input / cue] --> Sc[Salience scoring]
+  Sc --> Match{Embedding / keyword match in archive?}
+  Match -- no --> End[No-op]
+  Match -- yes --> React[Reactivate item to short-term]
+  React --> Use[Available for next cycles]
+  React -.original stays.-> Arch[Archive untouched]
+```
 
 ## Consequences
 

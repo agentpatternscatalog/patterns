@@ -31,6 +31,19 @@ Define a tiered eval suite: blocking evals (must pass for release), advisory eva
 
 A team improves their support agent's planning prompt and ships the change on a Tuesday. By Thursday, the agent's tool-selection accuracy on three known regressions has dropped, but no one notices because there's no gate. They adopt Eval-as-Contract: the held-out eval suite is treated as the release contract — every PR runs it, and any regression below threshold blocks the deploy. The eval suite stops being optional documentation and starts being the thing the agent has to satisfy.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  PR[Pull request] --> CI[Run tiered eval suite]
+  CI --> B{Blocking evals pass?}
+  B -- no --> X[Block release]
+  B -- yes --> Adv{Advisory evals}
+  Adv --> Track[Track regressions]
+  Adv --> R[Release proceeds]
+  EvChange[Eval change] --> Review[Architectural review + signoff]
+```
+
 ## Consequences
 
 **Benefits**

@@ -31,6 +31,22 @@ Five tiers. Sensory: raw input per tick. Working: top-N items in active focus (G
 
 A personal agent that runs continuously needs to track the user's last sentence (sensory), the current task (working), today's session (short-term), the last few weeks of episodes (episodic), and stable preferences (long-term). A flat append-only log either grows unboundedly or loses the immediate signal. The team builds a Five-Tier Memory Cascade with explicit promotion (today's confirmed preference moves to long-term) and decay (yesterday's sensory buffer is dropped). Each tier serves the timescale it's good at.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class Sensory { +raw_input_per_tick }
+  class Working { +top_N_items }
+  class ShortTerm { +recent_verbatim_1_7d }
+  class Episodic { +compressed_summaries_5_10x }
+  class LongTerm { +distilled_rules }
+  Sensory --> Working : promote
+  Working --> ShortTerm : promote
+  ShortTerm --> Episodic : compact
+  Episodic --> LongTerm : distill
+  LongTerm ..> Working : rehearsal lifts back
+```
+
 ## Consequences
 
 **Benefits**

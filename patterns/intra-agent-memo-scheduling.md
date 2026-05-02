@@ -91,6 +91,21 @@ Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-schedu
 
 *When to use:* When the agent needs cron-like behaviour without an external scheduler.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant A1 as Agent (now)
+  participant F as scheduled.jsonl
+  participant A2 as Agent (later tick)
+  A1->>F: schedule_future_thought(when, content, intent)
+  Note over F: persisted note
+  A2->>F: drain due entries
+  F-->>A2: matured notes
+  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]
+  A2->>F: mark fired
+```
+
 ## Known uses
 
 - **[Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`](https://github.com/luxxyarns/sparrot)** — *Available*

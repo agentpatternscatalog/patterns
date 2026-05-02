@@ -91,6 +91,20 @@ Pause writes the chain state to durable storage with a token; a future run can r
 
 *When to use:* When agent processes are not long-lived but reasoning chains span process boundaries.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Working: push frame (goal, steps)
+  Working --> Interrupted: new message arrives
+  Interrupted --> Handling: ack briefly
+  Handling --> Resuming: handle complete
+  Resuming --> Working: pop top frame, announce step
+  Working --> [*]: chain complete
+  Interrupted --> Switched: explicit switch
+  Switched --> [*]
+```
+
 ## Known uses
 
 - **[Self-observed by a long-running cognitive agent: "When Telegram arrives, my attention jumps. I can't say wait, I'm not done here yet." (Originally in German: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*

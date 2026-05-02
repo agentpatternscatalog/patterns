@@ -23,7 +23,6 @@ Query-document length and style asymmetry hurts dense retrieval recall on short 
 - Adds an LLM call per query.
 - Often paired with reranking to recover from off-topic hallucinations.
 
-
 ## Applicability
 
 **Use when**
@@ -47,6 +46,17 @@ On query: prompt the LLM to draft a hypothetical answer to the query. Embed the 
 - **Single-draft HyDE** — Generate one hypothetical answer and use its embedding as the query.
 - **Multi-draft HyDE** — Generate N hypothetical answers, embed each, and average or take the union of their top-k retrievals.
 - **Hybrid HyDE** — Average the hypothetical-answer embedding with the original query embedding to hedge against off-topic drafts.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[User query] --> Hyp[LLM drafts hypothetical answer]
+  Hyp --> Emb[Embed hypothetical answer]
+  Emb --> Ret[Retrieve top-k by similarity]
+  Ret --> RAG[Pass chunks into normal RAG]
+  RAG --> Ans[Final answer]
+```
 
 ## Example scenario
 

@@ -31,6 +31,19 @@ Generator produces a candidate. Evaluator scores it against criteria with feedba
 
 A code-generation agent produces a function that compiles but fails three of the team's unit tests. Single-shot generation has topped out. The team wraps the generator in an Evaluator-Optimizer loop: a second LLM (or a deterministic test runner) reads the candidate, returns specific failure feedback, and the generator revises against it. The loop runs up to five times or until tests pass. Average pass-rate on the same tasks rises substantially without changing the underlying model.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Start[Task] --> Gen[Generator: produce candidate]
+  Gen --> Eval[Evaluator: score + feedback]
+  Eval --> P{Passes criteria?}
+  P -- yes --> Out[Return answer]
+  P -- no --> Cap{Max iterations hit?}
+  Cap -- yes --> Out
+  Cap -- no --> Gen
+```
+
 ## Consequences
 
 **Benefits**

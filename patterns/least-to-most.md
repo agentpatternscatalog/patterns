@@ -23,7 +23,6 @@ CoT generalises poorly out of distribution; the model needs explicit scaffolding
 - Two stages double minimum cost.
 - Errors in the decomposition cascade.
 
-
 ## Applicability
 
 **Use when**
@@ -47,6 +46,19 @@ Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems 
 - **Static decomposition L2M** — Subproblems are produced once up front and then solved in order without revisiting the plan.
 - **Dynamic decomposition L2M** — After each subproblem is answered, the model may revise the remaining subproblem list before continuing.
 - **Tool-augmented L2M** — Each subproblem step may call a tool (calculator, search) instead of being answered by the model alone.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Hard problem] --> Dec[Stage 1: decompose into ordered subproblems]
+  Dec --> Sub1[Subproblem 1 easiest]
+  Sub1 --> A1[Answer 1]
+  A1 --> Sub2[Subproblem 2 with answer 1]
+  Sub2 --> A2[Answer 2]
+  A2 --> SubN[Subproblem N with prior answers]
+  SubN --> Final[Final answer]
+```
 
 ## Example scenario
 

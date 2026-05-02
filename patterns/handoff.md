@@ -23,7 +23,6 @@ Without a handoff primitive, mid-conversation reroutes either restart context or
 - Handoff loops (A→B→A→B) are a real failure.
 - User experience must signal the change without disorienting.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Define a handoff tool. The current agent invokes it with target agent and a cont
 ## Example scenario
 
 A customer-support bot answers tier-1 questions but keeps trying to bluff its way through billing disputes it cannot actually resolve. The team adds a handoff tool: when the conversation classifier detects a billing intent, the tier-1 agent calls handoff(target='billing-specialist', summary='customer disputes Sept invoice for $412, two prior tickets'), and the billing agent picks up with the summary plus the original transcript. Loop-detection refuses a re-handoff back to tier-1 within the same conversation. The customer no longer has to repeat themselves.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as Agent A
+  participant B as Agent B
+  U->>A: conversation in progress
+  A->>A: invoke handoff(target=B, summary)
+  A->>B: summary + original conversation
+  B-->>U: continues from there
+  Note over A,B: Loop detection prevents thrash
+```
 
 ## Consequences
 

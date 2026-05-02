@@ -23,7 +23,6 @@ Latency-sensitive agents waiting on tools sequentially are slower than they need
 - Failure isolation: one branch failing should not kill others.
 - Joiner correctness: combining out-of-order results.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,23 @@ Three roles. Planner builds the dependency DAG. Task-Fetching Unit dispatches st
 ## Example scenario
 
 An agent that builds a daily portfolio brief makes nine independent tool calls — fetch prices for nine tickers — strictly in sequence, taking 18 seconds where it could take two. The team rebuilds the loop as llm-compiler: the planner emits the call DAG up front, the task-fetching unit dispatches each fetch as soon as its dependencies (none, in this case) resolve, with concurrency capped at five, and the joiner assembles the brief. The brief returns in just over two seconds and the planner can express genuine cross-step dependencies when they exist.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Task] --> Pl[Planner: build dependency DAG]
+  Pl --> TFU[Task-Fetching Unit]
+  TFU --> S1[Step 1]
+  TFU --> S2[Step 2 parallel]
+  TFU --> S3[Step 3 parallel]
+  S1 --> S4[Step 4 depends on 1]
+  S2 --> S4
+  S3 --> S5[Step 5 depends on 3]
+  S4 --> J[Joiner]
+  S5 --> J
+  J --> Ans[Final answer]
+```
 
 ## Consequences
 

@@ -31,6 +31,23 @@ Catalogue failure modes. For each, define: detect (typed error), respond (retry 
 
 A research agent calls a search tool that returns a rate-limit error. Without typed handling the error string flows back into the conversation as an opaque blob; the agent invents a plausible-sounding explanation and stalls. The team adds Exception Recovery: each tool wraps known failure modes (rate-limit, auth, validation, timeout) into typed error envelopes, and the agent's prompt has explicit recovery branches — back off and retry on rate-limit, switch tool on validation, escalate on auth. Failures stop becoming silent confusion.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Step[Agent step] --> E{Error?}
+  E -- no --> Next[Continue]
+  E -- typed error --> R{Recovery branch}
+  R -- transient --> Retry[Retry with backoff]
+  R -- rate limit --> Wait[Wait + retry]
+  R -- validation --> Fall[Fall back / replan]
+  R -- unknown --> Surface[Surface to user]
+  Retry --> Step
+  Wait --> Step
+  Fall --> Next
+  Surface --> L[Log structured error]
+```
+
 ## Consequences
 
 **Benefits**

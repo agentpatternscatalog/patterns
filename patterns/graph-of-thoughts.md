@@ -23,7 +23,6 @@ Tree of Thoughts cannot combine partial solutions or reuse intermediate results 
 - Cross-branch reuse vs aggregation prompt cost.
 - DAG expressiveness vs cycle-safety enforcement.
 
-
 ## Applicability
 
 **Use when**
@@ -47,6 +46,21 @@ Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), a
 - **Generate-only GoT** — Only the generate operator is used, but multiple thoughts per node give a tree-like shape inside the DAG.
 - **Aggregate-heavy GoT** — Aggregate operator merges sibling thoughts repeatedly, ideal for sort/merge or set-union style problems.
 - **Refine-loop GoT** — A single thought is refined in a self-loop until a score plateau, with periodic aggregation against earlier versions.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Root[Initial thought] --> T1[Thought A]
+  Root --> T2[Thought B]
+  T1 --> Refine[Refine A]
+  T2 --> Refine2[Refine B]
+  Refine --> Agg[Aggregate]
+  Refine2 --> Agg
+  Agg --> Score[Score]
+  Score --> Final[Final thought]
+  T1 -.reuse.-> Agg
+```
 
 ## Example scenario
 

@@ -87,6 +87,19 @@ On detected echo, the reply explicitly acknowledges the repeat ('I hear you — 
 
 *When to use:* Default reply policy paired with either detection variant.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  M[New user message] --> R[Compare to ring of recent inputs]
+  R --> S{Similarity hit?}
+  S -- no --> N[Treat as fresh turn]
+  S -- yes --> E[Treat as echo / emphasis]
+  E --> Q[Surface prior reply]
+  Q --> A["Ask: what did I miss?"]
+  A --> W[Weight pair as one reinforced turn]
+```
+
 ## Example scenario
 
 A user repeats themselves: 'I said I want it shorter.' The agent receives this as a fresh turn equal in weight to any other and produces a near-duplicate of its previous reply, possibly slightly reworded. The user feels unheard. The team adds Echo Recognition: when the incoming message is a near-match to the user's recent turn, the agent treats the duplication as emphasis or a re-ask and re-examines its prior reply rather than re-running the same generation. The conversation stops spinning.

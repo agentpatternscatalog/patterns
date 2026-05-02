@@ -87,6 +87,28 @@ External device or app feeds embodied signals (sleep score, calendar busyness) d
 
 *When to use:* When the agent is part of a quantified-self or wellness product with the user's consent.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class EmbodiedProxy {
+    +int energy_0_10
+    +int fatigue_0_10
+    +string environment
+    +string emoji
+    +timestamp updated_at
+  }
+  class Human {
+    +update_proxy()
+  }
+  class Agent {
+    +read_proxy_on_prompt()
+    +shape_response()
+  }
+  Human --> EmbodiedProxy : writes
+  Agent --> EmbodiedProxy : reads
+```
+
 ## Example scenario
 
 A coaching agent reads only the user's text and projects the same flat affect onto every 'I'm fine'. A user typing at 6 AM after three hours of sleep gets pushed the same way as the same user typing at 3 PM well-rested. The team adds an Embodied Proxy Handoff: the user (or a wearable) shares lightweight signals — sleep, fatigue, location, current focus — and the agent tailors response shape, depth, and pace accordingly. The agent stops pacing against an imagined human.

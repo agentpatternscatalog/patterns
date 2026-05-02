@@ -23,7 +23,6 @@ A generalist agent's depth in any one domain is shallow; users in specialist dom
 - Routing classification must match expert coverage.
 - Cross-domain queries challenge single-expert routing.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,23 @@ Define experts (specialised system prompts, tool palettes, possibly fine-tuned m
 ## Example scenario
 
 A general legal assistant gives shallow answers on tax questions and shallow answers on employment questions because one prompt cannot hold deep knowledge of both. The team adopts mixture-of-experts-routing: a small router classifies each query by domain, and routes to a tax expert (specialised prompt, IRS-publication retrieval, fine-tuned model) or an employment expert (different prompt, NLRB and state-law retrieval). For ambiguous queries it routes to both and aggregates. Per-domain depth improves without bloating any single prompt.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Request] --> R[Router: classify domain]
+  R --> Top{Top-1 or top-k?}
+  Top -- top-1 --> E1[Expert: legal]
+  Top -- top-1 --> E2[Expert: code]
+  Top -- top-1 --> E3[Expert: medical]
+  Top -- top-k --> Multi[Run multiple experts]
+  Multi --> Agg[Aggregate outputs]
+  E1 --> Out[Answer]
+  E2 --> Out
+  E3 --> Out
+  Agg --> Out
+```
 
 ## Consequences
 

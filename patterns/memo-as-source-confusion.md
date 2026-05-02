@@ -33,6 +33,19 @@ Don't. When making any claim about an artifact's state, read the artifact in the
 
 A coding agent that maintains its own README about the repo cites that README when asked 'is the migration script idempotent?' — and the README is two months stale. It confidently says yes; the script has since been changed and the answer is wrong. The team names this memo-as-source-confusion and forbids citing memos as source for artifact claims: any claim about a file's state must read the file in the same tick, and if the memo disagrees the memo is rewritten from the artifact. Memo timestamps are now compared to artifact mtimes before any quote.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Need claim about artifact] --> M{Read memo or artifact?}
+  M -- memo only anti-pattern --> Stale[Cite stale summary as truth]
+  Stale --> Drift[Accumulated false confidence]
+  M -.fix.-> Art[Read artifact in same tick]
+  Art --> Cmp{Memo agrees?}
+  Cmp -- no --> Re[Rewrite memo from artifact]
+  Cmp -- yes --> Tag[Tag with verification timestamp]
+```
+
 ## Consequences
 
 **Benefits**

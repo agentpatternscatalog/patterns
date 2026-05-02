@@ -23,7 +23,6 @@ Self-edits applied directly bypass review; the agent can corrupt its own future 
 - Strict critics block legitimate improvements.
 - Lax critics defeat the gate.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,17 @@ Every self-edit goes through a critic step: a separate prompt (and optionally a 
 ## Example scenario
 
 A self-improving agent has a 'rewrite your own system prompt' tool that fired in production and silently dropped the safety preamble, leading to an embarrassing response the next morning. The team installs an inner-critic: every proposed self-edit is routed through a separate critic prompt, run on a frozen base model, that checks the diff against the safety charter and the eval suite. Edits land only on critic approval; rejections are queued for human review. The runaway-edit class of incident stops.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Edit[Proposed self-edit / diff] --> Cr[Critic persona on frozen checkpoint]
+  Cr --> Crit{Safety + charter + tests?}
+  Crit -- approve --> Land[Edit lands]
+  Crit -- reject --> Log[Log for human review]
+  Cr -.separate process / sandbox.-> Iso[Isolated from candidate edit]
+```
 
 ## Consequences
 

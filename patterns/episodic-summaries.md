@@ -31,6 +31,19 @@ On a schedule (or at thresholds), summarise blocks of recent thoughts/conversati
 
 A long-running customer-success agent has accumulated forty-five conversation episodes with one account over six months. The full history blows the context window; a sliding window drops the early conversation where the customer's renewal terms were set. The team uses Episodic Summaries: each closed episode is compressed into a few sentences capturing what happened, what was decided, and any open threads, and the summaries replace the raw transcripts in the prompt. Token cost stays bounded and the renewal-terms decision survives.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  T[Recent thoughts / messages] --> Th{Threshold reached?}
+  Th -- no --> T
+  Th -- yes --> S[Summarise block into compact form]
+  S --> H[Store in higher tier]
+  S --> A[Archive originals]
+  Q[Read query] --> H
+  H -- need detail --> A
+```
+
 ## Consequences
 
 **Benefits**

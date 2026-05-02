@@ -23,7 +23,6 @@ Reproducibility breaks; users notice quality changes they cannot diagnose; trust
 - Per-request model disclosure adds UI complexity.
 - Hidden routing complicates eval gates.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Don't. Disclose model identity per response. Use multi-model-routing transparent
 ## Example scenario
 
 A coding-agent vendor silently routes nights and weekends to a smaller model to save cost. Users start filing bug reports about 'the model getting dumber on Saturday morning' and cannot reproduce them on Monday. The team realises they have been doing hidden-mode-switching as an unacknowledged anti-pattern and starts including the resolved model id in every response header and in the agent's own status line. Routing rules are published; users can pin a model if they need consistency. Trust climbs back.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  R[Request] --> Sw{Silent model swap?}
+  Sw -- yes anti-pattern --> M1[Sometimes Opus]
+  Sw -- yes anti-pattern --> M2[Sometimes Haiku]
+  M1 --> User[User cannot tell which]
+  M2 --> User
+  User --> Conf[Inconsistent UX, no recourse]
+  Sw -.fix.-> Disc[Disclose model id per response]
+  Disc --> Insp[Inspectable routing decisions]
+```
 
 ## Consequences
 

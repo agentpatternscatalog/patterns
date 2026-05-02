@@ -23,7 +23,6 @@ Mono-persona prompts conflate roles and produce muddled outputs that are neither
 - The model has the same blind spots in each persona; true diversity is limited.
 - Persona drift in long conversations dilutes the role separation.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,23 @@ Define explicit personas (system prompts) for each role: planner, executor, crit
 ## Example scenario
 
 A coding agent that handles refactor requests keeps producing patches that compile but miss the actual intent, because one prompt is being asked to plan, write, and self-critique in the same breath. The team rebuilds it as an inner-committee: the same model is invoked as Planner (sees the request and codebase summary), Executor (sees only the plan and writes the diff), and Critic (sees only the diff and the acceptance criteria). The personas run in fixed order and each sees only what its role needs.
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant L as Loop
+  participant Pl as Planner persona
+  participant Ex as Executor persona
+  participant Cr as Critic persona
+  L->>Pl: produce plan
+  Pl-->>L: plan
+  L->>Ex: execute step
+  Ex-->>L: result
+  L->>Cr: review
+  Cr-->>L: critique
+  L->>Pl: revise plan if needed
+```
 
 ## Consequences
 

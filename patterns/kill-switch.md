@@ -23,7 +23,6 @@ In-band stop hooks rely on the agent's own loop checking; if the model is wedged
 - Out-of-band signals must propagate to all agent surfaces (model calls, tools, sub-agents).
 - Compensating actions on halt are non-trivial.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,20 @@ Signed revocation token or feature flag checked on every step from a shared stor
 ## Example scenario
 
 An autonomous trading-research agent is running a multi-hour backtest loop when ops notices it is hammering a third-party data API that just sent a cease-and-desist email. The in-band stop hook is checked by the agent's own loop and the agent is wedged on a long tool call. The team adds an out-of-band kill-switch: a signed revocation token in a shared store that the runtime, not the agent, checks before every step and tool call. Flip the token and every running instance halts within one step. The OS-kill fallback is only there for true emergencies.
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Op[Operator] --> Rev[Set revocation token / flag]
+  Rev --> Store[(Shared store)]
+  Loop[Agent step] --> Chk[Check store]
+  Chk --> Rk{Revoked?}
+  Rk -- no --> Cont[Continue]
+  Rk -- yes --> Halt[Halt: no model + no tool calls]
+  Halt --> Comp[Compensate in-flight effects]
+  Comp -.fallback.-> Kill[Kill OS process loses provenance]
+```
 
 ## Consequences
 

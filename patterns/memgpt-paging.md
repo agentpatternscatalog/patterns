@@ -23,7 +23,6 @@ Fixed context windows force a choice between losing state and stuffing irrelevan
 - Eviction policy (LRU? LFU? salience?) affects quality.
 - Tool latency on page faults adds to user-visible time.
 
-
 ## Applicability
 
 **Use when**
@@ -45,6 +44,27 @@ Two memory tiers. Main context: system prompt, working set, recent messages. Ext
 ## Example scenario
 
 A long-running personal assistant that tracks a user's projects across six months hits the context window every conversation and starts dropping older but still relevant context. The team adopts memgpt-paging: a small main context holds the system prompt and the active turn; recall and archival tiers live in external storage; the model uses search_archival and read_recall tool calls to page in what it needs. The agent now treats the window as RAM it explicitly manages instead of as a hard ceiling.
+
+## Diagram
+
+```mermaid
+classDiagram
+  class MainContext {
+    +system_prompt
+    +working_set
+    +recent_messages
+  }
+  class Recall { +raw_history }
+  class Archival { +vector_store }
+  class Model {
+    +read_recall()
+    +write_archival()
+    +search_archival()
+  }
+  Model --> MainContext : RAM
+  Model --> Recall : disk read
+  Model --> Archival : disk read/write
+```
 
 ## Consequences
 

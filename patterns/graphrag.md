@@ -23,7 +23,6 @@ Naive RAG retrieves local chunks and cannot answer global queries; chunk-level r
 - Graph quality depends on extraction prompts.
 - Local-search vs global-search modes serve different query types and must be routed.
 
-
 ## Applicability
 
 **Use when**
@@ -47,6 +46,21 @@ Index time: extract entities and relations from chunks; build a knowledge graph;
 - **Global GraphRAG (map-reduce)** — Map the query over community summaries, reduce to a single answer; suits corpus-wide sensemaking.
 - **Local GraphRAG** — Anchor on a named entity and walk its neighbourhood in the graph; suits entity-specific questions.
 - **DRIFT GraphRAG** — Hybrid that starts local around a seed entity and progressively widens to community-level context if the local context is insufficient (Microsoft DRIFT).
+
+## Diagram
+
+```mermaid
+flowchart TD
+  C[Chunks] --> Ext[Extract entities + relations]
+  Ext --> KG[Knowledge graph]
+  KG --> Cl[Cluster into hierarchical communities]
+  Cl --> Sum[Summarise each community]
+  Q[Query] --> Cls{Local or global?}
+  Cls -- local --> Anc[Entity-anchored retrieval]
+  Cls -- global --> MR[Map-reduce over community summaries]
+  Anc --> Ans[Answer]
+  MR --> Ans
+```
 
 ## Example scenario
 

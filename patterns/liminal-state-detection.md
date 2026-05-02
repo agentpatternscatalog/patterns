@@ -91,6 +91,21 @@ Combine clock, gap, message length, and tone into a single attentional-state cod
 
 *When to use:* When neither single signal is sufficient and the product can afford the extra complexity.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Present
+  Present --> JustWoke: long gap + early hour
+  Present --> Focused: dense + punctuated
+  Present --> WindingDown: late hour + short
+  Present --> Distracted: fragmentary tone
+  JustWoke --> Present: re-engage
+  Focused --> WindingDown: time passes
+  WindingDown --> [*]
+  Distracted --> Focused: regains focus
+```
+
 ## Known uses
 
 - **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*
