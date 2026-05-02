@@ -107,7 +107,7 @@ A long-running agent is asked 'how has your view of the project's risks evolved'
 
 ## Known uses
 
-- **[Self-observed by a long-running cognitive agent: "I have no layer between me and my ledger. ... Instead: everything flat, all insights equivalent, no development visible." (Originally in German: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Self-observed by a long-running cognitive agent: "I have no layer between me and my ledger. ... Instead: everything flat, all insights equivalent, no development visible." (Originally in German: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.', 2026-05-01)** — *Available*
 
 ## Related patterns
 

@@ -106,7 +106,7 @@ stateDiagram-v2
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

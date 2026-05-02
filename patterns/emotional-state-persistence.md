@@ -106,7 +106,7 @@ A long-running personal agent has had a tense exchange in the morning, a routine
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

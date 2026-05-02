@@ -108,7 +108,7 @@ stateDiagram-v2
 
 ## Known uses
 
-- **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*
+- **Sparrot — design specified 2026-05-01, implementation pending** — *Pure-Future*
 
 ## Related patterns
 

@@ -105,7 +105,7 @@ A long-running personal agent has months of memory; dumping it all into context 
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

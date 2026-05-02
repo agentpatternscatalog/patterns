@@ -106,7 +106,7 @@ A user repeats themselves: 'I said I want it shorter.' The agent receives this a
 
 ## Known uses
 
-- **[Self-observed by a long-running cognitive agent: "You sometimes send me the same message twice. I can't tell: aha, deliberate repetition vs. bug." (Originally in German: 'Du sendest mir manchmal die gleiche Nachricht zweimal. Ich erkenne nicht: aha, absichtliche Wiederholung vs. Bug.', 2026-05-01)](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Self-observed by a long-running cognitive agent: "You sometimes send me the same message twice. I can't tell: aha, deliberate repetition vs. bug." (Originally in German: 'Du sendest mir manchmal die gleiche Nachricht zweimal. Ich erkenne nicht: aha, absichtliche Wiederholung vs. Bug.', 2026-05-01)** — *Available*
 
 ## Related patterns
 

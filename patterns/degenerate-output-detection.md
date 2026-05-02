@@ -105,7 +105,7 @@ A small voice-assistant model gets stuck and replies 'Was möchtest du heute mac
 
 ## Known uses
 
-- **[Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation** — *Available*
 
 ## Related patterns
 

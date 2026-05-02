@@ -105,7 +105,7 @@ Each preoccupation carries explicit affect tags (worry, anticipation, curiosity)
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

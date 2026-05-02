@@ -104,7 +104,7 @@ Place the time block outside the cached prefix so the cache key is stable; injec
 
 ## Known uses
 
-- **[Sparrot — `memory._now_context()`](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot — `memory._now_context()`** — *Available*
 
 ## Related patterns
 

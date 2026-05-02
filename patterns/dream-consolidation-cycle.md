@@ -105,7 +105,7 @@ A long-running personal agent has been talking with its user daily for three mon
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

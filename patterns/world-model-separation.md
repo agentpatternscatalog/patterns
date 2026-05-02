@@ -108,7 +108,7 @@ A long-running agent's reflection pass corrupts its own personality file because
 
 ## Known uses
 
-- **[Sparrot](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot** — *Available*
 
 ## Related patterns
 

@@ -115,7 +115,7 @@ A coaching agent reads only the user's text and projects the same flat affect on
 
 ## Known uses
 
-- **[Sparrot — design specified 2026-05-01, implementation pending](https://github.com/luxxyarns/sparrot)** — *Pure-Future*
+- **Sparrot — design specified 2026-05-01, implementation pending** — *Pure-Future*
 
 ## Related patterns
 

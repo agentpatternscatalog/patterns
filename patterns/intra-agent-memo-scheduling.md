@@ -108,7 +108,7 @@ sequenceDiagram
 
 ## Known uses
 
-- **[Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`** — *Available*
 
 ## Related patterns
 

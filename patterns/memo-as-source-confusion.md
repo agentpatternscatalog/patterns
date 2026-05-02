@@ -77,7 +77,7 @@ Treating stale memos as ground truth without re-checking the underlying artifact
 
 ## Known uses
 
-- **[Self-observed in long-running cognitive agents: a project status file claimed feature X was unwritten across many ticks while parallel thoughts asserted X was complete; neither was reconciled against the actual artifact.](https://github.com/luxxyarns/sparrot)** — *Available*
+- **Self-observed in long-running cognitive agents: a project status file claimed feature X was unwritten across many ticks while parallel thoughts asserted X was complete; neither was reconciled against the actual artifact.** — *Available*
 
 ## Related patterns
 
