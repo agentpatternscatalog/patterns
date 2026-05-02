@@ -43,6 +43,20 @@ After draft generation, the model emits a critique that names suspected errors a
 
 The critic may revise outputs only when an external tool corroborates a defect; ungrounded edits are forbidden.
 
+## Applicability
+
+**Use when**
+
+- The model has external tools (search, code, calculator) that can produce grounded ground-truth signals.
+- Self-critique without tools recycles the model's blind spots and fails to catch real errors.
+- Iteration to convergence (or a budget cap) is acceptable in the latency model.
+
+**Do not use when**
+
+- No external tools exist that meaningfully verify the model's claims.
+- Latency budget allows only one model call per output.
+- Critique-and-revise loops collapse to no change and add cost without gain.
+
 ## Known uses
 
 - **CRITIC paper baselines** — *Available*

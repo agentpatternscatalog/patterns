@@ -43,6 +43,20 @@ Prompt the model with exemplars showing intermediate reasoning, or use a zero-sh
 
 The model is required to emit reasoning before the final answer; one-shot answer-only generation is forbidden by prompt design.
 
+## Applicability
+
+**Use when**
+
+- The task requires multi-step reasoning that single-shot answers fail at.
+- Either exemplars with reasoning traces or a zero-shot trigger ('think step by step') are easy to add.
+- The reasoning trace is useful as a debug or audit artefact.
+
+**Do not use when**
+
+- The task is direct lookup or pattern completion where reasoning steps add no quality.
+- Latency or token budget cannot absorb the longer outputs.
+- A reasoning model is in use that already runs internal chain-of-thought (use extended-thinking instead).
+
 ## Known uses
 
 - **OpenAI Reasoning prompts** — *Available*

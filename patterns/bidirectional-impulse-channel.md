@@ -43,6 +43,20 @@ A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal 
 
 The agent may push at most one unsolicited message per window; user commands beginning with `!` bypass the model entirely.
 
+## Applicability
+
+**Use when**
+
+- The agent runs long enough that pure request-response chat misses the point.
+- Users want to inject commands or facts that bypass the model and write directly to memory.
+- Salience signals exist that justify agent-initiated push messages without spamming the user.
+
+**Do not use when**
+
+- Interactions are bounded turn-pairs with no need for a back-channel.
+- Push notifications are always intrusive in the deployment context (e.g. shared work surface).
+- There is no salience function and the agent would push noise.
+
 ## Known uses
 
 - **Sparrot** — *Available*. CLI as bidirectional impulse channel.

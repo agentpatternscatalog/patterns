@@ -43,6 +43,20 @@ Four-step pipeline. Draft: produce initial answer. Plan: generate verification q
 
 Verification answers are produced without the draft in context; coupled verification is not permitted.
 
+## Applicability
+
+**Use when**
+
+- The model hallucinates claims when it self-verifies in the same context as the draft.
+- Verification questions can be answered in isolation without seeing the draft.
+- A revise step can integrate the verification answers back into the final output.
+
+**Do not use when**
+
+- The task has no factual claims to verify (pure stylistic or generative tasks).
+- Latency budget cannot absorb four sequential model calls per output.
+- Verification questions cannot be answered cheaply or independently.
+
 ## Known uses
 
 - **Meta AI implementation** — *Available*

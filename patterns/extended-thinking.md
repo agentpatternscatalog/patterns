@@ -43,6 +43,20 @@ Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthrop
 
 Reasoning happens within the declared token budget; exceeding it terminates reasoning and forces an answer.
 
+## Applicability
+
+**Use when**
+
+- The provider exposes a reasoning-budget API and you want to tune effort per request.
+- Some tasks (routing, classification) need cheap reasoning and others (hard problems) need expensive reasoning.
+- Internal opaque reasoning that the user does not see is acceptable for the deployment.
+
+**Do not use when**
+
+- Static prompt-based chain-of-thought already meets quality and cost targets.
+- The provider does not expose a separate reasoning budget.
+- The user must see the reasoning verbatim (use chain-of-thought instead, since extended thinking is opaque).
+
 ## Known uses
 
 - **Anthropic Claude extended thinking (budget_tokens)** — *Available*

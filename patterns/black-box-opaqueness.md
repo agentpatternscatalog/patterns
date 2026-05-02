@@ -39,6 +39,19 @@ Don't. Add traces, decision logs, and provenance from day one. See provenance-le
 
 By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
 
+## Applicability
+
+**Use when**
+
+- Never. This is an anti-pattern documented to be avoided.
+- It exists in the catalogue only to warn against shipping agents without traces or decision logs.
+- Reading this entry should redirect you to provenance-ledger, decision-log, and lineage-tracking.
+
+**Do not use when**
+
+- Always do not use. There is no scenario where shipping a black-box agent is the right design.
+- Even prototypes benefit from minimal traces — opacity is not the cheap option, it is the expensive option deferred.
+
 ## Known uses
 
 - **Default state of un-instrumented LangChain projects circa 2023** — *Available*

@@ -43,6 +43,20 @@ Maintain a per-user store of distilled facts (preferences, prior context, names,
 
 Memory entries must be added through declared tools; the model cannot silently mutate persistent user state.
 
+## Applicability
+
+**Use when**
+
+- Per-thread memory loses important user-specific facts between sessions and the assistant feels amnesic.
+- A per-user store of distilled facts can be maintained with audit, deletion, and forget controls.
+- Loaded memory slices meaningfully improve responses across sessions.
+
+**Do not use when**
+
+- Sessions are deliberately stateless for privacy or compliance reasons.
+- No reliable distillation step exists and the store would fill with noise.
+- Users expect a fresh agent per session and persistent memory would surprise them.
+
 ## Known uses
 
 - **ChatGPT Memory** — *Available*

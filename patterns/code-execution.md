@@ -43,6 +43,20 @@ The agent emits a code block; a controlled interpreter (Python sandbox, JS VM, c
 
 Computation happens in the sandbox; the model's free-form numeric output is not trusted.
 
+## Applicability
+
+**Use when**
+
+- The task involves calculation, parsing, or transformations that LLMs hallucinate.
+- A controlled interpreter or sandbox is available and trusted enough to run model-emitted code.
+- stdout, stderr, and return values can flow back to the agent under a step budget.
+
+**Do not use when**
+
+- The task is pure language with no computation that benefits from running code.
+- No safe execution environment is available and the security risk is unacceptable.
+- Latency or sandbox cost outweighs the accuracy gain over in-context computation.
+
 ## Known uses
 
 - **OpenAI Code Interpreter / Advanced Data Analysis** — *Available*

@@ -43,6 +43,20 @@ Persist explicit state about: available tools (with descriptions), the environme
 
 Tool calls and self-references must match the awareness state; mismatches are flagged.
 
+## Applicability
+
+**Use when**
+
+- The agent regularly hallucinates tools it does not have or forgets tools it does.
+- Tool palette, environment, or permissions change at runtime and the agent must reflect the current state.
+- Downstream behaviour depends on the agent reasoning explicitly about what it can and cannot do.
+
+**Do not use when**
+
+- Tools and environment are static and the system prompt already lists them adequately.
+- Awareness state would consume more tokens per turn than the failures it prevents.
+- There is no refresh path on capability changes and stale awareness would mislead worse than absence.
+
 ## Known uses
 
 - **Sparrot world.md + personality.md** — *Available*

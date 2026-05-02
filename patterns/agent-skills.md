@@ -43,6 +43,20 @@ Package each procedure as a markdown file (and optional companion resources) und
 
 The agent operates within the procedure of the loaded skill; ad-hoc deviation is forbidden when a skill is active.
 
+## Applicability
+
+**Use when**
+
+- You have many distinct procedures and stuffing them all into the system prompt would bloat context.
+- Procedures are author-time artefacts that benefit from versioning alongside the agent.
+- The agent can reliably classify which procedure applies to the current task.
+
+**Do not use when**
+
+- The agent has only a handful of procedures that fit comfortably in the system prompt.
+- Procedures must be authored at runtime by the agent itself (use a runtime skill-library pattern instead).
+- On-demand loading adds latency the use case cannot tolerate.
+
 ## Known uses
 
 - **Anthropic Claude Skills** — *Available*

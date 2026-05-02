@@ -43,6 +43,20 @@ Generate N candidates with non-zero temperature. Score each with a reward model 
 
 The chosen output must be from the candidate set; no synthesis across candidates.
 
+## Applicability
+
+**Use when**
+
+- A scorer or reward model exists that ranks candidates better than the generator picks them.
+- Quality lift from selecting the best of N samples justifies the N-fold inference cost.
+- Sampling temperature can be raised enough to produce meaningfully diverse candidates.
+
+**Do not use when**
+
+- No reliable scorer is available to pick among candidates.
+- Inference cost or latency cannot absorb a multiplicative sampling factor.
+- Candidates collapse to near-duplicates regardless of temperature, so the best-of-N gain is illusory.
+
 ## Known uses
 
 - **RLHF training pipelines** — *Available*

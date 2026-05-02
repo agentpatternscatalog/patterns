@@ -51,6 +51,20 @@ Instructor -> instruction -> Assistant; if context_gap_detected: Assistant -> qu
 
 The assistant may not produce a final answer when a designated context slot is unfilled; it must instead emit a clarifying question.
 
+## Applicability
+
+**Use when**
+
+- Multi-agent setups where the assistant otherwise fabricates missing context to comply with instructions.
+- A reverse-direction question channel between agents can be implemented cleanly.
+- Fabrications would propagate downstream and be hard to detect at the artefact boundary.
+
+**Do not use when**
+
+- The instructor cannot answer clarification questions in time (e.g. fully autonomous pipelines).
+- The cost of an extra round-trip exceeds the cost of detecting and fixing fabrications later.
+- Instructions are always complete by construction and missing-context fabrication never arises.
+
 ## Known uses
 
 - **[ChatDev](https://github.com/OpenBMB/ChatDev)** — *Available*. Original demonstration; assistant reverses to instructor role to request missing detail before delivering a conclusive response.

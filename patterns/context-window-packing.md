@@ -43,6 +43,20 @@ Define a packing policy. Reserve N tokens for system + tools + response. Allocat
 
 Total tokens passed to the model must not exceed the window minus the reserved response budget.
 
+## Applicability
+
+**Use when**
+
+- Naive concatenation overflows the context window for realistic inputs.
+- Some context (system, tools, response reservation) is fixed and the rest must be allocated dynamically.
+- You can audit token counts before each call and adjust the policy.
+
+**Do not use when**
+
+- Inputs are small and always fit comfortably in the window.
+- There is no measurable quality difference between packing policies and the work is overhead.
+- An external memory or retrieval layer already controls what reaches the model.
+
 ## Known uses
 
 - **LangChain ConversationSummaryBufferMemory** — *Available*

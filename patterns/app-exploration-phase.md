@@ -52,6 +52,20 @@ Phase 1: Agent (or Human) -> interact_with_app -> per-element docs -> KB. Phase 
 
 At deployment, the agent may not act on an element whose documentation is missing; missing-doc events trigger re-exploration rather than improvisation.
 
+## Applicability
+
+**Use when**
+
+- The agent must operate against an opaque app with no API documentation for its UI elements.
+- The agent will be deployed against the same app many times, amortising up-front exploration cost.
+- Per-element semantics (what each control does and when to use it) are stable enough to document once.
+
+**Do not use when**
+
+- The app changes faster than exploration documentation can be refreshed.
+- Each task uses a different app, so exploration cost cannot be amortised.
+- Element-level semantics are obvious from labels alone and exploration adds no signal.
+
 ## Known uses
 
 - **[AppAgent (Tencent)](https://github.com/TencentQQGYLab/AppAgent)** — *Available*. Two-phase architecture; exploration writes element documentation consumed at deployment.

@@ -43,6 +43,20 @@ Tag every model and tool call with feature, route, user (anonymised), and model 
 
 Calls without telemetry tags fall into an 'unattributed' bucket; some internal gateways enforce tag-or-reject.
 
+## Applicability
+
+**Use when**
+
+- Per-feature cost visibility is needed before billing reveals a problem.
+- Telemetry can be tagged with feature, route, model id, and anonymised user.
+- Operators will actually act on dashboards and alerts that surface cost anomalies.
+
+**Do not use when**
+
+- Total spend is small enough that aggregate metrics suffice.
+- Telemetry pipeline cost exceeds the cost it would help you control.
+- No operator owns cost — the dashboards would go unwatched.
+
 ## Known uses
 
 - **Langfuse** — *Available*

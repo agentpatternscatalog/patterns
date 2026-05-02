@@ -43,6 +43,20 @@ Catalogue failure modes. For each, define: detect (typed error), respond (retry 
 
 Errors must arrive at the agent as typed events from the catalogue; untyped errors are escalated to the operator.
 
+## Applicability
+
+**Use when**
+
+- Tool errors, rate limits, or validation failures occur often enough that random retries waste effort.
+- Failure modes can be catalogued with typed errors and structured recovery responses.
+- The agent loop can branch on typed error messages.
+
+**Do not use when**
+
+- Failures are rare enough that a single generic retry handles them.
+- Failure modes change faster than the catalogue can be maintained.
+- The agent has no loop to react in (single-shot pipelines).
+
 ## Known uses
 
 - **Production agent platforms** — *Available*

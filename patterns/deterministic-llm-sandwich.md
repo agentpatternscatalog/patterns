@@ -49,6 +49,20 @@ Pre(input) -> {pass, fail} ; if pass: LLM(input) -> candidate ; Post(candidate) 
 
 An LLM-produced artefact lands only after passing the post-check; otherwise the prior state is preserved.
 
+## Applicability
+
+**Use when**
+
+- LLM output must be checked deterministically before being trusted (e.g. AST parse, type-check, test run).
+- A pre-check can decide whether the LLM should run at all.
+- Returning the original input on post-check failure is acceptable behaviour.
+
+**Do not use when**
+
+- No deterministic check exists for the output type (free-form prose, subjective ranking).
+- Pre and post checks together cost more than the LLM call they bracket.
+- There is no fallback when the post check fails and silent rejection would mislead.
+
 ## Known uses
 
 - **Knitting-DSL Pipeline (Stash2Go)** — *Available*. deterministicReview.js -> scopedLlmFixer.js -> parse and revalidate.

@@ -43,6 +43,20 @@ Estimate cost before invoking the expensive action. If the estimate exceeds the 
 
 Actions exceeding the threshold cannot run without explicit acknowledgement.
 
+## Applicability
+
+**Use when**
+
+- Some agent actions are expensive enough that surprise costs would erode user trust.
+- Cost can be estimated before invoking the action with reasonable accuracy.
+- A user or operator approval path exists for expensive actions.
+
+**Do not use when**
+
+- All actions are cheap and the gating overhead exceeds the cost it protects.
+- Cost is unpredictable and pre-action estimates would be wildly wrong.
+- Approval latency is unacceptable for the action class (e.g. real-time response loops).
+
 ## Known uses
 
 - **Knitting-DSL Pipeline (Stash2Go)** — *Available*. scopedLlmFixer.js runs only when user accepts the cost.

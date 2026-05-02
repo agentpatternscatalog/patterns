@@ -43,6 +43,20 @@ Define an ordered chain of handlers. Each handler returns either a confident ans
 
 Each handler may produce a result or pass; only the chain may decide to terminate.
 
+## Applicability
+
+**Use when**
+
+- Single-handler failure would cascade to the user as an outage.
+- Multiple handlers exist with meaningful differences in capability or cost.
+- Each handler can return a confidence or failure signal that triggers the next.
+
+**Do not use when**
+
+- Only one handler exists and there is nothing to fall back to.
+- Handler failure modes are correlated and all handlers fail together.
+- An honest 'I don't know' is preferred over fallback chains that mask root cause.
+
 ## Known uses
 
 - **Most production routing layers** — *Available*

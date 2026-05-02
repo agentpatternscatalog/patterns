@@ -43,6 +43,20 @@ Subscribe to event source (webhook, queue, watcher). On event, validate, dedupli
 
 The agent runs only on validated events; spurious or duplicate events are filtered.
 
+## Applicability
+
+**Use when**
+
+- An external event source (webhook, queue, file watcher) exists and pulling on a schedule wastes effort.
+- Events can be validated, deduplicated, and processed idempotently.
+- Acknowledgement after successful processing is supported by the event source.
+
+**Do not use when**
+
+- No event source exists and polling is the only available trigger.
+- Event volume is so low that a daily cron is simpler than a subscription.
+- Idempotency cannot be guaranteed and duplicate events would cause harm.
+
 ## Known uses
 
 - **GitHub Actions agent triggers** — *Available*

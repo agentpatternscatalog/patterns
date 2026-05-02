@@ -43,6 +43,20 @@ A judge agent receives the candidate agent's full trajectory: thoughts, tool cal
 
 The judge sees the full trajectory, not just the final output; answer-only evaluation is not used in this pattern.
 
+## Applicability
+
+**Use when**
+
+- Agent tasks succeed or fail along their trajectory in ways the final answer cannot reveal.
+- You have access to the full trajectory (thoughts, tool calls, observations) of the candidate agent.
+- Process-quality signals (efficiency, redundant steps, unsafe actions) matter for the eval verdict, not just correctness.
+
+**Do not use when**
+
+- Only the final output is checkable and the trajectory carries no evaluable structure.
+- Trajectory evaluation cost is unjustified for the use case (cheap LLM-as-judge on the answer suffices).
+- Judge-agent calibration cannot be funded as its own dataset effort.
+
 ## Known uses
 
 - **MetaGPT Agent-as-a-Judge** — *Available*

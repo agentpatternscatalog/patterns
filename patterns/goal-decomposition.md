@@ -43,6 +43,20 @@ Build a tree of goals. The root is the user's goal. Each non-leaf goal decompose
 
 Action is taken only at leaf goals; non-leaf goals must decompose further before action.
 
+## Applicability
+
+**Use when**
+
+- Goals are large enough that a single-shot attempt produces shallow work.
+- Sub-goals can be expressed in a tree where each leaf is directly actionable.
+- Parallel sibling goals exist and you want to track stuck branches explicitly.
+
+**Do not use when**
+
+- Goals are atomic and decomposition would invent fake sub-structure.
+- Strict sequential structure fits better (use least-to-most prompting instead).
+- Tracking the tree adds more overhead than it saves in execution quality.
+
 ## Known uses
 
 - **Classical AI Hierarchical Task Networks** — *Available*

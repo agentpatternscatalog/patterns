@@ -43,6 +43,20 @@ Design tools specifically for agents: file viewer that shows a windowed slice wi
 
 Agent tools follow a deliberate ACI design contract; raw human-CLI tools are not exposed as primary tools.
 
+## Applicability
+
+**Use when**
+
+- Off-the-shelf human tools (shells, editors, web pages) overwhelm the agent's context with noise.
+- You can curate a small, agent-specific tool surface (windowed file viewer, structured shell, ranked search).
+- You measure agent performance and want the tool layer to be a tunable variable.
+
+**Do not use when**
+
+- The agent must use unmodified human tools verbatim (e.g. legal or audit constraint).
+- Tool surface changes faster than you can re-curate agent-friendly wrappers.
+- The agent runs against one-off APIs where building a curated surface is not worth the effort.
+
 ## Known uses
 
 - **[SWE-Agent (Princeton)](https://github.com/princeton-nlp/SWE-agent)** — *Available*

@@ -45,6 +45,20 @@ Two production approaches. (a) Deterministic replay of recorded effects (Tempora
 
 Agent state must be serialisable; non-serialisable in-memory references are forbidden in long-running paths.
 
+## Applicability
+
+**Use when**
+
+- Agent runs are long enough that restarts, deploys, or disconnects would lose meaningful work.
+- Side effects can be logged or snapshotted without breaking semantics on replay.
+- Users or operators need to trust that an in-flight run will survive infrastructure events.
+
+**Do not use when**
+
+- Runs complete in seconds and can simply be retried from scratch.
+- Side effects cannot be made idempotent and replay would double-charge or double-act.
+- State is small and ephemeral by design (e.g. throwaway exploratory agents).
+
 ## Known uses
 
 - **Devin sessions** — *Available*

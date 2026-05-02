@@ -43,6 +43,20 @@ Maintain a library of scaffolds (few-shot examples, schemas, hints) keyed by tas
 
 Scaffolds load only on matching task classification; default tasks see the bare prompt.
 
+## Applicability
+
+**Use when**
+
+- Some tasks need few-shot examples, schemas, or hints and others do not — static prompts overshoot or undershoot.
+- A library of scaffolds keyed by task type or feature can be maintained.
+- Task classification at runtime is reliable enough to route the right scaffold.
+
+**Do not use when**
+
+- All tasks are similar enough that one static prompt suffices.
+- Task classification is unreliable and wrong scaffolds would confuse the model.
+- Scaffold library maintenance cost exceeds the prompt-quality gain.
+
 ## Known uses
 
 - **Avramovic Dynamic Scaffolding pattern** — *Available*

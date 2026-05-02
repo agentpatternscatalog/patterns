@@ -43,6 +43,20 @@ Define each step as a typed signature (input fields → output fields). Compose 
 
 Module behaviour is constrained by its declared signature; ad-hoc string manipulation is replaced by typed input/output fields.
 
+## Applicability
+
+**Use when**
+
+- Hand-crafted prompts are brittle and drift across model versions.
+- A held-out metric exists that the optimizer can refine against.
+- Composing pipelines from typed signatures fits the team's mental model.
+
+**Do not use when**
+
+- The pipeline is a single prompt and the DSPy machinery is overkill.
+- No metric is available to drive optimisation and compiled prompts cannot be evaluated.
+- The team needs full hand-control over prompt wording for compliance or explainability.
+
 ## Known uses
 
 - **[Stanford DSPy](https://github.com/stanfordnlp/dspy)** — *Available*

@@ -43,6 +43,20 @@ Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with 
 
 The AI-User role may only ask, never answer; AI-Assistant may only answer, never ask user-style questions.
 
+## Applicability
+
+**Use when**
+
+- The task benefits from explicit user-assistant turn-taking that a single agent loop misses.
+- Inception prompts can fix the two roles and the task tightly enough to keep the conversation on-track.
+- A budget caps the conversation length so unproductive loops terminate.
+
+**Do not use when**
+
+- A single agent already solves the task without turn-taking dynamics.
+- Adversarial debate (not collaborative role-play) is what the task actually wants.
+- Roles cannot be specified tightly enough and the conversation drifts off-task.
+
 ## Known uses
 
 - **CAMEL framework** — *Available*

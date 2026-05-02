@@ -52,6 +52,20 @@ Agent -> code snippet -> Sandbox(allowlisted imports + tool functions) -> stdout
 
 The agent may only execute Python operations against the explicitly allowlisted imports and tool functions; arbitrary import or system calls fail at the sandbox boundary.
 
+## Applicability
+
+**Use when**
+
+- Tool composition is natural in code (filter, map, conditional chains) and clumsy as JSON tool calls.
+- A sandboxed interpreter with pre-imported tools and an allow-list of safe builtins is feasible.
+- Saving turns by composing multiple operations per step would meaningfully cut token cost.
+
+**Do not use when**
+
+- The deployment cannot host or trust a sandboxed interpreter.
+- Tools are simple atomic calls with no useful composition.
+- Auditors require explicit per-call structured arguments rather than free-form code.
+
 ## Known uses
 
 - **[Hugging Face smolagents](https://github.com/huggingface/smolagents)** — *Available*. CodeAgent emits Python; pre-imported tool functions; allow-listed modules.

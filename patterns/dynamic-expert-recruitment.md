@@ -51,6 +51,20 @@ goal -> Recruiter -> [role descriptions] -> instantiated agents -> joint executi
 
 No role may be instantiated outside the recruiter; agents may not unilaterally co-opt or invent peers.
 
+## Applicability
+
+**Use when**
+
+- Hard-coded role lists are brittle because the right team varies wildly across tasks.
+- A recruiter agent can generate role descriptions and instantiate the team based on the goal.
+- Evaluation feedback can drive team composition adjustments between iterations.
+
+**Do not use when**
+
+- Tasks are homogeneous enough that one fixed team handles them all.
+- Recruiter latency or cost outweighs the benefit of dynamic team composition.
+- Stable, certified roles are required for compliance reasons.
+
 ## Known uses
 
 - **[AgentVerse](https://github.com/OpenBMB/AgentVerse)** — *Available*. Recruiter agent generates expert descriptions per goal; team composition adjusted across iterations.

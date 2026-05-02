@@ -43,6 +43,20 @@ A charter file is read into context every turn (or every tick). The tool layer e
 
 The agent cannot write the charter; updates require explicit operator action outside the agent loop.
 
+## Applicability
+
+**Use when**
+
+- Inviolable constraints exist that the agent must never override on its own.
+- Tool layer can enforce read-only on the charter file and the agent has no write tool that touches it.
+- An explicit operator path exists for charter updates.
+
+**Do not use when**
+
+- Constraints change so often that an immutable charter would be outdated within hours.
+- There is no enforcement boundary — the agent can always edit anything (charter is decorative).
+- Negative-form rules cannot capture the policy and a richer policy engine is needed instead.
+
 ## Known uses
 
 - **Sparrot** — *Available*. charter.md read every tick; read-only at tool layer.

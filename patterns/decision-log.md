@@ -43,6 +43,20 @@ Persist reasoning at a chosen granularity (full trace, key decisions, or summary
 
 Action records cannot be written without a corresponding decision-log entry.
 
+## Applicability
+
+**Use when**
+
+- Action-only logs leave you unable to explain why the agent did something.
+- Reasoning at some granularity (full trace, key decisions, summary) can be captured and stored cheaply.
+- Post-hoc review or debugging routinely needs to consult the reasoning chain.
+
+**Do not use when**
+
+- Reasoning logs would be retained without any review process consulting them.
+- Storage or compliance constraints forbid retaining the reasoning trace.
+- The agent is so simple that the action alone implies the reasoning.
+
 ## Known uses
 
 - **Sparrot** — *Available*. Thought stream + ledger linkage.

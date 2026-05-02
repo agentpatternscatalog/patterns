@@ -43,6 +43,20 @@ Produce a confidence label (high/medium/low or numeric) alongside each answer. D
 
 Outputs without a confidence label are not consumable by confidence-aware downstream code.
 
+## Applicability
+
+**Use when**
+
+- Downstream code or UI needs to distinguish 'I know' from 'I am guessing' on each answer.
+- A confidence signal can be derived from sample variance, evaluator score, or retrieval recall.
+- Low-confidence answers can be routed to fallback or human review usefully.
+
+**Do not use when**
+
+- Confidence labels would be ignored by both the UI and the routing layer.
+- No reliable signal exists to derive confidence from and the label would be cosmetic.
+- Calibration cannot be maintained, so reported confidence misleads more than it helps.
+
 ## Known uses
 
 - **Sparrot empirical-introspection variance signal** — *Available*

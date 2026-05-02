@@ -43,6 +43,20 @@ Thoughts and journal entries are written to files or a log the agent has no perm
 
 The agent has read access only to thoughts/ and journal/; writes go through an append-only API enforced at the tool layer.
 
+## Applicability
+
+**Use when**
+
+- You need a guarantee that the agent cannot rewrite its own past reasoning.
+- Audit, governance, or trust requirements demand an immutable history.
+- Compaction can be implemented as new summary tiers without touching originals.
+
+**Do not use when**
+
+- Storage cost of unbounded append-only logs is unaffordable for the use case.
+- The agent legitimately needs to redact or correct entries without operator intervention.
+- There is no review path that consults the immutable log, making the constraint pure overhead.
+
 ## Known uses
 
 - **Sparrot** — *Available*. thoughts/ and journal/ are read-only at the agent's tool layer.

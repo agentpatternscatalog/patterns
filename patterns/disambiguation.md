@@ -43,6 +43,20 @@ Detect ambiguity via low-confidence intent classification or explicit ambiguity 
 
 Below the confidence threshold the agent must ask; it is forbidden to guess.
 
+## Applicability
+
+**Use when**
+
+- Ambiguous user requests would otherwise produce confidently wrong agent actions.
+- Ambiguity can be detected (low-confidence intent, explicit rubric, multiple plausible parses).
+- A focused clarifying question, with a default interpretation, is acceptable UX.
+
+**Do not use when**
+
+- The deployment is non-interactive and clarification questions cannot be asked.
+- Asking for clarification is more disruptive than acting on the most-likely interpretation.
+- Ambiguity detection is unreliable and most clarifications would be unnecessary.
+
 ## Known uses
 
 - **Cursor / Claude Code clarifying questions** — *Available*

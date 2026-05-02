@@ -52,6 +52,20 @@ Input -> Model -> Output. Parallel: Input -> perturb(token_i) -> ΔP(output) -> 
 
 The agent may not present generated text as the explanation of its own output when an attribution-based explanation is feasible; self-explanations have to be marked as such.
 
+## Applicability
+
+**Use when**
+
+- You need a faithful per-token relevance map of which inputs caused a given output.
+- You control inference (open weights or a provider that exposes attention perturbation).
+- Free-text self-explanations are insufficient because the model confabulates its reasons.
+
+**Do not use when**
+
+- You only have a black-box API with no access to attention internals.
+- The latency cost of a structured perturbation pass per output is unacceptable.
+- A heat-map UI is not actionable for the user and explanations need to be in natural language anyway.
+
 ## Known uses
 
 - **[Aleph Alpha AtMan](https://aleph-alpha.com/)** — *Available*. Original attention-perturbation explainability method shipped in PhariaAI.

@@ -43,6 +43,20 @@ Agent emits proposed action to an approval queue with context. A human (or super
 
 Actions in the approval queue may not execute until the approval status is set to approved.
 
+## Applicability
+
+**Use when**
+
+- Some agent actions require human review but blocking the agent until review completes is unacceptable.
+- Reviewers (humans or supervisor agents) can process queued actions asynchronously.
+- The agent has parallel work it can pursue while specific branches await approval.
+
+**Do not use when**
+
+- Every action needs synchronous approval and there is no parallel work to do.
+- The action's approval window is so short that asynchronous review adds no benefit.
+- No reviewer capacity exists to drain the queue at the rate the agent fills it.
+
 ## Known uses
 
 - **Lindy approval inbox** — *Available*

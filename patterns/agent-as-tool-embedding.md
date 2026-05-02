@@ -52,6 +52,20 @@ Parent agent -> tool_call(sub_agent, task) -> [hidden: sub-agent loop] -> Result
 
 The parent may not access the sub-agent's intermediate turns; only the return value crosses the boundary.
 
+## Applicability
+
+**Use when**
+
+- A sub-task is well-scoped enough that the parent should see only its result, not its turns.
+- Putting the sub-agent's intermediate state into parent context would bloat tokens or couple parent reasoning to sub-agent internals.
+- The sub-agent has its own model, tool palette, or step budget that should not leak into the parent loop.
+
+**Do not use when**
+
+- The parent must observe and steer sub-agent steps in real time.
+- Sub-agent failures need to be diagnosable from the parent context without a separate trace.
+- The sub-task is one or two model calls — function-style tool wrapping is cheaper than spawning an agent loop.
+
 ## Known uses
 
 - **[Hugging Face Transformers Agents (multi-agent)](https://huggingface.co/docs/transformers/v4.47.1/agents_advanced)** — *Available*. ReactCodeAgent embeds sub-agents as callable Python functions.

@@ -43,6 +43,20 @@ A library (Playwright-backed) exposes structured page state (numbered interactiv
 
 Actions are limited to the typed vocabulary; arbitrary JavaScript execution is not part of this surface.
 
+## Applicability
+
+**Use when**
+
+- The agent must operate websites and a structured DOM/accessibility tree is available.
+- Raw HTML is too noisy and pixel-level Computer Use is too slow or brittle for the web target.
+- A small action vocabulary (click, type, scroll, navigate) suffices for the task.
+
+**Do not use when**
+
+- The site requires pixel-level interaction (canvas, custom drawing) that no DOM tree exposes.
+- There is a clean API and using it is cheaper and more reliable than driving the UI.
+- Anti-bot measures make programmatic browser control infeasible at the required scale.
+
 ## Known uses
 
 - **[browser-use (Python library)](https://github.com/browser-use/browser-use)** — *Available*

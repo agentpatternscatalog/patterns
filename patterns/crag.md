@@ -43,6 +43,20 @@ After retrieval, a lightweight evaluator (T5-based or similar) grades each docum
 
 The generator sees only retrieval-graded-Correct documents, optionally augmented with corrective-search results.
 
+## Applicability
+
+**Use when**
+
+- Naive RAG passes bad retrievals through to the generator and corrupts outputs.
+- A lightweight evaluator (e.g. T5-class) can grade documents as Correct, Ambiguous, or Incorrect cheaply.
+- Web search is available as a corrective fallback for ambiguous or incorrect retrievals.
+
+**Do not use when**
+
+- Retrieval quality is already high enough that the evaluator step adds no measurable lift.
+- No corrective fallback (e.g. web search) is available, so the evaluator's verdict has no recovery path.
+- Latency budget cannot absorb the extra evaluator and fallback hops.
+
 ## Known uses
 
 - **CRAG paper baseline** — *Available*

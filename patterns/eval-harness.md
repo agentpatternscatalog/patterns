@@ -43,6 +43,20 @@ Build a golden dataset of (input, expected output) pairs. Run candidate versions
 
 Releases are blocked if the harness flags a regression beyond tolerance.
 
+## Applicability
+
+**Use when**
+
+- A change that 'feels better' is regressing quality silently in your system.
+- A golden dataset of (input, expected output) pairs can be constructed.
+- Champion-vs-challenger comparison drives promotion decisions.
+
+**Do not use when**
+
+- No expected outputs exist (open-ended creative tasks) and scoring would be subjective.
+- Dataset cost or maintenance exceeds the regression risk it would catch.
+- There is no release process to gate on quality lift in the first place.
+
 ## Known uses
 
 - **Bobbin (Stash2Go)** — *Planned*. Eval harness flagged as the explicit next step; in beta because of this gap.

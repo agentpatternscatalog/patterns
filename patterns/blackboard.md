@@ -43,6 +43,20 @@ Establish a shared store (file, database, in-memory). Each agent reads the relev
 
 Cross-agent communication happens only via the blackboard; out-of-band agent-to-agent calls are forbidden.
 
+## Applicability
+
+**Use when**
+
+- Multiple agents collaborate and need a shared workspace they can read from and write to.
+- Explicit point-to-point messaging would require an over-engineered protocol for the coordination shape.
+- Conflict resolution policy (last-write-wins, version-vector, append-only) is acceptable for the workload.
+
+**Do not use when**
+
+- Agents already coordinate fine through direct messages or function calls.
+- Shared mutable state without strict discipline would race in ways the chosen policy cannot handle.
+- Workload requires strict transactional semantics the blackboard does not provide.
+
 ## Known uses
 
 - **Classical AI blackboard architectures** — *Available*

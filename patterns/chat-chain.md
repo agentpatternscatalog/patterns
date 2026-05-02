@@ -52,6 +52,20 @@ Phase_1 (Role_A <-> Role_B) -> artefact_1 -> Phase_2 (Role_B <-> Role_C) -> arte
 
 Agents may not skip phases or address agents outside the current phase; phase output must satisfy the completion predicate before transition.
 
+## Applicability
+
+**Use when**
+
+- The work decomposes naturally into ordered phases, each with a paired role and an artefact.
+- Phase-specific completion predicates can be expressed clearly enough to gate handoff.
+- A single agent loop loses focus and broadcast multi-agent chat tangles context.
+
+**Do not use when**
+
+- The task does not split into phases with clean artefact handoffs.
+- Completion predicates are too vague to gate phase transitions reliably.
+- Two-role conversations would just slow down a competent single-agent solution.
+
 ## Known uses
 
 - **[ChatDev](https://github.com/OpenBMB/ChatDev)** — *Available*. Software-development chain: design → coding → testing → documentation, each as a paired-role chat.

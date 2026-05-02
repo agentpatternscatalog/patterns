@@ -43,6 +43,20 @@ Track per-dependency error rate over a window. When error rate exceeds a thresho
 
 When the breaker is open, the dependency must not be called; only fallback paths may run.
 
+## Applicability
+
+**Use when**
+
+- A dependency fails often enough that hammering it wastes cost or blocks legitimate traffic.
+- Per-dependency error rates can be tracked over a meaningful window.
+- A fallback or fail-fast path exists for use during the cooldown.
+
+**Do not use when**
+
+- Failures are correlated across all dependencies and there is no useful fallback to route to.
+- The dependency is so cheap that wasted calls cost less than the breaker machinery.
+- Cooldown semantics conflict with strict per-request SLAs (every request must be tried).
+
 ## Known uses
 
 - **Standard pattern in microservice frameworks; transferred to agent stacks** — *Available*

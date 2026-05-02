@@ -43,6 +43,20 @@ Treat retrieval as a tool. The agent decides whether to retrieve, formulates and
 
 Retrieval is one tool among many; the agent decides invocation, but each retrieval is bounded by the step budget.
 
+## Applicability
+
+**Use when**
+
+- A single retrieve-then-generate pass is insufficient for the task's information needs.
+- Multiple retrievers (vector, graph, keyword, web) exist and the right one varies per query.
+- The agent benefits from reflecting on retrieved evidence and re-querying when results are poor.
+
+**Do not use when**
+
+- Static one-shot RAG already meets quality targets at lower cost and latency.
+- Latency budgets cannot afford iterative retrieval rounds.
+- There is only one retriever and no meaningful query reformulation possible.
+
 ## Known uses
 
 - **Self-RAG, CRAG implementations** — *Available*

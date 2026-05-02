@@ -52,6 +52,20 @@ User -> Role Assistant -> Domain Agent A (own data + tools) -- protocol message 
 
 An agent may only call across domains via the standardised protocol; ad-hoc backdoor integrations between domain agents are forbidden.
 
+## Applicability
+
+**Use when**
+
+- Enterprise agency spans multiple domains (finance, supply chain, HR, service) each with its own system of record.
+- A standardised inter-agent protocol (A2A, MCP) is available or can be adopted.
+- Each domain benefits from its own grounded data, tool palette, and acceptance criteria.
+
+**Do not use when**
+
+- All work happens in one domain and a single specialised agent suffices.
+- No inter-agent protocol is in place and the integration cost dominates the benefit.
+- Domains share so much context that a single mega-agent is actually simpler.
+
 ## Known uses
 
 - **[SAP Joule](https://www.sap.com/products/artificial-intelligence/ai-agents.html)** — *Available*. Per-domain Joule Agents (finance, HR, supply chain, service) collaborating via SAP's collaborative agent architecture; A2A and MCP support announced 2025.

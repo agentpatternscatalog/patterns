@@ -43,6 +43,20 @@ Generator produces a candidate. Evaluator scores it against criteria with feedba
 
 Generator outputs are accepted only after the evaluator passes; an unbounded loop is forbidden by the iteration cap.
 
+## Applicability
+
+**Use when**
+
+- Single-shot generation tops out below the quality the task requires.
+- An evaluator can score candidates against criteria with actionable feedback.
+- Iteration budget (max iterations or pass threshold) is acceptable in the latency model.
+
+**Do not use when**
+
+- Single-shot generation already meets quality targets.
+- No evaluator exists that can produce useful feedback on the output type.
+- Latency budget allows only one generation pass.
+
 ## Known uses
 
 - **Anthropic Building Effective Agents (Workflow #5)** — *Available*

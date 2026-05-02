@@ -52,6 +52,20 @@ Screenshot -> Decision_Model -> intent (typed) -> Grounding_Model + Screenshot -
 
 The decision model may not emit pixel-level actions; the grounding model may not change the plan or invent intents outside the typed vocabulary.
 
+## Applicability
+
+**Use when**
+
+- A single GUI model is dominated by either planning or grounding and underperforms on the other skill.
+- A clean intermediate vocabulary (open the cart, swipe left to next item) can express decisions for grounding.
+- Two specialised models (decision and grounding) are available and routing between them is feasible.
+
+**Do not use when**
+
+- A single competent multimodal model handles both planning and grounding well enough.
+- No clean intermediate vocabulary fits the task and the split would lose information.
+- Routing overhead between two models exceeds the quality lift.
+
 ## Known uses
 
 - **[AutoGLM (Zhipu)](https://xiao9905.github.io/AutoGLM/)** — *Available*. Decision model (GLM-4.7) plus grounding/vision model; web and Android variants.

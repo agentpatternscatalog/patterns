@@ -43,6 +43,20 @@ On a schedule (or at thresholds), summarise blocks of recent thoughts/conversati
 
 Past events older than the compaction horizon are accessible only via summary, not raw.
 
+## Applicability
+
+**Use when**
+
+- Conversation or thought history grows unboundedly without compaction.
+- Summaries can preserve gist while shedding token cost meaningfully.
+- Summarised tiers are consulted first with originals available on demand.
+
+**Do not use when**
+
+- History is naturally bounded and never approaches token limits.
+- Lossy summarisation would drop critical facts the agent needs verbatim.
+- Originals are not retained and summarisation errors would be irrecoverable.
+
 ## Known uses
 
 - **Sparrot** — *Available*. Hourly chunk summarisation; daily insight extraction.

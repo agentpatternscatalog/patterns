@@ -52,6 +52,20 @@ Search: workflow_graph -> mutate -> run on eval set -> score -> MCTS update -> r
 
 No workflow may be deployed that was not measured against the held-out eval set; ad-hoc human edits to a discovered workflow re-enter the search.
 
+## Applicability
+
+**Use when**
+
+- You have a stable eval benchmark that can score full workflows end-to-end.
+- Designer bias toward familiar patterns is leaving real workflow improvements on the table.
+- Compute budget for many workflow trials is available and amortised across many future runs.
+
+**Do not use when**
+
+- No reliable eval exists to guide the search.
+- Workflow domain is small enough to enumerate by hand more cheaply than running MCTS.
+- The deployment target changes faster than search can converge on a stable workflow.
+
 ## Known uses
 
 - **[AFlow (DeepWisdom + HKUST(GZ))](https://github.com/FoundationAgents/AFlow)** — *Available*. MCTS over code-represented workflows; outperforms hand-designed baselines by 5.7% average.

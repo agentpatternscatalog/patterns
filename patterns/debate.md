@@ -43,6 +43,20 @@ Two or more agents are given different positions. They exchange arguments over N
 
 Each debater may only argue its assigned position until the judge step.
 
+## Applicability
+
+**Use when**
+
+- Reasoning blind spots are reduced when multiple agents argue different positions.
+- A judge agent or tie-break rule can converge the debate to a final answer.
+- Multiple model calls per question are affordable for the lift in answer quality.
+
+**Do not use when**
+
+- Single-agent answers are already accurate enough and debate adds only cost.
+- Agents collapse to agreement and the debate produces no new signal.
+- No judge or tie-break mechanism exists and debates do not terminate cleanly.
+
 ## Known uses
 
 - **Anthropic AI Safety via Debate research** — *Available*

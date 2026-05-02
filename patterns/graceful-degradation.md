@@ -43,6 +43,20 @@ Define per-feature fallback behaviour. On dependency failure, downgrade (text-on
 
 On failure, the agent must produce a degraded response with disclosure rather than a generic error.
 
+## Applicability
+
+**Use when**
+
+- A dependency outage would otherwise fail the user request entirely.
+- Per-feature fallback behaviour can be defined (text when vision fails, no citations when retrieval fails).
+- The user can be told that degraded mode is active without breaking trust.
+
+**Do not use when**
+
+- There is no meaningful subset of working features to degrade to.
+- Silent degradation would mislead the user and explicit failure is more honest.
+- Feature flags do not exist and per-feature fallback cannot be wired without a major refactor.
+
 ## Known uses
 
 - **Perplexity (citations missing under retrieval issues)** — *Available*

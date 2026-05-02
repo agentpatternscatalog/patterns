@@ -43,6 +43,20 @@ Define agents with system prompts and allowed actions. Implement a conversation 
 
 Each agent's outputs must conform to its role's allowed action set; agents may not act outside their role's vocabulary.
 
+## Applicability
+
+**Use when**
+
+- The task naturally maps to dialogue between roles (e.g. user-proxy and assistant, planner and executor).
+- A conversation manager can pick the next speaker by rule, condition, or model decision.
+- Termination criteria (task complete, max turns, explicit handoff) are easy to express.
+
+**Do not use when**
+
+- A single-agent loop already captures the work without dialogue overhead.
+- Strict orchestration (fixed step order) is required and conversational drift is unacceptable.
+- Termination is hard to detect, risking runaway turn counts.
+
 ## Known uses
 
 - **[Microsoft AutoGen](https://microsoft.github.io/autogen/)** — *Available*

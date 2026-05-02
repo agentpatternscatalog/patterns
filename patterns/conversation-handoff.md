@@ -43,6 +43,20 @@ On escalation trigger (low confidence, explicit user request, policy violation),
 
 Once handed off, the agent does not generate to the user; the operator owns the thread until explicit return.
 
+## Applicability
+
+**Use when**
+
+- Some triggers (low confidence, policy violation, explicit user request) demand transferring ownership of the whole thread, not just one action.
+- A human operator queue exists with the capacity to take over conversations.
+- A return primitive is needed so the agent can resume after the operator hands back.
+
+**Do not use when**
+
+- Discrete-action approval is sufficient and full thread transfer is overkill (use approval-queue).
+- No human operator queue exists to hand the conversation to.
+- The agent must remain the sole user-facing interface for compliance reasons.
+
 ## Known uses
 
 - **Sierra agent escalations** — *Available*

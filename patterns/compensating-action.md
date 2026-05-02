@@ -43,6 +43,20 @@ For each forward action, define a compensating action (delete-after-create, refu
 
 Forward actions cannot be invoked without a registered compensator; uncompensable actions need explicit operator approval.
 
+## Applicability
+
+**Use when**
+
+- Agent actions are irreversible-looking and distributed transactions are unavailable.
+- For each forward action a meaningful undo (delete-after-create, refund-after-charge) can be defined.
+- Compensators can be made idempotent so retrying them is safe.
+
+**Do not use when**
+
+- Actions are truly irreversible (sent emails, physical world effects) with no compensator possible.
+- Native transactional semantics are available and simpler than building per-action compensators.
+- The cost of authoring and testing compensators outweighs the rare failure cases they would handle.
+
 ## Known uses
 
 - **Saga pattern in microservices, transferred to agents** — *Available*

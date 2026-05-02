@@ -43,6 +43,20 @@ For each chunk, prompt an LLM with the parent document and the chunk; receive a 
 
 Chunks enter the index only after contextualisation; raw chunks are not indexed.
 
+## Applicability
+
+**Use when**
+
+- Naive chunking destroys context and queries miss chunks that refer to entities by pronoun or shorthand.
+- An LLM pass over each chunk to produce a situating description is affordable at index time.
+- BM25 over prepended chunks and dense embeddings can both be wired into the retrieval stack.
+
+**Do not use when**
+
+- Documents are short or self-contained enough that chunks already carry their context.
+- Index-time LLM cost is unaffordable for the corpus size.
+- Retrieval quality is already adequate without the chunk-rewriting step.
+
 ## Known uses
 
 - **[Anthropic Contextual Retrieval blog post](https://www.anthropic.com/news/contextual-retrieval)** — *Available*

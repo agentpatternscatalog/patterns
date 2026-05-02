@@ -43,6 +43,20 @@ The model receives screenshots (optionally augmented with accessibility-tree or 
 
 The agent operates the desktop only through the typed action vocabulary; arbitrary code execution is not part of this surface.
 
+## Applicability
+
+**Use when**
+
+- The target software has no clean API and the agent must drive a real desktop visually.
+- Screenshots plus virtual mouse/keyboard tool calls fit the target environment.
+- The vendor exposes a model with sufficient screen-grounding capability.
+
+**Do not use when**
+
+- A clean API exists and is faster, cheaper, and more reliable than visual control.
+- The deployment cannot tolerate the latency or cost of screenshot-think-act loops.
+- Security or compliance forbids screen-content capture from the target machine.
+
 ## Known uses
 
 - **[Anthropic Computer Use (Claude 3.5+)](https://www.anthropic.com/news/3-5-models-and-computer-use)** — *Available*

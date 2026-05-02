@@ -43,6 +43,20 @@ Define a tiered eval suite: blocking evals (must pass for release), advisory eva
 
 Releases are forbidden when blocking evals fail; bypassing requires explicit operator override.
 
+## Applicability
+
+**Use when**
+
+- An eval suite exists that can be tiered into blocking and advisory.
+- CI can be wired so blocking eval failures actually prevent release.
+- The team is willing to treat eval changes as architectural changes (review and signoff).
+
+**Do not use when**
+
+- There is no eval suite robust enough to gate releases on.
+- Blocking-eval failures would be routinely overridden, hollowing out the contract.
+- Release cadence cannot tolerate blocking gates and a softer signal is preferred.
+
 ## Known uses
 
 - **AI-Standards Eval as Contract pattern** — *Available*

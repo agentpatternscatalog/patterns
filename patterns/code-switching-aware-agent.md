@@ -52,6 +52,20 @@ Utterance -> per-clause language tagger -> mixed-script aware extractor -> norma
 
 The agent may not refuse or downgrade a request because the user mixed languages or scripts in one utterance; mixed-language input is in-spec.
 
+## Applicability
+
+**Use when**
+
+- Real users mix languages within a single utterance (e.g. Hinglish, Spanglish, Singlish).
+- Mono-language pipelines mis-tokenise or mis-detect the input.
+- Models trained on code-switched corpora exist for the language pair in question.
+
+**Do not use when**
+
+- The user base reliably writes in one language per turn.
+- No code-switched-trained model exists for the language pair and quality would regress.
+- Forcing one language is acceptable in the deployment context (e.g. internal English-only tooling).
+
 ## Known uses
 
 - **[Sarvam (Indic LLMs and conversational agents)](https://www.sarvam.ai/)** — *Available*. Models and pipelines explicitly trained for Indic-English code-switching.
