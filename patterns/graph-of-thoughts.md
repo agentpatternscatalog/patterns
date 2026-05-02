@@ -23,6 +23,21 @@ Tree of Thoughts cannot combine partial solutions or reuse intermediate results 
 - Cross-branch reuse vs aggregation prompt cost.
 - DAG expressiveness vs cycle-safety enforcement.
 
+
+## Applicability
+
+**Use when**
+
+- Reasoning benefits from merging or refining partial solutions across branches.
+- Intermediate thoughts can be reused or aggregated rather than discarded.
+- Problems have a DAG-shaped structure rather than a single linear chain.
+
+**Do not use when**
+
+- A simple chain-of-thought or tree-of-thoughts already solves the task at lower cost.
+- Operations to score, aggregate, or refine thoughts cannot be defined for the domain.
+- Latency budgets cannot absorb multi-node graph traversal.
+
 ## Solution
 
 Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.

@@ -23,6 +23,21 @@ Query-document length and style asymmetry hurts dense retrieval recall on short 
 - Adds an LLM call per query.
 - Often paired with reranking to recover from off-topic hallucinations.
 
+
+## Applicability
+
+**Use when**
+
+- Short user queries underperform on dense retrieval against long documents.
+- An LLM call to draft a hypothetical answer fits the latency and cost budget.
+- Recall on the first stage of RAG is the current bottleneck.
+
+**Do not use when**
+
+- Naive query embedding already retrieves the right chunks.
+- Drafting hypothetical answers introduces unacceptable latency.
+- The corpus or query distribution makes hallucinated drafts misleading anchors.
+
 ## Solution
 
 On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.

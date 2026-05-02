@@ -23,6 +23,21 @@ A generalist agent's depth in any one domain is shallow; users in specialist dom
 - Routing classification must match expert coverage.
 - Cross-domain queries challenge single-expert routing.
 
+
+## Applicability
+
+**Use when**
+
+- Users in specialist domains feel under-served by a generalist agent.
+- Domain experts can be defined with their own prompts, tools, or fine-tuned models.
+- A router can classify queries by domain reliably enough to dispatch.
+
+**Do not use when**
+
+- A generalist agent already meets quality bars across domains.
+- Domains overlap so heavily that expert separation just causes thrash.
+- Routing classification accuracy is too low to trust dispatch.
+
 ## Solution
 
 Define experts (specialised system prompts, tool palettes, possibly fine-tuned models). A router classifies queries by domain. Route to one expert (top-1) or to multiple experts whose outputs are aggregated. Distinct from standard routing by emphasising deep specialisation per expert.

@@ -23,6 +23,21 @@ Separate schemas per sub-type duplicate work and break clients that do not under
 - Type-specific fields need a clean place to live.
 - Validation must be per-sub-type, not just per-record.
 
+
+## Applicability
+
+**Use when**
+
+- A family of related entities shares a core schema with type-specific extensions.
+- Clients should round-trip unknown sub-types without losing data.
+- A discriminator field can flag the sub-type cleanly.
+
+**Do not use when**
+
+- Sub-types share so few fields that separate schemas are clearer.
+- All clients understand all sub-types and a flat schema is simpler.
+- Sub-type extension blocks would proliferate unboundedly without governance.
+
 ## Solution
 
 Define a core schema with the common fields and a discriminator (e.g. `material_type`). Sub-type fields live in a namespaced extension block (e.g. `yarn: {...}` for yarn-specific). Clients that do not understand a sub-type still read the core fields and round-trip the rest without data loss.

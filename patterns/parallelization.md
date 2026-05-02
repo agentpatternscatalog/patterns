@@ -23,6 +23,21 @@ Sequential execution of independent work wastes wall-clock time; single-attempt 
 - Aggregation logic for voting (majority? best? union?).
 - Cost multiplies linearly with parallel branches.
 
+
+## Applicability
+
+**Use when**
+
+- Independent subtasks can run concurrently to cut wall-clock time.
+- Voting across multiple attempts catches outliers a single run would miss.
+- Aggregation by concatenation, majority, or judge is feasible.
+
+**Do not use when**
+
+- Subtasks have hard dependencies that force sequential execution.
+- The cost of running multiple attempts outweighs the quality gain.
+- No reliable aggregation step is available for the votes.
+
 ## Solution
 
 Two flavours. Sectioning: split a task into independent subtasks, run them concurrently, concatenate results. Voting: run the same task multiple times, aggregate by majority or judge.

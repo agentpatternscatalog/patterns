@@ -23,6 +23,21 @@ Helpful-by-default agents drift into unhelpful or unsafe responses on out-of-sco
 - Under-refusal lands the agent in trouble.
 - Refusal text quality matters; templated refusals feel insulting.
 
+
+## Applicability
+
+**Use when**
+
+- Requests fall outside scope, capability, or policy and helpful-by-default would harm.
+- Clear refusal triggers can be defined (policy violation, out-of-scope, regulatory boundary).
+- Refusals can name the boundary and suggest an alternative when possible.
+
+**Do not use when**
+
+- The agent is a fully unrestricted research tool with no scope to defend.
+- Refusal triggers are so vague they would block legitimate work.
+- Logging refusals for review is not feasible and silent drops are unacceptable.
+
 ## Solution
 
 Define refusal triggers (policy violation, out-of-scope, capability gap, regulatory boundary). Return a clear, kind, specific refusal that names the boundary and (when possible) suggests an alternative. Log refusals for review.

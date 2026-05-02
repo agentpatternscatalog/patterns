@@ -23,6 +23,21 @@ Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries
 - Schema design for the graph is a separate engineering effort.
 - Updates and deletions need referential integrity.
 
+
+## Applicability
+
+**Use when**
+
+- The agent must answer relational queries (path, neighbour, type) over remembered entities.
+- Observations cleanly yield entities and relations worth persisting symbolically.
+- Hybrid retrieval (vector entry + graph traversal) is feasible and useful.
+
+**Do not use when**
+
+- Memory is unstructured text where vector search is sufficient.
+- Entity and relation extraction quality is too low to populate the graph reliably.
+- Operating a graph store adds complexity disproportionate to the query volume.
+
 ## Solution
 
 Extract entities and relations from observations into a graph store (Neo4j, RDF, simple JSON). Queries traverse the graph (Cypher/SPARQL or programmatic). Combine with vector memory for hybrid retrieval (vector finds entry points; graph traverses).

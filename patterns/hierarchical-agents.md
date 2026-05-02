@@ -23,6 +23,21 @@ Flat supervisor patterns scale poorly: one supervisor with N specialists has pro
 - Inter-level communication needs a contract.
 - Failure recovery: which level retries?
 
+
+## Applicability
+
+**Use when**
+
+- Tasks decompose recursively and a single supervisor cannot cleanly orchestrate the breadth.
+- Sub-tasks are themselves big enough to merit their own decomposition step.
+- Bounded depth and breadth limits can be enforced to prevent runaway hierarchies.
+
+**Do not use when**
+
+- A flat supervisor over a small set of specialists already suffices.
+- Bubbling synthesis up multiple levels is too lossy for the task.
+- Latency and token cost of nested orchestration are unacceptable.
+
 ## Solution
 
 Each non-leaf agent receives a task, decomposes it, and dispatches sub-tasks to its children. Children may be specialists (leaves) or further managers. Results bubble up; each manager synthesises its children's outputs. Bounded depth and breadth prevent runaway hierarchies.

@@ -23,6 +23,21 @@ Latency-sensitive agents waiting on tools sequentially are slower than they need
 - Failure isolation: one branch failing should not kill others.
 - Joiner correctness: combining out-of-order results.
 
+
+## Applicability
+
+**Use when**
+
+- Latency-sensitive agents waste time waiting on independent tool calls in series.
+- A planner can build a dependency DAG up front for the workload.
+- Bounded concurrency and a join step are acceptable engineering investments.
+
+**Do not use when**
+
+- Tool calls are mostly sequential with strong dependencies.
+- Parallel-tool-calls already gives most of the latency win at lower complexity.
+- DAG planning cost dominates the savings on the actual workload.
+
 ## Solution
 
 Three roles. Planner builds the dependency DAG. Task-Fetching Unit dispatches steps as their inputs become available, with bounded concurrency. Joiner assembles the final answer from the resolved DAG.

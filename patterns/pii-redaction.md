@@ -23,6 +23,21 @@ LLMs memorise and echo what they see; any PII in the prompt risks ending up in t
 - Reversible vs irreversible redaction.
 - Token-level vs entity-level redaction.
 
+
+## Applicability
+
+**Use when**
+
+- Inputs to the model may carry personally identifiable information.
+- Outputs and logs must not echo PII the user did not request.
+- Detectors (regex, NER, classifier) can be combined for acceptable recall.
+
+**Do not use when**
+
+- Data is already PII-free at the boundary that feeds the model.
+- Detector false-positive rates would break the user experience.
+- End-to-end encryption or other controls already cover the same risk.
+
 ## Solution
 
 Pre-process inputs: detect PII (regex + NER + classifier), replace with placeholders. Post-process outputs: re-substitute placeholders back, or refuse if outputs contain unrequested PII. Audit log of redactions.

@@ -23,6 +23,21 @@ Without an automated grader, regression detection on free-form outputs requires 
 - Calibration against human judgement is its own dataset.
 - Same-model judging is suspect when the candidate is from the same family.
 
+
+## Applicability
+
+**Use when**
+
+- Open-ended outputs need automated regression detection without a reference answer.
+- A rubric can be written that covers the qualities you actually care about.
+- Calibration against human-graded samples is feasible periodically.
+
+**Do not use when**
+
+- An exact-match or reference metric already grades the task.
+- No rubric can be agreed and the judge would just rehearse model bias.
+- Calibration data and review cycles cannot be sustained.
+
 ## Solution
 
 Define a rubric. Prompt a judge model with the input, candidate output, and rubric. Receive a structured score plus rationale. Calibrate periodically against human-graded samples. Use a different model family for judge vs candidate where possible.

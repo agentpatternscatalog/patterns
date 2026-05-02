@@ -23,6 +23,21 @@ Vector indexes are added where a SQL query, a tool call, or a system prompt woul
 - Vector stores feel like a moat.
 - Tool use is sometimes harder to build than RAG.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; check whether the knowledge belongs in a tool, database, or scoped prompt before adopting RAG.
+- Use tool-use when the knowledge lives behind an API or query.
+- Adopt naive-rag only when those simpler stores genuinely do not work.
+
+**Do not use when**
+
+- Any project where vector indexes are added by reflex without checking alternatives.
+- Any setting where a SQL query, API call, or inlined document would already answer the need.
+- Any team treating RAG as a default rather than a deliberate choice.
+
 ## Solution
 
 Don't reach for RAG first. Check whether the knowledge lives in a tool (database, API, search service), a scoped system prompt, or a small inlined document. Only adopt RAG when those genuinely do not work. See tool-use, naive-rag for when it does.

@@ -24,6 +24,21 @@ Bolting a generic English LLM between a generic STT and TTS loses dialect, code-
 - Dialect and code-switching are the norm, not the exception.
 - Telephony imposes 8 kHz audio constraints on top.
 
+
+## Applicability
+
+**Use when**
+
+- The agent serves users in multiple languages or dialects with code-switching.
+- Sub-second turn-taking requires streaming at every hop (STT, LLM, TTS).
+- One vendor or co-located stack can carry language tags end-to-end.
+
+**Do not use when**
+
+- The product is monolingual English with no dialect or accent concern.
+- Latency budgets allow non-streaming round-trips between independent services.
+- Translating to and from English mid-pipeline is acceptable for the use case.
+
 ## Solution
 
 Build the voice agent as a co-located pipeline whose components share language identity and dialect signals end-to-end. Use STT models trained on the target languages and accents. Pass detected language tags as structured metadata to the LLM. Use TTS voices native to the target language; do not translate back to English mid-pipeline. Optimise for streaming at every hop (incremental STT, streaming LLM, streaming TTS) to hit sub-second turn-taking. Treat code-switching as first-class; do not force a single-language assumption.

@@ -23,6 +23,21 @@ One-shot generation underuses the model; a second pass focused on critique often
 - Free-form review drifts; the model invents new criteria each time.
 - Termination: when does the loop stop?
 
+
+## Applicability
+
+**Use when**
+
+- One-shot generation underuses the model and a critique pass would catch errors.
+- A critic prompt can identify issues meaningfully on the task's outputs.
+- Stop conditions (no new issues, max iterations) can be defined.
+
+**Do not use when**
+
+- The model already produces correct outputs in one pass.
+- Latency or cost cannot accommodate extra revision rounds.
+- Self-critique at this scale is unreliable and just rationalises errors.
+
 ## Solution
 
 After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).

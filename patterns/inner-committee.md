@@ -23,6 +23,21 @@ Mono-persona prompts conflate roles and produce muddled outputs that are neither
 - The model has the same blind spots in each persona; true diversity is limited.
 - Persona drift in long conversations dilutes the role separation.
 
+
+## Applicability
+
+**Use when**
+
+- A single persona produces muddled outputs that are neither plan, critique, nor execution.
+- Distinct personas (planner, executor, critic) can be defined with non-overlapping inputs.
+- The agent loop can step through personas at fixed, deterministic points.
+
+**Do not use when**
+
+- Mono-persona prompts already produce clean role-separated outputs.
+- Multiple model calls per step are not affordable.
+- Personas would share so much context that role separation has no effect.
+
 ## Solution
 
 Define explicit personas (system prompts) for each role: planner, executor, critic. The agent loop steps through personas at fixed points. Each persona sees only the inputs its role needs, not the full context of the others.

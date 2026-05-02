@@ -23,6 +23,21 @@ The model invents tool names. The host either crashes, silently drops the call, 
 - Provider-side validation is not always strict.
 - Logging fails to surface 'tool does not exist' as a first-class event.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; treat any model-emitted tool name as untrusted input.
+- Validate every tool call against the registered tool palette before dispatch (see tool-use, structured-output).
+- Reject unknown tool names with a typed error the agent loop can react to.
+
+**Do not use when**
+
+- Any production agent loop with side-effecting tools.
+- Any setting where silent drops or fuzzy-matched dispatch could cause harm.
+- Any environment without a registered, enumerable tool palette.
+
 ## Solution
 
 Don't trust. Validate every tool call against the registered palette before dispatch. Reject unknown names with a typed error the agent can react to. See tool-use, structured-output.

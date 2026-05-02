@@ -23,6 +23,21 @@ Debate without termination converges only by accident. Real cost grows linearly 
 - Round caps cut off legitimate convergence.
 - Judge agents become the new bottleneck.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; multi-agent debate without a termination rule loops indefinitely.
+- Use debate together with a round cap and an explicit termination predicate.
+- Pair debate with a judge or aggregator (see debate, step-budget, the-stop-hook).
+
+**Do not use when**
+
+- Any production setting with latency or cost SLOs.
+- Any debate setup that lacks a judge or stop condition.
+- Any task where progress cannot be measured between rounds.
+
 ## Solution
 
 Don't. Add a round cap and a termination predicate. Pair debate with a judge or aggregator. See debate, step-budget, the-stop-hook.

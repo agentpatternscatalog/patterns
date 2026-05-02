@@ -23,6 +23,21 @@ Without lineage, output disputes are unanswerable; rolling back to a known-good 
 - Schema evolution of lineage is itself a problem.
 - PII in lineage records (prompts contain user data).
 
+
+## Applicability
+
+**Use when**
+
+- Output disputes, audits, or rollbacks require knowing exactly what produced an output.
+- Prompts, models, tools, and retrieved documents change often enough that ad-hoc tracking fails.
+- A queryable lineage store can be joined to the output store.
+
+**Do not use when**
+
+- The agent is a one-shot experiment with no audit need.
+- No store exists to capture and join lineage records.
+- Output volume is small enough that manual reconstruction is acceptable.
+
 ## Solution
 
 Tag every agent output with: prompt template hash, model id and version, tool versions, retrieved-document ids, decision-log id. Store in a queryable lineage store. Make lineage joinable to the output store.

@@ -24,6 +24,21 @@ Two failure modes pull in opposite directions. (1) If the reasoning trace is dro
 - Tokens are expensive; preserving traces forever costs money.
 - Stale reasoning leaks bias into the next task.
 
+
+## Applicability
+
+**Use when**
+
+- The model is a reasoning model that emits a separate reasoning trace.
+- Within an episode (one user turn through tool calls and results), reasoning context must persist.
+- Reasoning traces should be dropped at user-turn boundaries to avoid stale carryover.
+
+**Do not use when**
+
+- The model does not produce a separable reasoning trace.
+- The provider already manages reasoning persistence across turns automatically.
+- Stateless single-turn use cases that do not span tool-call cycles.
+
 ## Solution
 
 Define an episode as: from one user turn to the next user turn (inclusive of all intervening tool calls and tool results). Within an episode, preserve assistant reasoning_content as part of the context concatenation across all turns. At the next user turn boundary, drop reasoning_content from prior episodes (the API will ignore it if you do pass it). The user-visible content remains in history; only the reasoning trace is episode-scoped.

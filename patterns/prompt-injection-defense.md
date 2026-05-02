@@ -23,6 +23,21 @@ LLMs cannot reliably distinguish their own instructions from instructions embedd
 - Egress channels (tool calls, image URLs, links) need their own controls; demoting tool output is necessary but not sufficient.
 - Multi-turn payloads can hide instructions across messages, beyond per-turn tagging.
 
+
+## Applicability
+
+**Use when**
+
+- Untrusted content (user input, retrieved documents, tool output) reaches the model.
+- A clear instruction hierarchy can be encoded with markers around untrusted content.
+- Output guardrails can detect known exfiltration patterns.
+
+**Do not use when**
+
+- All inputs and tool outputs come from fully trusted, controlled sources.
+- The model demonstrably cannot be trained or prompted to respect the markers.
+- Output guardrail false positives would break legitimate workflows.
+
 ## Solution
 
 Establish an instruction hierarchy: system prompts trusted, user prompts partially trusted, tool/document content untrusted. Wrap untrusted content in markers. Train or prompt the model to refuse instructions inside untrusted markers. Add output guardrails for known exfiltration patterns.

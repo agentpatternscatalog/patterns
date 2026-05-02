@@ -23,6 +23,21 @@ A single-tick edit can capture momentary confusion as a lasting rule.
 - Coordination across ticks needs a proposal / approval state machine.
 - User override should always be available for legitimate fast paths.
 
+
+## Applicability
+
+**Use when**
+
+- Durable state changes must not capture single-tick confusion.
+- Mutation proposals can be held until subsequent ticks confirm them.
+- Explicit user approval is available as a bypass for urgent edits.
+
+**Do not use when**
+
+- Mutations are cheap to revert and the quorum delay just slows learning.
+- The agent has no durable state worth protecting.
+- Single-tick edits with diff review already meet the safety bar.
+
 ## Solution
 
 Mutation proposals are written to a holding area. A subsequent tick must confirm the proposal (still endorses it given fresh context). After K consecutive confirms, the mutation lands. Explicit user approval bypasses the wait.

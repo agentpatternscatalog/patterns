@@ -23,6 +23,21 @@ Static decomposition (Plan-and-Execute, Prompt Chaining) cannot handle tasks who
 - Workers should not have to know they are workers.
 - Synthesis must reconcile conflicting worker outputs.
 
+
+## Applicability
+
+**Use when**
+
+- The shape of decomposition depends on the input and cannot be planned statically.
+- An orchestrator agent can decide subtasks at runtime and synthesise results.
+- Worker count and roles legitimately vary per task.
+
+**Do not use when**
+
+- Static decomposition (Plan-and-Execute, Prompt Chaining) already fits the task.
+- Per-call orchestration overhead is unacceptable for the latency budget.
+- Synthesis is unreliable and worker outputs cannot be reconciled.
+
 ## Solution
 
 Orchestrator agent receives the task, decides at runtime what subtasks to spawn, hands each to a worker (often via tool call), collects results, and synthesises the final output. Worker count and roles can vary per task.

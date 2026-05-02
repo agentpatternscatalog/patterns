@@ -23,6 +23,21 @@ Without a handoff primitive, mid-conversation reroutes either restart context or
 - Handoff loops (A→B→A→B) are a real failure.
 - User experience must signal the change without disorienting.
 
+
+## Applicability
+
+**Use when**
+
+- Mid-conversation routing must transfer context to a more appropriate specialist.
+- Multiple specialised agents exist and not every conversation belongs to one.
+- A summary plus the original conversation is enough for the target to continue.
+
+**Do not use when**
+
+- A single agent can handle the conversation without rerouting.
+- Loop detection or thrash prevention cannot be implemented to bound handoffs.
+- The cost of summarising and re-onboarding outweighs the specialisation benefit.
+
 ## Solution
 
 Define a handoff tool. The current agent invokes it with target agent and a context summary. The target agent receives the summary plus the original conversation and continues from there. Loop detection prevents thrash.

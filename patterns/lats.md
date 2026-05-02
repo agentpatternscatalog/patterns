@@ -23,6 +23,21 @@ ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit 
 - Branch ranking determines whether search beats greedy.
 - Memory of failed branches must not leak into successful ones.
 
+
+## Applicability
+
+**Use when**
+
+- Single-chain agent loops commit too early on ambiguous problems.
+- A learned or heuristic value function can score partial trajectories.
+- Backtracking from failing branches is worth the search overhead.
+
+**Do not use when**
+
+- ReAct or Plan-and-Execute already solves the task without search.
+- No useful value function or step-level signal exists.
+- Latency and token cost cannot absorb tree expansion and rollouts.
+
 ## Solution
 
 Apply Monte Carlo Tree Search (MCTS) to the agent loop. Each node is a partial trajectory. Expansion samples next thoughts/actions. Backpropagation updates a value estimate. Selection chooses the next node by UCT. The agent can backtrack from a failing branch instead of committing.

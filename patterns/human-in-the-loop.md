@@ -23,6 +23,21 @@ Fully autonomous action at risky boundaries combines model confidence with conse
 - Approval-fatigue: too many gates train users to click through.
 - Asynchronous approval stalls the loop.
 
+
+## Applicability
+
+**Use when**
+
+- Action consequences at a defined boundary are too costly to leave to the model alone.
+- A human reviewer is reachable within the latency budget the workflow allows.
+- Approve, reject, and resume semantics can be expressed cleanly in the agent loop.
+
+**Do not use when**
+
+- Decisions must be made in unattended or sub-second autonomous settings.
+- Volume is too high for human review to keep up without becoming a rubber stamp.
+- Risk per action is small enough that automated guardrails are sufficient.
+
 ## Solution
 
 Identify the boundary. Pause the loop. Surface the proposed action with enough context for the human to decide. Require an explicit approve/reject. Resume on approve; abort or replan on reject. Log the decision.

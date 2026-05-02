@@ -23,6 +23,21 @@ Prompts edited inline in code are hard to audit; rolling back a prompt means rol
 - Prompt versioning must integrate with eval harness.
 - Signed prompts vs editable prompts.
 
+
+## Applicability
+
+**Use when**
+
+- Prompts are edited often and audit, rollback, or A/B comparison is required.
+- Eval outcomes need to be tied to specific prompt versions.
+- A registry can hold immutable, hashed, semver-tagged artefacts.
+
+**Do not use when**
+
+- Prompts are stable and rarely changed.
+- No registry exists and the operational cost outweighs current churn.
+- Inline prompts already work and there is no audit obligation.
+
 ## Solution
 
 Prompts live in a registry as immutable, hashed, version-tagged artefacts. Code references prompts by name + version (semver). Deployments pin specific versions; rollback by version. Eval harness ties metric outcomes to prompt versions. Optionally signed for provenance.

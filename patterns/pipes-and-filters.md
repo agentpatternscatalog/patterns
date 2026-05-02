@@ -23,6 +23,21 @@ Monolithic transformations are hard to test; bespoke pipelines reinvent connecti
 - Pipe contracts (typed messages) need agreement.
 - Backpressure across pipes.
 
+
+## Applicability
+
+**Use when**
+
+- A transformation can be decomposed into small filters with single responsibilities.
+- Filters benefit from being individually testable and reusable across pipelines.
+- Typed pipes (call, queue, stream) connect filters cleanly.
+
+**Do not use when**
+
+- The transformation is small enough that a single function is clearer.
+- Filter boundaries would be artificial and add plumbing without payoff.
+- Strong cross-stage state coupling defeats the filter abstraction.
+
 ## Solution
 
 Decompose the transformation into small filters with single responsibilities. Connect them via typed pipes (function call, queue, stream). Each filter is testable in isolation. Filters can be reused across pipelines.

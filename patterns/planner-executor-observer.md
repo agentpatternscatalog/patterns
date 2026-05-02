@@ -23,6 +23,21 @@ The missing third role is supervision of execution against intent; without it, p
 - Triggering replans too eagerly thrashes; too lazily wastes effort.
 - The Observer needs visibility into plan and tool results both.
 
+
+## Applicability
+
+**Use when**
+
+- Plan quality must be checked against execution evidence rather than trusted blindly.
+- Three roles (planner, executor, observer) can be defined with their own prompts.
+- Observer signals (loop, respond, replan) drive the agent's next move.
+
+**Do not use when**
+
+- The task is short enough that planner-executor without supervision suffices.
+- Observer cost dominates and there is no payoff in catching mid-run drift.
+- Roles cannot be cleanly separated without overlapping prompts.
+
 ## Solution
 
 Three roles: Planner produces a plan; Executor runs steps; Observer reads the cumulative result and decides loop / respond / replan. Each role has its own prompt and (optionally) its own model.

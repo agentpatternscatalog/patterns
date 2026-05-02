@@ -23,6 +23,21 @@ CoT generalises poorly out of distribution; the model needs explicit scaffolding
 - Two stages double minimum cost.
 - Errors in the decomposition cascade.
 
+
+## Applicability
+
+**Use when**
+
+- Hard problems benefit from explicit decomposition into ordered easier subproblems.
+- Each subproblem's answer is genuinely useful as input to the next.
+- Plain chain-of-thought generalises poorly to the target distribution.
+
+**Do not use when**
+
+- The model already solves the task with chain-of-thought alone.
+- Subproblems cannot be ordered easiest-to-hardest reliably.
+- Sequential prompting cost is prohibitive for the workload.
+
 ## Solution
 
 Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.

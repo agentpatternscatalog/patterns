@@ -23,6 +23,21 @@ In-band stop hooks rely on the agent's own loop checking; if the model is wedged
 - Out-of-band signals must propagate to all agent surfaces (model calls, tools, sub-agents).
 - Compensating actions on halt are non-trivial.
 
+
+## Applicability
+
+**Use when**
+
+- An agent runs tools or model calls that can cause real harm if it goes wedged.
+- Out-of-band halt must be guaranteed even when the agent loop ignores in-band signals.
+- A signed revocation token or feature flag can be checked from a store the runtime cannot bypass.
+
+**Do not use when**
+
+- The agent has no side effects and no unbounded loop risk.
+- No shared revocation store is available to the agent runtime.
+- Killing the OS process is acceptable as the only stop primitive (and provenance loss is fine).
+
 ## Solution
 
 Signed revocation token or feature flag checked on every step from a shared store the agent runtime cannot bypass. On revocation, the agent halts: no further model calls, no further tool calls; in-flight effects are compensated where possible. Killing the OS process is the fallback, but loses provenance.

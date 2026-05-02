@@ -23,6 +23,21 @@ Reproducibility breaks; users notice quality changes they cannot diagnose; trust
 - Per-request model disclosure adds UI complexity.
 - Hidden routing complicates eval gates.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; routing model changes silently undermines reproducibility and trust.
+- Use multi-model-routing transparently with the chosen model disclosed per response.
+- Make routing decisions inspectable in traces and operator dashboards.
+
+**Do not use when**
+
+- Any user-facing product where quality must be diagnosable.
+- Any audit or compliance setting requiring per-request model identity.
+- Any environment where users compare outputs across runs.
+
 ## Solution
 
 Don't. Disclose model identity per response. Use multi-model-routing transparently. Make routing decisions inspectable.

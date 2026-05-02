@@ -23,6 +23,21 @@ Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback 
 - Schema rigidity vs evolvability over the agent's lifetime.
 - PII in events: redaction at write time vs read time.
 
+
+## Applicability
+
+**Use when**
+
+- Agent decisions and state changes must be explainable or reversible after the fact.
+- An immutable, append-only log can be operated and queried.
+- Each event can carry timestamp, actor, action, target, and justification fields.
+
+**Do not use when**
+
+- The agent has no consequential state changes worth logging.
+- Storage and review cost of immutable logs are unjustified by risk.
+- No queryable store is available to make the ledger useful.
+
 ## Solution
 
 Append events to an immutable log with: timestamp, actor, action, target, justification (link to thought or decision), diff hash. Enable rollback by id. Reject events that lack the required fields.

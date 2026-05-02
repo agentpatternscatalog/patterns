@@ -23,6 +23,21 @@ Stateless agents repeat the same errors; full RL fine-tuning is too expensive fo
 - Lesson retrieval (which lesson applies?) is a search problem.
 - Lesson rot: outdated lessons may misguide once the world changes.
 
+
+## Applicability
+
+**Use when**
+
+- Stateless agents repeat the same errors across episodes.
+- Linguistic lessons from past failures can be retrieved and prepended in future runs.
+- Full RL fine-tuning is too expensive for the setting.
+
+**Do not use when**
+
+- Each episode is fully novel and lessons would not transfer.
+- Long-term memory infrastructure is not available.
+- Lesson retrieval would surface noise more often than useful guidance.
+
 ## Solution
 
 After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.

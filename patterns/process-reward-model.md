@@ -23,6 +23,21 @@ Outcome reward models reinforce shortcut reasoning that lands on the right answe
 - Step boundaries vary across tasks.
 - PRM and outcome reward sometimes conflict on what counts as 'correct'.
 
+
+## Applicability
+
+**Use when**
+
+- Outcome-only reward reinforces shortcut reasoning that lands on the right answer the wrong way.
+- Step-level labels (correct, neutral, incorrect, hallucination) can be collected at scale.
+- Test-time search or fine-tuning can consume step-level scores.
+
+**Do not use when**
+
+- Outcome reward already produces robust generators on the target task.
+- Collecting step-level labels at sufficient scale is not feasible.
+- Inference-time scoring overhead exceeds the quality gain.
+
 ## Solution
 
 Collect step-level labels (correct / neutral / incorrect / hallucination) for chain-of-thought traces. Train a classifier to predict step labels. At inference, score every step; reject candidates whose intermediate steps have low scores. Powers test-time search and fine-tuning of the generator.

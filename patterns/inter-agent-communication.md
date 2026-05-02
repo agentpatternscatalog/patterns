@@ -23,6 +23,21 @@ Bespoke point-to-point integrations do not scale; each new agent pair requires f
 - Auth and trust across organisational boundaries.
 - Versioning: protocols evolve faster than legacy agents.
 
+
+## Applicability
+
+**Use when**
+
+- Multiple agents must exchange tasks, capabilities, or results across process or vendor boundaries.
+- Bespoke point-to-point integrations are starting to multiply.
+- A protocol like MCP or A2A is available and acceptable to the operating environment.
+
+**Do not use when**
+
+- All agents run in one process and direct function calls suffice.
+- Capability advertisement and discovery are not actually needed.
+- Adopting a cross-vendor protocol would add governance burden without payoff.
+
 ## Solution
 
 Adopt a protocol (Google A2A, Anthropic MCP, in-house equivalents) that covers capability advertisement, task delegation, result return, and auth. Agents advertise capabilities; clients discover and invoke; results round-trip in typed envelopes.

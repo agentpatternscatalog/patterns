@@ -23,6 +23,21 @@ Generic RAG models are fooled by topically-similar distractors; the answer drift
 - Domain shift between training and serving distractors.
 - Trade-off between generalisation and domain specialisation.
 
+
+## Applicability
+
+**Use when**
+
+- Domain-specific RAG models drift to topically similar distractors.
+- Training data with oracle and distractor documents can be constructed at scale.
+- Citation discipline matters and outputs must be traceable to oracle sources.
+
+**Do not use when**
+
+- Generic RAG quality already meets the domain bar.
+- No training pipeline exists to fine-tune on oracle-versus-distractor signals.
+- Inference-time retrieval is already filtered enough to make distractors rare.
+
 ## Solution
 
 Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.

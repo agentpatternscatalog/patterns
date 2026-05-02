@@ -23,6 +23,21 @@ Without limits, a single user (or compromised account) can bankrupt the product 
 - Per-tier limits add complexity.
 - Distributed counters need coordination.
 
+
+## Applicability
+
+**Use when**
+
+- A single user or compromised account could otherwise bankrupt the product or starve others.
+- Limits per identity can be enforced at API gateway and inside the agent loop.
+- Limit hits can be surfaced to users in a clear, actionable way.
+
+**Do not use when**
+
+- The deployment is a closed internal tool with trusted volume.
+- Existing infrastructure already rate-limits effectively at the boundary.
+- False rate-limit denials would block more legitimate work than they protect.
+
 ## Solution
 
 Define limits per identity at multiple horizons (per minute, per hour, per day). Use token-bucket or sliding-window counters. Apply at API gateway and at agent loop level. Surface limit hits to the user clearly.

@@ -23,6 +23,21 @@ Static model choice either pays too much or misses quality on hard cases.
 - Cheap models hallucinate confidently; the router must not trust them blindly.
 - Falling back from cheap to expensive on failure costs more than starting expensive.
 
+
+## Applicability
+
+**Use when**
+
+- Cost and quality goals diverge across request types.
+- A classifier can route requests to a cheap or strong model with acceptable accuracy.
+- A cascade with low-confidence fallback to the strong model is feasible.
+
+**Do not use when**
+
+- A single model already meets the price-performance target.
+- Routing classification is too inaccurate to be safe.
+- Operational complexity of multi-model deployment is unjustified by the savings.
+
 ## Solution
 
 Combine routing (classify the request) with a per-class model preference. Routing and filter extraction go to the cheap model; the screen-aware dialog or final answer goes to the strong model. Optionally cascade: try cheap, fall back to strong if confidence is low.

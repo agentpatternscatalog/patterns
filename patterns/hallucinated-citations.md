@@ -23,6 +23,21 @@ The model invents URLs, paper titles, and author names. Hallucinated citations l
 - Models trained on academic text are particularly fluent at fabricating citations.
 - End users do not check.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; cite an example only to label the failure mode.
+- Use citation-streaming, naive-rag, or contextual-retrieval to bind citations to retrieved-source ids.
+- Validate URLs and titles against retrieval results before display.
+
+**Do not use when**
+
+- Any production setting where users may rely on cited sources.
+- Any setting where authoritative-looking but invented sources can mislead.
+- Any audit or compliance setting requiring traceable provenance.
+
 ## Solution
 
 Don't. Wire citations to retrieved-source ids. See citation-streaming, naive-rag, contextual-retrieval. Validate URLs before display.

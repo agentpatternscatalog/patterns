@@ -23,6 +23,21 @@ Agent capabilities and limitations are tribal knowledge; without a card, every s
 - Truthful disclosure conflicts with marketing pressure.
 - Card depth vs maintainability.
 
+
+## Applicability
+
+**Use when**
+
+- Multiple stakeholders need a shared understanding of agent capabilities and limits.
+- Intended use, out-of-scope use, and known risks are stable enough to document.
+- Evaluation results exist or can be produced periodically.
+
+**Do not use when**
+
+- The agent is an internal experiment with one consumer and no governance need.
+- Capabilities change so fast that a card would be stale before publication.
+- No team can own keeping the card current.
+
 ## Solution
 
 Maintain a markdown document at a known location with sections: intended use, out-of-scope use, training/data lineage, evaluation results, limitations, risks, contact. Versioned alongside the agent.

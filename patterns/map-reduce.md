@@ -23,6 +23,21 @@ Long-context models still degrade with size; chunked processing without coordina
 - Conflicts between chunk answers need a resolver.
 - Aggregation must not become its own context-window problem.
 
+
+## Applicability
+
+**Use when**
+
+- Input is too large for any single context window to handle well.
+- Chunks are mostly independent and a structured reducer can resolve cross-chunk dependencies.
+- A confidence-calibration step can reconcile conflicting per-chunk answers.
+
+**Do not use when**
+
+- Long-context processing in one pass already produces acceptable quality.
+- Cross-chunk dependencies dominate and chunked map cannot capture them.
+- Aggregation cost erases the parallel speedup.
+
 ## Solution
 
 Map: split input into chunks; process each independently (per-chunk LLM call). Reduce: aggregate intermediate answers via a structured information protocol that surfaces dependencies, plus a confidence-calibration step to resolve conflicts.

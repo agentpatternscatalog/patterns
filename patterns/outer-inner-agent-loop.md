@@ -23,6 +23,21 @@ A single agent loop conflates planning and acting: replanning interrupts executi
 - Replanning is expensive; doing it every turn is wasteful, doing it never is brittle.
 - Inner-loop autonomy must not silently expand subtask scope.
 
+
+## Applicability
+
+**Use when**
+
+- Goals decompose into subtasks where global planning and local action have different cadences.
+- An outer planner needs an interruption channel to replan based on inner-loop evidence.
+- Global state and local state can be cleanly separated between the two loops.
+
+**Do not use when**
+
+- A single agent loop already balances planning and acting acceptably.
+- No clean interruption channel can be built between the loops.
+- Operational cost of running two coordinated agents is unjustified.
+
 ## Solution
 
 Define two roles. Outer agent (Dispatcher + Planner): decomposes the goal into subtasks with milestones, dispatches each to the inner agent, and may interrupt to replan when milestones are missed or new evidence arrives. Inner agent (Actor): runs a tool-use loop on a single subtask, reports back a structured result. Outer holds the global state; inner holds the local state. The interruption channel is the only path the outer has into the inner's loop.

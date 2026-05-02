@@ -23,6 +23,21 @@ Single-agent research is bottlenecked on serial token generation; generic orches
 - Synthesis quality bounded by lead agent's reasoning over fragmented results.
 - Information overlap across sub-agents is wasted compute.
 
+
+## Applicability
+
+**Use when**
+
+- Research-shaped tasks benefit from breadth-first parallel sub-agents.
+- A lead can plan, dispatch, and synthesise findings rather than execute serially.
+- Source diversity matters and a single agent's serial search would be a bottleneck.
+
+**Do not use when**
+
+- The query is narrow enough that a single agent answers it cheaply.
+- Generic orchestrator-workers fits the task without the research-specific structure.
+- Synthesis effort would dominate and erase the parallelism gains.
+
 ## Solution
 
 Lead agent receives the user query, plans a set of parallel research questions, and dispatches each to a sub-agent. Each sub-agent searches independently and returns structured findings to the lead. The lead reads the returned findings and synthesises the answer; if synthesis reveals gaps, the lead spawns additional sub-agents.

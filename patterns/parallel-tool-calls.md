@@ -24,6 +24,21 @@ Sequential tool calls waste latency on independent operations; full DAG-planning
 - Aggregation of results back into the next turn.
 - Models sometimes emit dependent calls in one turn despite the prompt; the host must detect or document this contract.
 
+
+## Applicability
+
+**Use when**
+
+- The model frequently issues multiple independent tool calls per turn.
+- The provider's API supports multiple tool calls in one assistant message.
+- The host can fan out concurrent calls with bounded concurrency and rate-limit handling.
+
+**Do not use when**
+
+- Tool calls have hard sequential dependencies.
+- Concurrency would breach external rate limits or transactional invariants.
+- Heavyweight DAG planning is already in place and parallel calls would conflict.
+
 ## Solution
 
 The provider's API allows the assistant turn to contain multiple tool calls. The host fans them out concurrently (with bounded concurrency and rate-limit handling). Results return as multiple tool messages; the next assistant turn sees all of them.

@@ -23,6 +23,21 @@ Parametric LMs hallucinate, cannot cite, and cannot be updated without retrainin
 - Embedding choice constrains retrieval quality.
 - Single-shot retrieval misses multi-hop questions.
 
+
+## Applicability
+
+**Use when**
+
+- Knowledge lives outside the model and must be conditioned on at query time.
+- Citations must be tied to retrieved sources, not invented from parameters.
+- A simple chunk-and-embed pipeline meets the recall and quality bar.
+
+**Do not use when**
+
+- The needed knowledge is already in a tool, database, or scoped system prompt (see naive-rag-first).
+- Global, corpus-wide questions need GraphRAG or hierarchical retrieval instead.
+- Chunk-level retrieval is the wrong shape for the queries you actually serve.
+
 ## Solution
 
 Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed the query, retrieve top-k by similarity, prepend chunks to the prompt, generate. The simplest production RAG pipeline.

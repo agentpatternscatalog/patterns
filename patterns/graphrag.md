@@ -23,6 +23,21 @@ Naive RAG retrieves local chunks and cannot answer global queries; chunk-level r
 - Graph quality depends on extraction prompts.
 - Local-search vs global-search modes serve different query types and must be routed.
 
+
+## Applicability
+
+**Use when**
+
+- Users ask global, corpus-wide questions that local chunk retrieval cannot answer.
+- The corpus has clear entities and relations worth extracting into a graph.
+- Index-time cost can be paid up front to enable hierarchical community summaries.
+
+**Do not use when**
+
+- Queries are narrowly local and naive RAG already serves them well.
+- The corpus is small or volatile enough that graph extraction will not pay off.
+- Entity and relation extraction quality is too low to trust the resulting graph.
+
 ## Solution
 
 Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.

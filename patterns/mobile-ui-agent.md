@@ -24,6 +24,21 @@ Desktop Computer Use action sets (mouse, keyboard, scroll wheel) and Browser Age
 - Screen size is small; what fits on one screen does not generalise.
 - Visual state is the source of truth, but text is what the model reasons in.
 
+
+## Applicability
+
+**Use when**
+
+- The target environment is a smartphone where touch is the only useful input.
+- Desktop Computer Use or Browser Agent action sets are the wrong shape for the task.
+- A small touch-native vocabulary (tap, swipe, type, back, home) covers the workflow.
+
+**Do not use when**
+
+- The task can be done via a web Browser Agent against the same service.
+- Desktop Computer Use is the natural fit and a phone is incidental.
+- Pixel-level control without an action vocabulary is acceptable for the use case.
+
 ## Solution
 
 Define a touch-native action vocabulary (tap(x,y), long_press(x,y), swipe(dir), type(text), back, home). The agent receives a screenshot (optionally with extracted UI element annotations), reasons in text about which element to act on, emits an action call, and observes the next screenshot. Specialise the action vocabulary per platform (Android vs iOS) but keep the agent loop platform-agnostic.

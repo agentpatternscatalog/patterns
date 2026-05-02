@@ -23,6 +23,21 @@ Trusting the model to police its own inputs and outputs is unsafe; the model is 
 - Over-strict guards block legitimate traffic.
 - Adversarial inputs evolve; guards must too.
 
+
+## Applicability
+
+**Use when**
+
+- User inputs may carry malicious or out-of-policy content the model should not act on.
+- Model outputs may carry PII, secrets, or unsafe content that must not reach users.
+- Validators (regex, classifier, schema, redactor) can be composed per use case.
+
+**Do not use when**
+
+- The deployment is fully internal and validated by other layers already.
+- Validators have unacceptable false-positive rates that block legitimate traffic.
+- Latency budget cannot accommodate pre- and post-processing checks.
+
 ## Solution
 
 Place validators on input (regex, classifier, allowlist) and output (schema, toxicity classifier, secret-redaction) paths. Compose validators per use case. On failure, exception or fallback response. Hub of pre-built validators is reusable across products.

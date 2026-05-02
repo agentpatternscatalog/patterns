@@ -23,6 +23,21 @@ Single-provider deployments take outages personally; fallback-chain handles requ
 - Partial output reconciliation across providers.
 - Routing logic must not amplify provider quirks.
 
+
+## Applicability
+
+**Use when**
+
+- Single-provider outages mid-stream would otherwise drop the user's session.
+- A gateway can hold conversation state and translate message formats across providers.
+- Tool-call schemas can be normalised at the gateway.
+
+**Do not use when**
+
+- Request-boundary fallback (fallback-chain) is enough and mid-stream recovery is not needed.
+- Operational cost of running a normalising gateway is unjustified.
+- Cross-provider differences in capabilities make recovered streams unreliable.
+
 ## Solution
 
 A gateway proxy holds the conversation state. On stream error, it switches to a fallback provider, optionally preserving partial output, and continues with translated message format. Tool-call schemas are normalised at the gateway. Streaming clients see one continuous stream.

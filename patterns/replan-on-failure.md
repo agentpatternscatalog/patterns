@@ -23,6 +23,21 @@ Plans are made under incomplete information; without replanning, the executor ei
 - When to trigger replanning is itself a judgment.
 - Stale context: the new plan must include lessons from the failed run.
 
+
+## Applicability
+
+**Use when**
+
+- Plans are made under incomplete information and execution evidence may contradict them.
+- Clear replan triggers exist (tool error, unexpected observation, observer dissent).
+- Partial progress can be preserved when compatible with the new plan.
+
+**Do not use when**
+
+- Tasks are short and a fresh plan offers no advantage over retry-or-abort.
+- Replanning cost dominates and the executor would do better grinding through.
+- No reliable triggers exist and replans would fire arbitrarily.
+
 ## Solution
 
 Define replan triggers (tool error, unexpected observation, observer dissent). When triggered, the executor pauses and the planner runs again with the failure context. The new plan replaces the old one; partial progress is preserved if compatible.

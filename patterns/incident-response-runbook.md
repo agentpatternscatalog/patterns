@@ -23,6 +23,21 @@ Without a runbook, detection produces alerts that wake the on-call but do not le
 - Containment vs forensic preservation tension.
 - Communication clocks for regulators (GDPR 72h, EU AI Act serious incident) constrain runbook latency.
 
+
+## Applicability
+
+**Use when**
+
+- An agent is in production where PII leaks, tool exploits, or mass false actions are possible.
+- Detection signals exist but no coordinated response procedure does.
+- Regulatory or customer obligations require documented containment and notification steps.
+
+**Do not use when**
+
+- The agent is purely experimental with no production blast radius.
+- No alerting infrastructure exists yet to trigger runbook entries.
+- Severity, on-call, and forensic responsibilities are not yet assignable to anyone.
+
 ## Solution
 
 Maintain a runbook covering: severity levels, on-call paths, containment steps (kill-switch invocation, traffic rerouting), forensic preservation (pin traces beyond normal retention), compensating actions, customer communication templates, regulator notification procedures, and post-mortem template. Tie alerts from kill-switch/sandbox-escape-monitoring/cost-observability to runbook entries.

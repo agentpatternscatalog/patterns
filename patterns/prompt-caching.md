@@ -23,6 +23,21 @@ Re-sending an identical 10k-token prefix on every call wastes compute; vendor ca
 - Stability for cache-hit vs flexibility to mutate the prompt.
 - Engineering rigor on prompt order vs developer ergonomics.
 
+
+## Applicability
+
+**Use when**
+
+- The same long prefix (system prompt, tools, charter) is sent on every call.
+- The provider exposes a prompt cache keyed on byte-stable prefixes.
+- Variable content can be cleanly placed at the end of the prompt.
+
+**Do not use when**
+
+- Prompts mutate on every call and stable prefixes cannot be guaranteed.
+- The provider does not support prompt caching for the model in use.
+- Cache breakpoints would split content in ways the provider does not honour.
+
 ## Solution
 
 Place all stable content (system prompt, tool definitions, charter, rules) at the start of the prompt. Place variable content (current state, user message) at the end. Mark the cache breakpoint at the boundary. Audit prompt construction to ensure no accidental prefix mutation.

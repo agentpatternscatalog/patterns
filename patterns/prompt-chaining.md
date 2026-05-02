@@ -23,6 +23,21 @@ A single mega-prompt overloads the model and makes failures hard to localise.
 - Step isolation vs error compounding across the chain.
 - Schema rigor between steps vs pipeline flexibility.
 
+
+## Applicability
+
+**Use when**
+
+- A task decomposes into a fixed sequence of LLM calls with clear handoffs.
+- Each step has its own system prompt, expected output shape, and validation.
+- Localised retries at a step are preferable to retrying a mega-prompt.
+
+**Do not use when**
+
+- The decomposition is data-dependent and only knowable at runtime (use orchestrator-workers).
+- A single well-structured prompt already solves the task reliably.
+- Chain length amplifies latency beyond what users tolerate.
+
 ## Solution
 
 Define a fixed pipeline of prompts. Each step has its own system prompt, expected output shape, and validation. A failure at step k retries step k or aborts; downstream steps run only on success.

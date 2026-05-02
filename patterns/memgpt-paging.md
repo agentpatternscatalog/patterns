@@ -23,6 +23,21 @@ Fixed context windows force a choice between losing state and stuffing irrelevan
 - Eviction policy (LRU? LFU? salience?) affects quality.
 - Tool latency on page faults adds to user-visible time.
 
+
+## Applicability
+
+**Use when**
+
+- Long-running agents need state that exceeds the model's context window.
+- The model can be trusted to manage memory via tool calls (read, write, search).
+- External recall and archival storage tiers are available and queryable.
+
+**Do not use when**
+
+- Context easily fits the working set and external paging is overkill.
+- Tool-call latency for paging is unacceptable for the use case.
+- Simpler retrieval-on-demand patterns already serve the workload.
+
 ## Solution
 
 Two memory tiers. Main context: system prompt, working set, recent messages. External context: recall (raw history) and archival (vector store). The model has tool calls for read_recall, write_archival, search_archival. Paging happens at the agent's discretion; the model treats main context as RAM and external as disk.

@@ -24,6 +24,21 @@ A naïve cheap-first cascade still falls through to a hosted frontier model for 
 - Some requests must never leave the boundary regardless of difficulty.
 - Open-weight models close the capability gap at a delay.
 
+
+## Applicability
+
+**Use when**
+
+- Sensitive requests must stay inside an operator-controlled boundary even when borderline.
+- Insensitive easy requests can be served cheaply by a small open-weight model.
+- Insensitive hard requests can be safely escalated to a hosted frontier model.
+
+**Do not use when**
+
+- Data sovereignty is not a concern and a hosted-only cascade is simpler.
+- Self-hosting open-weight models is operationally unaffordable.
+- Sensitivity classification cannot be made reliable enough to enforce routing.
+
 ## Solution
 
 Stratify requests by sensitivity *and* difficulty before routing. (1) Sensitive requests: forced down the open-weight path even if confidence is low; degrade gracefully or refuse rather than escalate. (2) Insensitive easy requests: small open-weight model. (3) Insensitive hard requests: escalate to hosted frontier model. The router enforces the sensitivity classification before any model call.

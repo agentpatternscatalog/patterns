@@ -23,6 +23,21 @@ Past a few thousand tokens, the prompt squeezes retrieval, forces cache misses, 
 - No clear owner of the prompt's overall design.
 - Eval coverage rarely catches bloat-driven regressions.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; treat unbounded prompt growth as a process failure.
+- Use prompt-versioning and eval-gates on length to keep prompts in budget.
+- Lift recurring procedures into agent-skills and stable rules into a constitutional charter.
+
+**Do not use when**
+
+- Any project where every bug fix appends a sentence to the system prompt.
+- Any setting where retrieval and cache hits are being squeezed by prompt size.
+- Any team without quarterly pruning sprints or PR review on prompt diffs.
+
 ## Solution
 
 Don't. Treat the prompt as code: PR review, eval gate on length, quarterly pruning sprints. Lift recurring procedures into agent-skills. Move stable rules into a constitutional charter.

@@ -23,6 +23,21 @@ The agent's prompt becomes a monolith. Tools conflict. The model is confused abo
 - Splitting feels like premature optimisation.
 - One-prompt is fastest to ship and slowest to maintain.
 
+
+## Applicability
+
+**Use when**
+
+- Never use this; once the prompt grows past a few hundred lines or tool count exceeds about a dozen, extract specialists.
+- Use routing, supervisor, or multi-model-routing to split capability across agents.
+- Treat single-prompt sprawl as a smell, not a destination.
+
+**Do not use when**
+
+- Any agent with more than a handful of distinct workflows.
+- Any agent where cheap requests must not pay expensive prompt costs.
+- Any team that needs independent ownership of separate capabilities.
+
 ## Solution
 
 Don't. Once the prompt exceeds a few hundred lines or the tool count exceeds about a dozen, extract specialists. See routing, supervisor, multi-model-routing.
