@@ -37,6 +37,19 @@ An orchestrator agent tells a coding sub-agent 'add the new field to the user mo
 Instructor -> instruction -> Assistant; if context_gap_detected: Assistant -> question -> Instructor -> answer -> Assistant -> conclusion.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Instr as Instructor
+  participant Asst as Assistant
+  Instr->>Asst: instruction (missing context)
+  Asst->>Asst: detect missing piece
+  Asst-->>Instr: focused question (role reversal)
+  Instr-->>Asst: missing detail
+  Asst-->>Instr: grounded answer
+```
+
 ## Consequences
 
 **Benefits**

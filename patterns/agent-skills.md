@@ -31,6 +31,17 @@ Package each procedure as a markdown file (and optional companion resources) und
 
 A customer-support agent now handles refunds, address changes, subscription pauses, and SIM swaps. Cramming every workflow into the system prompt has pushed it past 18k tokens and the agent still skips steps. The team breaks each workflow into an Agent Skill — a markdown file with the procedure plus a few example dialogues — that the agent loads on demand once the user's intent is classified. The base prompt shrinks; only the relevant procedure enters context for that conversation.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  T[Task arrives] --> M[Match task to skill]
+  M --> L[Load skill markdown<br/>+ resources on demand]
+  L --> A[Agent executes<br/>following procedure]
+  A --> R[Result]
+  S[(Skills directory)] -.-> M
+```
+
 ## Consequences
 
 **Benefits**

@@ -31,6 +31,18 @@ Tag every model and tool call with feature, route, user (anonymised), and model 
 
 An ops team notices the monthly LLM bill has tripled but can't say which feature drove it — the dashboard only shows total tokens. By the time billing arrives the runaway feature has been live for weeks. They add Cost Observability: every request is tagged with feature, user, and tenant, and per-feature spend rolls up in near-real-time. Within an hour of a regression the team can see which feature now costs ten times what it did yesterday.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]
+  T[Tool call] -->|tag| TS
+  TS --> D[Dashboards<br/>by feature / model / hour]
+  TS --> A[Alerts on anomalies]
+  D --> Op[Operators]
+  A --> Op
+```
+
 ## Consequences
 
 **Benefits**

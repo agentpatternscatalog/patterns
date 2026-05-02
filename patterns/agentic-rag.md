@@ -27,6 +27,19 @@ Naive RAG cannot decide whether to retrieve, which source to use, when to stop r
 
 Treat retrieval as a tool. The agent decides whether to retrieve, formulates and reformulates the query, picks among multiple retrievers (vector, graph, keyword, web), evaluates retrieved evidence, and re-queries on insufficient results. Composes naturally with reflection, planning, and tool-use patterns.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Query] --> A{Agent: retrieve?}
+  A -- no --> ANS[Answer]
+  A -- yes --> P[Pick retriever<br/>vector / graph / web]
+  P --> R[Retrieve evidence]
+  R --> E{Sufficient?}
+  E -- no, reformulate --> P
+  E -- yes --> ANS
+```
+
 ## Consequences
 
 **Benefits**

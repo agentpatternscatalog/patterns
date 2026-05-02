@@ -37,6 +37,21 @@ A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal 
 
 A user has asked their personal agent to monitor a slow scientific computation overnight and 'tell me when it's interesting'. Pure request/response would force the user to keep polling; pure push notifications wake them for trivia. They build a bidirectional impulse channel: the agent can send messages at any time, but the user can also reach in mid-run with 'stop watching the temperature, watch the residual'. The agent picks up the impulse on its next tick and changes what it pushes.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Channel as CLI / Chat
+  participant Mem as Memory
+  participant Agent
+  User->>Channel: !rule / !goal / !forget
+  Channel->>Mem: write directly (bypass model)
+  Agent->>Mem: read salient context
+  Agent->>Channel: push message on salience spike
+  Channel-->>User: notification
+```
+
 ## Consequences
 
 **Benefits**

@@ -31,6 +31,20 @@ On escalation trigger (low confidence, explicit user request, policy violation),
 
 A customer-support agent has been resolving a billing issue for ten turns when it hits a refund threshold that requires a human. Approving a single tool call doesn't capture the situation — the operator needs the whole context. The team uses Conversation Handoff: the entire thread, plus a short hand-off note from the agent, transfers to a human operator's queue with a primitive to return ownership later. The customer keeps the same chat window; the operator picks up where the agent left off.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Agent
+  participant Op as Human Operator
+  Note over Agent: low confidence / policy / explicit ask
+  Agent->>Op: handoff envelope (summary, ticket, queue)
+  User->>Op: continues conversation
+  Op-->>Agent: return primitive
+  Agent-->>User: resumes
+```
+
 ## Consequences
 
 **Benefits**

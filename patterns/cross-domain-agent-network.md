@@ -38,6 +38,20 @@ A large enterprise has separate teams for finance, supply chain, HR, and custome
 User -> Role Assistant -> Domain Agent A (own data + tools) -- protocol message --> Domain Agent B -- ... --> outcome.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  U[User request] --> R[Router]
+  R --> F[Finance Agent<br/>own data + tools]
+  R --> S[Supply Chain Agent]
+  R --> H[HR Agent]
+  R --> SV[Service Agent]
+  F <-->|A2A / MCP| S
+  S <-->|A2A / MCP| H
+  H <-->|A2A / MCP| SV
+```
+
 ## Consequences
 
 **Benefits**

@@ -31,6 +31,19 @@ The agent emits a code block; a controlled interpreter (Python sandbox, JS VM, c
 
 A finance agent answers 'what was the average gross margin across these 47 orders?' by reading the rows and trying to compute the answer in its head, getting it wrong by 1.4 percentage points. The team enables Code Execution: the agent emits a short Python snippet that loads the data and computes the average in a sandbox, and the run's stdout becomes the answer. The model's strength stays at constructing the right calculation; the arithmetic stops being something it has to hallucinate.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Sandbox
+  loop until done or budget
+    Agent->>Sandbox: code block
+    Sandbox-->>Agent: stdout / stderr / return
+  end
+  Agent-->>Agent: answer = run output
+```
+
 ## Consequences
 
 **Benefits**

@@ -38,6 +38,18 @@ A team is using an agent system to ship a small internal tool. A single agent lo
 Phase_1 (Role_A <-> Role_B) -> artefact_1 -> Phase_2 (Role_B <-> Role_C) -> artefact_2 -> ... -> final_artefact.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  In[Goal] --> P1[Phase 1<br/>designer + coder]
+  P1 --> A1[Artefact 1]
+  A1 --> P2[Phase 2<br/>coder + tester]
+  P2 --> A2[Artefact 2]
+  A2 --> P3[Phase N<br/>...]
+  P3 --> Out[Final artefact]
+```
+
 ## Consequences
 
 **Benefits**

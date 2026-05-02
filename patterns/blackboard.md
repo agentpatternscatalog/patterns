@@ -31,6 +31,19 @@ Establish a shared store (file, database, in-memory). Each agent reads the relev
 
 A document-processing pipeline has a layout-extractor agent, a table-parser, a citation-resolver, and a summariser, each strong on its own but needing each other's intermediate outputs. Wiring direct messages between every pair becomes a brittle protocol. They adopt a Blackboard: each agent posts its findings to a shared workspace and subscribes to relevant updates, with a controller deciding who runs next. Coordination becomes 'read what's on the board, contribute what you can'.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A1[Agent A] -->|write| BB[(Blackboard<br/>shared store)]
+  A2[Agent B] -->|write| BB
+  A3[Agent C] -->|write| BB
+  BB -->|read slice| A1
+  BB -->|read slice| A2
+  BB -->|read slice| A3
+  BB -->|notify| A1
+```
+
 ## Consequences
 
 **Benefits**

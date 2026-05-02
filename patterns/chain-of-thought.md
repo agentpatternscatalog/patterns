@@ -38,6 +38,17 @@ Prompt the model with exemplars showing intermediate reasoning, or use a zero-sh
 
 A maths-tutoring assistant keeps blurting wrong answers to multi-step word problems because it tries to jump straight from 'Maria has...' to a single number. The team adds Chain-of-Thought prompting with a few worked exemplars, asking the model to write out each intermediate quantity before stating the final answer. Accuracy on the same problem set improves substantially because the answer now depends on reasoning steps the model can attend to one at a time, instead of being collapsed into a single output token.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Q[Question] --> P[Prompt with<br/>step-by-step trigger]
+  P --> S1[Step 1]
+  S1 --> S2[Step 2]
+  S2 --> SN[...Step N]
+  SN --> A[Final Answer]
+```
+
 ## Consequences
 
 **Benefits**

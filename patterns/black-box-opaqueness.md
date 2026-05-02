@@ -31,6 +31,19 @@ Don't. Add traces, decision logs, and provenance from day one. See provenance-le
 
 A startup ships a customer-facing agent in a hurry with no traces, no decision logs, and no tool-call provenance. A week later a user complains the agent issued a duplicate refund. The team has nothing to look at — they spend two days trying to reproduce the bug from the user's vague timeline and never definitively explain it. This is the Black-Box Opaqueness anti-pattern: the absence of observability is itself the failure, and recovery requires retrofitting traces to every step before the next incident.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  S[Ship agent] --> U[User reports bug]
+  U --> R{Look at trace?}
+  R -- no traces exist --> X[Reproduce from vague timeline]
+  X --> F[Fail to explain]
+  F --> N[Next incident]
+  R -.fix anti-pattern.-> P[Add provenance + decision log]
+  P --> OK[Debuggable]
+```
+
 ## Consequences
 
 **Liabilities**

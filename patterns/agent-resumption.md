@@ -31,6 +31,20 @@ Two production approaches. (a) Deterministic replay of recorded effects (Tempora
 
 A research agent is forty minutes into a slow scrape-and-summarise run when the operator deploys a hotfix and the worker container restarts. Without persisted state, the run vanishes and the user re-issues the request. The team adds Agent Resumption: every step's plan, tool result, and intermediate state is checkpointed to durable storage, keyed by run id. After the restart, the worker reloads the checkpoint and continues from the next step instead of from scratch.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Running
+  Running --> Checkpointed : log effect / persist state
+  Checkpointed --> Running : continue
+  Running --> Suspended : crash / deploy / disconnect
+  Suspended --> Replaying : restart
+  Replaying --> Running : skip recorded effects, resume
+  Running --> Done
+  Done --> [*]
+```
+
 ## Consequences
 
 **Benefits**

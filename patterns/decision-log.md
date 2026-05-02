@@ -27,6 +27,17 @@ Action-only logs answer 'what' but not 'why'; debugging a wrong action requires 
 
 Persist reasoning at a chosen granularity (full trace, key decisions, or summary). Link each action in the provenance ledger to its trace. Indexed by request id and time for retrieval.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A[Agent action] --> P[(Provenance ledger)]
+  A --> R[Reasoning trace]
+  R --> L[(Decision log<br/>indexed by request id + time)]
+  P -->|link| L
+  Rev[Post-hoc reviewer] -->|query| L
+```
+
 ## Consequences
 
 **Benefits**

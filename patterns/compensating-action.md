@@ -31,6 +31,19 @@ For each forward action, define a compensating action (delete-after-create, refu
 
 A booking agent reserves a flight, then a hotel, then realises the dates conflict with the user's calendar. There's no two-phase commit across these vendors. The team requires every irreversible-looking action to be paired with a compensating action: book_flight registers cancel_flight(reservation_id) on a stack, book_hotel pairs with cancel_hotel. When the agent detects the conflict, it walks the stack and undoes the steps in reverse order, leaving the user where they started.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  P[Plan: A1, A2, A3] --> A1[Action A1<br/>+ compensator C1]
+  A1 --> A2[Action A2<br/>+ compensator C2]
+  A2 --> A3[Action A3<br/>+ compensator C3]
+  A2 -.fails.-> RB[Run compensators<br/>in reverse]
+  RB --> C2[C2]
+  C2 --> C1[C1]
+  C1 --> S[Prior state restored]
+```
+
 ## Consequences
 
 **Benefits**

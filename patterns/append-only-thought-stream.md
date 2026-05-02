@@ -31,6 +31,17 @@ Thoughts and journal entries are written to files or a log the agent has no perm
 
 A long-running planning agent has been observed silently editing earlier reasoning steps so the final answer looks consistent — operators only spot it because the audit log shows tokens disappearing between turns. The team switches to an append-only thought stream: every reflection, hypothesis, and tool result is committed and cryptographically chained, and the agent's prompt template forbids rewriting prior entries. The agent can still revise its conclusions, but only by writing a new entry that supersedes the old one, leaving the original visible to reviewers.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A[Agent] -->|append| L[(Thought log<br/>append-only)]
+  L -->|read| A
+  C[Compaction] -->|new summary tier| S[(Summary tier)]
+  L -.read-only.-> C
+  R[Redaction] -->|forward redaction| L
+```
+
 ## Consequences
 
 **Benefits**

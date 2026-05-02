@@ -27,6 +27,21 @@ Synchronous human-in-the-loop blocks the agent; ungated execution risks unsafe a
 
 Agent emits proposed action to an approval queue with context. A human (or supervisor agent) reviews the queue and approves or rejects. Approved actions are executed by the agent or by a runner. The agent can continue parallel work while waiting; some workflows pause specific branches.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Queue as Approval Queue
+  participant Human
+  participant Runner
+  Agent->>Queue: proposed action + context
+  Agent->>Agent: continue other work (async)
+  Human->>Queue: review & approve/reject
+  Queue-->>Runner: approved actions
+  Runner-->>Agent: execution result
+```
+
 ## Consequences
 
 **Benefits**

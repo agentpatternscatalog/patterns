@@ -37,6 +37,20 @@ A multi-agent platform runs both 'draft a regulatory filing' and 'refactor this 
 goal -> Recruiter -> [role descriptions] -> instantiated agents -> joint execution -> Evaluator -> feedback -> Recruiter (adjust team) -> ...
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  G[Goal] --> Rec[Recruiter Agent]
+  Rec --> Roles[Generate role<br/>descriptions]
+  Roles --> Team[Instantiate team]
+  Team --> Iter[Iterate on task]
+  Iter --> Obs[Plan + agent observers]
+  Obs --> Adj{Adjust team?}
+  Adj -- yes --> Rec
+  Adj -- no --> Done[Result]
+```
+
 ## Consequences
 
 **Benefits**

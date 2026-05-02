@@ -38,6 +38,17 @@ Four-step pipeline. Draft: produce initial answer. Plan: generate verification q
 
 A research agent confidently lists five 'recent papers' on a niche topic, two of which don't exist. Asking the model to check its own draft in the same conversation just produces equally confident reaffirmations. The team applies Chain-of-Verification: after the draft, the system generates verification questions about each citation, answers each one in a fresh context with no view of the draft, and revises. Fabricated citations get exposed because the verifier never saw the wrong claim to begin with.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Question] --> D[Draft answer]
+  D --> P[Plan: generate<br/>verification questions]
+  P --> E[Execute: answer each<br/>in isolation]
+  E --> R[Revise draft<br/>using verifications]
+  R --> F[Final answer]
+```
+
 ## Consequences
 
 **Benefits**

@@ -29,6 +29,18 @@ Per-tick reflection is too shallow to consolidate themes; weekly insight extract
 
 On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to `journal/dream-*.md`. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Ticking
+  Ticking --> Ticking : per-tick reflection
+  Ticking --> Dreaming : timer / affect threshold
+  Dreaming --> Dreaming : deeper pass<br/>read hours of thoughts<br/>promote themes<br/>release affect
+  Dreaming --> Ticking : resume
+  Ticking --> [*]
+```
+
 ## Consequences
 
 **Benefits**

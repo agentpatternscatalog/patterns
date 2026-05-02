@@ -31,6 +31,21 @@ A judge agent receives the candidate agent's full trajectory: thoughts, tool cal
 
 A team running a coding-agent benchmark notices that two agent versions get the same final answer but one wastes twenty extra tool calls and once tried to write outside the workspace. Scoring only the final patch, both look equal. They wire in an Agent-as-Judge that reads each full trajectory — every thought, tool call, and observation — and rates correctness, efficiency, and safety against a rubric. The wasteful version drops to a lower verdict and is sent back for tuning before the change merges.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Candidate as Candidate Agent
+  participant Trace as Trajectory
+  participant Judge as Judge Agent
+  participant Rubric
+  Candidate->>Trace: thoughts, tool calls, observations, answer
+  Trace-->>Judge: full trajectory
+  Judge->>Rubric: load criteria
+  Rubric-->>Judge: correctness, efficiency, safety
+  Judge-->>Candidate: score + per-step critique
+```
+
 ## Consequences
 
 **Benefits**

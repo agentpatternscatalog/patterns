@@ -31,6 +31,23 @@ Define agents with system prompts and allowed actions. Implement a conversation 
 
 A finance team wants an agent that drafts an internal memo, has a 'reviewer' poke holes in it, and revises until the reviewer signs off. A linear pipeline can't represent the back-and-forth, and a free-form group chat is too loose. They use an AutoGen-style conversational setup: a writer agent and a reviewer agent take turns until the reviewer emits an explicit approval token. Each turn drives the next; the loop ends when the role-defined criterion fires.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Mgr as Conversation Manager
+  participant A as Agent A
+  participant B as Agent B
+  loop until completion criterion
+    Mgr->>A: your turn
+    A-->>Mgr: message
+    Mgr->>B: your turn
+    B-->>Mgr: message
+    Mgr->>Mgr: check criterion
+  end
+  Mgr-->>A: done
+```
+
 ## Consequences
 
 **Benefits**

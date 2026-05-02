@@ -31,6 +31,20 @@ Estimate cost before invoking the expensive action. If the estimate exceeds the 
 
 An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  A[Action proposed] --> E[Estimate cost]
+  E --> C{Cost > threshold?}
+  C -- no --> X[Execute]
+  C -- yes --> AP[Surface to user/operator]
+  AP --> AR{Approved?}
+  AR -- yes --> X
+  AR -- no --> B[Block]
+  X --> T[Track running totals]
+```
+
 ## Consequences
 
 **Benefits**

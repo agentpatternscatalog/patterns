@@ -38,6 +38,20 @@ A medical-summarisation agent recommends a contraindicated drug and the clinicia
 Input -> Model -> Output. Parallel: Input -> perturb(token_i) -> ΔP(output) -> relevance_map.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  IN[Input tokens] --> M[Run model]
+  M --> P0[Baseline output probs]
+  IN --> S[For each token:<br/>suppress its attention]
+  S --> M2[Re-run model]
+  M2 --> P1[Perturbed probs]
+  P0 --> D[Delta = importance]
+  P1 --> D
+  D --> R[Rank tokens by influence]
+```
+
 ## Consequences
 
 **Benefits**

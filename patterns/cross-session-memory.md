@@ -31,6 +31,28 @@ Maintain a per-user store of distilled facts (preferences, prior context, names,
 
 A user uses their personal assistant on the laptop in the morning, the phone at lunch, and a smart speaker in the evening. Without persistent memory, each device feels like a stranger — the user repeats their dietary restrictions three times in one day. The team adds Cross-Session Memory: stable user-specific facts (allergies, preferred name, default timezone) are stored centrally and loaded into every new session on every device. The assistant stops feeling amnesic and the user stops repeating themselves.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class UserMemoryStore {
+    +user_id
+    +preferences
+    +prior_context
+    +projects
+    +add(fact)
+    +forget(fact)
+    +load_relevant(session)
+  }
+  class Session {
+    +id
+    +device
+    +context
+  }
+  UserMemoryStore --> Session : load_relevant
+  Session --> UserMemoryStore : add / forget
+```
+
 ## Consequences
 
 **Benefits**

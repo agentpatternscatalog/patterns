@@ -31,6 +31,22 @@ After draft generation, the model emits a critique that names suspected errors a
 
 A coding agent answers 'what's the time complexity of this sort?' confidently, but its self-critique just talks itself in circles using the same blind spots that produced the answer. The team wires in a Critic equipped with external tools: the critic runs the proposed code on benchmarks, queries an algorithms reference, and uses a calculator to double-check claimed bounds. When the critic has a measurement that contradicts the draft, the agent revises against an actual signal instead of recycling its own prior.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Model
+  participant Tools
+  Model->>Model: draft answer
+  loop until clean or budget
+    Model->>Model: critique (name suspected errors)
+    Model->>Tools: search / exec / calc to verify
+    Tools-->>Model: evidence
+    Model->>Model: revise
+  end
+  Model-->>Model: final
+```
+
 ## Consequences
 
 **Benefits**

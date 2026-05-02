@@ -31,6 +31,17 @@ A library (Playwright-backed) exposes structured page state (numbered interactiv
 
 A growth team builds an agent that scrapes competitor pricing pages. Feeding raw HTML overflows context with tracking scripts and inline CSS; pixel-level Computer Use is overkill for clicking through five filters. They settle on a Browser Agent surface: the page is reduced to a structured DOM/accessibility tree of interactable elements, and the agent emits actions from a small vocabulary like click(id) and type(id, text). The model spends its tokens on intent, not on parsing minified script tags.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  P[Page] --> Lib[Playwright lib]
+  Lib --> AT[A11y tree +<br/>numbered elements]
+  AT --> Agent
+  Agent -->|click/type/scroll| Lib
+  Lib --> P
+```
+
 ## Consequences
 
 **Benefits**

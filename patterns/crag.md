@@ -37,6 +37,20 @@ After retrieval, a lightweight evaluator (T5-based or similar) grades each docum
 
 A RAG-powered legal assistant retrieves three statutes for a question about export controls; one of them is from the wrong jurisdiction. Naive RAG would hand all three to the generator and the wrong statute would corrupt the answer. The team layers in CRAG: a lightweight evaluator grades each retrieved document for relevance, the wrong-jurisdiction one falls below threshold, and the system triggers a corrective web search before generation. The final answer is grounded in two strong retrievals plus one fresh source instead of one bad one.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Query] --> R[Retrieve docs]
+  R --> E[Evaluator grades each doc]
+  E --> C{Grade}
+  C -- Correct --> G[Generate]
+  C -- Ambiguous --> W[Web search<br/>augment]
+  C -- Incorrect --> W
+  W --> G
+  G --> A[Answer]
+```
+
 ## Consequences
 
 **Benefits**

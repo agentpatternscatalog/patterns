@@ -31,6 +31,18 @@ Track per-dependency error rate over a window. When error rate exceeds a thresho
 
 A tool-using agent calls a third-party enrichment API that suddenly starts returning 500s. Without protection it retries every call, burning token budget on failed responses and tripping the vendor's per-key rate limit. The team puts a Circuit Breaker in front of the tool: once the error rate over the last minute exceeds 30%, the breaker opens and short-circuits subsequent calls with a structured 'dependency unavailable' result for sixty seconds before probing again. Cost stops climbing and the agent can pivot to a fallback strategy.
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Closed
+  Closed --> Open : error rate > threshold
+  Open --> HalfOpen : cooldown elapsed
+  HalfOpen --> Closed : trial calls succeed
+  HalfOpen --> Open : trial calls fail
+  Open --> Open : route to fallback / fail fast
+```
+
 ## Consequences
 
 **Benefits**

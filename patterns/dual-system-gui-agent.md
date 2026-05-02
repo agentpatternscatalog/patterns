@@ -38,6 +38,20 @@ A desktop-automation agent occasionally clicks the wrong menu item by a few pixe
 Screenshot -> Decision_Model -> intent (typed) -> Grounding_Model + Screenshot -> low-level action -> device -> next Screenshot.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Dec as Decision Model
+  participant Gnd as Grounding Model
+  participant GUI
+  GUI-->>Dec: state
+  Dec->>Gnd: high-level intent (typed)
+  Gnd->>GUI: precise pixel/element action
+  GUI-->>Dec: new state
+  Dec->>Dec: plan / recover from errors
+```
+
 ## Consequences
 
 **Benefits**

@@ -31,6 +31,16 @@ A charter file is read into context every turn (or every tick). The tool layer e
 
 A consumer-facing agent has a system prompt with rules like 'never give medical dosage advice' and 'never reveal customer PII'. A jailbreak prompt convinces the agent to rewrite its own instructions and the rules dissolve. The team extracts those rules into a Constitutional Charter: a separate, read-only document the agent re-reads each turn but cannot edit, and the surrounding harness rejects any reasoning that contradicts it. The agent can be coaxed into many things but no longer into editing its own values.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  C[(Charter file<br/>read-only)] -->|every turn| Ctx[Context]
+  Ctx --> A[Agent]
+  A -.no write tool can touch.-> C
+  Op[Operator] -->|explicit path| C
+```
+
 ## Consequences
 
 **Benefits**

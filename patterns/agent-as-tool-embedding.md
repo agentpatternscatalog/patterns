@@ -38,6 +38,22 @@ A travel-planning agent needs to research hotel options, which itself takes ten 
 Parent agent -> tool_call(sub_agent, task) -> [hidden: sub-agent loop] -> Result -> Parent agent.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Parent as Parent Agent
+  participant SubTool as sub_agent(task)
+  participant Sub as Sub-Agent Loop
+  Parent->>SubTool: call like any tool
+  SubTool->>Sub: spawn fresh loop (own model, tools, budget)
+  loop sub-agent steps
+    Sub->>Sub: think / act / observe
+  end
+  Sub-->>SubTool: structured Result
+  SubTool-->>Parent: function return value
+```
+
 ## Consequences
 
 **Benefits**

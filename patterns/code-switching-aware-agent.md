@@ -44,6 +44,17 @@ A consumer-finance assistant in India keeps mishandling messages like 'mera EMI 
 Utterance -> per-clause language tagger -> mixed-script aware extractor -> normalised slots -> tool call.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  In[Mixed-language input] --> T[Tokenise on Unicode + Latin]
+  T --> D[Clause-level<br/>language detection]
+  D --> Tag[Per-clause language tags]
+  Tag --> R[Route tools by tagged span]
+  R --> Out[Response in user's mix]
+```
+
 ## Consequences
 
 **Benefits**

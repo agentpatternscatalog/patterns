@@ -33,6 +33,19 @@ For each chunk, prompt an LLM with the parent document and the chunk; receive a 
 - **Metadata-as-context** — Use existing structural metadata (document title, section heading, date, author) as the prepended context instead of an LLM-generated one.
 - **Contextual BM25 + Contextual Embeddings** — Index the prepended chunks twice — once for BM25 and once for dense vectors — and fuse at query time.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  Doc[Parent document] --> P[LLM: situate chunk]
+  Chunk[Chunk] --> P
+  P --> Pre[Short description]
+  Pre --> J[Prepend to chunk]
+  Chunk --> J
+  J --> E[Embed]
+  J --> BM[Index BM25]
+```
+
 ## Consequences
 
 **Benefits**

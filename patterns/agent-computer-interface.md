@@ -31,6 +31,19 @@ Design tools specifically for agents: file viewer that shows a windowed slice wi
 
 An engineering team wires their agent to the standard bash and a desktop-grade text editor. Every diff balloons into a 4000-line buffer, output gets truncated mid-stack-trace, and the agent burns turns scrolling. They replace the surface with an Agent-Computer Interface: a file_view tool that returns numbered windows with elision markers, an edit tool that takes line ranges, and a run tool that streams the last 200 lines plus exit code. Task success rates rise sharply on the same model.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A[Agent] -->|view file| V[File Viewer<br/>windowed + line nums]
+  A -->|edit| E[Edit Tool<br/>re-runs linter]
+  A -->|run| S[Shell<br/>structured stdout/stderr/exit]
+  V --> O[Structured Observation]
+  E --> O
+  S --> O
+  O --> A
+```
+
 ## Consequences
 
 **Benefits**

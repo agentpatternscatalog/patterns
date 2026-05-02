@@ -31,6 +31,17 @@ Detect ambiguity via low-confidence intent classification or explicit ambiguity 
 
 A scheduling assistant gets the message 'move my meeting with Sam to Tuesday'. There are three Sams and two Tuesdays in scope. An always-act agent picks one and silently moves the wrong meeting. The team adds Disambiguation: when the resolver returns multiple candidates with similar likelihood, the agent asks 'which Sam — Sam Patel from Finance or Sam Chen from Design?' before touching the calendar. One short question prevents an embarrassing rollback.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  R[User request] --> D{Ambiguous?<br/>low intent confidence}
+  D -- no --> Act[Act on request]
+  D -- yes --> Q[Ask one focused<br/>clarifying question]
+  Q --> W[Wait for answer]
+  W --> Act
+```
+
 ## Consequences
 
 **Benefits**

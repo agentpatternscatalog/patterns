@@ -38,6 +38,18 @@ A research lab has built six different agent workflows for a maths-olympiad benc
 Search: workflow_graph -> mutate -> run on eval set -> score -> MCTS update -> repeat -> best_workflow -> deploy.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  W[Candidate workflow] --> B[Run on benchmark]
+  B --> S[Score]
+  S --> SEL[MCTS Selection<br/>UCB on past scores]
+  SEL --> EXP[Expand: mutate node / op]
+  EXP --> W
+  S --> BEST[Best workflow so far]
+```
+
 ## Consequences
 
 **Benefits**

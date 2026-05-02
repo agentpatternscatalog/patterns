@@ -31,6 +31,20 @@ Define a packing policy. Reserve N tokens for system + tools + response. Allocat
 
 A long-running support agent has a 200k window and a thirty-turn conversation full of tool outputs, two 80-page attached PDFs, and the system charter. Naive concatenation overflows; truncating from the back loses the original ticket; truncating from the front loses the latest turn. The team builds a Context-Window Packing step: each turn it scores items by recency, relevance, and pinned-status, then fits a budgeted subset, replacing the rest with summaries. The window stops overflowing and critical state stays visible.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  B[Token budget T] --> R[Reserve N for system + tools + reply]
+  R --> P[Packing policy]
+  P --> H[History compressed]
+  P --> K[Top-k retrieved chunks<br/>after rerank]
+  P --> S[Current state]
+  H --> CW[Context window]
+  K --> CW
+  S --> CW
+```
+
 ## Consequences
 
 **Benefits**

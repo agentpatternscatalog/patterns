@@ -109,6 +109,10 @@
           "The action's approval window is so short that asynchronous review adds no benefit.",
           "No reviewer capacity exists to drain the queue at the rate the agent fills it."
         ]
+      },
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant Agent\n  participant Queue as Approval Queue\n  participant Human\n  participant Runner\n  Agent->>Queue: proposed action + context\n  Agent->>Agent: continue other work (async)\n  Human->>Queue: review & approve/reject\n  Queue-->>Runner: approved actions\n  Runner-->>Agent: execution result"
       }
     },
     {
@@ -194,7 +198,11 @@
           "The cost of authoring and testing compensators outweighs the rare failure cases they would handle."
         ]
       },
-      "example_scenario": "A booking agent reserves a flight, then a hotel, then realises the dates conflict with the user's calendar. There's no two-phase commit across these vendors. The team requires every irreversible-looking action to be paired with a compensating action: book_flight registers cancel_flight(reservation_id) on a stack, book_hotel pairs with cancel_hotel. When the agent detects the conflict, it walks the stack and undoes the steps in reverse order, leaving the user where they started."
+      "example_scenario": "A booking agent reserves a flight, then a hotel, then realises the dates conflict with the user's calendar. There's no two-phase commit across these vendors. The team requires every irreversible-looking action to be paired with a compensating action: book_flight registers cancel_flight(reservation_id) on a stack, book_hotel pairs with cancel_hotel. When the agent detects the conflict, it walks the stack and undoes the steps in reverse order, leaving the user where they started.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  P[Plan: A1, A2, A3] --> A1[Action A1<br/>+ compensator C1]\n  A1 --> A2[Action A2<br/>+ compensator C2]\n  A2 --> A3[Action A3<br/>+ compensator C3]\n  A2 -.fails.-> RB[Run compensators<br/>in reverse]\n  RB --> C2[C2]\n  C2 --> C1[C1]\n  C1 --> S[Prior state restored]"
+      }
     },
     {
       "id": "constitutional-charter",
@@ -290,7 +298,11 @@
           "Negative-form rules cannot capture the policy and a richer policy engine is needed instead."
         ]
       },
-      "example_scenario": "A consumer-facing agent has a system prompt with rules like 'never give medical dosage advice' and 'never reveal customer PII'. A jailbreak prompt convinces the agent to rewrite its own instructions and the rules dissolve. The team extracts those rules into a Constitutional Charter: a separate, read-only document the agent re-reads each turn but cannot edit, and the surrounding harness rejects any reasoning that contradicts it. The agent can be coaxed into many things but no longer into editing its own values."
+      "example_scenario": "A consumer-facing agent has a system prompt with rules like 'never give medical dosage advice' and 'never reveal customer PII'. A jailbreak prompt convinces the agent to rewrite its own instructions and the rules dissolve. The team extracts those rules into a Constitutional Charter: a separate, read-only document the agent re-reads each turn but cannot edit, and the surrounding harness rejects any reasoning that contradicts it. The agent can be coaxed into many things but no longer into editing its own values.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  C[(Charter file<br/>read-only)] -->|every turn| Ctx[Context]\n  Ctx --> A[Agent]\n  A -.no write tool can touch.-> C\n  Op[Operator] -->|explicit path| C"
+      }
     },
     {
       "id": "conversation-handoff",
@@ -384,7 +396,11 @@
           "The agent must remain the sole user-facing interface for compliance reasons."
         ]
       },
-      "example_scenario": "A customer-support agent has been resolving a billing issue for ten turns when it hits a refund threshold that requires a human. Approving a single tool call doesn't capture the situation — the operator needs the whole context. The team uses Conversation Handoff: the entire thread, plus a short hand-off note from the agent, transfers to a human operator's queue with a primitive to return ownership later. The customer keeps the same chat window; the operator picks up where the agent left off."
+      "example_scenario": "A customer-support agent has been resolving a billing issue for ten turns when it hits a refund threshold that requires a human. Approving a single tool call doesn't capture the situation — the operator needs the whole context. The team uses Conversation Handoff: the entire thread, plus a short hand-off note from the agent, transfers to a human operator's queue with a primitive to return ownership later. The customer keeps the same chat window; the operator picks up where the agent left off.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant User\n  participant Agent\n  participant Op as Human Operator\n  Note over Agent: low confidence / policy / explicit ask\n  Agent->>Op: handoff envelope (summary, ticket, queue)\n  User->>Op: continues conversation\n  Op-->>Agent: return primitive\n  Agent-->>User: resumes"
+      }
     },
     {
       "id": "cost-gating",
@@ -481,7 +497,11 @@
           "Approval latency is unacceptable for the action class (e.g. real-time response loops)."
         ]
       },
-      "example_scenario": "An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up."
+      "example_scenario": "An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[Action proposed] --> E[Estimate cost]\n  E --> C{Cost > threshold?}\n  C -- no --> X[Execute]\n  C -- yes --> AP[Surface to user/operator]\n  AP --> AR{Approved?}\n  AR -- yes --> X\n  AR -- no --> B[Block]\n  X --> T[Track running totals]"
+      }
     },
     {
       "id": "exception-recovery",
@@ -1960,7 +1980,11 @@
           "when_to_use": "When the agent must produce *some* output and silence is not acceptable."
         }
       ],
-      "example_scenario": "A small voice-assistant model gets stuck and replies 'Was möchtest du heute machen?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles."
+      "example_scenario": "A small voice-assistant model gets stuck and replies 'Was möchtest du heute machen?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  R[Reply candidate] --> N[Normalize]\n  N --> RB[(Ring buffer<br/>last 8 outputs)]\n  RB --> C{Match?}\n  C -- exact / high Jaccard --> A[Drop / replace / escalate]\n  C -- novel --> P[Publish]\n  P --> RB"
+      }
     }
   ]
 }

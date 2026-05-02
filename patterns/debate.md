@@ -31,6 +31,22 @@ Two or more agents are given different positions. They exchange arguments over N
 
 A policy-analysis agent answers 'should the firm adopt this open-source library?' with a confident yes that turns out to ignore a license incompatibility. Single-shot answers hide the reasoning the model didn't do. The team uses Debate: two agents argue opposing positions — one for adoption, one against — exchanging structured arguments for a fixed number of rounds, and a third agent reads the transcript and rules. The license question surfaces in the second round and changes the verdict.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant A as Agent A (pos 1)
+  participant B as Agent B (pos 2)
+  participant J as Judge
+  loop N rounds
+    A-->>B: argument
+    B-->>A: counter-argument
+  end
+  A-->>J: final position
+  B-->>J: final position
+  J-->>J: select or synthesise
+```
+
 ## Consequences
 
 **Benefits**

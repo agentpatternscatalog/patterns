@@ -31,6 +31,32 @@ Persist explicit state about: available tools (with descriptions), the environme
 
 A field-service agent occasionally promises to 'check the parts inventory' even though that tool was disabled in the latest deploy, then apologises when the call fails. The root cause is that the agent has no reliable picture of what it actually has. The team adds an Awareness module that exposes tool names, descriptions, and current health as queryable state the agent reads each turn. Now when the inventory tool is offline, the agent sees that fact in its own context and offers an alternative instead of fabricating one.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class AwarenessState {
+    +tools: ToolDescriptor[]
+    +environment: EnvInfo
+    +current_task: Task
+    +identity: AgentId
+    +refresh()
+    +query(slot)
+  }
+  class ToolDescriptor {
+    +name
+    +description
+    +schema
+  }
+  class EnvInfo {
+    +host
+    +user
+    +permissions
+  }
+  AwarenessState --> ToolDescriptor
+  AwarenessState --> EnvInfo
+```
+
 ## Consequences
 
 **Benefits**

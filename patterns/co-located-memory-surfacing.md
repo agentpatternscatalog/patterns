@@ -29,6 +29,20 @@ The agent's memory is searchable but the human can't search into it. If the huma
 
 On every user message, extract concrete proper nouns and significant named phrases. Grep / embedding-match against the agent's persistent memory (thoughts, notes, insights, project files). If matches exist, surface ≤ 2 most relevant fragments inline in the reply — time-stamped, briefly framed — and let the human steer whether to pursue. Suppress the surface if it would feel like a lecture or if the human's use was clearly incidental.
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Agent
+  participant Mem as Persistent Memory
+  User->>Agent: message mentioning <entity>
+  Agent->>Agent: extract proper nouns
+  Agent->>Mem: grep / embedding match
+  Mem-->>Agent: prior notes / insights
+  Agent-->>User: response with surfaced memory
+```
+
 ## Consequences
 
 **Benefits**

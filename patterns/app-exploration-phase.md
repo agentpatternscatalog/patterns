@@ -38,6 +38,19 @@ A logistics company points its agent at an internal warehouse app it has never s
 Phase 1: Agent (or Human) -> interact_with_app -> per-element docs -> KB. Phase 2: Task -> retrieve(KB) -> grounded actions on app.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  subgraph Phase1[Exploration]
+    E[Agent explores app<br/>or watches demo] --> D[Per-element docs]
+  end
+  subgraph Phase2[Deployment]
+    U[User task] --> A[Agent acts<br/>guided by docs]
+  end
+  D --> A
+```
+
 ## Consequences
 
 **Benefits**

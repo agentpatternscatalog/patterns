@@ -37,6 +37,18 @@ A regulated insurance assistant generates policy quotes that occasionally includ
 Pre(input) -> {pass, fail} ; if pass: LLM(input) -> candidate ; Post(candidate) -> {accept, reject}.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  In[Input] --> Pre[Pre: deterministic check<br/>e.g. AST parse]
+  Pre -- pass --> LLM[LLM call<br/>structured output + rubric]
+  Pre -- fail --> Reject1[Reject]
+  LLM --> Post[Post: deterministic check<br/>schema / rules]
+  Post -- pass --> Out[Output]
+  Post -- fail --> Reject2[Reject / retry]
+```
+
 ## Consequences
 
 **Benefits**

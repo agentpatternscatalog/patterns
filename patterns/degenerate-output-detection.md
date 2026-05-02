@@ -29,6 +29,18 @@ A weak or stuck model produces visibly identical or near-identical replies turn 
 
 Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.
 
+## Diagram
+
+```mermaid
+flowchart TD
+  R[Reply candidate] --> N[Normalize]
+  N --> RB[(Ring buffer<br/>last 8 outputs)]
+  RB --> C{Match?}
+  C -- exact / high Jaccard --> A[Drop / replace / escalate]
+  C -- novel --> P[Publish]
+  P --> RB
+```
+
 ## Consequences
 
 **Benefits**

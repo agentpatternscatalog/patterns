@@ -38,6 +38,22 @@ A data-analysis agent needs to fetch a list of orders, filter to those over a th
 Agent -> code snippet -> Sandbox(allowlisted imports + tool functions) -> stdout/return -> Agent.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Model
+  participant Sandbox as Sandboxed Interpreter
+  participant Tools
+  loop each step
+    Model->>Sandbox: code snippet
+    Sandbox->>Tools: pre-imported tool calls
+    Tools-->>Sandbox: results
+    Sandbox-->>Model: stdout / value
+  end
+  Model-->>Model: answer
+```
+
 ## Consequences
 
 **Benefits**

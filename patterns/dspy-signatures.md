@@ -37,6 +37,27 @@ Define each step as a typed signature (input fields → output fields). Compose 
 
 A team has six prompts across their pipeline and every model upgrade means rewriting all of them by hand against a vague vibes-test. They migrate to DSPy Signatures: each step is declared as a typed input/output module — for example summarise(article: str) -> Summary — and a compiler generates prompts and few-shot examples automatically against a metric they care about. When they swap models, the compiler re-optimises the prompts; the team stops hand-tuning strings.
 
+## Diagram
+
+```mermaid
+classDiagram
+  class Signature {
+    +input_fields
+    +output_fields
+  }
+  class Module {
+    +signatures
+    +forward()
+  }
+  class Teleprompter {
+    +metric
+    +compile(module)
+    +few_shot_examples
+  }
+  Module --> Signature
+  Teleprompter --> Module : optimises
+```
+
 ## Consequences
 
 **Benefits**

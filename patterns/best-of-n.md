@@ -31,6 +31,20 @@ Generate N candidates with non-zero temperature. Score each with a reward model 
 
 A code-review assistant generates a one-paragraph summary for each pull request, and roughly one in five reads awkwardly. The team enables Best-of-N: for each PR, the model samples five candidate summaries with temperature 0.7, and a small reward model trained on past human-edited summaries picks the highest-rated one to display. Token cost goes up about five times for that step, but the rate of summaries that reviewers feel compelled to rewrite drops sharply.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  P[Prompt] --> G[Sample N candidates<br/>temp > 0]
+  G --> C1[c1]
+  G --> C2[c2]
+  G --> CN[...cN]
+  C1 --> R[Reward model / scorer]
+  C2 --> R
+  CN --> R
+  R --> T[Top-1]
+```
+
 ## Consequences
 
 **Benefits**

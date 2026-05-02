@@ -31,6 +31,17 @@ Produce a confidence label (high/medium/low or numeric) alongside each answer. D
 
 A medical-coding assistant proposes ICD-10 codes for clinician review. Coders trust every suggestion equally because the tone is uniform, and miss the cases where the model was actually guessing. The team adds Confidence Reporting: each suggested code carries an explicit calibrated probability and a 'low / medium / high' band, surfaced beside the code. Coders now spend their attention on the low-confidence rows and rubber-stamp the high-confidence ones, and the workflow tool can auto-defer low-confidence cases to a senior coder.
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A[Answer] --> S[Compute confidence<br/>variance / score / recall]
+  S --> L{Threshold?}
+  L -- high --> UI[Render: high]
+  L -- medium --> UI2[Render: medium]
+  L -- low --> ESC[Escalate / human review]
+```
+
 ## Consequences
 
 **Benefits**
