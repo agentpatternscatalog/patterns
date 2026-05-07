@@ -23,7 +23,6 @@ Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback 
 - Schema rigidity vs evolvability over the agent's lifetime.
 - PII in events: redaction at write time vs read time.
 
-
 ## Applicability
 
 **Use when**
@@ -75,7 +74,6 @@ Self-edits and other recorded actions are rejected if they lack a valid justific
 
 ## Known uses
 
-- **Sparrot** — *Available*. ledger.jsonl with {ts, file, diff_hash, thought_id, justification}; orphan writes rejected.
 - **Langfuse traces** — *Available*
 - **OpenTelemetry GenAI semantic conventions** — *Available*
 - **Datadog LLM Observability** — *Available*

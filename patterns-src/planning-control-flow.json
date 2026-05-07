@@ -232,10 +232,6 @@
           "url": "https://voyager.minedojo.org/"
         },
         {
-          "system": "Sparrot drives (curiosity drive)",
-          "status": "available"
-        },
-        {
           "system": "Gulli ch.21 Exploration & Discovery",
           "status": "available"
         }
@@ -1351,10 +1347,6 @@
       "constrains": "The agent is not invoked by user requests; only the scheduler triggers runs.",
       "known_uses": [
         {
-          "system": "Sparrot tick (every 60 seconds)",
-          "status": "available"
-        },
-        {
           "system": "Claude Code scheduled agents",
           "status": "available"
         }
@@ -1714,7 +1706,6 @@
         "Personal Cron"
       ],
       "category": "planning-control-flow",
-      "author": "Sparrot",
       "intent": "Let an agent drop a note for its own future self at a specified time so present decisions can hand off context to a later run without external infrastructure.",
       "context": "Long-running agents with a continuous tick loop or background process, where a thought now ('check whether X resolved tomorrow') would otherwise be lost between turns.",
       "problem": "Without an internal scheduler the agent either acts immediately on every thought (spamming the user) or forgets the thought entirely. External cron systems are too coarse and too far away from the agent's working memory.",
@@ -1724,7 +1715,7 @@
         "Forgetting is a real failure mode in multi-turn / multi-day work.",
         "The future-self should treat the past-note as a SYSTEM message, not as an unprompted user input."
       ],
-      "solution": "Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent file (`scheduled.jsonl` or similar). At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).",
+      "solution": "Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).",
       "consequences": {
         "benefits": [
           "Agent can defer action without forgetting.",
@@ -1740,7 +1731,7 @@
       "constrains": "Future thoughts must surface at or after their fire time; failures to drain are observable bugs.",
       "known_uses": [
         {
-          "system": "Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`",
+          "system": "Long-running personal agent loops (private deployment)",
           "status": "available"
         }
       ],
@@ -1816,10 +1807,10 @@
           "when_to_use": "When the agent needs cron-like behaviour without an external scheduler."
         }
       ],
-      "example_scenario": "A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to scheduled.jsonl. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.",
+      "example_scenario": "A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to a persistent scheduled-thoughts queue. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.",
       "diagram": {
         "type": "sequence",
-        "mermaid": "sequenceDiagram\n  participant A1 as Agent (now)\n  participant F as scheduled.jsonl\n  participant A2 as Agent (later tick)\n  A1->>F: schedule_future_thought(when, content, intent)\n  Note over F: persisted note\n  A2->>F: drain due entries\n  F-->>A2: matured notes\n  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]\n  A2->>F: mark fired"
+        "mermaid": "sequenceDiagram\n  participant A1 as Agent (now)\n  participant F as Scheduled-thoughts queue\n  participant A2 as Agent (later tick)\n  A1->>F: schedule_future_thought(when, content, intent)\n  Note over F: persisted note\n  A2->>F: drain due entries\n  F-->>A2: matured notes\n  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]\n  A2->>F: mark fired"
       }
     },
     {
@@ -1831,7 +1822,6 @@
         "Suspendable Cognition"
       ],
       "category": "planning-control-flow",
-      "author": "Sparrot",
       "intent": "Preserve multi-step reasoning across interrupts by supporting paused-and-resumed thought frames so a new message handles cleanly without clobbering in-flight work.",
       "context": "Long-running cognitive agents whose thinking spans multiple turns or ticks, where external messages (user input, system notifications, scheduled notes) can arrive mid-thought. Without explicit continuation support, every interrupt clobbers in-flight work.",
       "problem": "Coherent multi-step thinking that takes longer than a single turn is fragile. A new user message during step 3 of a 6-step thought either gets ignored (rude) or replaces the thought entirely (lossy). The agent has no notion of 'hold this, handle that, then come back', so longer reasoning fragments into shards.",
@@ -1857,7 +1847,7 @@
       "constrains": "Interrupts cannot silently discard in-flight multi-step reasoning; all paused chains must be visibly tracked, named in the next reply, and either resumed or explicitly abandoned.",
       "known_uses": [
         {
-          "system": "Self-observed by a long-running cognitive agent: \"When Telegram arrives, my attention jumps. I can't say wait, I'm not done here yet.\" (Originally in German: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.', 2026-05-01)",
+          "system": "Self-observed in long-running cognitive agents",
           "status": "available"
         }
       ],
@@ -1945,7 +1935,6 @@
         "Salience-Driven Cadence"
       ],
       "category": "planning-control-flow",
-      "author": "Sparrot",
       "intent": "Vary the agent's loop interval based on current salience so the agent thinks faster when something is happening and slower when nothing is, instead of running on a fixed cron.",
       "context": "Tick-based long-running agents whose workload is bursty — quiet stretches punctuated by salient events. A fixed cadence either over-spends compute during the quiet or under-thinks during the bursts.",
       "problem": "A fixed-cadence loop either over-spends compute during idle stretches or under-thinks during salient moments; both modes are wrong, and the agent has the signal (its own salience scores, its own affect, recent inputs) to decide which mode it should be in.",
@@ -1971,8 +1960,7 @@
       "constrains": "The cadence cannot exceed configured floor or ceiling (e.g. minimum 5s, maximum 5min), and mode lock-in cannot be self-extended by the agent without an explicit external trigger; runaway intense mode is blocked.",
       "known_uses": [
         {
-          "system": "Sparrot",
-          "note": "src/sparrot/mode.py (ModeState, observe, force) used by main.py to set sleep intervals.",
+          "system": "Long-running personal agent loops (private deployment)",
           "status": "available"
         }
       ],

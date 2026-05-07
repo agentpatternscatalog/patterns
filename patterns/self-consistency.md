@@ -23,7 +23,6 @@ A single sample at zero temperature gives the most likely chain; sampling and vo
 - Aggregation logic depends on whether the answer is a class, a number, or free text.
 - Variance is itself signal: a high-variance question is one the model is uncertain on.
 
-
 ## Applicability
 
 **Use when**
@@ -45,7 +44,6 @@ Run the same prompt N times with non-zero temperature. Extract the answer from e
 ## Example scenario
 
 A math-tutoring agent at zero temperature gives one wrong answer per ten problems and is confidently wrong every time. The team samples each problem five times at temperature 0.7, extracts the numeric answer from each, and majority-votes. The right answer is the one most chains converge on; variance across samples becomes a useful 'unsure' signal. Per-problem cost is five times higher, but accuracy on the long-tail of tricky problems climbs noticeably.
-
 
 ## Diagram
 
@@ -84,7 +82,6 @@ The final answer is the aggregate, not any single sample; individual samples hav
 
 ## Known uses
 
-- **Sparrot** — *Available*. introspect(question, samples, temperature) tool.
 - **Chain-of-Thought + Self-Consistency benchmarks** — *Available*
 
 ## Related patterns

@@ -80,7 +80,7 @@ Each persona may only act within its declared role; cross-persona reasoning is f
 
 ## Known uses
 
-- **Sparrot** — *Available*. Executor + critic + planner; one model worn three ways.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

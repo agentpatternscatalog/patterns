@@ -23,7 +23,6 @@ A single-tick edit can capture momentary confusion as a lasting rule.
 - Coordination across ticks needs a proposal / approval state machine.
 - User override should always be available for legitimate fast paths.
 
-
 ## Applicability
 
 **Use when**
@@ -79,7 +78,7 @@ A mutation cannot land on a single tick's say-so; it requires K consecutive endo
 
 ## Known uses
 
-- **Sparrot** — *Available*. rules/*.md changes require two consecutive ticks to agree, or explicit user approval.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

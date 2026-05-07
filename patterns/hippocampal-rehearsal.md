@@ -75,7 +75,7 @@ Archived items become readable only after rehearsal lifts them; direct cold read
 
 ## Known uses
 
-- **Sparrot** — *Available*. Stage P5+ rehearsal step.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

@@ -74,7 +74,6 @@ Outputs without a confidence label are not consumable by confidence-aware downst
 
 ## Known uses
 
-- **Sparrot empirical-introspection variance signal** — *Available*
 - **OpenAI logprobs-derived confidence** — *Available*
 
 ## Related patterns

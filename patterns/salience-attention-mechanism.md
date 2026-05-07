@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -105,7 +104,7 @@ A long-running personal agent has months of memory; dumping it all into context 
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

@@ -4,7 +4,6 @@
 
 **Category:** Planning & Control Flow
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -106,7 +105,7 @@ stateDiagram-v2
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

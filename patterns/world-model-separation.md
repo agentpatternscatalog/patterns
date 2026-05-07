@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -27,8 +26,7 @@ When self-model and world-model live in the same store (one big personality file
 
 ## Solution
 
-Maintain `world.md` (plus optional substructure: humans, repos, services, capabilities) as a separate, reflection-writable file. Personality, charter, and boundaries live in their own files with separate write paths. Surprise events (prediction error against `world.md`) trigger a focused world-update pass; self-update is a different pass with different gating. The tick prompt loads both, but they are visibly distinct sections.
-
+Maintain a dedicated world-model store (humans, repos, services, capabilities, optionally with substructure) as a separate, reflection-writable surface. Personality, charter, and boundaries live in their own surfaces with separate write paths. Surprise events (prediction error against the world model) trigger a focused world-update pass; self-update is a different pass with different gating. The tick prompt loads both, but they are visibly distinct sections.
 
 ## Diagram
 
@@ -36,7 +34,7 @@ Maintain `world.md` (plus optional substructure: humans, repos, services, capabi
 flowchart TD
   Obs[Observation] --> Pred{Prediction error?}
   Pred -- yes --> WPass[World-update pass]
-  WPass --> WFile[(world.md)]
+  WPass --> WFile[(World model)]
   Pred -- no --> Skip[No write]
   Refl[Self-reflection trigger] --> SPass[Self-update pass]
   SPass --> SFile[(charter / personality / boundaries)]
@@ -80,7 +78,7 @@ Reflection passes that update the world model cannot touch the self-model in the
 
 ### Two-file split
 
-Keep `self.json` and `world.json` as separate persistent files; reflection writes to exactly one per pass.
+Keep self-model and world-model in separate persistent stores; reflection writes to exactly one per pass.
 
 *Distinguishing factor:* filesystem-level separation
 
@@ -104,11 +102,11 @@ World-model writes require an explicit surprise signal (observation diverged fro
 
 ## Example scenario
 
-A long-running agent's reflection pass corrupts its own personality file because the same store mixes 'what I am' with 'what is around me' and a surprise update overwrites a self-charter line. The team splits state: `world.md` (humans, repos, services, capabilities) is reflection-writable; personality, charter, and boundaries live in separate files with separate write-protection. Surprise-driven world updates can no longer mutate self-model, and the agent stops drifting in identity when the environment changes.
+A long-running agent's reflection pass corrupts its own personality file because the same store mixes 'what I am' with 'what is around me' and a surprise update overwrites a self-charter line. The team splits state: a dedicated world model (humans, repos, services, capabilities) is reflection-writable; personality, charter, and boundaries live in separate stores with separate write-protection. Surprise-driven world updates can no longer mutate self-model, and the agent stops drifting in identity when the environment changes.
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

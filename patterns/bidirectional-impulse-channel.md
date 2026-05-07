@@ -25,11 +25,11 @@ Pure request/response chat misses the long-running case; pure push notifications
 
 ## Solution
 
-A single CLI/chat surface where the user can send commands (`!rule ...`, `!goal ...`, `!forget ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.
+A single CLI/chat surface where the user can send sigil-prefixed commands (e.g. `!<verb> ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.
 
 ## Variants
 
-- **Command-prefix channel** — User commands begin with a sigil (`!rule`, `!goal`) that bypasses the model and writes directly to memory; the agent pushes inline messages.
+- **Command-prefix channel** — User commands begin with a sigil (e.g. `!`) that bypasses the model and writes directly to memory; the agent pushes inline messages.
 - **Out-of-band push** — User and agent share the same chat for prompts, but the agent sends salience-triggered pushes through a separate notification surface (toast, email).
 - **Always-on REPL channel** — User and agent both type into a shared REPL with the agent running a continuous loop; both can interrupt the other.
 
@@ -45,7 +45,7 @@ sequenceDiagram
   participant Channel as CLI / Chat
   participant Mem as Memory
   participant Agent
-  User->>Channel: !rule / !goal / !forget
+  User->>Channel: !&lt;verb&gt; ... (sigil-prefixed command)
   Channel->>Mem: write directly (bypass model)
   Agent->>Mem: read salient context
   Agent->>Channel: push message on salience spike
@@ -84,7 +84,7 @@ The agent may push at most one unsolicited message per window; user commands beg
 
 ## Known uses
 
-- **Sparrot** — *Available*. CLI as bidirectional impulse channel.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

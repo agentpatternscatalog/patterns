@@ -4,7 +4,6 @@
 
 **Category:** Streaming & UX
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -108,7 +107,7 @@ stateDiagram-v2
 
 ## Known uses
 
-- **Sparrot — design specified 2026-05-01, implementation pending** — *Pure-Future*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

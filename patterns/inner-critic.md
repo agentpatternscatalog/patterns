@@ -74,7 +74,7 @@ No write to self-modifiable files succeeds without a passing critic review.
 
 ## Known uses
 
-- **Sparrot** — *Available*. src/sparrot/*.py edits gated by critic.py.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

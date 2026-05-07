@@ -23,7 +23,6 @@ Agents that emit on every cycle are noisy; agents that only emit on user request
 - Threshold tuning is per-context.
 - Hygiene: rate-limiting prevents nag spirals.
 
-
 ## Applicability
 
 **Use when**
@@ -82,7 +81,7 @@ Output is forbidden unless the salience score exceeds the configured threshold.
 
 ## Known uses
 
-- **Sparrot** — *Available*. Pushes when insight clears salience threshold, when focus is stuck, when contradiction surfaces, when goal completes.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

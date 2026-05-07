@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -105,7 +104,7 @@ Each preoccupation carries explicit affect tags (worry, anticipation, curiosity)
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

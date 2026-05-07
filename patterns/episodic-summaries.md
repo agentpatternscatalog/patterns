@@ -76,7 +76,6 @@ Past events older than the compaction horizon are accessible only via summary, n
 
 ## Known uses
 
-- **Sparrot** — *Available*. Hourly chunk summarisation; daily insight extraction.
 - **Generative Agents (Park et al. 2023)** — *Available*
 
 ## Related patterns

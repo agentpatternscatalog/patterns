@@ -4,7 +4,6 @@
 
 **Category:** Streaming & UX
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -115,7 +114,7 @@ A coaching agent reads only the user's text and projects the same flat affect on
 
 ## Known uses
 
-- **Sparrot — design specified 2026-05-01, implementation pending** — *Pure-Future*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

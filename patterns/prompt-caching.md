@@ -23,7 +23,6 @@ Re-sending an identical 10k-token prefix on every call wastes compute; vendor ca
 - Stability for cache-hit vs flexibility to mutate the prompt.
 - Engineering rigor on prompt order vs developer ergonomics.
 
-
 ## Applicability
 
 **Use when**
@@ -75,7 +74,6 @@ The cached prefix is forbidden from changing call to call; mutation invalidates 
 
 ## Known uses
 
-- **Sparrot** — *Available*. Charter, active rules, motivations cached; input cost cut 70-90% over 1,440 ticks/day.
 - **Anthropic prompt caching** — *Available*
 - **OpenAI prompt caching** — *Available*
 - **OpenAI automatic prompt caching** — *Available*

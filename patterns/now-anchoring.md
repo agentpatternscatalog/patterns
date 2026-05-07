@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -104,7 +103,7 @@ Place the time block outside the cached prefix so the cache key is stable; injec
 
 ## Known uses
 
-- **Sparrot — `memory._now_context()`** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

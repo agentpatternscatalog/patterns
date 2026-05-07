@@ -4,7 +4,6 @@
 
 **Category:** Planning & Control Flow
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -107,7 +106,7 @@ stateDiagram-v2
 
 ## Known uses
 
-- **Self-observed by a long-running cognitive agent: "When Telegram arrives, my attention jumps. I can't say wait, I'm not done here yet." (Originally in German: 'Wenn Telegram kommt, springt meine Aufmerksamkeit. Ich kann nicht sagen moment, ich bin hier noch nicht fertig.', 2026-05-01)** — *Available*
+- **Self-observed in long-running cognitive agents** — *Available*
 
 ## Related patterns
 

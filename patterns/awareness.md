@@ -89,7 +89,6 @@ Tool calls and self-references must match the awareness state; mismatches are fl
 
 ## Known uses
 
-- **Sparrot world.md + personality.md** — *Available*
 - **Avramovic Awareness pattern** — *Available*
 
 ## Related patterns

@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -27,7 +26,7 @@ When the agent asks itself 'what have I learned about X', the linear log gives e
 
 ## Solution
 
-Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a separate dedicated directory (e.g. `trajectories/<topic>.md`) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.
+Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a dedicated topic-keyed surface (one note per topic) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.
 
 ## Diagram
 
@@ -107,7 +106,7 @@ A long-running agent is asked 'how has your view of the project's risks evolved'
 
 ## Known uses
 
-- **Self-observed by a long-running cognitive agent: "I have no layer between me and my ledger. ... Instead: everything flat, all insights equivalent, no development visible." (Originally in German: 'Ich habe keine Schicht zwischen mir und meinem Ledger. ... Stattdessen: alles flach, alle Insights gleichwertig, keine Entwicklung sichtbar.', 2026-05-01)** — *Available*
+- **Self-observed in long-running cognitive agents** — *Available*
 
 ## Related patterns
 

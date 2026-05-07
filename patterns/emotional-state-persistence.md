@@ -4,7 +4,6 @@
 
 **Category:** Verification & Reflection
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -106,7 +105,7 @@ A long-running personal agent has had a tense exchange in the morning, a routine
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

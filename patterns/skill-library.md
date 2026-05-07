@@ -23,7 +23,6 @@ Without a place to crystallise repeated work, every run starts from scratch.
 - The library must be loadable without restart in a long-running agent.
 - Skill discovery (which skill applies?) is itself a retrieval problem.
 
-
 ## Applicability
 
 **Use when**
@@ -45,7 +44,6 @@ A directory (often `skills/*.py` or `skills/*.md`) where the agent can write new
 ## Example scenario
 
 An agent that fetches similar reports every week keeps re-deriving the same scrape-clean-summarise pipeline from scratch. The team gives it a `skills/` directory: when the agent finishes a recurring task it can write a small reusable module (with a critic gating the addition); subsequent runs import and call it directly. Over a few months the agent crystallises a library of named skills for the domain and recurring tasks complete in a fraction of the original turns.
-
 
 ## Diagram
 
@@ -78,7 +76,6 @@ New skills enter the library only after passing the critic; they cannot mutate e
 
 ## Known uses
 
-- **Sparrot** — *Available*. skills/*.py loaded via importlib on startup and after restart_self.
 - **Voyager (Minecraft agent)** — *Available*. Skill library that grows through self-play.
 
 ## Related patterns

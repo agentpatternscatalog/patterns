@@ -73,7 +73,6 @@ The agent cannot write the charter; updates require explicit operator action out
 
 ## Known uses
 
-- **Sparrot** — *Available*. charter.md read every tick; read-only at tool layer.
 - **Anthropic Constitutional AI** — *Available*
 
 ## Related patterns

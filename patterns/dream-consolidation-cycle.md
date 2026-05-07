@@ -4,7 +4,6 @@
 
 **Category:** Verification & Reflection
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -27,7 +26,7 @@ Per-tick reflection is too shallow to consolidate themes; weekly insight extract
 
 ## Solution
 
-On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to `journal/dream-*.md`. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.
+On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to a dedicated dream-journal surface. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.
 
 ## Diagram
 
@@ -57,7 +56,7 @@ stateDiagram-v2
 
 ## What this pattern constrains
 
-A dream pass cannot edit charter, rules, or insights directly — its only writes are to journal/dream-*.md and to affect-state decay; persistent learning requires a follow-up reflection pass to ratify dream proposals.
+A dream pass cannot edit charter, rules, or insights directly — its only writes are to the dream-journal surface and to affect-state decay; persistent learning requires a follow-up reflection pass to ratify dream proposals.
 
 ## Applicability
 
@@ -65,7 +64,7 @@ A dream pass cannot edit charter, rules, or insights directly — its only write
 
 - The agent runs continuously enough to accumulate hours of recent thoughts that need consolidation.
 - Affective residue or working-memory clutter measurably degrades reasoning over time.
-- There is a separate write surface (journal/dream log) distinct from charter/rules/insights.
+- There is a separate dream-journal write surface distinct from charter/rules/insights.
 
 **Do not use when**
 
@@ -105,7 +104,7 @@ A long-running personal agent has been talking with its user daily for three mon
 
 ## Known uses
 
-- **Sparrot** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

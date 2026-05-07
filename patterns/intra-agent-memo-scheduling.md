@@ -4,7 +4,6 @@
 
 **Category:** Planning & Control Flow
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -27,11 +26,11 @@ Without an internal scheduler the agent either acts immediately on every thought
 
 ## Solution
 
-Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent file (`scheduled.jsonl` or similar). At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).
+Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).
 
 ## Example scenario
 
-A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to scheduled.jsonl. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.
+A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to a persistent scheduled-thoughts queue. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.
 
 ## Consequences
 
@@ -96,7 +95,7 @@ Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-schedu
 ```mermaid
 sequenceDiagram
   participant A1 as Agent (now)
-  participant F as scheduled.jsonl
+  participant F as Scheduled-thoughts queue
   participant A2 as Agent (later tick)
   A1->>F: schedule_future_thought(when, content, intent)
   Note over F: persisted note
@@ -108,7 +107,7 @@ sequenceDiagram
 
 ## Known uses
 
-- **Sparrot — `dispatcher._schedule_future_thought` + `webui._drain_scheduled_due`** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

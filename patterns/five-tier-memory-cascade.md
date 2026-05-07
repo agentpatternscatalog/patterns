@@ -79,7 +79,7 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 
 ## Known uses
 
-- **Sparrot** — *Available*. workspace/focus.md (working), thoughts/ (short), chunks/ (episodic), insights+rules+motivations (long).
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

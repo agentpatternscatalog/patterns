@@ -23,7 +23,6 @@ Stateless agents repeat the same errors; full RL fine-tuning is too expensive fo
 - Lesson retrieval (which lesson applies?) is a search problem.
 - Lesson rot: outdated lessons may misguide once the world changes.
 
-
 ## Applicability
 
 **Use when**
@@ -76,7 +75,6 @@ Lessons are appended, not overwritten; old lessons are explicitly retired rather
 
 ## Known uses
 
-- **Sparrot** — *Available*. Reflection cycle: chunks -> insights -> rule proposals.
 - **Bobbin (Stash2Go)** — *Pure future*. Per-user lesson schema not yet built.
 
 ## Related patterns

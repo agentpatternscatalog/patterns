@@ -23,7 +23,6 @@ Request-driven agents only act when called; many useful tasks need to act on tim
 - Failure modes when the agent's run is missed.
 - Drift if the schedule is not authoritative.
 
-
 ## Applicability
 
 **Use when**
@@ -80,7 +79,6 @@ The agent is not invoked by user requests; only the scheduler triggers runs.
 
 ## Known uses
 
-- **Sparrot tick (every 60 seconds)** — *Available*
 - **Claude Code scheduled agents** — *Available*
 
 ## Related patterns

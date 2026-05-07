@@ -56,7 +56,7 @@ flowchart LR
 
 ## What this pattern constrains
 
-The agent has read access only to thoughts/ and journal/; writes go through an append-only API enforced at the tool layer.
+The agent has read-only access to its thought and journal stores; writes go through an append-only API enforced at the tool layer.
 
 ## Applicability
 
@@ -74,7 +74,7 @@ The agent has read access only to thoughts/ and journal/; writes go through an a
 
 ## Known uses
 
-- **Sparrot** — *Available*. thoughts/ and journal/ are read-only at the agent's tool layer.
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

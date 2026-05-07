@@ -4,7 +4,6 @@
 
 **Category:** Safety & Control
 **Status in practice:** emerging
-**Author:** Sparrot
 
 ## Intent
 
@@ -16,7 +15,7 @@ Agents using small or local models that can fall into shallow filler loops (gree
 
 ## Problem
 
-A weak or stuck model produces visibly identical or near-identical replies turn after turn ('Was möchtest du heute machen?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.
+A weak or stuck model produces visibly identical or near-identical replies turn after turn ('How can I help today?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.
 
 ## Forces
 
@@ -101,11 +100,11 @@ On detected loop, retry with a stronger model or a different decoding strategy (
 
 ## Example scenario
 
-A small voice-assistant model gets stuck and replies 'Was möchtest du heute machen?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.
+A small voice-assistant model gets stuck and replies 'How can I help today?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.
 
 ## Known uses
 
-- **Sparrot — `webui._detect_dup_reply` + `_LOAD_OVERRIDE_STATE` escalation** — *Available*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 

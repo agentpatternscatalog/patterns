@@ -78,7 +78,6 @@ Releases are blocked if the harness flags a regression beyond tolerance.
 ## Known uses
 
 - **Bobbin (Stash2Go)** — *Planned*. Eval harness flagged as the explicit next step; in beta because of this gap.
-- **Sparrot** — *Planned*
 - **Ragas, DeepEval, Langfuse Evals** — *Available*
 
 ## Related patterns

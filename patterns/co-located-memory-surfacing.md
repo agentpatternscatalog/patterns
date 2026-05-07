@@ -4,7 +4,6 @@
 
 **Category:** Memory
 **Status in practice:** experimental
-**Author:** Sparrot
 
 ## Intent
 
@@ -107,7 +106,7 @@ A user starts a new chat with their assistant: 'I'm thinking about taking the Be
 
 ## Known uses
 
-- **Sparrot — design specified 2026-05-01, implementation pending** — *Pure-Future*
+- **Long-running personal agent loops (private deployment)** — *Available*
 
 ## Related patterns
 
