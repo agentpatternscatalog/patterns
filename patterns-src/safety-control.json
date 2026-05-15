@@ -499,6 +499,251 @@
       }
     },
     {
+      "id": "degenerate-output-detection",
+      "name": "Degenerate-Output Detection",
+      "aliases": [
+        "Anti-Parrot Guard",
+        "Self-Repeat Circuit Breaker",
+        "Loop-Output Detector"
+      ],
+      "category": "safety-control",
+      "intent": "Detect when the agent is about to emit a near-duplicate of its own recent output and either drop, replace, or escalate to a stronger model rather than ship the loop.",
+      "context": "Agents using small or local models that can fall into shallow filler loops (greetings, generic prompts back to the user) under context pressure. Affects both user-facing chat replies and unprompted ticks.",
+      "problem": "A weak or stuck model produces visibly identical or near-identical replies turn after turn ('How can I help today?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.",
+      "forces": [
+        "Local models loop more readily than frontier models.",
+        "Catching repeats post-hoc is cheaper than fine-tuning anti-loop behavior.",
+        "Suppressing the duplicate silently confuses the user; replacing with a marker is more honest.",
+        "Escalating to a stronger model costs money / latency but breaks the loop."
+      ],
+      "solution": "Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.",
+      "consequences": {
+        "benefits": [
+          "Visible loops never reach the user.",
+          "Auto-recovery via provider escalation rather than human intervention.",
+          "Self-correction signal to the model in the conversation history."
+        ],
+        "liabilities": [
+          "False positives on legitimately repeated short answers ('yes', 'thanks').",
+          "Threshold tuning is per-domain.",
+          "Escalation has cost; budget for repeated triggers."
+        ]
+      },
+      "constrains": "Identical or near-identical consecutive outputs are forbidden; detected loops must be visibly broken (escalation marker, model swap, or explicit abandonment), never shipped silently.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provider-fallback",
+          "relation": "complements"
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "echo-recognition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)",
+          "year": 2024,
+          "url": "https://huggingface.co/docs/transformers/generation_strategies"
+        },
+        {
+          "type": "paper",
+          "title": "The Curious Case of Neural Text Degeneration",
+          "authors": "Holtzman, Buys, Du, Forbes, Choi",
+          "year": 2020,
+          "url": "https://arxiv.org/abs/1904.09751"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety",
+        "anti-loop",
+        "provider-routing",
+        "self-monitoring"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent produces outputs in a loop where consecutive replies can be compared.",
+          "Near-duplicate outputs are observable failure mode (model wedged, decoding loop, prompt collapse).",
+          "Cost of detection (similarity check) is small relative to cost of shipping the duplicate."
+        ],
+        "do_not_use_when": [
+          "Outputs are legitimately repetitive by design (e.g. a heartbeat ping).",
+          "The agent has only single-turn interactions with no comparison baseline.",
+          "False positives on near-duplicate detection would be more disruptive than the loop itself."
+        ]
+      },
+      "variants": [
+        {
+          "name": "String-similarity check",
+          "summary": "Compare the candidate output to the previous N outputs by Levenshtein or token-set ratio; reject above threshold.",
+          "distinguishing_factor": "lexical comparison",
+          "when_to_use": "Default. Cheap and good enough for most loops."
+        },
+        {
+          "name": "Embedding-similarity check",
+          "summary": "Embed candidate and previous outputs; reject if cosine similarity exceeds a threshold.",
+          "distinguishing_factor": "semantic comparison",
+          "when_to_use": "When paraphrased loops slip past lexical checks."
+        },
+        {
+          "name": "Detect-and-escalate",
+          "summary": "On detected loop, retry with a stronger model or a different decoding strategy (higher temperature, nucleus sampling) instead of dropping.",
+          "distinguishing_factor": "recover, not just reject",
+          "when_to_use": "When the agent must produce *some* output and silence is not acceptable."
+        }
+      ],
+      "example_scenario": "A small voice-assistant model gets stuck and replies 'How can I help today?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  R[Reply candidate] --> N[Normalize]\n  N --> RB[(Ring buffer<br/>last 8 outputs)]\n  RB --> C{Match?}\n  C -- exact / high Jaccard --> A[Drop / replace / escalate]\n  C -- novel --> P[Publish]\n  P --> RB"
+      }
+    },
+    {
+      "id": "dual-llm-pattern",
+      "name": "Dual LLM Pattern",
+      "aliases": [
+        "Privileged/Quarantined LLM Split",
+        "Dual-Model Privilege Separation",
+        "Symbolic-Variable Handoff"
+      ],
+      "category": "safety-control",
+      "intent": "Split agent work between a privileged model that holds tool access and a quarantined model that reads untrusted content, exchanging only opaque references between them.",
+      "context": "Tool-using agents that must process attacker-controlled text (emails, web pages, document attachments, API responses) while also calling tools that can take consequential actions on the user's behalf.",
+      "problem": "When the same model reads untrusted content and decides which tools to call, a single successful prompt injection in the untrusted text can hijack the action loop. Guardrails on the same model that performs both jobs cannot reliably tell trusted system instructions apart from instructions smuggled in via data.",
+      "forces": [
+        "Reading untrusted text is a normal, frequent operation; refusing to read it is not viable.",
+        "Tool access is what makes the agent useful; removing it is not viable either.",
+        "Filtering untrusted text before it reaches the model is unreliable — every filter has bypasses.",
+        "Adding a second model raises cost, latency, and debugging complexity."
+      ],
+      "solution": "Run two models with disjoint privileges. A Privileged LLM plans, holds tool access, and never sees raw untrusted content. A Quarantined LLM ingests the untrusted content but has no tools and cannot emit free-form actions. The two communicate through symbolic references: the Quarantined LLM extracts typed values (an email address, a date, a summary) and returns them as opaque handles; the Privileged LLM composes tool calls using those handles, with the host substituting the underlying values only at execution time.",
+      "consequences": {
+        "benefits": [
+          "Prompt injections in untrusted content cannot directly drive tool calls — the model that reads them has no tools.",
+          "The trust boundary is enforced by the host, not by prompt instructions, so it survives clever wording.",
+          "Symbolic handles make capability surface auditable: every tool call shows which handles it consumed and where they came from."
+        ],
+        "liabilities": [
+          "Doubles model cost and adds at least one extra round trip per untrusted payload.",
+          "Debugging spans two model transcripts that must be correlated.",
+          "Handle plumbing is intrusive — every tool argument needs a typed slot or it has to fall back to raw text.",
+          "Defends only against injection via the untrusted path; injection via tool outputs or system prompts is out of scope."
+        ]
+      },
+      "constrains": "The privileged model may not receive untrusted content as raw text; the quarantined model may not call tools.",
+      "known_uses": [
+        {
+          "system": "Simon Willison, original proposal",
+          "note": "Coined as a defence pattern for AI assistants that read email and call tools.",
+          "status": "available",
+          "url": "https://simonwillison.net/2023/Apr/25/dual-llm-pattern/"
+        },
+        {
+          "system": "Beurer-Kellner et al., Design Patterns for Securing LLM Agents",
+          "note": "Formalised as design pattern §3.1(4) — Dual LLM with symbolic variables.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2506.08837"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements",
+          "note": "Trifecta names the risk; dual-LLM removes one of the three legs (private data exposure to the action loop)."
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "The Dual LLM pattern for building AI assistants that can resist prompt injection",
+          "authors": "Simon Willison",
+          "year": 2023,
+          "url": "https://simonwillison.net/2023/Apr/25/dual-llm-pattern/"
+        },
+        {
+          "type": "paper",
+          "title": "Design Patterns for Securing LLM Agents against Prompt Injections",
+          "authors": "Beurer-Kellner et al.",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.08837"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "security",
+        "prompt-injection",
+        "privilege-separation",
+        "multi-model"
+      ],
+      "example_scenario": "An email assistant must read inbound messages and draft replies that may include calendar invites. A Privileged model holds the calendar tool and the send-email tool but never sees the raw inbox; a Quarantined model reads each inbound message and returns a structured extraction — sender handle, requested date, body summary — as typed values. The Privileged model composes \"reply to $SENDER suggesting $DATE\" without ever ingesting the original attacker-controlled text. A prompt injection in the inbound message cannot drive a tool call because it never reaches the model that holds the tools.",
+      "applicability": {
+        "use_when": [
+          "Agent processes content from sources the operator does not control (email, web, third-party APIs).",
+          "Tool calls in the agent can take consequential actions (send, write, pay, publish).",
+          "Information from untrusted content can be reduced to typed values (addresses, dates, IDs, short strings) rather than free-form text the privileged model must reason over verbatim."
+        ],
+        "do_not_use_when": [
+          "The agent has no consequential tools — there is nothing to hijack.",
+          "The untrusted content must be reasoned over verbatim and cannot be compressed to typed extractions.",
+          "Cost and latency budgets cannot absorb a second model round trip per untrusted payload."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Typed-extraction handoff",
+          "summary": "Quarantined model emits a fixed schema (typed fields only); privileged model composes tool calls over those fields.",
+          "distinguishing_factor": "structured handoff, no free text",
+          "when_to_use": "When the extraction shape is known in advance — recommended default."
+        },
+        {
+          "name": "Opaque-handle substitution",
+          "summary": "Quarantined model returns opaque IDs ($VAR1, $VAR2); the host substitutes the underlying values only at tool-execution time so the privileged model never sees them.",
+          "distinguishing_factor": "raw value never enters privileged context",
+          "when_to_use": "When even the extracted value (e.g., a phishing URL fragment) could carry an injection payload."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant Untrusted as Untrusted Source\n  participant Q as Quarantined LLM\n  participant Host\n  participant P as Privileged LLM\n  participant Tool\n  Untrusted->>Q: raw text\n  Q->>Host: typed extraction / handles\n  Host->>P: plan request (handles only)\n  P->>Host: tool call referencing handles\n  Host->>Tool: invoke with substituted values\n  Tool-->>Host: result\n  Host-->>P: result"
+      }
+    },
+    {
       "id": "exception-recovery",
       "name": "Exception Handling and Recovery",
       "aliases": [
@@ -733,23 +978,7 @@
       ],
       "related": [
         {
-          "pattern": "structured-output",
-          "relation": "uses"
-        },
-        {
-          "pattern": "session-isolation",
-          "relation": "complements"
-        },
-        {
-          "pattern": "prompt-injection-defense",
-          "relation": "composes-with"
-        },
-        {
-          "pattern": "pii-redaction",
-          "relation": "generalises"
-        },
-        {
-          "pattern": "refusal",
+          "pattern": "code-switching-aware-agent",
           "relation": "complements"
         },
         {
@@ -757,11 +986,27 @@
           "relation": "complements"
         },
         {
-          "pattern": "sandbox-isolation",
+          "pattern": "dual-llm-pattern",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements"
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "prompt-injection-defense",
           "relation": "composes-with"
         },
         {
-          "pattern": "tool-output-poisoning",
+          "pattern": "refusal",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sandbox-isolation",
           "relation": "composes-with"
         },
         {
@@ -769,12 +1014,20 @@
           "relation": "composes-with"
         },
         {
-          "pattern": "tool-output-trusted-verbatim",
-          "relation": "alternative-to"
+          "pattern": "session-isolation",
+          "relation": "complements"
         },
         {
-          "pattern": "code-switching-aware-agent",
-          "relation": "complements"
+          "pattern": "structured-output",
+          "relation": "uses"
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -908,6 +1161,121 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Op[Operator] --> Rev[Set revocation token / flag]\n  Rev --> Store[(Shared store)]\n  Loop[Agent step] --> Chk[Check store]\n  Chk --> Rk{Revoked?}\n  Rk -- no --> Cont[Continue]\n  Rk -- yes --> Halt[Halt: no model + no tool calls]\n  Halt --> Comp[Compensate in-flight effects]\n  Comp -.fallback.-> Kill[Kill OS process loses provenance]"
+      }
+    },
+    {
+      "id": "lethal-trifecta-threat-model",
+      "name": "Lethal Trifecta Threat Model",
+      "aliases": [
+        "Willison Trifecta",
+        "Three-Capabilities Exfiltration Risk"
+      ],
+      "category": "safety-control",
+      "intent": "Block prompt-injection-driven exfiltration by ensuring no single agent execution path holds all three of: access to private data, exposure to untrusted content, and an outbound communication channel.",
+      "context": "Tool-using agents that combine multiple capabilities — reading private data, ingesting third-party content, and calling tools that can transmit information outside the trust boundary. Common in email assistants, browsing agents, coding agents with MCP servers, and any LLM that can both query internal systems and reach the public internet.",
+      "problem": "An attacker only needs to plant one well-crafted prompt-injection payload in any untrusted content the agent will read. If the same agent execution also has access to private data and any outbound channel, the injection can extract the private data and ship it out. The model itself cannot reliably tell instructions in data apart from instructions in the system prompt.",
+      "forces": [
+        "Each of the three capabilities is individually useful, and many real agents need all three.",
+        "Prompt-injection content is indistinguishable from legitimate content to the model.",
+        "Outbound channels are easy to overlook — image URLs, link previews, error reports, and tool calls can all serve as exfiltration paths.",
+        "Removing capabilities reduces agent utility; the operator must consciously trade utility for safety."
+      ],
+      "solution": "Treat the three capabilities — **private-data read**, **untrusted-content ingest**, and **outbound communication** — as a tagged capability set on every tool and data source. For each agent execution path, enforce at orchestration time that at least one of the three is missing. Concrete moves: split the agent into two runs (one that reads private data, one that reads untrusted content), strip outbound network for the run that touches both, or sanitise untrusted content into typed fields before it reaches private-data context. The check is performed by the host, not by guardrail prompts.",
+      "consequences": {
+        "benefits": [
+          "Eliminates an entire class of exfiltration attacks by construction, not by classifier accuracy.",
+          "Forces explicit capability tagging — surfaces tools that combine too much authority.",
+          "Composable with other safety patterns (dual-LLM, egress lockdown, sandbox isolation)."
+        ],
+        "liabilities": [
+          "Restricts powerful single-agent designs that read everything and act anywhere.",
+          "Requires disciplined capability tagging across the tool catalogue; missing tags create silent gaps.",
+          "Does not address injection by other paths (poisoned tool output, supply-chain prompts, model weights)."
+        ]
+      },
+      "constrains": "An execution path may not simultaneously read private data, ingest untrusted content, and reach an outbound channel; tools missing capability tags must be treated as carrying all three.",
+      "known_uses": [
+        {
+          "system": "Simon Willison, original framing",
+          "note": "Coined June 2025 after a string of vendor incidents fit the same shape.",
+          "status": "available",
+          "url": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/"
+        },
+        {
+          "system": "Microsoft 365 Copilot CVE-2024-38206 fix",
+          "note": "Removed outbound channel for sessions that read both untrusted email and private SharePoint content.",
+          "status": "available",
+          "url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-38206"
+        },
+        {
+          "system": "GitHub MCP, GitLab Duo postmortem mitigations",
+          "note": "First patches in both products removed an outbound path rather than trying to filter the untrusted leg.",
+          "status": "available",
+          "url": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dual-llm-pattern",
+          "relation": "complements",
+          "note": "Dual-LLM removes private-data access from the model that reads untrusted content — one concrete way to break the trifecta."
+        },
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "complements"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "complements",
+          "note": "Tool output poisoning is one of the untrusted-content sources the trifecta calls out."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "The lethal trifecta for AI agents: private data, untrusted content, and external communication",
+          "authors": "Simon Willison",
+          "year": 2025,
+          "url": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/"
+        },
+        {
+          "type": "paper",
+          "title": "Design Patterns for Securing LLM Agents against Prompt Injections",
+          "authors": "Beurer-Kellner et al.",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.08837"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "security",
+        "threat-model",
+        "prompt-injection",
+        "exfiltration"
+      ],
+      "example_scenario": "A coding agent runs with the user's private GitHub token (private data), browses a third-party documentation site for setup instructions (untrusted content), and can post to a chat webhook for status updates (outbound channel). A prompt-injection payload hidden in a third-party docs page tells the model to fetch the GitHub token and POST it to attacker.example via the chat webhook. The trifecta is complete; the attack succeeds. Removing any one leg — running browsing in a tokenless subagent, disabling the chat webhook for the browsing leg, or stripping outbound DNS — would have blocked it.",
+      "applicability": {
+        "use_when": [
+          "The agent processes content the operator does not control.",
+          "The same agent has access to data or credentials the operator wants to keep private.",
+          "The tool catalogue includes any tool that can reach a destination the operator does not control."
+        ],
+        "do_not_use_when": [
+          "All three capabilities are needed in the same execution and the operator accepts the residual risk after applying narrower controls.",
+          "There is no private data in scope and the agent is purely public-input-to-public-output."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  A[Private data access] --> X((Trifecta))\n  B[Untrusted content ingest] --> X\n  C[Outbound channel] --> X\n  X -->|all three present| D[Exfiltration risk]\n  X -.->|remove any one leg| E[Risk eliminated]"
       }
     },
     {
@@ -1048,8 +1416,16 @@
       ],
       "related": [
         {
+          "pattern": "dual-llm-pattern",
+          "relation": "generalises"
+        },
+        {
           "pattern": "input-output-guardrails",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements"
         },
         {
           "pattern": "session-isolation",
@@ -1854,20 +2230,25 @@
       ],
       "related": [
         {
-          "pattern": "prompt-injection-defense",
-          "relation": "specialises"
+          "pattern": "browser-agent",
+          "relation": "complements"
         },
         {
           "pattern": "input-output-guardrails",
           "relation": "composes-with"
         },
         {
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements",
+          "note": "Tool output poisoning is one of the untrusted-content sources the trifecta calls out."
+        },
+        {
           "pattern": "mcp",
           "relation": "complements"
         },
         {
-          "pattern": "browser-agent",
-          "relation": "complements"
+          "pattern": "prompt-injection-defense",
+          "relation": "specialises"
         },
         {
           "pattern": "tool-output-trusted-verbatim",
@@ -1904,130 +2285,6 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  T[Tool returns] --> Env[Wrap in ToolResult envelope<br/>trust + content-type]\n  Env --> Lvl{trust level?}\n  Lvl -- low --> Strip[Instruction-stripping]\n  Lvl -- medium --> Soft[Sanitise + validate]\n  Lvl -- high --> Pass[Pass through]\n  Strip --> Reval[Block follow-up tool calls<br/>without re-validation]\n  Soft --> Reval\n  Pass --> Agent[Agent context]\n  Reval --> Agent"
-      }
-    },
-    {
-      "id": "degenerate-output-detection",
-      "name": "Degenerate-Output Detection",
-      "aliases": [
-        "Anti-Parrot Guard",
-        "Self-Repeat Circuit Breaker",
-        "Loop-Output Detector"
-      ],
-      "category": "safety-control",
-      "intent": "Detect when the agent is about to emit a near-duplicate of its own recent output and either drop, replace, or escalate to a stronger model rather than ship the loop.",
-      "context": "Agents using small or local models that can fall into shallow filler loops (greetings, generic prompts back to the user) under context pressure. Affects both user-facing chat replies and unprompted ticks.",
-      "problem": "A weak or stuck model produces visibly identical or near-identical replies turn after turn ('How can I help today?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.",
-      "forces": [
-        "Local models loop more readily than frontier models.",
-        "Catching repeats post-hoc is cheaper than fine-tuning anti-loop behavior.",
-        "Suppressing the duplicate silently confuses the user; replacing with a marker is more honest.",
-        "Escalating to a stronger model costs money / latency but breaks the loop."
-      ],
-      "solution": "Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.",
-      "consequences": {
-        "benefits": [
-          "Visible loops never reach the user.",
-          "Auto-recovery via provider escalation rather than human intervention.",
-          "Self-correction signal to the model in the conversation history."
-        ],
-        "liabilities": [
-          "False positives on legitimately repeated short answers ('yes', 'thanks').",
-          "Threshold tuning is per-domain.",
-          "Escalation has cost; budget for repeated triggers."
-        ]
-      },
-      "constrains": "Identical or near-identical consecutive outputs are forbidden; detected loops must be visibly broken (escalation marker, model swap, or explicit abandonment), never shipped silently.",
-      "known_uses": [
-        {
-          "system": "Long-running personal agent loops (private deployment)",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "provider-fallback",
-          "relation": "complements"
-        },
-        {
-          "pattern": "same-model-self-critique",
-          "relation": "alternative-to"
-        },
-        {
-          "pattern": "circuit-breaker",
-          "relation": "specialises"
-        },
-        {
-          "pattern": "echo-recognition",
-          "relation": "complements"
-        },
-        {
-          "pattern": "salience-triggered-output",
-          "relation": "complements"
-        },
-        {
-          "pattern": "multi-model-routing",
-          "relation": "uses"
-        }
-      ],
-      "references": [
-        {
-          "type": "doc",
-          "title": "Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)",
-          "year": 2024,
-          "url": "https://huggingface.co/docs/transformers/generation_strategies"
-        },
-        {
-          "type": "paper",
-          "title": "The Curious Case of Neural Text Degeneration",
-          "authors": "Holtzman, Buys, Du, Forbes, Choi",
-          "year": 2020,
-          "url": "https://arxiv.org/abs/1904.09751"
-        }
-      ],
-      "status_in_practice": "emerging",
-      "tags": [
-        "safety",
-        "anti-loop",
-        "provider-routing",
-        "self-monitoring"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent produces outputs in a loop where consecutive replies can be compared.",
-          "Near-duplicate outputs are observable failure mode (model wedged, decoding loop, prompt collapse).",
-          "Cost of detection (similarity check) is small relative to cost of shipping the duplicate."
-        ],
-        "do_not_use_when": [
-          "Outputs are legitimately repetitive by design (e.g. a heartbeat ping).",
-          "The agent has only single-turn interactions with no comparison baseline.",
-          "False positives on near-duplicate detection would be more disruptive than the loop itself."
-        ]
-      },
-      "variants": [
-        {
-          "name": "String-similarity check",
-          "summary": "Compare the candidate output to the previous N outputs by Levenshtein or token-set ratio; reject above threshold.",
-          "distinguishing_factor": "lexical comparison",
-          "when_to_use": "Default. Cheap and good enough for most loops."
-        },
-        {
-          "name": "Embedding-similarity check",
-          "summary": "Embed candidate and previous outputs; reject if cosine similarity exceeds a threshold.",
-          "distinguishing_factor": "semantic comparison",
-          "when_to_use": "When paraphrased loops slip past lexical checks."
-        },
-        {
-          "name": "Detect-and-escalate",
-          "summary": "On detected loop, retry with a stronger model or a different decoding strategy (higher temperature, nucleus sampling) instead of dropping.",
-          "distinguishing_factor": "recover, not just reject",
-          "when_to_use": "When the agent must produce *some* output and silence is not acceptable."
-        }
-      ],
-      "example_scenario": "A small voice-assistant model gets stuck and replies 'How can I help today?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.",
-      "diagram": {
-        "type": "flow",
-        "mermaid": "flowchart TD\n  R[Reply candidate] --> N[Normalize]\n  N --> RB[(Ring buffer<br/>last 8 outputs)]\n  RB --> C{Match?}\n  C -- exact / high Jaccard --> A[Drop / replace / escalate]\n  C -- novel --> P[Publish]\n  P --> RB"
       }
     }
   ]
