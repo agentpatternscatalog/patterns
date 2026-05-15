@@ -75,7 +75,8 @@ Lessons are appended, not overwritten; old lessons are explicitly retired rather
 
 ## Known uses
 
-- **Bobbin (Stash2Go)** — *Pure future*. Per-user lesson schema not yet built.
+- **Reflexion (reference implementation)** — *Available*. Original Reflexion paper code by Shinn et al.
+- **LangGraph Reflexion example** — *Available*. LangGraph ships a Reflexion example.
 
 ## Related patterns
 

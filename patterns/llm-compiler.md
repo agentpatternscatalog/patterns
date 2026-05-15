@@ -80,7 +80,8 @@ Steps run only when all referenced upstream variables are resolved.
 
 ## Known uses
 
-- **Pure future for Bobbin** — *Pure future*. Agent-lane plans with two unrelated tools could run concurrently.
+- **LLMCompiler (reference implementation)** — *Available*. Berkeley SqueezeAILab release of the LLMCompiler paper code.
+- **LangGraph LLMCompiler example** — *Available*. LangGraph ships an LLMCompiler example.
 
 ## Related patterns
 
