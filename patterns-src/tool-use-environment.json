@@ -929,15 +929,7 @@
       ],
       "related": [
         {
-          "pattern": "tool-use",
-          "relation": "generalises"
-        },
-        {
-          "pattern": "translation-layer",
-          "relation": "composes-with"
-        },
-        {
-          "pattern": "tool-discovery",
+          "pattern": "cross-domain-agent-network",
           "relation": "used-by"
         },
         {
@@ -945,16 +937,28 @@
           "relation": "complements"
         },
         {
-          "pattern": "tool-output-poisoning",
-          "relation": "complements"
-        },
-        {
           "pattern": "secrets-handling",
           "relation": "complements"
         },
         {
-          "pattern": "cross-domain-agent-network",
+          "pattern": "tool-discovery",
           "relation": "used-by"
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-search-lazy-loading",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "translation-layer",
+          "relation": "composes-with"
         }
       ],
       "references": [
@@ -1409,7 +1413,15 @@
       ],
       "related": [
         {
+          "pattern": "code-as-action",
+          "relation": "used-by"
+        },
+        {
           "pattern": "code-execution",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dual-llm-pattern",
           "relation": "complements"
         },
         {
@@ -1417,12 +1429,16 @@
           "relation": "composes-with"
         },
         {
-          "pattern": "subagent-isolation",
-          "relation": "composes-with"
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements"
         },
         {
           "pattern": "sandbox-escape-monitoring",
           "relation": "complements"
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "composes-with"
         },
         {
           "pattern": "todo-list-driven-agent",
@@ -1431,10 +1447,6 @@
         {
           "pattern": "wasm-skill-runtime",
           "relation": "generalises"
-        },
-        {
-          "pattern": "code-as-action",
-          "relation": "used-by"
         }
       ],
       "references": [
@@ -1603,28 +1615,32 @@
       ],
       "related": [
         {
-          "pattern": "mcp",
-          "relation": "uses"
-        },
-        {
-          "pattern": "tool-use",
-          "relation": "specialises"
+          "pattern": "app-exploration-phase",
+          "relation": "generalises"
         },
         {
           "pattern": "awareness",
           "relation": "complements"
         },
         {
-          "pattern": "toolformer",
-          "relation": "alternative-to"
+          "pattern": "mcp",
+          "relation": "uses"
         },
         {
           "pattern": "tool-loadout",
           "relation": "complements"
         },
         {
-          "pattern": "app-exploration-phase",
-          "relation": "generalises"
+          "pattern": "tool-search-lazy-loading",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "toolformer",
+          "relation": "alternative-to"
         },
         {
           "pattern": "wasm-skill-runtime",
@@ -1708,7 +1724,7 @@
       ],
       "related": [
         {
-          "pattern": "tool-discovery",
+          "pattern": "agent-computer-interface",
           "relation": "complements"
         },
         {
@@ -1716,12 +1732,17 @@
           "relation": "uses"
         },
         {
+          "pattern": "tool-discovery",
+          "relation": "complements"
+        },
+        {
           "pattern": "tool-explosion",
           "relation": "conflicts-with"
         },
         {
-          "pattern": "agent-computer-interface",
-          "relation": "complements"
+          "pattern": "tool-search-lazy-loading",
+          "relation": "alternative-to",
+          "note": "Loadout selects a fixed subset up front; lazy search loads schemas during the run."
         }
       ],
       "references": [
@@ -1829,6 +1850,142 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Call[Tool call] --> Key[Key = tool_name + normalised_args + auth_subject]\n  Key --> Cache{Cache hit?}\n  Cache -- yes --> Hit[Return cached result]\n  Cache -- no --> Tool[Invoke underlying tool]\n  Tool --> Store[Store with TTL]\n  Store --> Out[Return result]\n  Hit --> Out"
+      }
+    },
+    {
+      "id": "tool-search-lazy-loading",
+      "name": "Tool Search Lazy Loading",
+      "aliases": [
+        "Lazy Tool Loading",
+        "On-Demand Tool Schema Loading",
+        "ToolSearch Primitive"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Defer loading tool schemas into the context window until a search step shows they are needed.",
+      "context": "Agents that connect to many tool servers (MCP, plugins, API gateways) where preloading every tool definition would consume a large fraction of the context window before any task has begun.",
+      "problem": "Eagerly injecting all available tool definitions into the system prompt burns tokens that could be used for the task, slows every request, and forces the model to pick a relevant tool out of a long catalogue of irrelevant ones.",
+      "forces": [
+        "Tool definitions are large; a catalogue of 50+ tools can dominate the prompt budget.",
+        "The model needs enough description to pick the right tool, but only when it is actually about to call one.",
+        "Searching for tools at runtime adds an extra round trip before the first tool call.",
+        "Hidden tools must still be discoverable — otherwise the model behaves as if they do not exist."
+      ],
+      "solution": "Replace the eager tool list with a single search primitive (for example a ToolSearch tool) that returns matching tool schemas by query. The system prompt lists only the search primitive plus a short index of tool names or categories. When the model decides it needs a tool, it calls the search primitive, receives the full schema for the matching tools, and only then calls the tool by name. Schemas loaded by search are kept in context for the rest of the session so repeat use does not pay the lookup cost again.",
+      "consequences": {
+        "benefits": [
+          "Drastic reduction in baseline prompt tokens — only schemas that were searched for occupy context.",
+          "Scales to hundreds of tools without saturating the prompt.",
+          "Search results can rank by recent use, capability tags, or server-supplied hints.",
+          "Tool surface becomes pluggable at runtime; servers can be added without re-templating the system prompt."
+        ],
+        "liabilities": [
+          "Adds one extra tool call before the first real action when the right tool is not already loaded.",
+          "Poor tool descriptions or weak search ranking can cause the model to overlook a relevant tool.",
+          "Stateful — schemas loaded earlier in a session are visible later, which can leak across turns if not pruned.",
+          "Harder to reason about deterministic behaviour because the effective tool surface depends on what was searched."
+        ]
+      },
+      "constrains": "Tool schemas are not in context until the search primitive has returned them; the model may not call a tool whose schema has not yet been loaded by search or preloaded by the host.",
+      "known_uses": [
+        {
+          "system": "Claude Code ToolSearch primitive",
+          "note": "Deferred tool schemas are fetched via a select:/keyword query before the tool itself can be called.",
+          "status": "available",
+          "url": "https://modelcontextprotocol.io/"
+        },
+        {
+          "system": "MCP servers with large tool surfaces",
+          "note": "Server-side search/index endpoints let clients pull schemas on demand instead of in a single list_tools dump.",
+          "status": "available",
+          "url": "https://modelcontextprotocol.io/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-loadout",
+          "relation": "alternative-to",
+          "note": "Loadout selects a fixed subset up front; lazy search loads schemas during the run."
+        },
+        {
+          "pattern": "tool-discovery",
+          "relation": "complements",
+          "note": "Discovery finds that a tool exists; lazy loading defers its full schema until needed."
+        },
+        {
+          "pattern": "mcp",
+          "relation": "uses"
+        },
+        {
+          "pattern": "context-window-packing",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Equipping agents for the real world with Agent Skills",
+          "authors": "Anthropic Engineering",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills"
+        },
+        {
+          "type": "spec",
+          "title": "Model Context Protocol specification",
+          "authors": "Anthropic & contributors",
+          "year": 2024,
+          "url": "https://modelcontextprotocol.io/"
+        },
+        {
+          "type": "blog",
+          "title": "Thariq Shihipar on lazy MCP tool loading",
+          "authors": "Thariq Shihipar",
+          "year": 2025,
+          "url": "https://x.com/trq212/status/2011523109871108570"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "mcp",
+        "context-window",
+        "tool-discovery",
+        "lazy-loading"
+      ],
+      "example_scenario": "An assistant is wired to seven MCP servers exposing 60 tools combined. Preloading every schema costs roughly 30k tokens before the user has even spoken. Instead the host advertises only a ToolSearch tool plus a one-line index. When the user asks to file a Linear ticket, the model calls ToolSearch with the query \"linear issue create\", receives the schema for two relevant tools, and only then calls the real create-issue tool. The other 58 tools never enter the context.",
+      "applicability": {
+        "use_when": [
+          "Total tool schemas would otherwise consume more than ~10% of the context window.",
+          "Many tools are available but only a small subset is used per session.",
+          "The host can intercept tool listing and intermediate a search step."
+        ],
+        "do_not_use_when": [
+          "The full tool palette is small enough that an eager list costs little.",
+          "Every session needs the same handful of tools — a static loadout is simpler.",
+          "The host cannot guarantee that the search primitive returns relevant tools (poor metadata, no ranking)."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Index-plus-search",
+          "summary": "The system prompt lists tool names or category headers with one-line descriptions; the full schema is fetched on demand.",
+          "distinguishing_factor": "the model sees that tools exist before searching",
+          "when_to_use": "When the model needs to know the menu but not the recipe."
+        },
+        {
+          "name": "Search-only",
+          "summary": "Only the search primitive is advertised; the model must form a query from the user's intent without seeing a tool list.",
+          "distinguishing_factor": "the catalogue is hidden",
+          "when_to_use": "Very large tool surfaces where even an index is too long, and search ranking is trustworthy."
+        },
+        {
+          "name": "Threshold-gated",
+          "summary": "The host eagerly loads tools when the total schema budget is small and only switches to search mode when the budget exceeds a threshold.",
+          "distinguishing_factor": "hybrid based on measured token cost",
+          "when_to_use": "Hosts that serve sessions with widely varying numbers of attached tools."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant Model\n  participant Host\n  participant Index as Tool Index\n  participant Tool\n  Model->>Host: ToolSearch(\"linear issue create\")\n  Host->>Index: rank by query\n  Index-->>Host: matching schemas\n  Host-->>Model: schemas for 2 tools\n  Model->>Host: call create_issue(…)\n  Host->>Tool: invoke\n  Tool-->>Host: result\n  Host-->>Model: result"
       }
     },
     {

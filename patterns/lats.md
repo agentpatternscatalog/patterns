@@ -76,7 +76,8 @@ Each node may be expanded only by sampling actions consistent with the parent st
 
 ## Known uses
 
-- **Pure future for Stash2Go** — *Pure future*. Conversational answerer for ambiguous knitting questions ('can I substitute X for Y?').
+- **LanguageAgentTreeSearch (reference implementation)** — *Available*. Original code release by the LATS paper authors (Zhou et al.).
+- **LangGraph LATS example** — *Available*. LangGraph ships an LATS notebook in its examples.
 
 ## Related patterns
 

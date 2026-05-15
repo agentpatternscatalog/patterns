@@ -1,6 +1,6 @@
 # Pattern Index
 
-195 patterns across 13 categories.
+198 patterns across 13 categories.
 
 ## Reasoning
 
@@ -58,6 +58,7 @@
 - [Tool Discovery](patterns/tool-discovery.md) *(a.k.a. Capability Advertisement, Dynamic Tool Loading)* — Let the agent discover available tools at runtime rather than hardcoding the tool list at agent build time.
 - [Tool Loadout](patterns/tool-loadout.md) *(a.k.a. Tool Subset Selection, Per-Task Tool Filtering, Tool Filter, Limit Exposed Tools)* — Select a small task-relevant subset of available tools per request rather than exposing the full registry to the model.
 - [Tool Result Caching](patterns/tool-result-caching.md) *(a.k.a. Memoised Tools, Idempotent Cache)* — Cache the result of expensive deterministic tool calls keyed by their arguments so repeat calls within a session return immediately.
+- [Tool Search Lazy Loading](patterns/tool-search-lazy-loading.md) *(a.k.a. Lazy Tool Loading, On-Demand Tool Schema Loading, ToolSearch Primitive)* — Defer loading tool schemas into the context window until a search step shows they are needed.
 - [Tool Use](patterns/tool-use.md) *(a.k.a. Function Calling, Tool Calling, Action Use)* — Let the LLM produce typed calls against an external toolkit instead of producing free-form text the surrounding system has to parse.
 - [Toolformer](patterns/toolformer.md) *(a.k.a. Self-Supervised Tool Learning)* — Train the model to learn when and how to call tools through self-supervised data, without human annotation.
 - [Translation Layer](patterns/translation-layer.md) *(a.k.a. Anti-Corruption Layer, Adapter Pattern (Agentic), API Façade)* — Insert a typed boundary between the agent's clean domain model and a messy or legacy external API.
@@ -147,10 +148,12 @@
 - [Constitutional Charter](patterns/constitutional-charter.md) *(a.k.a. Immutable Constitution, Negative Constraints, Robot Laws)* — Define rules the agent reads every turn but cannot modify, encoding inviolable boundaries.
 - [Conversation Handoff to Human](patterns/conversation-handoff.md) *(a.k.a. Escalation, Live-Agent Handoff, Human Takeover)* — Transfer the entire conversation thread from agent to human operator, with state transfer and return primitive.
 - [Cost Gating](patterns/cost-gating.md) *(a.k.a. Budget Cap, Cost-Aware Approval)* — Block actions whose expected cost exceeds a threshold without explicit user (or operator) acknowledgement.
+- [Dual LLM Pattern](patterns/dual-llm-pattern.md) *(a.k.a. Privileged/Quarantined LLM Split, Dual-Model Privilege Separation, Symbolic-Variable Handoff)* — Split agent work between a privileged model that holds tool access and a quarantined model that reads untrusted content, exchanging only opaque references between them.
 - [Exception Handling and Recovery](patterns/exception-recovery.md) *(a.k.a. Error Recovery, Failure Mode Handler)* — Catch and react to predictable failure modes (tool errors, rate limits, validation failures) with structured recovery paths.
 - [Human-in-the-Loop](patterns/human-in-the-loop.md) *(a.k.a. HITL, Approval Gate, Confirmation Step, Risky Action Gate, Destructive Action Confirmation, Ask Before Risky Action)* — Require explicit human approval at defined points before the agent performs an action.
 - [Input/Output Guardrails](patterns/input-output-guardrails.md) *(a.k.a. Guards, Validators, Content Filters)* — Validate inputs before they reach the model and outputs before they reach the user.
 - [Kill Switch](patterns/kill-switch.md) *(a.k.a. Out-of-Band Stop, Emergency Halt, Killbit, Halt All Agents, Stop Every Running Agent)* — Provide an out-of-band control plane to halt running agent instances without redeploy.
+- [Lethal Trifecta Threat Model](patterns/lethal-trifecta-threat-model.md) *(a.k.a. Willison Trifecta, Three-Capabilities Exfiltration Risk)* — Block prompt-injection-driven exfiltration by ensuring no single agent execution path holds all three of: access to private data, exposure to untrusted content, and an outbound communication channel.
 - [PII Redaction](patterns/pii-redaction.md) *(a.k.a. Data Loss Prevention, Sensitive Data Filtering)* — Detect and remove personally identifiable information from inputs to and outputs from the model.
 - [Prompt Injection Defense](patterns/prompt-injection-defense.md) *(a.k.a. Instruction Hierarchy, Untrusted-Content Tagging)* — Tag user-supplied or tool-supplied content as untrusted and refuse to follow instructions found inside it.
 - [Quorum on Mutation](patterns/quorum-on-mutation.md) *(a.k.a. Two-Tick Confirmation, Distributed Consensus (Single Agent))* — Require multiple consecutive ticks (or runs) to agree before a mutation to durable state lands.

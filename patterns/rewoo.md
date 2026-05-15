@@ -85,7 +85,6 @@ The Planner cannot see tool outputs; substitution happens only at the Worker sta
 
 ## Known uses
 
-- **Pure future for Stash2Go** — *Pure future*. Periodic offline normalisation of yarn catalogue when an upstream weight definition changes.
 - **agent-patterns library** — *Available*
 
 ## Related patterns
