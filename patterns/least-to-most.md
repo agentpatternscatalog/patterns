@@ -37,6 +37,10 @@ CoT generalises poorly out of distribution; the model needs explicit scaffolding
 - Subproblems cannot be ordered easiest-to-hardest reliably.
 - Sequential prompting cost is prohibitive for the workload.
 
+## Therefore
+
+Therefore: decompose the problem into an ordered list of easier subproblems and solve them sequentially with each answer feeding the next, so that the model never has to leap from problem to answer in one step.
+
 ## Solution
 
 Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.

@@ -38,6 +38,10 @@ Few-shot CoT requires exemplar curation per task type; that effort scales poorly
 - The trigger phrase produces noisy or irrelevant chains for the task.
 - Latency budget forbids the longer reasoning output.
 
+## Therefore
+
+Therefore: append a single trigger phrase to the prompt, so that reasoning emerges without few-shot exemplars when curated demos are unavailable.
+
 ## Solution
 
 Append a trigger phrase ('Let's think step by step', 'Let's work through this carefully') to the prompt. The model produces reasoning before its answer with no exemplar required. Optionally extract the final answer with a follow-up prompt.

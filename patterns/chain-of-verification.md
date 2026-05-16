@@ -23,6 +23,10 @@ When the model verifies its own draft in the same context, the draft biases foll
 - Joint verification (all questions in one prompt) underperforms factored.
 - Verification cost scales with question count.
 
+## Therefore
+
+Therefore: draft, plan independent verification questions, answer them in isolation, then revise, so that hallucinations surface where they can be corrected before the answer is finalised.
+
 ## Solution
 
 Four-step pipeline. Draft: produce initial answer. Plan: generate verification questions covering claims in the draft. Execute: answer each question in isolation, without seeing the original draft. Revise: rewrite the draft using the verification answers.

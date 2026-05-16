@@ -38,6 +38,10 @@ Naive single-pass inference under-uses available compute; many hard tasks have i
 - The task does not benefit from any of the inference-time techniques.
 - A larger or better model is cheaper than scaling test-time compute.
 
+## Therefore
+
+Therefore: spend more compute at inference (samples, search, deeper thinking) instead of more parameters, so that quality lifts on hard tasks without retraining.
+
 ## Solution
 
 Pick the inference-time technique that fits: best-of-N for verifier-amenable tasks, self-consistency for sampling-amenable tasks, tree search for combinatorial tasks, extended thinking for sequential reasoning. Compose techniques where complementary. Tune the compute budget per task class.

@@ -38,6 +38,10 @@ Without supervised rationale data, fine-tuning for reasoning is constrained; pur
 - The base model is too weak to produce any correct CoT outputs.
 - Quick iteration matters more than the bootstrap-and-train cycle.
 
+## Therefore
+
+Therefore: train the model on its own correct chain-of-thought outputs (rationalising failures with the known correct answer), so that rationales improve without any human-written labels.
+
 ## Solution
 
 Prompt the base model with CoT to generate rationale + answer pairs. Keep pairs where the answer matches ground truth. **Rationalization**: when a generated rationale yields the wrong answer, prompt the model with the correct answer as a hint and ask for a rationale that justifies it; add the rationalized example to training. Fine-tune on the kept + rationalized pairs. Repeat: the fine-tuned model generates better rationales next round; iterate.

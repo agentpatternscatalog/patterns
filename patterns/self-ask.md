@@ -38,6 +38,10 @@ The 'compositionality gap': models know each fact in isolation but fail to combi
 - The sub-questions cannot be answered cleanly and would compound errors.
 - Latency budget cannot afford the extra inference per sub-question.
 
+## Therefore
+
+Therefore: have the model interleave explicit follow-up sub-questions and their answers before composing the final answer, so that decomposition is visible and each step is independently tool-able.
+
 ## Solution
 
 Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.

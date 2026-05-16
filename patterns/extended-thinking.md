@@ -23,6 +23,10 @@ Static prompt-based CoT mixes reasoning into the response; reasoning models offe
 - User-visible latency rises with thinking budget.
 - Opaque reasoning blocks: harder to inspect and debug.
 
+## Therefore
+
+Therefore: spend a configurable budget of provider-native reasoning tokens before emitting the user-visible answer, so that hard problems get more compute and easy ones stay cheap.
+
 ## Solution
 
 Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthropic Claude extended thinking budget_tokens, Gemini thinking budget). Set budget per request based on task difficulty (cheap for routing, expensive for hard reasoning). Monitor reasoning-token consumption.

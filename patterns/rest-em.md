@@ -38,6 +38,10 @@ Pure prompting plateaus; full RL with PPO is unstable and expensive; supervised 
 - The base model is too weak to produce any correct samples to filter.
 - Quick iteration matters more than the multi-day generate-filter-train loop.
 
+## Therefore
+
+Therefore: iterate generate → reward-filter → fine-tune, so that the model bootstraps reasoning from its own correct outputs without human-labelled rationales.
+
 ## Solution
 
 EM-style loop. (E-step) Generate many responses per problem. Filter by reward (correctness against ground truth or executable test). (M-step) Fine-tune on the filtered set. Iterate. Variants: ReST (DeepMind, RL-shaped), ReST-EM (Singh et al., expectation-maximisation framing).

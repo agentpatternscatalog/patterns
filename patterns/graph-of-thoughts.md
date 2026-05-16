@@ -37,6 +37,10 @@ Tree of Thoughts cannot combine partial solutions or reuse intermediate results 
 - Operations to score, aggregate, or refine thoughts cannot be defined for the domain.
 - Latency budgets cannot absorb multi-node graph traversal.
 
+## Therefore
+
+Therefore: represent reasoning as an arbitrary DAG of thoughts that can be generated, refined, aggregated, and scored, so that branches share work instead of recomputing the same intermediates.
+
 ## Solution
 
 Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.

@@ -23,6 +23,10 @@ LLMs given only (input, output) exemplars fail at problems whose answers depend 
 - Wrong reasoning chains can produce confidently wrong answers.
 - Few-shot exemplars are dataset-specific; zero-shot triggers generalise but lose accuracy.
 
+## Therefore
+
+Therefore: prompt the model to produce intermediate steps before its final answer, so that reasoning becomes visible and parseable rather than collapsing into the final token.
+
 ## Solution
 
 Prompt the model with exemplars showing intermediate reasoning, or use a zero-shot trigger ('Let's think step by step') before answering. The reasoning trace is visible and parseable.

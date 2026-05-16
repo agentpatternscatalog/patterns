@@ -38,6 +38,10 @@ Chain-of-Thought commits to a single trace; if an early step is wrong the model 
 - Step evaluation is unreliable and search would explore noise.
 - Latency or cost of search is unacceptable.
 
+## Therefore
+
+Therefore: search over a tree of partial reasoning states with evaluation and backtracking, so that dead-end branches are pruned rather than committed to.
+
 ## Solution
 
 Decompose the problem into thought steps. At each node, sample several candidate next thoughts. Evaluate each (model self-evaluation or programmatic check). Apply BFS/DFS/beam to explore the tree. Backtrack from dead ends. Return the best leaf.
