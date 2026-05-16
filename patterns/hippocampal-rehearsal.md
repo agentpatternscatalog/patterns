@@ -37,6 +37,10 @@ Archived items might as well not exist if the agent never thinks about them agai
 - Salience scoring is unreliable and would surface noise rather than relevance.
 - Short-term context cannot afford the additional reactivated tokens.
 
+## Therefore
+
+Therefore: when salience matches an archived item, copy it back into short-term memory for a few cycles while leaving the archive intact, so that re-attention re-grounds without losing the original record.
+
 ## Solution
 
 When salience scoring matches against archived items (embedding similarity, keyword match, explicit reference), the matched item is reactivated into short-term memory for one or more cycles. The original archive copy stays untouched.

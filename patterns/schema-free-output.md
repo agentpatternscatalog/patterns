@@ -38,6 +38,10 @@ The model invents punctuation, formatting, and field names. Parsers fail in non-
 - Parser failure would propagate as a model bug and waste debugging time.
 - Structured output or tool calling is available on the chosen provider.
 
+## Therefore
+
+Therefore: require typed structured output (JSON Schema, Pydantic, function calling) at the model boundary and validate before downstream consumption, so that parser bugs cannot be mis-attributed to model flakiness.
+
 ## Solution
 
 Don't. Use structured-output (JSON Schema, Pydantic, function calling). See structured-output, tool-use.

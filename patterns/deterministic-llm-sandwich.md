@@ -23,6 +23,10 @@ Trusting the LLM's output unconditionally accepts hallucination at the most expe
 - Pre-checks must be cheap to be worth running.
 - Post-checks must catch what the model gets wrong, not what is merely surprising.
 
+## Therefore
+
+Therefore: wrap the LLM call in cheap deterministic gates on both sides and only accept its output if the post-check passes, so that probabilistic generation is contained inside a verifiable envelope.
+
 ## Solution
 
 Three layers. Pre: deterministic check decides whether the LLM should run at all (e.g. AST parse must succeed). LLM: produces a candidate output with structured-output schema and frozen rubric. Post: deterministic re-validation (parse, type-check, run tests). If post fails, the original is returned unchanged.

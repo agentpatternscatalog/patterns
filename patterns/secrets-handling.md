@@ -38,6 +38,10 @@ Any secret that reaches the model is now in the chat log, the trace store, the e
 - The runtime cannot inject credentials outside the model context.
 - Cost of indirection outweighs leak risk for a low-value internal demo.
 
+## Therefore
+
+Therefore: have the agent emit only typed credential references and let the tool runtime resolve the secret outside the model's context window, so that plaintext credentials never enter prompts, logs, or third-party traces.
+
 ## Solution
 
 Tool runtime resolves credentials from typed references the agent emits (e.g., `{auth: 'github_token_for_user_42'}`). Credential values are injected outside the model context. Input/output guards reject any payload matching credential signatures. Provenance ledger and traces are scrubbed at write time.

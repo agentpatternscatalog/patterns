@@ -37,6 +37,10 @@ A generalist agent's depth in any one domain is shallow; users in specialist dom
 - Domains overlap so heavily that expert separation just causes thrash.
 - Routing classification accuracy is too low to trust dispatch.
 
+## Therefore
+
+Therefore: dispatch each query to one or more deeply specialised expert agents chosen by a domain classifier, so that depth per domain is not flattened into generalist shallowness.
+
 ## Solution
 
 Define experts (specialised system prompts, tool palettes, possibly fine-tuned models). A router classifies queries by domain. Route to one expert (top-1) or to multiple experts whose outputs are aggregated. Distinct from standard routing by emphasising deep specialisation per expert.

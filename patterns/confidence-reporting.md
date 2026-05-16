@@ -23,6 +23,10 @@ Models output answers with uniform tone regardless of internal certainty; downst
 - Surfacing uncertainty erodes user trust if overdone.
 - Sample-based confidence (self-consistency) costs N calls.
 
+## Therefore
+
+Therefore: attach a calibrated uncertainty label to every answer and route low-confidence cases to a fallback path, so that downstream consumers can act on confidence instead of treating each output as equally trustworthy.
+
 ## Solution
 
 Produce a confidence label (high/medium/low or numeric) alongside each answer. Derive from sample variance (self-consistency), evaluator score, retrieval recall, or rubric score. Render in UI; route low-confidence to fallback or human review.

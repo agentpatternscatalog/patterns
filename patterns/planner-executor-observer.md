@@ -38,6 +38,10 @@ The missing third role is supervision of execution against intent; without it, p
 - Observer cost dominates and there is no payoff in catching mid-run drift.
 - Roles cannot be cleanly separated without overlapping prompts.
 
+## Therefore
+
+Therefore: insert a third Observer role that reads cumulative execution against the plan and is the only one allowed to call loop, respond, or replan, so that mid-run drift is caught early without rebuilding ReAct's monolithic step.
+
 ## Solution
 
 Three roles: Planner produces a plan; Executor runs steps; Observer reads the cumulative result and decides loop / respond / replan. Each role has its own prompt and (optionally) its own model.

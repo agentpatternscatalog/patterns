@@ -38,6 +38,10 @@ Function-calling accuracy degrades past ~20 tools; a 100-tool registry is unusab
 - Per-request classification adds latency that is not earned back in accuracy.
 - Subsetting would frequently exclude the tool the agent actually needs.
 
+## Therefore
+
+Therefore: classify each incoming request and expose only the N relevant tools to the main inference call, so that the model picks from a focused palette instead of being drowned by the full registry.
+
 ## Solution
 
 Before the main loop, classify the request and select N relevant tools (rule-based: by routed lane; or model-based: a quick classifier picks tools). Expose only the selected subset to the agent's main inference call. Tools outside the subset are unavailable for this request.

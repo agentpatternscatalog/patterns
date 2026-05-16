@@ -37,6 +37,10 @@ The model invents URLs, paper titles, and author names. Hallucinated citations l
 - Any setting where authoritative-looking but invented sources can mislead.
 - Any audit or compliance setting requiring traceable provenance.
 
+## Therefore
+
+Therefore: bind every citation to a retrieved-source id and validate URLs against the retrieval result before rendering, so that the model cannot smuggle invented references into authoritative-looking output.
+
 ## Solution
 
 Don't. Wire citations to retrieved-source ids. See citation-streaming, naive-rag, contextual-retrieval. Validate URLs before display.

@@ -37,6 +37,10 @@ Without lineage, output disputes are unanswerable; rolling back to a known-good 
 - No store exists to capture and join lineage records.
 - Output volume is small enough that manual reconstruction is acceptable.
 
+## Therefore
+
+Therefore: stamp every agent output with prompt-template hash, model id and version, tool versions, retrieved-document ids, and decision-log id in a queryable store, so that any output can be traced back to the exact ingredients that produced it.
+
 ## Solution
 
 Tag every agent output with: prompt template hash, model id and version, tool versions, retrieved-document ids, decision-log id. Store in a queryable lineage store. Make lineage joinable to the output store.

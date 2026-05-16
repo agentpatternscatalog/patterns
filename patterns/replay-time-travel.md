@@ -38,6 +38,10 @@ Agent runs are non-deterministic and state-laden; without replay, debugging is r
 - Privacy or retention rules forbid keeping per-step traces.
 - The agent has no externally observable failures worth reproducing.
 
+## Therefore
+
+Therefore: capture per-step inputs, outputs, prompts, model ids, and tool calls in a trace, and expose a replay tool that resumes from any step with optional substitutions, so that past runs become debuggable artefacts rather than write-once logs.
+
 ## Solution
 
 Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.

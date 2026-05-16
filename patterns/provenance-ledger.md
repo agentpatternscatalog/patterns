@@ -37,6 +37,10 @@ Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback 
 - Storage and review cost of immutable logs are unjustified by risk.
 - No queryable store is available to make the ledger useful.
 
+## Therefore
+
+Therefore: append every agent decision and state change to an immutable log with timestamp, actor, action, target, justification link, and diff hash, and reject events that lack those fields, so that any change can be explained or reversed after the fact.
+
 ## Solution
 
 Append events to an immutable log with: timestamp, actor, action, target, justification (link to thought or decision), diff hash. Enable rollback by id. Reject events that lack the required fields.

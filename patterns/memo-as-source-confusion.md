@@ -24,6 +24,10 @@ The agent claims a file's state, a project's status, or external system's state 
 - Without explicit invalidation, memos look as 'live' as the underlying state.
 - The agent has no cheap signal for memo staleness.
 
+## Therefore
+
+Therefore: re-read the underlying artifact in the same tick as any claim about it, tag memos with a verification timestamp, and rewrite the memo from the artifact whenever they disagree, so that past summaries cannot impersonate live ground truth.
+
 ## Solution
 
 Don't. When making any claim about an artifact's state, read the artifact in the same tick — not the memo about it. If memo-and-artifact disagree, treat the memo as outdated and rewrite it from the artifact. Tag memos with the timestamp they were last verified against the artifact; refuse to trust them past a configurable age without re-verification.

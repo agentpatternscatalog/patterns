@@ -39,6 +39,10 @@ Bolting a generic English LLM between a generic STT and TTS loses dialect, code-
 - Latency budgets allow non-streaming round-trips between independent services.
 - Translating to and from English mid-pipeline is acceptable for the use case.
 
+## Therefore
+
+Therefore: co-locate STT, LLM, and TTS in a streaming pipeline that propagates language and dialect tags end-to-end, so that turn-taking stays under a second and the voice never code-switches back to English by accident.
+
 ## Solution
 
 Build the voice agent as a co-located pipeline whose components share language identity and dialect signals end-to-end. Use STT models trained on the target languages and accents. Pass detected language tags as structured metadata to the LLM. Use TTS voices native to the target language; do not translate back to English mid-pipeline. Optimise for streaming at every hop (incremental STT, streaming LLM, streaming TTS) to hit sub-second turn-taking. Treat code-switching as first-class; do not force a single-language assumption.

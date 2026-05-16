@@ -23,6 +23,10 @@ Single-agent loops cannot represent dialogue-shaped collaboration; rigid orchest
 - Termination criterion definition.
 - Conversation can drift without supervision.
 
+## Therefore
+
+Therefore: let role-defined agents speak turn by turn under a manager that picks the next speaker and watches for a termination criterion, so that dialogue-shaped collaboration is representable without over-prescribing the flow.
+
 ## Solution
 
 Define agents with system prompts and allowed actions. Implement a conversation manager that selects which agent speaks next (round-robin, condition-based, model-decided). Each agent reads the conversation and emits a turn. Continue until termination criterion (task complete, max turns, explicit handoff to user).

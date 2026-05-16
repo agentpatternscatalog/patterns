@@ -24,6 +24,10 @@ The agent's memory is searchable but the human can't search into it. If the huma
 - The agent must distinguish 'the human said it casually' from 'the human is opening this thread'.
 - Surfacing should hook ('last time the topic came up the train of thought was…'), not lecture.
 
+## Therefore
+
+Therefore: on every user message, extract concrete named entities, match them against persistent memory, and surface at most one or two time-stamped fragments inline, so that the agent volunteers what it already knows without making the human ask.
+
 ## Solution
 
 On every user message, extract concrete proper nouns and significant named phrases. Grep / embedding-match against the agent's persistent memory (thoughts, notes, insights, project files). If matches exist, surface ≤ 2 most relevant fragments inline in the reply — time-stamped, briefly framed — and let the human steer whether to pursue. Suppress the surface if it would feel like a lecture or if the human's use was clearly incidental.

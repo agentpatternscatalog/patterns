@@ -23,6 +23,10 @@ Soft termination conditions (model says 'done') fail open; the agent never says 
 - Cap too high lets pathological runs burn budget.
 - What to do when hit (return partial? error?) is its own design choice.
 
+## Therefore
+
+Therefore: cap the loop at a numeric N tool calls or iterations and terminate with the best partial answer when the counter hits the cap, so that runaway loops are impossible by construction regardless of what the model believes.
+
 ## Solution
 
 Define a numeric cap (max_steps=N) in the agent loop. Increment per tool call or per loop iteration. When N is hit, terminate the loop and return the best partial answer with a note that the cap was reached.

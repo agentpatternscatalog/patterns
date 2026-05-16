@@ -38,6 +38,10 @@ Plans are made under incomplete information; without replanning, the executor ei
 - Replanning cost dominates and the executor would do better grinding through.
 - No reliable triggers exist and replans would fire arbitrarily.
 
+## Therefore
+
+Therefore: define explicit replan triggers and on any of them hand the failure context back to the planner instead of grinding the executor, so that broken plans get repaired with the new evidence rather than driven to budget exhaustion.
+
 ## Solution
 
 Define replan triggers (tool error, unexpected observation, observer dissent). When triggered, the executor pauses and the planner runs again with the failure context. The new plan replaces the old one; partial progress is preserved if compatible.

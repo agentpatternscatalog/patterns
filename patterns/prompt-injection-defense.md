@@ -38,6 +38,10 @@ LLMs cannot reliably distinguish their own instructions from instructions embedd
 - The model demonstrably cannot be trained or prompted to respect the markers.
 - Output guardrail false positives would break legitimate workflows.
 
+## Therefore
+
+Therefore: wrap user-supplied and tool-supplied content in untrusted markers and train or prompt the model to treat anything inside them as data, never instructions, so that hijack attempts in retrieved text lose their authority.
+
 ## Solution
 
 Establish an instruction hierarchy: system prompts trusted, user prompts partially trusted, tool/document content untrusted. Wrap untrusted content in markers. Train or prompt the model to refuse instructions inside untrusted markers. Add output guardrails for known exfiltration patterns.

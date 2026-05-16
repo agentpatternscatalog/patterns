@@ -38,6 +38,10 @@ Replaying the entire conversation every turn is expensive and pollutes context w
 - All history truly matters and pruning would lose important context.
 - TTL semantics cannot be enforced reliably in storage.
 
+## Therefore
+
+Therefore: persist a typed per-thread state object with an explicit TTL, so that the next turn loads exactly the slice that is still fresh and lets stale state expire on its own.
+
 ## Solution
 
 Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.

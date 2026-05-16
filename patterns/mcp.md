@@ -23,6 +23,10 @@ Tool definitions are vendor-specific; the same capability is re-implemented per 
 - Local (stdio) and hosted (HTTP) deployments have different operational shapes but should expose the same surface.
 - Auth must travel without leaking host credentials to every tool.
 
+## Therefore
+
+Therefore: put every tool behind a server speaking a shared discovery/invocation protocol, so that tool authors and agent hosts evolve independently against a stable typed contract.
+
 ## Solution
 
 Tools live behind a server speaking a common protocol. Hosts list available tools, call them with typed arguments, and receive typed results. The protocol covers discovery, invocation, errors, and (in some implementations) prompts and resources alongside tools.

@@ -23,6 +23,10 @@ If the agent can edit everything, it can edit its own values; nothing stays invi
 - Read-only at the tool layer is enforceable; read-only by exhortation is not.
 - Charters age; updating requires human action.
 
+## Therefore
+
+Therefore: keep the inviolable rules in a file the tool layer makes read-only and re-read it every turn, so that the agent cannot rewrite its own values even under jailbreak pressure.
+
 ## Solution
 
 A charter file is read into context every turn (or every tick). The tool layer enforces read-only on it; the agent has no write tool that can touch it. Updates go through an explicit operator path. Charters typically express constraints in negative form ('the agent shall not...').

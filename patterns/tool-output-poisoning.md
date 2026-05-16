@@ -38,6 +38,10 @@ A compromised or hijacked tool can return content with embedded instructions tha
 - No envelope or trust labelling can be added to the tool layer.
 - The instruction-stripping cost destroys the utility of the tool output.
 
+## Therefore
+
+Therefore: wrap every tool result in a typed envelope with a trust label, strip instructions from low-trust output, and refuse to chain follow-up tool calls off it without re-validating against the user's intent, so that a compromised tool cannot speak for the user.
+
 ## Solution
 
 Typed `ToolResult` envelope with `trust: low|medium|high` and content-type discriminator. Apply instruction-stripping on `low` results. Forbid tool-output-driven follow-up tool calls without re-validation against the user's original intent. Pair with input/output guardrails.

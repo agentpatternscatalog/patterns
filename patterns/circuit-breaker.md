@@ -23,6 +23,10 @@ Hammering a failing dependency wastes cost, increases latency, and can block leg
 - Cooldown duration trades availability for stability.
 - Per-endpoint vs global breakers differ on blast radius.
 
+## Therefore
+
+Therefore: trip an open state when per-dependency error rate crosses a threshold and refuse calls until a cooldown probes recovery, so that a failing dependency is not hammered into a worse failure.
+
 ## Solution
 
 Track per-dependency error rate over a window. When error rate exceeds a threshold, 'open' the breaker: route calls to fallback (or fail fast) for a cooldown. After cooldown, allow trial calls; close the breaker on success.

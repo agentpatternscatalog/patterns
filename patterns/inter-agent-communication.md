@@ -37,6 +37,10 @@ Bespoke point-to-point integrations do not scale; each new agent pair requires f
 - Capability advertisement and discovery are not actually needed.
 - Adopting a cross-vendor protocol would add governance burden without payoff.
 
+## Therefore
+
+Therefore: adopt a standardised protocol — A2A, MCP, or an in-house equivalent — covering capability advertisement, task delegation, result return, and auth, so that agents from different teams or vendors cooperate without bespoke point-to-point glue.
+
 ## Solution
 
 Adopt a protocol (Google A2A, Anthropic MCP, in-house equivalents) that covers capability advertisement, task delegation, result return, and auth. Agents advertise capabilities; clients discover and invoke; results round-trip in typed envelopes.

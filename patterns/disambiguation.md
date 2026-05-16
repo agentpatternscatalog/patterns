@@ -23,6 +23,10 @@ Agents that always act produce confidently wrong results on ambiguous inputs.
 - Asking too rarely produces wrong work.
 - The model must detect ambiguity, which is itself hard.
 
+## Therefore
+
+Therefore: detect ambiguity explicitly and ask one focused question with a default interpretation, so that the agent neither guesses confidently wrong nor pesters the user on every turn.
+
 ## Solution
 
 Detect ambiguity via low-confidence intent classification or explicit ambiguity rubric. When detected, ask one focused question and wait for the answer before acting. Phrase the question with the most-likely interpretation as a default.

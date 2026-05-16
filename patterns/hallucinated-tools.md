@@ -37,6 +37,10 @@ The model invents tool names. The host either crashes, silently drops the call, 
 - Any setting where silent drops or fuzzy-matched dispatch could cause harm.
 - Any environment without a registered, enumerable tool palette.
 
+## Therefore
+
+Therefore: validate every model-emitted tool name against the registered palette before dispatch and reject unknowns with a typed error the agent loop can read on the next turn, so that phantom calls cannot silently fan out to similar-named real tools.
+
 ## Solution
 
 Don't trust. Validate every tool call against the registered palette before dispatch. Reject unknown names with a typed error the agent can react to. See tool-use, structured-output.

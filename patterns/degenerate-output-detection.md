@@ -24,6 +24,10 @@ A weak or stuck model produces visibly identical or near-identical replies turn 
 - Suppressing the duplicate silently confuses the user; replacing with a marker is more honest.
 - Escalating to a stronger model costs money / latency but breaks the loop.
 
+## Therefore
+
+Therefore: fingerprint each outgoing reply against a small ring buffer of recent outputs and visibly break the loop on a match by escalating to a stronger provider, so that shallow self-repeats never reach the user as if they were fresh answers.
+
 ## Solution
 
 Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.

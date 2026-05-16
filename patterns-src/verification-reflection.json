@@ -19,6 +19,7 @@
         "Reward-model quality bounds achievable improvement.",
         "Diversity across candidates is needed; identical samples defeat the pattern."
       ],
+      "therefore": "Therefore: draw N diverse samples in parallel and let a separate scorer pick the winner, so that selection pressure rather than a single greedy decode determines what ships.",
       "solution": "Generate N candidates with non-zero temperature. Score each with a reward model or rule-based scorer. Return the top-1 (or top-K). BoNBoN alignment fine-tunes a model to mimic the BoN distribution directly, eliminating per-inference sampling cost.",
       "consequences": {
         "benefits": [
@@ -137,6 +138,7 @@
         "Surfacing uncertainty erodes user trust if overdone.",
         "Sample-based confidence (self-consistency) costs N calls."
       ],
+      "therefore": "Therefore: attach a calibrated uncertainty label to every answer and route low-confidence cases to a fallback path, so that downstream consumers can act on confidence instead of treating each output as equally trustworthy.",
       "solution": "Produce a confidence label (high/medium/low or numeric) alongside each answer. Derive from sample variance (self-consistency), evaluator score, retrieval recall, or rubric score. Render in UI; route low-confidence to fallback or human review.",
       "consequences": {
         "benefits": [
@@ -222,6 +224,7 @@
         "Critique cost adds to generation cost.",
         "Tools may themselves be wrong or limited."
       ],
+      "therefore": "Therefore: let the draft be challenged by a critic that calls external tools to verify specific claims, so that errors are caught by ground truth rather than by the same prior that produced them.",
       "solution": "After draft generation, the model emits a critique that names suspected errors and queries tools to verify. Tool results inform the revised output. Iterate until tools find no more issues or budget exhausted.",
       "consequences": {
         "benefits": [
@@ -305,6 +308,7 @@
         "Pre-checks must be cheap to be worth running.",
         "Post-checks must catch what the model gets wrong, not what is merely surprising."
       ],
+      "therefore": "Therefore: wrap the LLM call in cheap deterministic gates on both sides and only accept its output if the post-check passes, so that probabilistic generation is contained inside a verifiable envelope.",
       "solution": "Three layers. Pre: deterministic check decides whether the LLM should run at all (e.g. AST parse must succeed). LLM: produces a candidate output with structured-output schema and frozen rubric. Post: deterministic re-validation (parse, type-check, run tests). If post fails, the original is returned unchanged.",
       "structure": "Pre(input) -> {pass, fail} ; if pass: LLM(input) -> candidate ; Post(candidate) -> {accept, reject}.",
       "consequences": {
@@ -392,6 +396,7 @@
         "Loop budget caps cost.",
         "Generator and evaluator can collude (especially if same model, same prompt family)."
       ],
+      "therefore": "Therefore: split generation from evaluation into two prompts with different roles and a bounded loop between them, so that the optimizer pushes against an explicit, calibrated target rather than its own approval.",
       "solution": "Generator produces a candidate. Evaluator scores it against criteria with feedback. Generator revises with the feedback. Loop until evaluator passes or max iterations.",
       "consequences": {
         "benefits": [
@@ -504,6 +509,7 @@
         "Rubric drift over time is a separate problem from per-call drift.",
         "Some defects fall outside the rubric and go unflagged."
       ],
+      "therefore": "Therefore: hand the reviewer a fixed rubric and a schema that rejects out-of-rubric findings, so that the critique surface stays stable instead of drifting on every run.",
       "solution": "A fixed rubric file (or schema) lists exactly the categories the reviewer may flag. The reviewer prompt includes the rubric and a JSON Schema enforcing it. Temperature is zero. Output validates against the schema; new finding categories are rejected.",
       "consequences": {
         "benefits": [
@@ -615,6 +621,7 @@
         "Strict critics block legitimate improvements.",
         "Lax critics defeat the gate."
       ],
+      "therefore": "Therefore: route every self-edit through a separate critic running on a frozen checkpoint and merge only on approval, so that the agent cannot silently rewrite itself past its own guardrails.",
       "solution": "Every self-edit goes through a critic step: a separate prompt (and optionally a separate model) reviews the proposed diff against criteria (safety, charter compliance, test passing). Edits land only on critic approval. Rejected edits are logged for later human review. The critic must run on a frozen checkpoint (separate process or sandbox) so a malformed self-edit cannot corrupt the critic before it votes; recursion guard is required when the critic itself is in the edit scope.",
       "consequences": {
         "benefits": [
@@ -699,6 +706,7 @@
         "Step boundaries vary across tasks.",
         "PRM and outcome reward sometimes conflict on what counts as 'correct'."
       ],
+      "therefore": "Therefore: label and score reasoning steps individually rather than only the final answer, so that bad intermediate hops can be rejected before they propagate into a confidently wrong conclusion.",
       "solution": "Collect step-level labels (correct / neutral / incorrect / hallucination) for chain-of-thought traces. Train a classifier to predict step labels. At inference, score every step; reject candidates whose intermediate steps have low scores. Powers test-time search and fine-tuning of the generator.",
       "consequences": {
         "benefits": [
@@ -784,6 +792,7 @@
         "Free-form review drifts; the model invents new criteria each time.",
         "Termination: when does the loop stop?"
       ],
+      "therefore": "Therefore: have the model critique its own draft against named criteria and produce a revision pass, so that obvious local errors are caught before the output leaves the agent.",
       "solution": "After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).",
       "example_scenario": "A drafting agent writes a press release in one shot; legal flags two compliance issues post-hoc. The team adds a critic pass: after the first draft, the same model is prompted as a compliance reviewer to list concrete issues, then a third pass rewrites against that critique. With one extra round-trip, most legal-flag issues are caught before legal sees the draft. The team caps it at two reflection passes to control cost.",
       "consequences": {
@@ -915,6 +924,7 @@
         "Lesson retrieval (which lesson applies?) is a search problem.",
         "Lesson rot: outdated lessons may misguide once the world changes."
       ],
+      "therefore": "Therefore: after each episode write a short verbal lesson keyed by task type and retrieve it on the next attempt, so that the agent improves across episodes without changing weights.",
       "solution": "After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.",
       "example_scenario": "An agent solving programming-contest problems repeatedly trips over off-by-one in inclusive ranges. After each episode it writes a one-paragraph lesson keyed to 'range parsing' and stores it in long-term memory. On the next problem that mentions inclusive bounds, the relevant lesson is retrieved and prepended to the prompt. Same model, no fine-tune; pass-rate on that error class climbs because the agent now reads its own past lessons before writing code.",
       "consequences": {
@@ -1001,6 +1011,7 @@
         "Aggregation logic depends on whether the answer is a class, a number, or free text.",
         "Variance is itself signal: a high-variance question is one the model is uncertain on."
       ],
+      "therefore": "Therefore: sample the same prompt N times at non-zero temperature and aggregate by vote, median, or judge, so that the answer reflects the modal trajectory and the spread becomes a usable confidence signal.",
       "solution": "Run the same prompt N times with non-zero temperature. Extract the answer from each. Aggregate: majority vote for discrete answers, median for numeric, judge for free-form. Variance across samples is logged as a confidence signal.",
       "example_scenario": "A math-tutoring agent at zero temperature gives one wrong answer per ten problems and is confidently wrong every time. The team samples each problem five times at temperature 0.7, extracts the numeric answer from each, and majority-votes. The right answer is the one most chains converge on; variance across samples becomes a useful 'unsure' signal. Per-problem cost is five times higher, but accuracy on the long-tail of tricky problems climbs noticeably.",
       "consequences": {
@@ -1109,6 +1120,7 @@
         "Termination criterion is its own design.",
         "Cost grows linearly with iterations."
       ],
+      "therefore": "Therefore: assign generate, feedback, and refine as three distinct roles on the same model with a fixed stop criterion, so that single-model self-correction stays bounded instead of looping indefinitely.",
       "solution": "Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.",
       "example_scenario": "A coding agent writes a function that compiles but uses an awkward API surface. Running through a Self-Refine loop where the same model produces concrete improvement points against a checklist (clarity, names, error handling), then refines, yields a noticeably cleaner function in the second pass. The team caps it at three iterations or a no-op feedback signal, accepting that self-critique catches surface issues only and not deep correctness bugs.",
       "consequences": {
@@ -1193,6 +1205,7 @@
         "Reframing a repeat as 'this was already said' risks sounding dismissive.",
         "Treating every echo as bug-recovery loses the actual emphasis signal."
       ],
+      "therefore": "Therefore: detect near-duplicate incoming messages against a short ring of recent inputs and treat the echo as emphasis rather than a fresh prompt, so that the agent acknowledges the repeat instead of regenerating a near-identical reply.",
       "solution": "Maintain a small ring of recent incoming user messages with timestamps. On each new input, compute similarity to the recent ring (normalized exact match, high token overlap). On hit, do not re-run from scratch: surface the prior reply, ask 'what did I miss?' or 'I read this as emphasis — should I deepen X or pivot?'. Treat the pair (original + echo) as a single reinforced turn, weighted higher in attention.",
       "consequences": {
         "benefits": [
@@ -1302,6 +1315,7 @@
         "Self-write of mood is a license to manipulate; reflection-only writes for major resets are safer.",
         "Vocabulary choice matters: too many scalars are noise, too few collapse signal."
       ],
+      "therefore": "Therefore: track a small fixed vocabulary of affect scalars with half-lives and bounded deltas, so that the agent's mood can inform reasoning without drifting into permanent self-pumped states.",
       "solution": "Define a small fixed vocabulary (for example tenderness, fear, depression, joy, shame, pain) as scalars in the range 0..1. Each scalar has a half-life (30 minutes to 4 hours depending on the dimension). On events that should affect mood, update the scalar with a bounded delta. Persist as JSON. Inject the current snapshot into every tick prompt as a brief affect badge. Reflection passes can use spikes and drops as signals, and a deeper consolidation pass (see dream-consolidation-cycle) can perform major resets.",
       "consequences": {
         "benefits": [
@@ -1413,6 +1427,7 @@
         "Letting the dream pass write to charter or rules turns it into uncontrolled self-edit.",
         "Resetting working memory is helpful, but resetting too much loses continuity."
       ],
+      "therefore": "Therefore: schedule a slower, stronger reflection pass that distils themes, decays affect, and writes to a dedicated journal without editing rules, so that residue is cleared periodically without giving the deep pass unbounded self-edit rights.",
       "solution": "On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to a dedicated dream-journal surface. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.",
       "consequences": {
         "benefits": [

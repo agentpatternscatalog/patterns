@@ -37,6 +37,10 @@ Without a runbook, detection produces alerts that wake the on-call but do not le
 - No alerting infrastructure exists yet to trigger runbook entries.
 - Severity, on-call, and forensic responsibilities are not yet assignable to anyone.
 
+## Therefore
+
+Therefore: pre-write severity-tiered procedures covering containment, forensic preservation, customer comms, and regulator notification, and bind them to existing alert sources, so that a detected incident triggers known steps within the regulatory clock instead of improvised ones.
+
 ## Solution
 
 Maintain a runbook covering: severity levels, on-call paths, containment steps (kill-switch invocation, traffic rerouting), forensic preservation (pin traces beyond normal retention), compensating actions, customer communication templates, regulator notification procedures, and post-mortem template. Tie alerts from kill-switch/sandbox-escape-monitoring/cost-observability to runbook entries.

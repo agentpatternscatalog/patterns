@@ -38,6 +38,10 @@ Token cost in ReAct grows linearly with steps because each observation re-enters
 - Tool outputs are large or complex enough that the solver still needs reasoning per step.
 - A simple ReAct loop already meets latency and cost targets.
 
+## Therefore
+
+Therefore: have the planner emit a complete DAG of tool calls referenced by placeholder variables before any tool runs, then let a separate worker and solver substitute observations in, so that tool outputs never re-enter the planner's prompt and token cost stops scaling with step count.
+
 ## Solution
 
 Three roles. Planner emits a DAG with steps `t1 = ToolA(x); t2 = ToolB(#t1)` using variable references. Worker executes each tool in dependency order. Solver reads the resolved trace and produces the final answer. The planner never sees observations.

@@ -23,6 +23,10 @@ Hard-coded role lists are brittle: the right team for "draft a regulatory filing
 - Run-time generation costs an extra LLM call before any work begins;
 - Adaptive composition risks instability: the team that solves step 1 may not solve step 5.
 
+## Therefore
+
+Therefore: let a recruiter agent generate the role descriptions and instantiate the team for the specific goal, and adjust composition between iterations on evaluator feedback, so that the team matches the task instead of the task being squeezed into a fixed team.
+
 ## Solution
 
 Add a recruiter agent (or a meta-agent committee: planner + agent observer + plan observer). Stage 1 — Drafting: recruiter receives the goal, generates role descriptions matched to that goal, instantiates the team and an execution plan. Stage 2 — Execution: the team works. Stage 3 — Evaluation: a reviewer scores progress; if unsatisfactory, the recruiter adjusts the team (add, remove, replace roles) and the next iteration runs. The recruiter is the only meta-agent that mutates team composition.

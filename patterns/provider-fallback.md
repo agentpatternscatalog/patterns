@@ -38,6 +38,10 @@ Single-provider deployments take outages personally; fallback-chain handles requ
 - Operational cost of running a normalising gateway is unjustified.
 - Cross-provider differences in capabilities make recovered streams unreliable.
 
+## Therefore
+
+Therefore: put a gateway in front that owns the conversation state and switches providers mid-stream with translated schemas, so that the client sees one continuous stream across a provider's outage.
+
 ## Solution
 
 A gateway proxy holds the conversation state. On stream error, it switches to a fallback provider, optionally preserving partial output, and continues with translated message format. Tool-call schemas are normalised at the gateway. Streaming clients see one continuous stream.

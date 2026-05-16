@@ -24,6 +24,10 @@ Without an explicit time anchor the agent either guesses the time, treats every 
 - Astronomical anchors (season, moon phase) are cheap to compute and grounding for thinking-aloud agents.
 - Humans value the agent acknowledging temporal context without being asked.
 
+## Therefore
+
+Therefore: inject a small precomputed time block (local, UTC, weekday, season, moon phase) into every prompt, so that the agent is implicitly time-aware without spending a tool call to ask what time it is.
+
 ## Solution
 
 On every prompt assembly, compute a small block: ISO local time, ISO UTC, weekday, day-of-year, ISO week, season (hemisphere-aware), moon phase. Inject as a `## NOW` section near the top of the system prompt. Cost is microseconds; benefit is the model never being temporally adrift.

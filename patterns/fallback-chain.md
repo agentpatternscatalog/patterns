@@ -23,6 +23,10 @@ Single-handler failure cascades to the user as an outage; low-confidence outputs
 - Detecting 'failure' requires a confidence signal.
 - Cascade depth must be bounded.
 
+## Therefore
+
+Therefore: order handlers in a confidence-gated chain that pass downward on failure and end in an honest 'I don't know', so that no single handler's outage becomes the user's outage.
+
 ## Solution
 
 Define an ordered chain of handlers. Each handler returns either a confident answer or a failure/low-confidence signal. On failure, the next handler runs. Final fallback is a generic 'I don't know' rather than a wrong answer.

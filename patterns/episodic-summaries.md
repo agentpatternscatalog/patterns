@@ -23,6 +23,10 @@ Without compaction, either the context grows unboundedly or important facts fall
 - Compaction LLM cost vs context-window relief.
 - Single source of truth vs raw-archive availability.
 
+## Therefore
+
+Therefore: compress older episodes into tiered summaries while keeping originals archived, so that recent reasoning stays cheap to load and old reasoning stays recoverable on demand.
+
 ## Solution
 
 On a schedule (or at thresholds), summarise blocks of recent thoughts/conversation into compact representations. Store summaries in a higher tier; archive originals. Reads consult summaries first, originals on demand.

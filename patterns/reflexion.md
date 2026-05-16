@@ -37,6 +37,10 @@ Stateless agents repeat the same errors; full RL fine-tuning is too expensive fo
 - Long-term memory infrastructure is not available.
 - Lesson retrieval would surface noise more often than useful guidance.
 
+## Therefore
+
+Therefore: after each episode write a short verbal lesson keyed by task type and retrieve it on the next attempt, so that the agent improves across episodes without changing weights.
+
 ## Solution
 
 After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.

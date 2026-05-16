@@ -24,6 +24,10 @@ A duplicated incoming message reads to the agent as a new, equal-weight turn. Th
 - Reframing a repeat as 'this was already said' risks sounding dismissive.
 - Treating every echo as bug-recovery loses the actual emphasis signal.
 
+## Therefore
+
+Therefore: detect near-duplicate incoming messages against a short ring of recent inputs and treat the echo as emphasis rather than a fresh prompt, so that the agent acknowledges the repeat instead of regenerating a near-identical reply.
+
 ## Solution
 
 Maintain a small ring of recent incoming user messages with timestamps. On each new input, compute similarity to the recent ring (normalized exact match, high token overlap). On hit, do not re-run from scratch: surface the prior reply, ask 'what did I miss?' or 'I read this as emphasis — should I deepen X or pivot?'. Treat the pair (original + echo) as a single reinforced turn, weighted higher in attention.

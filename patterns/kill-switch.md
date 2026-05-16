@@ -37,6 +37,10 @@ In-band stop hooks rely on the agent's own loop checking; if the model is wedged
 - No shared revocation store is available to the agent runtime.
 - Killing the OS process is acceptable as the only stop primitive (and provenance loss is fine).
 
+## Therefore
+
+Therefore: check a signed revocation token from a shared store before every model and tool call in the runtime (not the agent loop), so that operator authority survives a wedged or runaway agent.
+
 ## Solution
 
 Signed revocation token or feature flag checked on every step from a shared store the agent runtime cannot bypass. On revocation, the agent halts: no further model calls, no further tool calls; in-flight effects are compensated where possible. Killing the OS process is the fallback, but loses provenance.

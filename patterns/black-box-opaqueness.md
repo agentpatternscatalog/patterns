@@ -23,6 +23,10 @@ When (not if) the agent does something wrong, there is no record of why; debuggi
 - Frameworks differ in trace quality.
 - Privacy and trace coverage tension.
 
+## Therefore
+
+Therefore: instrument the agent with traces, decision logs, and provenance from the first deploy, so that every misbehaviour leaves an inspectable record instead of forcing reproduction from user reports.
+
 ## Solution
 
 Don't. Add traces, decision logs, and provenance from day one. See provenance-ledger, decision-log, lineage-tracking.

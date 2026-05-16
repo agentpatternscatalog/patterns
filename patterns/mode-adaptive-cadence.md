@@ -24,6 +24,10 @@ A fixed-cadence loop either over-spends compute during idle stretches or under-t
 - Self-set cadence can run away if the agent rewards itself for going faster.
 - The user may need to force a mode without the agent overriding.
 
+## Therefore
+
+Therefore: vary the loop interval between an idle and an intense mode driven by a salience threshold with bounded floor, ceiling, and lock-in, so that compute and latency track what is actually happening instead of running flat against a fixed cron.
+
 ## Solution
 
 Define two (or more) modes with different sleep intervals (idle around 60s, intense around 15s). Score each tick's outcome for salience or external impulse; if it crosses a threshold, lock into intense mode for N ticks. Otherwise drift back to idle. Mode transitions are written to the ledger. The user can force a mode but cannot bypass the configured floor and ceiling. Lock-in cannot be self-extended without an explicit external trigger.

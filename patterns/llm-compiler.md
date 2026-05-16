@@ -37,6 +37,10 @@ Latency-sensitive agents waiting on tools sequentially are slower than they need
 - Parallel-tool-calls already gives most of the latency win at lower complexity.
 - DAG planning cost dominates the savings on the actual workload.
 
+## Therefore
+
+Therefore: have the planner emit a dependency DAG and a task-fetching unit dispatch independent steps concurrently before a joiner assembles them, so that end-to-end latency collapses to the longest dependency chain instead of the sum of all calls.
+
 ## Solution
 
 Three roles. Planner builds the dependency DAG. Task-Fetching Unit dispatches steps as their inputs become available, with bounded concurrency. Joiner assembles the final answer from the resolved DAG.

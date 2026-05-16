@@ -38,6 +38,10 @@ Append-only logs grow unboundedly; without semantic retrieval the agent cannot f
 - Recency or exact-match retrieval matters more than semantic similarity.
 - Vector index maintenance cost outweighs the retrieval benefit.
 
+## Therefore
+
+Therefore: embed every memory item and retrieve the top-k most similar at query time, so that recall is driven by semantic match instead of exact keys or scrollback position.
+
 ## Solution
 
 Each memory item is embedded and indexed. At query time, embed the query (or a summary of current state), retrieve top-k most similar memories, prepend to context. Optional decay (boost recent, age old) and salience weighting.

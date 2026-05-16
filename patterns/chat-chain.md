@@ -24,6 +24,10 @@ A single agent loop loses focus; broadcast multi-agent chat produces tangled con
 - Phase-to-phase hand-off needs a clean artefact contract.
 - Termination of a phase has to be explicit, not vibes-based.
 
+## Therefore
+
+Therefore: arrange the work as an ordered chain of phases where each phase is a paired-role chat with a completion predicate and a typed artefact handoff, so that micro-flexibility inside a phase coexists with macro-discipline across phases.
+
 ## Solution
 
 Define an ordered chain of phases. Each phase has (a) a defined input artefact, (b) two role-paired agents (e.g. designer + coder, coder + tester), (c) a phase-specific completion predicate, (d) a defined output artefact. Within a phase, the two agents converse multi-turn; the completion predicate ends the phase; the artefact moves to the next phase. The chain is the macro-control; the chat is the micro-control.

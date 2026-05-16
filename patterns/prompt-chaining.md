@@ -38,6 +38,10 @@ A single mega-prompt overloads the model and makes failures hard to localise.
 - A single well-structured prompt already solves the task reliably.
 - Chain length amplifies latency beyond what users tolerate.
 
+## Therefore
+
+Therefore: replace the mega-prompt with a fixed sequence of validated prompts that hand off typed outputs, so that failures localise to a step instead of corrupting the whole task.
+
 ## Solution
 
 Define a fixed pipeline of prompts. Each step has its own system prompt, expected output shape, and validation. A failure at step k retries step k or aborts; downstream steps run only on success.

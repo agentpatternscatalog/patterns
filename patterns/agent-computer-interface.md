@@ -23,6 +23,10 @@ Tools designed for humans (full-buffer editors, full-page web views, generic she
 - Tool surface must balance agent ergonomics with capability completeness.
 - Linter / type signal exposure helps but adds output volume.
 
+## Therefore
+
+Therefore: design a parallel tool surface targeted at the agent's reasoning shape rather than the human's, so that each call returns windowed, structured, lint-aware output that fits the context budget.
+
 ## Solution
 
 Design tools specifically for agents: file viewer that shows a windowed slice with line numbers, edit tool that re-runs linter and shows results, shell that returns structured stdout/stderr/exit-code, search tool that filters and ranks. Each tool's signature + return type optimised for the agent's context budget and reasoning shape.

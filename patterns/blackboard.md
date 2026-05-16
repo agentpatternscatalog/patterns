@@ -23,6 +23,10 @@ Agents working in isolation miss each other's progress; explicit messaging requi
 - Blackboard contents grow; pruning is needed.
 - Read latency: pulling vs subscribing.
 
+## Therefore
+
+Therefore: give the agents one inspectable shared workspace they read from and write to under structured keys, so that coordination becomes 'contribute what you can' without any agent knowing about another directly.
+
 ## Solution
 
 Establish a shared store (file, database, in-memory). Each agent reads the relevant slice and writes its contribution under structured keys. Optional event notification when keys change. Conflict resolution is policy-driven (last-write-wins, version-vector, append-only).

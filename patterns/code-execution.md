@@ -23,6 +23,10 @@ LLMs hallucinate calculations and miscount; small numeric errors invalidate down
 - Generated code may import unsafe modules or run forever.
 - Execution results must round-trip back into the model's working context.
 
+## Therefore
+
+Therefore: route any step that requires computation through a sandboxed interpreter and feed stdout/stderr back into the loop, so that arithmetic, parsing, and transformation are executed rather than hallucinated.
+
 ## Solution
 
 The agent emits a code block; a controlled interpreter (Python sandbox, JS VM, container) runs it; stdout/stderr/return value flow back. Repeat under a step budget. CodeAct treats code as the action language directly.

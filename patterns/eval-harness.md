@@ -23,6 +23,10 @@ A change that 'feels better' often isn't; without measurement, the system regres
 - Judging open-ended outputs needs a metric or judge.
 - Champion-challenger is fairer but doubles cost.
 
+## Therefore
+
+Therefore: run a held-out golden dataset against both the current champion and any proposed challenger before promotion, so that regressions are caught on a fixed yardstick rather than detected in production.
+
 ## Solution
 
 Build a golden dataset of (input, expected output) pairs. Run candidate versions against the dataset; score each. Compare champion (current) against challenger (proposed). Promote on quality lift, blocked on regression. Re-run on every meaningful change.

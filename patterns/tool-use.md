@@ -23,6 +23,10 @@ Free-form text is unparseable at the boundary; the model invents fields, mis-spe
 - The host system needs deterministic operations to act.
 - Schema rigidity reduces the model's freedom; too much rigidity loses recall.
 
+## Therefore
+
+Therefore: define a typed tool palette and let the model emit JSON-Schema-validated calls instead of free-form text, so that the host executes deterministic operations on intent the model is good at expressing.
+
 ## Solution
 
 Define a typed tool palette. The model emits tool calls conforming to a JSON Schema; the host validates and executes; results return as structured tool results. The agent becomes a thin client of a deterministic toolkit.

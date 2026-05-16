@@ -38,6 +38,10 @@ A single agent that handles everything has either too few tools (limiting capabi
 - Routing alone (no inner loop per lane) suffices.
 - Supervisor coordination cost outweighs the specialisation benefit.
 
+## Therefore
+
+Therefore: put a coordinating agent above a set of specialised lanes that each own their prompt, tools, and possibly model, and route requests by classification, so that capability grows by adding lanes rather than by enlarging one prompt.
+
 ## Solution
 
 A supervisor classifies requests and dispatches them to a specialised agent. Each specialist has its own prompt, tools, and possibly its own model. The supervisor may receive results back and decide whether to escalate or respond.

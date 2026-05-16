@@ -39,6 +39,10 @@ Free-form multi-agent chat hallucinates context, drifts off-task, and produces n
 - Free-form chat between agents is sufficient and cheaper.
 - Phases cannot be cleanly separated and artefact contracts cannot be defined.
 
+## Therefore
+
+Therefore: encode the human SOP as named roles, ordered phases, and typed artefact contracts at every phase boundary, so that agents communicate through documents rather than drifting free-form chat.
+
 ## Solution
 
 Encode the SOP as: (a) a fixed set of named roles each with role-specific prompt and tool palette, (b) an ordered sequence of phases, (c) a typed artefact contract for each phase boundary (e.g. PRD → design doc → code → test plan → user manual). Agents communicate via the artefacts; a shared message pool plus a subscription filter routes only relevant context to each role.

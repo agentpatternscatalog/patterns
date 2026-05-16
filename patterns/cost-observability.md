@@ -23,6 +23,10 @@ Without per-feature cost visibility, expensive failures hide in aggregate metric
 - Real-time vs daily aggregation.
 - Privacy on per-user attribution.
 
+## Therefore
+
+Therefore: tag every model and tool call with feature, route, model id, and anonymised user, and stream those tags to a telemetry store with per-dimension dashboards, so that spend is attributable in near-real-time instead of discovered on the monthly bill.
+
 ## Solution
 
 Tag every model and tool call with feature, route, user (anonymised), and model id. Stream to a telemetry store. Build dashboards by feature, by model, by tier, by hour. Set alerts on anomalies. Pair with cost-gating for prevention.

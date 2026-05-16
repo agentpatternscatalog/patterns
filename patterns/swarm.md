@@ -38,6 +38,10 @@ Centralised supervisors become bottlenecks at scale; some tasks (negotiation, si
 - Convergence cannot be guaranteed and runaway interaction is too costly.
 - A supervisor pattern already handles the workload predictably.
 
+## Therefore
+
+Therefore: run many peer agents over a shared message bus or environment with no central coordinator, and define termination at the environment level, so that coordination emerges from interaction instead of bottlenecking on a supervisor.
+
 ## Solution
 
 Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).

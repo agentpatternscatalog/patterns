@@ -23,6 +23,10 @@ Single agents miss the turn-taking dynamics that human collaboration relies on; 
 - Conversation length must be bounded.
 - Tasks need to be specified as something the role-play can converge on.
 
+## Therefore
+
+Therefore: instantiate two role-fixed agents — AI-User and AI-Assistant — with inception prompts and let them converse against a bounded budget, so that turn-taking collaboration runs to a task neither could solve alone.
+
 ## Solution
 
 Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with their roles fixed and the task specified. They converse until the task is completed or budget exhausted. The output is the final assistant message; the conversation log is debugging artefact.

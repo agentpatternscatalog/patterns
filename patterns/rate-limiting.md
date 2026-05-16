@@ -38,6 +38,10 @@ Without limits, a single user (or compromised account) can bankrupt the product 
 - Existing infrastructure already rate-limits effectively at the boundary.
 - False rate-limit denials would block more legitimate work than they protect.
 
+## Therefore
+
+Therefore: enforce per-identity token-bucket counters at multiple horizons in both the gateway and the agent loop, so that no single caller can starve the system or run up an unbounded bill.
+
 ## Solution
 
 Define limits per identity at multiple horizons (per minute, per hour, per day). Use token-bucket or sliding-window counters. Apply at API gateway and at agent loop level. Surface limit hits to the user clearly.

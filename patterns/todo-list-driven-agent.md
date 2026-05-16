@@ -39,6 +39,10 @@ In-context plans drift to the middle of the window where the model attends least
 - There is no filesystem to write a durable plan file.
 - The plan would never be re-injected and the file would just be write-only noise.
 
+## Therefore
+
+Therefore: have the agent author its plan as a checklist file on disk and re-inject the unticked tail into context each turn, so that the plan survives context truncation and pause-resume instead of drifting to the middle of the window.
+
 ## Solution
 
 Early in the run, the agent writes its plan as a checklist file (todo.md) in its sandbox. Each turn: read the file, work the next unticked item, update the file (tick the item, add follow-ups, drop dead-ends). Re-inject the unticked tail of the file into the prompt before the model's next turn. The file outlives any single context window. Paired with a sandboxed VM that gives the agent persistent storage and basic tools (browser, shell, file editor).

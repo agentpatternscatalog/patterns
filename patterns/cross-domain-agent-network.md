@@ -24,6 +24,10 @@ A single mega-agent grounded against every system has bad recall, no clear owner
 - A single agent over all systems blows up the tool catalogue and the prompt.
 - Domain teams want ownership and lifecycle of their own agents.
 
+## Therefore
+
+Therefore: build one grounded agent per business domain and route cross-domain work between them through a standardised inter-agent protocol, so that each domain stays small and ownable while end-to-end workflows still compose.
+
 ## Solution
 
 Build one specialised agent per business domain, each with its own grounded data, tool palette, and acceptance criteria. Define a standardised inter-agent protocol for handoffs (e.g. A2A, MCP). When a task crosses domains, the source agent routes to the target via the protocol, passing a typed artefact. An optional supervisor or role-based assistant fronts the user and dispatches to the right entry agent.

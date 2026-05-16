@@ -38,6 +38,10 @@ A single agent loop conflates planning and acting: replanning interrupts executi
 - No clean interruption channel can be built between the loops.
 - Operational cost of running two coordinated agents is unjustified.
 
+## Therefore
+
+Therefore: split the agent into an outer planner that dispatches and monitors subtasks and an inner executor that runs each one, connected only by a structured result and an interrupt channel, so that planning evidence and execution evidence flow on separate cadences without conflating.
+
 ## Solution
 
 Define two roles. Outer agent (Dispatcher + Planner): decomposes the goal into subtasks with milestones, dispatches each to the inner agent, and may interrupt to replan when milestones are missed or new evidence arrives. Inner agent (Actor): runs a tool-use loop on a single subtask, reports back a structured result. Outer holds the global state; inner holds the local state. The interruption channel is the only path the outer has into the inner's loop.

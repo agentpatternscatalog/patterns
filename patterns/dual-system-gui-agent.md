@@ -24,6 +24,10 @@ A single model that does both planning and grounding is dominated by the harder 
 - Hand-off between models needs a clean intermediate representation.
 - Error recovery has to know which model to blame.
 
+## Therefore
+
+Therefore: separate planning from pixel grounding behind a typed intent vocabulary, so that each subproblem runs on the model best suited to it and failures route back to the planner for recovery instead of being retried blind.
+
 ## Solution
 
 Define a clean intermediate representation: the decision model emits a high-level intent ("open the cart", "swipe left to next item") in a small, typed vocabulary; the grounding model receives that intent plus the current screenshot and emits the concrete action (tap(x,y), swipe coordinates, key press). The decision model holds the plan and replans on failure; the grounding model is stateless per action but specialised on screen interpretation. Errors at the grounding step are reported back to the decision model for replanning, not retried locally.

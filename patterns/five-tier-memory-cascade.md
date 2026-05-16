@@ -23,6 +23,10 @@ Flat append-only logs collapse signal across timescales; pure long-term memory c
 - Storage cost grows with tier count.
 - Reads must consult the right tier; cross-tier conflicts must be resolved.
 
+## Therefore
+
+Therefore: stage memory across sensory, working, short-term, episodic, and long-term tiers with explicit promotion, decay, and rehearsal between them, so that every item lives where its access pattern justifies its cost.
+
 ## Solution
 
 Five tiers. Sensory: raw input per tick. Working: top-N items in active focus (Global Workspace Theory, ≤7 items). Short-term: recent verbatim (1-7 days). Episodic: compressed summaries (5-10x). Long-term: distilled rules and insights. Compaction promotes upward on a schedule; decay archives downward; rehearsal lifts archived items back when re-attended.

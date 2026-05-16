@@ -23,6 +23,10 @@ Subagents writing to the same workspace race each other; one's edits are clobber
 - Reconciling work back to the main workspace is its own problem.
 - Excessive isolation prevents subagents from seeing each other's progress when that would help.
 
+## Therefore
+
+Therefore: give each subagent its own workspace (git worktree, branch, container, sandbox) and reconcile results back through the supervisor, so that parallel work runs without write collisions and failures leave inspectable evidence.
+
 ## Solution
 
 Each subagent runs in its own workspace (git worktree, container, branch, sandbox). The supervisor reconciles results back to the main workspace on completion (merge, cherry-pick, replay). Only one workspace can land changes at a time.

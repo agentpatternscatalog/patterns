@@ -24,6 +24,10 @@ When the same model reads untrusted content and decides which tools to call, a s
 - Filtering untrusted text before it reaches the model is unreliable — every filter has bypasses.
 - Adding a second model raises cost, latency, and debugging complexity.
 
+## Therefore
+
+Therefore: split the work between a tool-holding model that never sees raw untrusted text and a quarantined model that reads the text but holds no tools, exchanging only typed handles between them, so that an injection in the untrusted content cannot drive a tool call.
+
 ## Solution
 
 Run two models with disjoint privileges. A **Privileged LLM** plans, holds tool access, and never sees raw untrusted content. A **Quarantined LLM** ingests the untrusted content but has no tools and cannot emit free-form actions. The two communicate through symbolic references: the Quarantined LLM extracts typed values (an email address, a date, a summary) and returns them as opaque handles; the Privileged LLM composes tool calls using those handles, with the host substituting the underlying values only at execution time.

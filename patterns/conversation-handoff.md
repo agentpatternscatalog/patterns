@@ -23,6 +23,10 @@ Human-in-the-loop gates approve or reject discrete actions; this pattern transfe
 - Sticky routing (return to same operator on follow-up) needs auth + session plumbing.
 - Return primitive (back to agent) requires re-grounding.
 
+## Therefore
+
+Therefore: transfer ownership of the whole thread to a human operator queue with a structured envelope and a return primitive, so that hard cases reach humans without losing the customer's continuity.
+
 ## Solution
 
 On escalation trigger (low confidence, explicit user request, policy violation), the agent emits a structured handoff envelope with conversation summary, ticket number, and human operator queue assignment. Operator takes ownership; agent disengages. On return, agent resumes with operator's note in context.

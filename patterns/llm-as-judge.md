@@ -37,6 +37,10 @@ Without an automated grader, regression detection on free-form outputs requires 
 - No rubric can be agreed and the judge would just rehearse model bias.
 - Calibration data and review cycles cannot be sustained.
 
+## Therefore
+
+Therefore: prompt a judge model from a different family with the input, the candidate output, and an explicit rubric, and calibrate it periodically against human-graded samples, so that open-ended outputs get a structured score with rationale instead of an unscored verdict.
+
 ## Solution
 
 Define a rubric. Prompt a judge model with the input, candidate output, and rubric. Receive a structured score plus rationale. Calibrate periodically against human-graded samples. Use a different model family for judge vs candidate where possible.

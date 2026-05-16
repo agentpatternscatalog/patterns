@@ -38,6 +38,10 @@ Past about 20 tools, model selection accuracy drops sharply; the agent picks wro
 - Tool selection accuracy is on the release-gate dashboard.
 - A tool-loadout or routing layer is available to filter per request.
 
+## Therefore
+
+Therefore: select a per-task tool subset via a loadout step, cap the exposed palette at a tested threshold around twenty, and gate releases on function-calling accuracy, so that the model is never asked to choose from a registry it cannot navigate reliably.
+
 ## Solution
 
 Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a tested threshold. Measure function-calling accuracy as a release gate.

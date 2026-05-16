@@ -23,6 +23,10 @@ Pulling for state on a schedule wastes effort; pushing on events is timely and e
 - Burst handling: event storms can overwhelm.
 - Dedup of events that fire multiple times.
 
+## Therefore
+
+Therefore: subscribe to a validated event stream and invoke the agent only on deduplicated, rate-limited events, so that the agent reacts at event time without paying for idle polling.
+
 ## Solution
 
 Subscribe to event source (webhook, queue, watcher). On event, validate, deduplicate, and invoke the agent with event payload as input. Apply rate limiting and idempotency. Acknowledge after successful processing.

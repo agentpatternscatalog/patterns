@@ -24,6 +24,10 @@ Letting the parent observe the sub-agent's turns either bloats parent context or
 - Sub-agent failure has to surface cleanly to the parent.
 - Cost attribution across nesting depth is non-trivial.
 
+## Therefore
+
+Therefore: expose the sub-agent behind a function-shaped tool signature with its own loop, model, and budget, so that the parent composes it like any other tool and never inherits its intermediate turns.
+
 ## Solution
 
 Define the sub-agent as `def sub_agent(task: str, ...) -> Result`. The parent calls it like any other tool. Inside the function: a fresh agent loop with its own model, tool palette, and step budget runs to completion or failure, returning a structured result. Parent context records only the call and the return value. Step budget and timeout are enforced by the wrapper, not by the sub-agent's prompt.

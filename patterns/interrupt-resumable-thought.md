@@ -24,6 +24,10 @@ Coherent multi-step thinking that takes longer than a single turn is fragile. A 
 - Resume reliability: returning to a paused thought without distortion is hard.
 - Priority: not every interrupt deserves to suspend work; some are themselves interruptable.
 
+## Therefore
+
+Therefore: push a named thought-frame onto a bounded stack at the start of a multi-step chain and require any interrupt to acknowledge, handle, and pop-then-resume the top frame, so that incoming messages neither clobber in-flight reasoning nor disappear into it.
+
 ## Solution
 
 Introduce an explicit thought-frame: when starting a multi-step chain, push a frame onto a stack with the goal, the steps completed, and the next step. On interrupt: acknowledge briefly ('hold on — finishing X first' or 'switching: Y'), handle the interrupt, then look at the top frame and explicitly resume ('back to X — I was at step 3 / 6'). Cap stack depth to prevent infinite suspension. Frames older than a configurable window expire (the agent admits the resume would be reconstruction, not continuation).

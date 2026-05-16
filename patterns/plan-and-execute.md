@@ -23,6 +23,10 @@ ReAct pays the strong model's price on every step including trivial executions.
 - Execution may discover the plan was wrong; replan-versus-fail is a real choice.
 - Cheaper model may not faithfully execute the plan.
 
+## Therefore
+
+Therefore: pay the strong model once to produce an inspectable ordered plan and then walk it with a cheaper executor, replanning only on surprise, so that token cost shifts off routine steps without giving up plan visibility.
+
 ## Solution
 
 Two-stage loop. Planner: produce an ordered list of steps with explicit dependencies. Executor: run each step (often with tools) and accumulate results. On failure or surprise, replan with the new evidence in context.

@@ -24,6 +24,10 @@ Per-tick reflection is too shallow to consolidate themes; weekly insight extract
 - Letting the dream pass write to charter or rules turns it into uncontrolled self-edit.
 - Resetting working memory is helpful, but resetting too much loses continuity.
 
+## Therefore
+
+Therefore: schedule a slower, stronger reflection pass that distils themes, decays affect, and writes to a dedicated journal without editing rules, so that residue is cleared periodically without giving the deep pass unbounded self-edit rights.
+
 ## Solution
 
 On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to a dedicated dream-journal surface. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.

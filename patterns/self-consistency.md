@@ -37,6 +37,10 @@ A single sample at zero temperature gives the most likely chain; sampling and vo
 - Answers are free-form and no aggregator (vote, judge) is available.
 - Latency budget cannot afford N parallel samples.
 
+## Therefore
+
+Therefore: sample the same prompt N times at non-zero temperature and aggregate by vote, median, or judge, so that the answer reflects the modal trajectory and the spread becomes a usable confidence signal.
+
 ## Solution
 
 Run the same prompt N times with non-zero temperature. Extract the answer from each. Aggregate: majority vote for discrete answers, median for numeric, judge for free-form. Variance across samples is logged as a confidence signal.

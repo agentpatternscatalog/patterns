@@ -23,6 +23,10 @@ LLM-as-judge evaluates only the final answer; agentic tasks succeed or fail alon
 - Judge agents have their own biases and failure modes.
 - Trajectory schemas vary per agent framework.
 
+## Therefore
+
+Therefore: feed the candidate's full trajectory (thoughts, tool calls, observations, final answer) into a separate judge agent scoring against an explicit rubric, so that process quality is graded alongside the answer rather than inferred from it.
+
 ## Solution
 
 A judge agent receives the candidate agent's full trajectory: thoughts, tool calls, observations, intermediate state, and final answer. It evaluates against a rubric covering correctness, efficiency, and process quality. Outputs a structured verdict with rationale.

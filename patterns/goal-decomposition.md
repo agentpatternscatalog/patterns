@@ -23,6 +23,10 @@ Without explicit decomposition, the agent attacks the goal in one shot and produ
 - Sub-goal independence affects parallelisation.
 - Goal-monitoring at each level adds overhead.
 
+## Therefore
+
+Therefore: recursively split the goal into sub-goals until every leaf is directly actionable and monitor progress at each level, so that long-horizon work becomes tractable and stuck branches surface instead of vanishing into a summary.
+
 ## Solution
 
 Build a tree of goals. The root is the user's goal. Each non-leaf goal decomposes into sub-goals. Leaves are directly actionable steps. Monitor progress at each level; surface stuck branches. Distinct from least-to-most (which is sequential) by allowing parallel sibling goals.

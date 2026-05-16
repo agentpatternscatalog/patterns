@@ -24,6 +24,10 @@ When self-model and world-model live in the same store (one big personality file
 - Charter and personality must remain stable while environment churns.
 - The agent benefits from seeing them side by side but not mixed.
 
+## Therefore
+
+Therefore: keep the world model in a separate reflection-writable surface from charter and self-model, with distinct update passes, so that surprise about the environment never silently mutates who the agent is.
+
 ## Solution
 
 Maintain a dedicated world-model store (humans, repos, services, capabilities, optionally with substructure) as a separate, reflection-writable surface. Personality, charter, and boundaries live in their own surfaces with separate write paths. Surprise events (prediction error against the world model) trigger a focused world-update pass; self-update is a different pass with different gating. The tick prompt loads both, but they are visibly distinct sections.

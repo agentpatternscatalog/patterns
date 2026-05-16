@@ -38,6 +38,10 @@ Vector indexes are added where a SQL query, a tool call, or a system prompt woul
 - Any setting where a SQL query, API call, or inlined document would already answer the need.
 - Any team treating RAG as a default rather than a deliberate choice.
 
+## Therefore
+
+Therefore: locate where the knowledge actually lives — a database, API, search service, or a small inlined document — before adding a vector index, so that retrieval is shaped to the data rather than reflexed onto it.
+
 ## Solution
 
 Don't reach for RAG first. Check whether the knowledge lives in a tool (database, API, search service), a scoped system prompt, or a small inlined document. Only adopt RAG when those genuinely do not work. See tool-use, naive-rag for when it does.

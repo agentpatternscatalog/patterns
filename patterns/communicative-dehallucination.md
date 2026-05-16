@@ -23,6 +23,10 @@ Without a clarification channel between agents, the assistant fabricates the mis
 - Adding a clarification round costs latency and tokens.
 - Asking too eagerly degrades into chatter; not asking at all produces hallucinated outputs.
 
+## Therefore
+
+Therefore: when an instructed agent would have to invent a missing decisive fact, force it to reverse roles and ask one bounded question of the instructor first, so that fabrication is replaced by a scoped clarification round at the boundary.
+
 ## Solution
 
 Define an explicit role-reversal protocol: when the assistant detects that the instruction is missing a deciding piece of context, it pivots and emits a focused question back to the instructor ("the precise name of the dependency, please"). The instructor answers, and only then does the assistant produce its conclusion. Bound the depth (one or two reversals) to prevent infinite ping-pong.

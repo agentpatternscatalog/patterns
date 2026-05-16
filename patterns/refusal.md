@@ -38,6 +38,10 @@ Helpful-by-default agents drift into unhelpful or unsafe responses on out-of-sco
 - Refusal triggers are so vague they would block legitimate work.
 - Logging refusals for review is not feasible and silent drops are unacceptable.
 
+## Therefore
+
+Therefore: trigger an explicit, specific refusal at the named boundary instead of trying to be helpful anyway, so that the agent stays inside its scope and the limit itself becomes visible to the user.
+
 ## Solution
 
 Define refusal triggers (policy violation, out-of-scope, capability gap, regulatory boundary). Return a clear, kind, specific refusal that names the boundary and (when possible) suggests an alternative. Log refusals for review.

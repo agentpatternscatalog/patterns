@@ -39,6 +39,10 @@ A naïve cheap-first cascade still falls through to a hosted frontier model for 
 - Self-hosting open-weight models is operationally unaffordable.
 - Sensitivity classification cannot be made reliable enough to enforce routing.
 
+## Therefore
+
+Therefore: classify requests by sensitivity before difficulty and pin sensitive traffic to an in-boundary open-weight tier, so that the cost-arbitrage cascade can never leak the data that must stay home.
+
 ## Solution
 
 Stratify requests by sensitivity *and* difficulty before routing. (1) Sensitive requests: forced down the open-weight path even if confidence is low; degrade gracefully or refuse rather than escalate. (2) Insensitive easy requests: small open-weight model. (3) Insensitive hard requests: escalate to hosted frontier model. The router enforces the sensitivity classification before any model call.

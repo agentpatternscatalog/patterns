@@ -23,6 +23,10 @@ If the agent can edit its own history, every later inference is conditioned on a
 - Strict immutability conflicts with redaction (PII, mistakes).
 - Compaction must respect append-only at the underlying log layer.
 
+## Therefore
+
+Therefore: write every thought to a log the agent itself cannot delete or mutate, so that past reasoning is provable rather than rewritable.
+
 ## Solution
 
 Thoughts and journal entries are written to files or a log the agent has no permission to delete or modify. Compaction creates new summary files at higher tiers without touching originals. Redaction goes through an explicit operator path, not the agent.

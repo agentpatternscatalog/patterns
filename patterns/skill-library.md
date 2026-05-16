@@ -37,6 +37,10 @@ Without a place to crystallise repeated work, every run starts from scratch.
 - Skill additions cannot be reviewed and the library would rot.
 - The runtime cannot dynamically load new modules safely.
 
+## Therefore
+
+Therefore: give the agent a writable skills directory plus a critic-gated, hot-reloading loader, so that a long-running agent grows its own toolkit without restarts and without silently overwriting working code.
+
 ## Solution
 
 A directory (often `skills/*.py` or `skills/*.md`) where the agent can write new modules. A loader (importlib in Python, dynamic import in JS) makes them callable. A critic gates additions. Old skills are versioned, not overwritten silently.

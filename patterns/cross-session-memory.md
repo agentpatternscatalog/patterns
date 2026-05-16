@@ -23,6 +23,10 @@ Per-thread memory loses everything between sessions; users repeat themselves; th
 - Privacy, deletion, portability requirements.
 - Cost of always-on memory loading per turn.
 
+## Therefore
+
+Therefore: distil per-user facts into a separate store loaded per session with explicit forget controls, so that the agent remembers across threads without holding the user hostage to its memory.
+
 ## Solution
 
 Maintain a per-user store of distilled facts (preferences, prior context, names, projects). Load relevant slices into each session's context. Provide explicit add/forget tools. Audit and surface memory entries to the user. Deletion controls and a user-visible memory inspector (delete / disable / export) satisfy regulatory and trust requirements.

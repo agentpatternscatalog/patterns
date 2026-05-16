@@ -23,6 +23,10 @@ Self-critique without external tools recycles the model's blind spots; tools pro
 - Critique cost adds to generation cost.
 - Tools may themselves be wrong or limited.
 
+## Therefore
+
+Therefore: let the draft be challenged by a critic that calls external tools to verify specific claims, so that errors are caught by ground truth rather than by the same prior that produced them.
+
 ## Solution
 
 After draft generation, the model emits a critique that names suspected errors and queries tools to verify. Tool results inform the revised output. Iterate until tools find no more issues or budget exhausted.

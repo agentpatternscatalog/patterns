@@ -24,6 +24,10 @@ Hand-designing the optimal agent workflow per domain is expensive, brittle, and 
 - Search needs a signal (benchmark scores) plus an explore/exploit policy.
 - Workflows have to be representable as code or as a graph for search to work.
 
+## Therefore
+
+Therefore: treat the workflow itself as a searchable artefact and let MCTS guided by benchmark scores explore its shape, so that the deployed composition is discovered by measurement rather than by designer hunch.
+
 ## Solution
 
 Represent each candidate workflow as code or a graph of nodes (router, planner, ensemble, review, revise, executor). Use MCTS — selection by UCB-style scoring on past benchmark performance, expansion by code mutations or graph edits, simulation by running the workflow on the eval set, backpropagation of scores. After a search budget, deploy the best-scoring workflow. Use a library of operators (Ensemble, Review, Revise) to constrain the search space.

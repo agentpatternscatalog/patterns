@@ -38,6 +38,10 @@ Free-form prompts drift; the spec is in the head of one engineer and not auditab
 - The task is exploratory and a spec would prematurely commit to a path.
 - Writing the spec costs more than just doing the work.
 
+## Therefore
+
+Therefore: make a human-authored markdown spec the single source of truth for what 'done' means and let the agent read it each iteration and edit it only under controlled conditions, so that intent is auditable and behaviour drift shows up as a reviewable diff.
+
 ## Solution
 
 Write the specification as a markdown file (PROMPT.md, fix_plan.md, or similar). The agent reads the spec at each iteration, executes against it, and may update it under controlled conditions. The spec is the single source of truth for what 'done' means.

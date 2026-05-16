@@ -38,6 +38,10 @@ Static decomposition (Plan-and-Execute, Prompt Chaining) cannot handle tasks who
 - Per-call orchestration overhead is unacceptable for the latency budget.
 - Synthesis is unreliable and worker outputs cannot be reconciled.
 
+## Therefore
+
+Therefore: let an orchestrator decide subtasks at runtime, hand each to a worker, and synthesise the returned results, so that data-dependent decomposition is handled without committing to a static plan up front.
+
 ## Solution
 
 Orchestrator agent receives the task, decides at runtime what subtasks to spawn, hands each to a worker (often via tool call), collects results, and synthesises the final output. Worker count and roles can vary per task.

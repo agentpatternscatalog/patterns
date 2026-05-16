@@ -38,6 +38,10 @@ Repeat calls on the same arguments waste latency and money; the tool layer often
 - Per-user scoping cannot be enforced and shared cache would leak data.
 - Repeat-call rate is too low to recover the cache infrastructure cost.
 
+## Therefore
+
+Therefore: wrap deterministic tools in a cache keyed on (tool, normalised args, caller identity) with per-tool TTLs, so that repeat calls return instantly without leaking results across users.
+
 ## Solution
 
 Wrap deterministic tools in a cache layered on `(tool_name, normalised_args)`. Set TTLs by tool type. On cache hit, return immediately without invoking the underlying tool. Per-user scoping for tools that read user data; global for read-only public data. Cache keys must include the auth subject (caller identity), not just args; args-only keys leak data when callers change.

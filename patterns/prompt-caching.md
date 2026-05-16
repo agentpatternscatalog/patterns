@@ -37,6 +37,10 @@ Re-sending an identical 10k-token prefix on every call wastes compute; vendor ca
 - The provider does not support prompt caching for the model in use.
 - Cache breakpoints would split content in ways the provider does not honour.
 
+## Therefore
+
+Therefore: put every stable token (system prompt, tools, charter) at the front and every variable token at the back, with a cache breakpoint at the seam, so that the provider's prefix cache keeps hitting across calls.
+
 ## Solution
 
 Place all stable content (system prompt, tool definitions, charter, rules) at the start of the prompt. Place variable content (current state, user message) at the end. Mark the cache breakpoint at the boundary. Audit prompt construction to ensure no accidental prefix mutation.

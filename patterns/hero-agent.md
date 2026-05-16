@@ -37,6 +37,10 @@ The agent's prompt becomes a monolith. Tools conflict. The model is confused abo
 - Any agent where cheap requests must not pay expensive prompt costs.
 - Any team that needs independent ownership of separate capabilities.
 
+## Therefore
+
+Therefore: when the prompt passes a few hundred lines or the tool palette passes about a dozen, extract specialists behind a small router, so that cheap requests stop paying expensive prompts and capabilities stop colliding inside a single model.
+
 ## Solution
 
 Don't. Once the prompt exceeds a few hundred lines or the tool count exceeds about a dozen, extract specialists. See routing, supervisor, multi-model-routing.

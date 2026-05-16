@@ -38,6 +38,10 @@ Generic agents drift toward similarity; without explicit roles, contributions bl
 - Roles would be artificial and add prompt overhead without separating concerns.
 - The team cannot articulate distinct responsibilities and acceptance criteria per role.
 
+## Therefore
+
+Therefore: give each agent a named role with a scoped prompt, a scoped tool palette, and explicit acceptance criteria for its outputs, so that contributions are attributable and review focuses on the role boundary.
+
 ## Solution
 
 Define each role with a system prompt naming its responsibility and constraints, a tool palette scoped to its role, and acceptance criteria for outputs it produces. Workflow assigns tasks to roles. Outputs are evaluated against the role's acceptance criteria.

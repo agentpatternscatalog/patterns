@@ -37,6 +37,10 @@ Without a handoff primitive, mid-conversation reroutes either restart context or
 - Loop detection or thrash prevention cannot be implemented to bound handoffs.
 - The cost of summarising and re-onboarding outweighs the specialisation benefit.
 
+## Therefore
+
+Therefore: expose a handoff tool that transfers the active conversation to a named target agent along with a context summary, and detect loops at the call site, so that mid-conversation rerouting carries enough state without thrashing.
+
 ## Solution
 
 Define a handoff tool. The current agent invokes it with target agent and a context summary. The target agent receives the summary plus the original conversation and continues from there. Loop detection prevents thrash.

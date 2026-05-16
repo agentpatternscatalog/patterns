@@ -38,6 +38,10 @@ Prompt-based tool calling is brittle and capability-limited; supervised fine-tun
 - Fine-tuning capacity (compute, model access) is unavailable.
 - The toolset is too small or unstable to justify fine-tuning.
 
+## Therefore
+
+Therefore: self-supervise tool-call placement by keeping only insertions that lower perplexity on the gold continuation, so that the model learns when and how to call tools without human-labelled data.
+
 ## Solution
 
 Generate candidate tool calls during training. Insert each into a context. Score whether the resulting completion is improved (perplexity drop on the gold continuation). Keep helpful insertions as training data. Fine-tune the model to emit tool calls in those positions.

@@ -23,6 +23,10 @@ Action-only logs answer 'what' but not 'why'; debugging a wrong action requires 
 - Sensitive content in reasoning may need redaction.
 - Trace fidelity vs cost: full chain-of-thought, key decisions, summary?
 
+## Therefore
+
+Therefore: persist the agent's reasoning at a chosen granularity and link each persisted trace to its corresponding action in the provenance ledger, so that any past action can be explained by retrieving the reasoning that produced it.
+
 ## Solution
 
 Persist reasoning at a chosen granularity (full trace, key decisions, or summary). Link each action in the provenance ledger to its trace. Indexed by request id and time for retrieval.

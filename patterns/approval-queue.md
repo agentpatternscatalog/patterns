@@ -23,6 +23,10 @@ Synchronous human-in-the-loop blocks the agent; ungated execution risks unsafe a
 - Approval inbox can become unmanageable at scale.
 - Race conditions if the world changes while approval is pending.
 
+## Therefore
+
+Therefore: route gated actions to an asynchronous review inbox while the agent keeps working on independent branches, so that human oversight is preserved without blocking throughput.
+
 ## Solution
 
 Agent emits proposed action to an approval queue with context. A human (or supervisor agent) reviews the queue and approves or rejects. Approved actions are executed by the agent or by a runner. The agent can continue parallel work while waiting; some workflows pause specific branches.

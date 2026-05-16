@@ -23,6 +23,10 @@ Most software has no clean API; agents need to operate GUIs visually, including 
 - Prompt injection via on-screen content is a real attack surface.
 - Cost: every step pays vision tokens.
 
+## Therefore
+
+Therefore: drive the desktop with screenshots in and mouse/keyboard tool calls out under a ReAct loop, so that the agent reaches any application without per-app API integration.
+
 ## Solution
 
 The model receives screenshots (optionally augmented with accessibility-tree or set-of-mark annotations) and emits typed tool calls (move mouse, click, type, scroll, screenshot). A controller executes them against a real or virtual desktop. The loop is ReAct-shaped: screenshot → think → act → screenshot.

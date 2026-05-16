@@ -23,6 +23,10 @@ Static prompts either include everything (wasteful, sometimes misleading) or inc
 - Scaffolding library curation effort.
 - Compositional scaffolding (multiple scaffolds in one prompt) interacts unpredictably.
 
+## Therefore
+
+Therefore: classify the task at runtime and load only the scaffolds keyed to its type, so that each prompt carries the help it needs and nothing more.
+
 ## Solution
 
 Maintain a library of scaffolds (few-shot examples, schemas, hints) keyed by task type or feature. At runtime, classify the task and inject the matching scaffolds. Audit which scaffolds fired per request.

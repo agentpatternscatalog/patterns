@@ -38,6 +38,10 @@ Past a few thousand tokens, the prompt squeezes retrieval, forces cache misses, 
 - Any setting where retrieval and cache hits are being squeezed by prompt size.
 - Any team without quarterly pruning sprints or PR review on prompt diffs.
 
+## Therefore
+
+Therefore: treat the prompt as code with PR review, a length-budget eval gate, and quarterly pruning — lifting recurring procedures into agent-skills and stable rules into a constitutional charter — so that the system prompt cannot accrete contradictions one bug fix at a time.
+
 ## Solution
 
 Don't. Treat the prompt as code: PR review, eval gate on length, quarterly pruning sprints. Lift recurring procedures into agent-skills. Move stable rules into a constitutional charter.

@@ -37,6 +37,10 @@ Request-driven agents only act when called; many useful tasks need to act on tim
 - Runs would frequently be wasted because no work is pending.
 - Persistent state cannot be carried across runs.
 
+## Therefore
+
+Therefore: trigger the agent on a fixed schedule and persist its state to durable storage between runs, so that time-bounded tasks happen on the clock even when no human is around to ask.
+
 ## Solution
 
 Schedule the agent run at fixed cadence (cron, scheduler service). The agent reads its current state, executes its task, writes results, and exits. State persists across runs in durable storage.

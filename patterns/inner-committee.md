@@ -37,6 +37,10 @@ Mono-persona prompts conflate roles and produce muddled outputs that are neither
 - Multiple model calls per step are not affordable.
 - Personas would share so much context that role separation has no effect.
 
+## Therefore
+
+Therefore: run the same model under explicit, role-scoped personas that step in a fixed order, each seeing only the inputs its role needs, so that planning, execution, and critique stay separated without spinning up multiple model instances.
+
 ## Solution
 
 Define explicit personas (system prompts) for each role: planner, executor, critic. The agent loop steps through personas at fixed points. Each persona sees only the inputs its role needs, not the full context of the others.

@@ -38,6 +38,10 @@ Agent capabilities and limitations are tribal knowledge; without a card, every s
 - Capabilities change so fast that a card would be stale before publication.
 - No team can own keeping the card current.
 
+## Therefore
+
+Therefore: maintain a versioned markdown document at a known location with intended use, out-of-scope use, training lineage, eval results, limitations, and risks, so that downstream users and auditors meet the system's actual capabilities rather than its marketing.
+
 ## Solution
 
 Maintain a markdown document at a known location with sections: intended use, out-of-scope use, training/data lineage, evaluation results, limitations, risks, contact. Versioned alongside the agent.

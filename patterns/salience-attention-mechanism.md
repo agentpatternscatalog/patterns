@@ -24,6 +24,10 @@ Without explicit salience, the agent either dumps all memory into context (token
 - Pure recency loses long-tail relevance; pure relevance loses temporal grounding.
 - Rumination loops reward the same items over and over without a fatigue term.
 
+## Therefore
+
+Therefore: score each candidate memory by a weighted sum of novelty, goal-relevance, recency, prediction error, and fatigue and pick the top-k each tick, so that attention is bounded, tunable, and resistant to rumination loops.
+
 ## Solution
 
 Score each candidate memory item `m` with a weighted sum: `alpha * novelty(m) + beta * goal_relevance(m) + gamma * recency(m) + delta * prediction_error(m) - epsilon * fatigue(m)`. Pick the top-k into the working set for the next tick. Persist the weights in a tunable config so a reflection pass can adjust them. The fatigue term penalises items that have already been attended to many times in the recent window, breaking rumination loops.

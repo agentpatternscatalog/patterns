@@ -39,6 +39,10 @@ Two failure modes pull in opposite directions. (1) If the reasoning trace is dro
 - The provider already manages reasoning persistence across turns automatically.
 - Stateless single-turn use cases that do not span tool-call cycles.
 
+## Therefore
+
+Therefore: preserve assistant reasoning_content across tool turns within a single user-to-user episode and drop it at the next user boundary, so that tool calls and their interpretations stay coherent without leaking stale reasoning into the next task.
+
 ## Solution
 
 Define an episode as: from one user turn to the next user turn (inclusive of all intervening tool calls and tool results). Within an episode, preserve assistant reasoning_content as part of the context concatenation across all turns. At the next user turn boundary, drop reasoning_content from prior episodes (the API will ignore it if you do pass it). The user-visible content remains in history; only the reasoning trace is episode-scoped.

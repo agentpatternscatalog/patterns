@@ -38,6 +38,10 @@ LLMs memorise and echo what they see; any PII in the prompt risks ending up in t
 - Detector false-positive rates would break the user experience.
 - End-to-end encryption or other controls already cover the same risk.
 
+## Therefore
+
+Therefore: detect PII at the boundary, substitute placeholders before the model sees it, and re-substitute or refuse on the way out, so that personal data never enters prompts, logs, or third-party training surfaces.
+
 ## Solution
 
 Pre-process inputs: detect PII (regex + NER + classifier), replace with placeholders. Post-process outputs: re-substitute placeholders back, or refuse if outputs contain unrequested PII. Audit log of redactions.

@@ -37,6 +37,10 @@ A single-tick edit can capture momentary confusion as a lasting rule.
 - The agent has no durable state worth protecting.
 - Single-tick edits with diff review already meet the safety bar.
 
+## Therefore
+
+Therefore: hold each proposed mutation in escrow until K consecutive ticks re-endorse it against fresh context, so that single-tick confusion cannot land as durable state.
+
 ## Solution
 
 Mutation proposals are written to a holding area. A subsequent tick must confirm the proposal (still endorses it given fresh context). After K consecutive confirms, the mutation lands. Explicit user approval bypasses the wait.

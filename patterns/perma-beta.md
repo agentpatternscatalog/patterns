@@ -38,6 +38,10 @@ Beta becomes a permanent excuse. Without an eval harness, quality is a guess and
 - Any product where 'beta' is being used as an excuse for missing evaluation.
 - Any team that has the resources to build an eval harness but has not.
 
+## Therefore
+
+Therefore: build the eval harness, set quality gates, and exit beta on a published date, so that regressions become visible and the label stops absorbing accountability for unmeasured quality.
+
 ## Solution
 
 Don't. Build the eval harness and exit beta. See eval-harness, llm-as-judge, shadow-canary.

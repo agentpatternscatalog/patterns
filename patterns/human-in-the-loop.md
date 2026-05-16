@@ -37,6 +37,10 @@ Fully autonomous action at risky boundaries combines model confidence with conse
 - Volume is too high for human review to keep up without becoming a rubber stamp.
 - Risk per action is small enough that automated guardrails are sufficient.
 
+## Therefore
+
+Therefore: pause the loop at a defined risk boundary and require an explicit approve or reject from a human before the action runs, so that consequence and confidence are decoupled at the moments that matter.
+
 ## Solution
 
 Identify the boundary. Pause the loop. Surface the proposed action with enough context for the human to decide. Require an explicit approve/reject. Resume on approve; abort or replan on reject. Log the decision.

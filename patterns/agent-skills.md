@@ -23,6 +23,10 @@ Stuffing every workflow into the system prompt bloats context; ad-hoc prompt fil
 - Versioning of authored procedures.
 - Skill quality bounds agent quality on the relevant workflow.
 
+## Therefore
+
+Therefore: package each procedure as a markdown file the agent loads on demand for matching tasks, so that domain know-how lives in versioned author-time artefacts rather than burning prompt tokens or model weights.
+
 ## Solution
 
 Package each procedure as a markdown file (and optional companion resources) under a known directory. The agent loads relevant skills on demand based on the current task. Skills are author-time artefacts versioned with the agent.

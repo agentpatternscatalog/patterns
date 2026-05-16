@@ -38,6 +38,10 @@ One-shot generation underuses the model; a second pass focused on critique often
 - Latency or cost cannot accommodate extra revision rounds.
 - Self-critique at this scale is unreliable and just rationalises errors.
 
+## Therefore
+
+Therefore: have the model critique its own draft against named criteria and produce a revision pass, so that obvious local errors are caught before the output leaves the agent.
+
 ## Solution
 
 After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).

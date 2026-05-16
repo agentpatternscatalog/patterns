@@ -38,6 +38,10 @@ Real tools return errors as 200 OK with `{error: ...}`, multi-MB responses that 
 - Downstream code assumes valid JSON or bounded sizes.
 - Schema validation, size caps, or sanitisation are available.
 
+## Therefore
+
+Therefore: at the tool boundary, validate every result against a schema, cap response size, sanitise embedded HTML, and attach a trust label before ingestion, so that 200-OK errors, oversized blobs, and injected instructions cannot silently poison the agent's context.
+
 ## Solution
 
 Don't. Validate every tool result against a schema. Cap response size. Sanitise HTML. Apply tool-output-poisoning defenses. See tool-output-poisoning, structured-output, input-output-guardrails.

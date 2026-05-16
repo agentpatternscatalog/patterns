@@ -37,6 +37,10 @@ Long-context models still degrade with size; chunked processing without coordina
 - Cross-chunk dependencies dominate and chunked map cannot capture them.
 - Aggregation cost erases the parallel speedup.
 
+## Therefore
+
+Therefore: split the oversize input into independent chunks, map an LLM call across each in parallel, then reduce with a structured protocol that resolves cross-chunk conflicts, so that the task scales beyond any single context window without losing cross-chunk dependencies.
+
 ## Solution
 
 Map: split input into chunks; process each independently (per-chunk LLM call). Reduce: aggregate intermediate answers via a structured information protocol that surfaces dependencies, plus a confidence-calibration step to resolve conflicts.

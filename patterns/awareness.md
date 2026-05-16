@@ -23,6 +23,10 @@ Agents that do not know their own capabilities either over-promise (hallucinate 
 - Stale awareness misleads.
 - Self-description is itself a prompt-engineering effort.
 
+## Therefore
+
+Therefore: keep the agent's tools, environment, task, and identity as queryable state injected into each turn, so that the agent reasons from what it actually has rather than from what it imagines.
+
 ## Solution
 
 Persist explicit state about: available tools (with descriptions), the environment (what host, what user, what permissions), the current task, and the agent's own identity. Refresh on capability changes. Inject relevant slices of awareness into each turn's context.

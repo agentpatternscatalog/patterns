@@ -23,6 +23,10 @@ Failing entirely on any dependency outage frustrates users; silently producing d
 - User-visible degradation messaging is its own UX problem.
 - Some failures must hard-fail (PII path, payment).
 
+## Therefore
+
+Therefore: define per-feature downgrades and disclose them to the user when triggered, so that a dependency outage reduces the experience instead of killing it.
+
 ## Solution
 
 Define per-feature fallback behaviour. On dependency failure, downgrade (text-only when vision fails, no citations when retrieval fails, simple summary when code execution fails) and disclose to the user that degraded mode is active. Feature flags double as degradation switches.

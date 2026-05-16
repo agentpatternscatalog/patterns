@@ -39,6 +39,10 @@ Hosted-API agents leak prompts, tool inputs, and outputs to a third party; for r
 - Self-hosted operations cost or complexity exceeds the regulatory benefit.
 - Available open-weight models cannot meet quality targets for the workload.
 
+## Therefore
+
+Therefore: place every load-bearing component (weights, inference, tools, memory, logs, eval) inside one operator-controlled jurisdictional boundary and forbid any agent path that crosses it, so that no prompt or output ever reaches a third-party API.
+
 ## Solution
 
 Choose models with permissive weights or commercial sovereign licensing. Run inference on-prem or in a jurisdictionally controlled cloud region with the operator holding the keys. Place all auxiliary services (vector store, tool gateway, audit log, evaluation harness) inside the same boundary. Document the boundary as part of the system's compliance posture (model card, data-flow diagram). Treat the boundary as load-bearing: any new tool or model call has to be reviewed for boundary impact before merge.

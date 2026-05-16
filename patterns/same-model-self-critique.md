@@ -38,6 +38,10 @@ The critic shares the producer's blind spots. Wrong answers are reinforced as co
 - Cost of a wrong-but-confident answer is high.
 - A second model family or programmatic verifier is available.
 
+## Therefore
+
+Therefore: route critique to a different model family or a programmatic verifier — and if you cannot, downgrade the claim to 'catches surface errors only' — so that shared blind spots stop being laundered as independent confirmation.
+
 ## Solution
 
 Don't pretend it is independent. Either accept that self-critique catches surface errors only, or use a different model family for the critic. See reflection, evaluator-optimizer, llm-as-judge.

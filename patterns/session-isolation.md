@@ -38,6 +38,10 @@ Shared memory backends and shared model contexts can leak one user's data into a
 - Identity propagation cannot be enforced through every cache and store.
 - Session state genuinely is shared and intended (collaborative workspaces).
 
+## Therefore
+
+Therefore: key all session state, caches, and retrieval by a per-user identity that travels with every read and write, so that no user's content can ever surface inside another user's agent.
+
 ## Solution
 
 Session state is keyed by per-user identity (OAuth/JWT subject). Reads and writes carry that identity end-to-end. Caches are scoped per user. Prompts never include another user's content.

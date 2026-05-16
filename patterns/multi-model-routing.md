@@ -38,6 +38,10 @@ Static model choice either pays too much or misses quality on hard cases.
 - Routing classification is too inaccurate to be safe.
 - Operational complexity of multi-model deployment is unjustified by the savings.
 
+## Therefore
+
+Therefore: classify each request and bind it to the cheapest model tier that meets its quality bar, escalating only on low confidence, so that spend tracks difficulty instead of defaulting to the strongest model.
+
 ## Solution
 
 Combine routing (classify the request) with a per-class model preference. Routing and filter extraction go to the cheap model; the screen-aware dialog or final answer goes to the strong model. Optionally cascade: try cheap, fall back to strong if confidence is low.

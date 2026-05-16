@@ -37,6 +37,10 @@ ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit 
 - No useful value function or step-level signal exists.
 - Latency and token cost cannot absorb tree expansion and rollouts.
 
+## Therefore
+
+Therefore: lift the agent loop into an MCTS-style tree of partial trajectories scored by a value function, so that the agent can backtrack from failing branches instead of committing to the first plausible chain.
+
 ## Solution
 
 Apply Monte Carlo Tree Search (MCTS) to the agent loop. Each node is a partial trajectory. Expansion samples next thoughts/actions. Backpropagation updates a value estimate. Selection chooses the next node by UCT. The agent can backtrack from a failing branch instead of committing.

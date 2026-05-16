@@ -23,6 +23,10 @@ Naive concatenation overflows; naive truncation loses critical state.
 - Compression has its own LLM cost.
 - Reserved budget for the response itself.
 
+## Therefore
+
+Therefore: budget the window explicitly across system, tools, history, retrieval, and response before each call, so that nothing important is silently truncated and nothing wasteful is silently included.
+
 ## Solution
 
 Define a packing policy. Reserve N tokens for system + tools + response. Allocate the rest across history (compressed), retrieved chunks (top-k after rerank), and current state. Use eviction (drop oldest), summarisation (compress), or selection (relevance-rank) policies. Audit token counts before each call.

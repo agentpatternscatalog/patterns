@@ -38,6 +38,10 @@ One-shot generation under-uses the model; calling for explicit critique-and-revi
 - The model's self-feedback is known to be unreliable on this task.
 - Latency budget forbids multiple refine passes.
 
+## Therefore
+
+Therefore: assign generate, feedback, and refine as three distinct roles on the same model with a fixed stop criterion, so that single-model self-correction stays bounded instead of looping indefinitely.
+
 ## Solution
 
 Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.

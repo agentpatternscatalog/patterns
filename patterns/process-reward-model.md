@@ -38,6 +38,10 @@ Outcome reward models reinforce shortcut reasoning that lands on the right answe
 - Collecting step-level labels at sufficient scale is not feasible.
 - Inference-time scoring overhead exceeds the quality gain.
 
+## Therefore
+
+Therefore: label and score reasoning steps individually rather than only the final answer, so that bad intermediate hops can be rejected before they propagate into a confidently wrong conclusion.
+
 ## Solution
 
 Collect step-level labels (correct / neutral / incorrect / hallucination) for chain-of-thought traces. Train a classifier to predict step labels. At inference, score every step; reject candidates whose intermediate steps have low scores. Powers test-time search and fine-tuning of the generator.

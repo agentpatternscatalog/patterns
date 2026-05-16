@@ -23,6 +23,10 @@ A single sample may be acceptable; the best of N is often markedly better at mod
 - Reward-model quality bounds achievable improvement.
 - Diversity across candidates is needed; identical samples defeat the pattern.
 
+## Therefore
+
+Therefore: draw N diverse samples in parallel and let a separate scorer pick the winner, so that selection pressure rather than a single greedy decode determines what ships.
+
 ## Solution
 
 Generate N candidates with non-zero temperature. Score each with a reward model or rule-based scorer. Return the top-1 (or top-K). BoNBoN alignment fine-tunes a model to mimic the BoN distribution directly, eliminating per-inference sampling cost.

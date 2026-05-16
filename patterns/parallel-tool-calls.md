@@ -39,6 +39,10 @@ Sequential tool calls waste latency on independent operations; full DAG-planning
 - Concurrency would breach external rate limits or transactional invariants.
 - Heavyweight DAG planning is already in place and parallel calls would conflict.
 
+## Therefore
+
+Therefore: let the assistant turn carry several independent tool calls and have the host fan them out concurrently under a bounded budget, so that independent steps share wall-clock time instead of stacking it.
+
 ## Solution
 
 The provider's API allows the assistant turn to contain multiple tool calls. The host fans them out concurrently (with bounded concurrency and rate-limit handling). Results return as multiple tool messages; the next assistant turn sees all of them.

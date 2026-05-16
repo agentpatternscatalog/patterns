@@ -23,6 +23,10 @@ Free-form 'review your work' produces inconsistent reviews because the model inv
 - Rubric drift over time is a separate problem from per-call drift.
 - Some defects fall outside the rubric and go unflagged.
 
+## Therefore
+
+Therefore: hand the reviewer a fixed rubric and a schema that rejects out-of-rubric findings, so that the critique surface stays stable instead of drifting on every run.
+
 ## Solution
 
 A fixed rubric file (or schema) lists exactly the categories the reviewer may flag. The reviewer prompt includes the rubric and a JSON Schema enforcing it. Temperature is zero. Output validates against the schema; new finding categories are rejected.

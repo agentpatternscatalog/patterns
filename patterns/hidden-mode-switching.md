@@ -37,6 +37,10 @@ Reproducibility breaks; users notice quality changes they cannot diagnose; trust
 - Any audit or compliance setting requiring per-request model identity.
 - Any environment where users compare outputs across runs.
 
+## Therefore
+
+Therefore: disclose the resolved model identity on every response and make the routing decision inspectable in traces, so that users can diagnose quality drift and reproduce results across runs.
+
 ## Solution
 
 Don't. Disclose model identity per response. Use multi-model-routing transparently. Make routing decisions inspectable.

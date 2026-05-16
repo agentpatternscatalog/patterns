@@ -23,6 +23,10 @@ Without a release gate tied to evals, quality regressions slip through; the eval
 - Eval-suite drift if not maintained.
 - Calibration: which evals are blocking, which are advisory.
 
+## Therefore
+
+Therefore: split the eval suite into blocking and advisory tiers and wire the blocking tier into CI as a release gate, so that quality regressions stop a release the same way a failing test does.
+
 ## Solution
 
 Define a tiered eval suite: blocking evals (must pass for release), advisory evals (tracked but not blocking). Wire blocking evals into CI. Block PRs and releases when blocking evals fail. Treat eval changes as architectural changes (review, signoff).

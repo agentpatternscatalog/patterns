@@ -38,6 +38,10 @@ Letting vendor shapes leak into the agent's context wastes tokens and ties the a
 - The translation layer would add more complexity than it saves.
 - Vendor shapes change so often that the translator becomes the bottleneck.
 
+## Therefore
+
+Therefore: insert a typed module that maps vendor JSON into the agent's domain shape on the way in and back into signed vendor calls on the way out, so that the agent sees one clean palette regardless of how messy the upstream APIs are.
+
 ## Solution
 
 A translation module sits between the agent's tool palette and the upstream API. Inbound: vendor JSON is mapped into the domain shape. Outbound: domain edits become signed vendor calls. The agent sees one consistent shape regardless of how many backends sit behind it.

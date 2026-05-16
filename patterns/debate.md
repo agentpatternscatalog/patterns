@@ -23,6 +23,10 @@ Single-agent answers hide reasoning blind spots; the same model giving both answ
 - Debate length must be bounded.
 - A judge is needed to decide; the judge has its own biases.
 
+## Therefore
+
+Therefore: assign different agents to argue opposing positions over bounded rounds and let a judge resolve, so that counter-arguments are surfaced rather than reinforced by a single-model self-critique.
+
 ## Solution
 
 Two or more agents are given different positions. They exchange arguments over N rounds. A judge agent (or a tie-break rule) selects the answer or synthesises a position from both.

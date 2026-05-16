@@ -24,6 +24,10 @@ Without an internal scheduler the agent either acts immediately on every thought
 - Forgetting is a real failure mode in multi-turn / multi-day work.
 - The future-self should treat the past-note as a SYSTEM message, not as an unprompted user input.
 
+## Therefore
+
+Therefore: give the agent a tool to drop a note for its own future self into a persistent queue that drains as SYSTEM messages at fire time, so that present thoughts can commit to future action without spamming now or being forgotten by then.
+
 ## Solution
 
 Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).

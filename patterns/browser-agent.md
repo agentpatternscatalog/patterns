@@ -23,6 +23,10 @@ Raw HTML is too noisy for agents; pixel-based GUI control is slow and brittle on
 - Action vocabulary completeness vs simplicity.
 - Anti-bot measures break agent flows.
 
+## Therefore
+
+Therefore: expose the page as a numbered DOM / accessibility tree and a small action vocabulary, so that the agent reasons over stable structure instead of raw HTML or pixels.
+
 ## Solution
 
 A library (Playwright-backed) exposes structured page state (numbered interactive elements, accessibility tree) and a compact action set (click, type, scroll, navigate). The agent reasons over the structured state and emits actions; the library executes them.

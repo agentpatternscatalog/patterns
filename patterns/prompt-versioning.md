@@ -38,6 +38,10 @@ Prompts edited inline in code are hard to audit; rolling back a prompt means rol
 - No registry exists and the operational cost outweighs current churn.
 - Inline prompts already work and there is no audit obligation.
 
+## Therefore
+
+Therefore: store prompts as immutable, hashed, semver-tagged artefacts in a registry that code references by name and version, so that deploys, rollbacks, and eval results all pin to a specific prompt the same way they pin to specific code.
+
 ## Solution
 
 Prompts live in a registry as immutable, hashed, version-tagged artefacts. Code references prompts by name + version (semver). Deployments pin specific versions; rollback by version. Eval harness ties metric outcomes to prompt versions. Optionally signed for provenance.

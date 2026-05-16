@@ -38,6 +38,10 @@ The agent wanders, retries, or loops on errors. Cost is unbounded. User waits.
 - The model is observed not to declare 'done' reliably.
 - Programmatic stop conditions can be defined for the loop.
 
+## Therefore
+
+Therefore: set a `max_steps` cap and a programmatic stop-hook predicate on the loop, so that termination is decided by construction rather than left to whether the model happens to declare itself done.
+
 ## Solution
 
 Don't. Set max_steps. Add a stop hook. See step-budget, the-stop-hook.

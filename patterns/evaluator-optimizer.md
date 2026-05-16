@@ -23,6 +23,10 @@ Single-shot generation tops out below what an evaluator-corrected loop achieves.
 - Loop budget caps cost.
 - Generator and evaluator can collude (especially if same model, same prompt family).
 
+## Therefore
+
+Therefore: split generation from evaluation into two prompts with different roles and a bounded loop between them, so that the optimizer pushes against an explicit, calibrated target rather than its own approval.
+
 ## Solution
 
 Generator produces a candidate. Evaluator scores it against criteria with feedback. Generator revises with the feedback. Loop until evaluator passes or max iterations.

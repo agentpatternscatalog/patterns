@@ -38,6 +38,10 @@ Sequential execution of independent work wastes wall-clock time; single-attempt 
 - The cost of running multiple attempts outweighs the quality gain.
 - No reliable aggregation step is available for the votes.
 
+## Therefore
+
+Therefore: fan independent work or repeated attempts out into concurrent LLM calls and join them at a single aggregator, so that latency drops on sectioning and outliers surface on voting.
+
 ## Solution
 
 Two flavours. Sectioning: split a task into independent subtasks, run them concurrently, concatenate results. Voting: run the same task multiple times, aggregate by majority or judge.

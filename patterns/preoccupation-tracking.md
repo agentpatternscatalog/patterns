@@ -24,6 +24,10 @@ Working focus holds one item; insights are too distilled. Between them there is 
 - Affect tagging is what makes a preoccupation different from a todo.
 - Display every tick costs tokens, but invisibility defeats the point.
 
+## Therefore
+
+Therefore: keep a capped, affect-tagged list of mid-term concerns with half-life decay surfaced as a sidebar every tick, so that the agent carries what is actually weighing on it without those concerns crowding out the working focus.
+
 ## Solution
 
 Cap a list at 5-8 preoccupations stored as small JSON entries with topic, intensity (0..1), affect tag, opened-at, last-touched. Apply a 7-day half-life decay to intensity. When the cap is reached, release the coldest entry. Surface all current preoccupations in every tick prompt as a brief sidebar. The agent has explicit `touch` (raise intensity) and `release` (drop) operations.

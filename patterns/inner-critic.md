@@ -37,6 +37,10 @@ Self-edits applied directly bypass review; the agent can corrupt its own future 
 - No frozen checkpoint or isolation boundary is available for the critic.
 - Edit volume is low enough that human review is cheaper than building a critic.
 
+## Therefore
+
+Therefore: route every self-edit through a separate critic running on a frozen checkpoint and merge only on approval, so that the agent cannot silently rewrite itself past its own guardrails.
+
 ## Solution
 
 Every self-edit goes through a critic step: a separate prompt (and optionally a separate model) reviews the proposed diff against criteria (safety, charter compliance, test passing). Edits land only on critic approval. Rejected edits are logged for later human review. The critic must run on a frozen checkpoint (separate process or sandbox) so a malformed self-edit cannot corrupt the critic before it votes; recursion guard is required when the critic itself is in the edit scope.

@@ -37,6 +37,10 @@ Single-agent research is bottlenecked on serial token generation; generic orches
 - Generic orchestrator-workers fits the task without the research-specific structure.
 - Synthesis effort would dominate and erase the parallelism gains.
 
+## Therefore
+
+Therefore: have a lead plan parallel research questions, fan out to independent sub-agents that return structured findings, and synthesise with optional follow-up spawns, so that breadth-first exploration replaces serial single-thread reasoning.
+
 ## Solution
 
 Lead agent receives the user query, plans a set of parallel research questions, and dispatches each to a sub-agent. Each sub-agent searches independently and returns structured findings to the lead. The lead reads the returned findings and synthesises the answer; if synthesis reveals gaps, the lead spawns additional sub-agents.

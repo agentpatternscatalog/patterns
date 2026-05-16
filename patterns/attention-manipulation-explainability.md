@@ -24,6 +24,10 @@ Free-text "why did you say that?" follow-up prompts produce plausible but unfait
 - Faithfulness of the explanation matters more than its readability.
 - Vendor-side method may be incompatible with hosted black-box APIs.
 
+## Therefore
+
+Therefore: perturb the model's attention token by token and measure how each suppression shifts output probability, so that the explanation comes from the model's actual computation instead of a generated rationalisation.
+
 ## Solution
 
 Run a structured perturbation pass over the model's attention: for each input token (or chunk), suppress its attention contribution and measure the change in the output token probabilities. Tokens whose suppression most reduces the output probability are the most relevant. Surface this as a heat-map alongside the answer. Keep the attribution method on the inference side; avoid asking the model to self-explain in prose.

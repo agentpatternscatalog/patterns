@@ -38,6 +38,10 @@ Monolithic transformations are hard to test; bespoke pipelines reinvent connecti
 - Filter boundaries would be artificial and add plumbing without payoff.
 - Strong cross-stage state coupling defeats the filter abstraction.
 
+## Therefore
+
+Therefore: decompose the transformation into small single-responsibility filters connected by typed pipes, so that each stage is testable in isolation and reusable across pipelines.
+
 ## Solution
 
 Decompose the transformation into small filters with single responsibilities. Connect them via typed pipes (function call, queue, stream). Each filter is testable in isolation. Filters can be reused across pipelines.

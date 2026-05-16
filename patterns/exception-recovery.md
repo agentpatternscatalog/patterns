@@ -23,6 +23,10 @@ Untyped errors bubble up as agent confusion; the agent retries randomly, halluci
 - Some errors are user-visible; others should be silent.
 - Retry storms on transient errors.
 
+## Therefore
+
+Therefore: catalogue each predictable failure as a typed error with a defined recovery branch (retry, fall back, surface, replan), so that the agent reacts deterministically instead of hallucinating an explanation.
+
 ## Solution
 
 Catalogue failure modes. For each, define: detect (typed error), respond (retry / fall back / surface to user / replan), and log. The agent receives a structured error message and can react with a typed branch in its loop.

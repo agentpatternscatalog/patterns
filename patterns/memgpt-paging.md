@@ -37,6 +37,10 @@ Fixed context windows force a choice between losing state and stuffing irrelevan
 - Tool-call latency for paging is unacceptable for the use case.
 - Simpler retrieval-on-demand patterns already serve the workload.
 
+## Therefore
+
+Therefore: let the model treat its context window as RAM and an external store as disk, with explicit tool calls to page memory in and out, so that the agent decides what to remember without retraining its context size.
+
 ## Solution
 
 Two memory tiers. Main context: system prompt, working set, recent messages. External context: recall (raw history) and archival (vector store). The model has tool calls for read_recall, write_archival, search_archival. Paging happens at the agent's discretion; the model treats main context as RAM and external as disk.

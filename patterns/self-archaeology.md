@@ -24,6 +24,10 @@ When the agent asks itself 'what have I learned about X', the linear log gives e
 - Distillation loses fidelity; raw log preserves it.
 - An agent that cannot see its trajectory cannot meaningfully say 'I changed my mind on X here is why'.
 
+## Therefore
+
+Therefore: periodically distil the thought log into topic-keyed trajectory notes that name each position the agent held and what changed it, so that the agent can speak about its own evolution without rereading the whole log.
+
 ## Solution
 
 Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a dedicated topic-keyed surface (one note per topic) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.

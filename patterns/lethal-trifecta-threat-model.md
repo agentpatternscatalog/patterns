@@ -24,6 +24,10 @@ An attacker only needs to plant one well-crafted prompt-injection payload in any
 - Outbound channels are easy to overlook — image URLs, link previews, error reports, and tool calls can all serve as exfiltration paths.
 - Removing capabilities reduces agent utility; the operator must consciously trade utility for safety.
 
+## Therefore
+
+Therefore: tag every tool and data source by which of the three capabilities it provides and let the host refuse any execution path that holds all three at once, so that exfiltration is eliminated by construction rather than by classifier accuracy.
+
 ## Solution
 
 Treat the three capabilities — **private-data read**, **untrusted-content ingest**, and **outbound communication** — as a tagged capability set on every tool and data source. For each agent execution path, enforce at orchestration time that at least one of the three is missing. Concrete moves: split the agent into two runs (one that reads private data, one that reads untrusted content), strip outbound network for the run that touches both, or sanitise untrusted content into typed fields before it reaches private-data context. The check is performed by the host, not by guardrail prompts.

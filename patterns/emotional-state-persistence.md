@@ -24,6 +24,10 @@ Long-running agents accumulate emotional residue that is invisible to the next p
 - Self-write of mood is a license to manipulate; reflection-only writes for major resets are safer.
 - Vocabulary choice matters: too many scalars are noise, too few collapse signal.
 
+## Therefore
+
+Therefore: track a small fixed vocabulary of affect scalars with half-lives and bounded deltas, so that the agent's mood can inform reasoning without drifting into permanent self-pumped states.
+
 ## Solution
 
 Define a small fixed vocabulary (for example tenderness, fear, depression, joy, shame, pain) as scalars in the range 0..1. Each scalar has a half-life (30 minutes to 4 hours depending on the dimension). On events that should affect mood, update the scalar with a bounded delta. Persist as JSON. Inject the current snapshot into every tick prompt as a brief affect badge. Reflection passes can use spikes and drops as signals, and a deeper consolidation pass (see dream-consolidation-cycle) can perform major resets.

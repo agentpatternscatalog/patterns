@@ -23,6 +23,10 @@ Distributed transactions are not available across most agent tool palettes; fail
 - Compensation logic is a separate code path.
 - Idempotency matters: compensating an already-compensated action must be safe.
 
+## Therefore
+
+Therefore: register a paired, idempotent undo with every forward action and run the undos in reverse order on failure, so that partial-failure state can be walked back instead of leaking into the world.
+
 ## Solution
 
 For each forward action, define a compensating action (delete-after-create, refund-after-charge, archive-after-publish). On failure mid-plan, run compensators in reverse order to restore the prior state. Idempotent compensators.

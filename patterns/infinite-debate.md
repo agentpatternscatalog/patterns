@@ -37,6 +37,10 @@ Debate without termination converges only by accident. Real cost grows linearly 
 - Any debate setup that lacks a judge or stop condition.
 - Any task where progress cannot be measured between rounds.
 
+## Therefore
+
+Therefore: cap rounds explicitly and pair debate with a judge or aggregator that emits a terminal verdict, so that convergence is decided by a rule instead of by the cost limiter kicking in.
+
 ## Solution
 
 Don't. Add a round cap and a termination predicate. Pair debate with a judge or aggregator. See debate, step-budget, the-stop-hook.

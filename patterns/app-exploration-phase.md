@@ -24,6 +24,10 @@ Without prior knowledge of element semantics, the agent guesses at every screen 
 - App UIs change; the documentation goes stale and needs refresh.
 - Documentation that is too verbose drowns the agent in irrelevant context at deployment.
 
+## Therefore
+
+Therefore: split the agent's lifecycle into an exploration phase that authors per-element documentation and a deployment phase that retrieves only the relevant docs, so that opaque UIs become grounded at action time without flooding context.
+
 ## Solution
 
 Split the agent's lifecycle into two phases. (1) Exploration — agent autonomously interacts with the app or watches a human demo, and writes per-element documentation: what the element is, what it does, when to use it. Store as a structured knowledge base. (2) Deployment — for each task, retrieve relevant element docs (e.g. via vector search), inject into context, then act. Refresh docs when the UI changes.

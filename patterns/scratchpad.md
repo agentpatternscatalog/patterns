@@ -38,6 +38,10 @@ Without a scratchpad, intermediate work pollutes the response or is lost between
 - Mixing intermediate notes with output would not actually pollute UX.
 - The scratchpad would never be purged and would grow unbounded.
 
+## Therefore
+
+Therefore: give the agent a separate writable surface for intermediate notes that informs later turns but is not shown to the user, so that working notes can be messy without polluting the response.
+
 ## Solution
 
 Provide a tool or convention for writing to a scratchpad (a section of the prompt, a tool call, a file). The agent reads from and writes to it across turns. The user-visible response is separate. The scratchpad is purged at task completion or expires with the session.

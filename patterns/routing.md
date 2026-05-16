@@ -38,6 +38,10 @@ A single prompt that handles everything either over-pays (cheap requests routed 
 - Misrouting cost is high and the classifier cannot meet the required accuracy.
 - Latency budget cannot accommodate an extra classifier hop.
 
+## Therefore
+
+Therefore: put a cheap classifier in front that labels each request and dispatches it to the specialist lane built for that label, so that traffic pays the price and gets the depth that matches its kind.
+
 ## Solution
 
 A lightweight classifier model (often the cheapest available) returns a label. The host dispatches the request to the specialist for that label. Common lanes: command (deterministic action), agent (multi-step), chat (no tools).

@@ -24,6 +24,10 @@ JSON tool calls flatten composition; expressing "call A, filter results by predi
 - Executing model-generated code is a real security surface.
 - Models trained on code emit composed actions more compactly than JSON ones.
 
+## Therefore
+
+Therefore: replace the JSON tool-call channel with a sandboxed code snippet whose host pre-imports tools as functions, so that the agent composes loops, conditionals, and intermediate variables inside a single action instead of unrolling them across turns.
+
 ## Solution
 
 Replace the JSON tool-call channel with a code-snippet channel. The agent emits a Python (or DSL) snippet; the host executes it in a sandboxed interpreter that pre-imports the available tools as functions and an allow-list of safe builtins/modules. Tool results are returned as Python values usable by subsequent code. The agent can compose tools inside one snippet (loops, conditionals, intermediate variables) and observe the printed output. Bracket every snippet with a sandbox that whitelists imports and prevents arbitrary IO.

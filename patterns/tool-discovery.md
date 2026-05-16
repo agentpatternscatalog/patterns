@@ -38,6 +38,10 @@ Hardcoded tool palettes force a redeploy for every new capability; dynamic envir
 - Dynamic discovery introduces unacceptable latency or trust risk.
 - No registry exists and building one is more cost than benefit.
 
+## Therefore
+
+Therefore: query a tool registry at startup (or on refresh) instead of hardcoding the palette, so that new tools become available without redeploying the agent.
+
 ## Solution
 
 On startup (or periodically), the agent queries a tool registry (MCP server, internal directory). The registry returns advertised tools with typed schemas. The agent loads them into its palette. Optionally cached and refreshed.

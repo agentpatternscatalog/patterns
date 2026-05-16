@@ -38,6 +38,10 @@ An agent with full host access can damage the host (delete files, exfiltrate dat
 - Isolation overhead breaks latency or cost targets and the workload is genuinely safe.
 - Sandbox configuration is so loose it provides no real protection.
 
+## Therefore
+
+Therefore: run every agent-emitted action inside a container, microVM, or WASM runtime with allowlisted filesystem, network, and resource limits, so that mistakes and prompt injections cannot reach the host.
+
 ## Solution
 
 Run code in a container, microVM, WASM runtime, or restricted subprocess with minimal privileges. Filesystem is read-only or scoped to a working directory. Network is allowlisted or blocked. Resource limits cap CPU/memory/time. Persistent state is ephemeral by default.

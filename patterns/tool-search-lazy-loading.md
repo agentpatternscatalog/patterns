@@ -24,6 +24,10 @@ Eagerly injecting all available tool definitions into the system prompt burns to
 - Searching for tools at runtime adds an extra round trip before the first tool call.
 - Hidden tools must still be discoverable — otherwise the model behaves as if they do not exist.
 
+## Therefore
+
+Therefore: replace the eager tool list with a search primitive that returns schemas on demand, so that a 50+ tool catalogue stays discoverable without dominating the prompt budget until a tool is actually about to be called.
+
 ## Solution
 
 Replace the eager tool list with a single search primitive (for example a ToolSearch tool) that returns matching tool schemas by query. The system prompt lists only the search primitive plus a short index of tool names or categories. When the model decides it needs a tool, it calls the search primitive, receives the full schema for the matching tools, and only then calls the tool by name. Schemas loaded by search are kept in context for the rest of the session so repeat use does not pay the lookup cost again.

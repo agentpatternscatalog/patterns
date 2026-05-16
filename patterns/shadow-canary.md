@@ -38,6 +38,10 @@ Releases without field comparison miss regressions visible only on real traffic.
 - Cost of running both champion and challenger is prohibitive.
 - No diff metric exists that reliably catches regressions.
 
+## Therefore
+
+Therefore: dual-route a fraction of real traffic through both champion and challenger, return the champion's output to the user, and diff the challenger's logged output on agreed metrics, so that a candidate is validated on live distribution before it can affect anyone.
+
 ## Solution
 
 Route a fraction of real traffic through both champion and challenger. Champion's output reaches the user. Challenger's output is logged. Diff the outputs on agreed metrics (judge model, exact match on tool calls, latency, cost). Promote on lift; revert on regression.

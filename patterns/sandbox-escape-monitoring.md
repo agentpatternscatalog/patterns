@@ -38,6 +38,10 @@ Sandbox-isolation is preventive only; without monitoring, a successful escape (o
 - Telemetry volume would overwhelm the safety pipeline without thresholds.
 - Alerts have no responder and would be ignored.
 
+## Therefore
+
+Therefore: instrument the sandbox to log every syscall, egress, and filesystem write outside the allowed set, stream to safety telemetry, and tie threshold breaches to the kill-switch, so that boundary violations become alertable signal rather than silent compromise.
+
 ## Solution
 
 Instrument the sandbox: log every syscall outside the allowed set, every network egress not on the allowlist, every filesystem write outside the working directory. Stream to safety telemetry. Alert on threshold breaches. Pair with kill-switch for automatic halt on confirmed escape.

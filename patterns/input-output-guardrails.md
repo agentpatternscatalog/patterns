@@ -37,6 +37,10 @@ Trusting the model to police its own inputs and outputs is unsafe; the model is 
 - Validators have unacceptable false-positive rates that block legitimate traffic.
 - Latency budget cannot accommodate pre- and post-processing checks.
 
+## Therefore
+
+Therefore: wrap the model in composable validators on the input and output paths and block or rewrite payloads that fail policy, so that the model is never the only thing standing between adversarial content and the user.
+
 ## Solution
 
 Place validators on input (regex, classifier, allowlist) and output (schema, toxicity classifier, secret-redaction) paths. Compose validators per use case. On failure, exception or fallback response. Hub of pre-built validators is reusable across products.

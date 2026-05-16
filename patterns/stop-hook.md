@@ -38,6 +38,10 @@ Implicit termination ('the model says it is done') fails when the model is uncer
 - No programmatic stop condition can be defined for the task.
 - The loop is naturally bounded by an external trigger.
 
+## Therefore
+
+Therefore: run a programmatic stop predicate after every step that returns continue, stop-success, or stop-failure on explicit conditions (target, budget, error, stagnation), so that termination is a tested decision rather than the model's opinion.
+
 ## Solution
 
 Implement a stop hook function that runs after each step. It returns one of: continue, stop-success, stop-failure. Conditions include: target reached, step budget hit, error encountered, stagnation detected (no progress in last N steps).

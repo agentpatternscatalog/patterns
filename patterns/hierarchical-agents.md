@@ -37,6 +37,10 @@ Flat supervisor patterns scale poorly: one supervisor with N specialists has pro
 - Bubbling synthesis up multiple levels is too lossy for the task.
 - Latency and token cost of nested orchestration are unacceptable.
 
+## Therefore
+
+Therefore: organise agents as a tree where each non-leaf decomposes and dispatches downward and synthesises results upward, so that decomposition scales beyond what a flat supervisor's prompt complexity can hold.
+
 ## Solution
 
 Each non-leaf agent receives a task, decomposes it, and dispatches sub-tasks to its children. Children may be specialists (leaves) or further managers. Results bubble up; each manager synthesises its children's outputs. Bounded depth and breadth prevent runaway hierarchies.

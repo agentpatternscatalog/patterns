@@ -23,6 +23,10 @@ Pure chain-of-thought hallucinates facts; pure tool-blasting wastes calls on the
 - Observations change the right next step.
 - The loop must terminate.
 
+## Therefore
+
+Therefore: interleave one Thought, one Action, and one Observation per step inside a bounded loop, so that the agent reasons over fresh tool evidence instead of either hallucinating from pure thinking or blasting tools blind.
+
 ## Solution
 
 On each step the agent emits Thought (private reasoning), Action (one tool call), Observation (the tool's result). Repeat until the agent decides to answer. A step budget bounds the loop.

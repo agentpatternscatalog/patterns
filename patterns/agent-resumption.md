@@ -23,6 +23,10 @@ Agents that lose state on restart lose hours of work; users distrust long-runnin
 - What to persist; what to recompute.
 - Resumability requires deterministic enough replay or full state capture.
 
+## Therefore
+
+Therefore: either replay a deterministic log of recorded effects or restore a periodic snapshot of agent state, and pass idempotency keys to every side-effect target, so that a restart resumes mid-flight without duplicating work.
+
 ## Solution
 
 Two production approaches. (a) Deterministic replay of recorded effects (Temporal/Inngest pattern): state = inputs + log of side-effects; on resume, the engine re-executes the workflow code, skipping side-effects that already have logged results. (b) Checkpoint snapshots of agent state (LangGraph Cloud pattern): periodically serialise plan, working memory, partial outputs, pending tool calls; restore on restart. Both approaches require deterministic idempotency keys passed to side-effect targets so a replayed-but-unlogged call is deduplicated downstream. Without this, crash-between-effect-and-log produces duplicates.

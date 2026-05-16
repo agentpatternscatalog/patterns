@@ -37,6 +37,10 @@ Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries
 - Entity and relation extraction quality is too low to populate the graph reliably.
 - Operating a graph store adds complexity disproportionate to the query volume.
 
+## Therefore
+
+Therefore: extract entities and relations from observations into a typed graph, so that the agent can answer path, neighbour, and type questions that pure similarity search cannot.
+
 ## Solution
 
 Extract entities and relations from observations into a graph store (Neo4j, RDF, simple JSON). Queries traverse the graph (Cypher/SPARQL or programmatic). Combine with vector memory for hybrid retrieval (vector finds entry points; graph traverses).

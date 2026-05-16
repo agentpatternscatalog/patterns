@@ -23,6 +23,10 @@ Agents that act first and bill later create surprise costs; users learn to distr
 - Confirmation-fatigue: too many approvals train users to ignore them.
 - Budgets at multiple horizons (per call, per session, per month).
 
+## Therefore
+
+Therefore: forecast cost before each expensive call and block on explicit acknowledgement when the estimate or running total crosses a budget line, so that the bill stops being a surprise.
+
 ## Solution
 
 Estimate cost before invoking the expensive action. If the estimate exceeds the threshold, surface it to the user (or operator) and require explicit approval. Track running totals against per-session and per-period budgets.

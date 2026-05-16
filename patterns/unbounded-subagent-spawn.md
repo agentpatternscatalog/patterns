@@ -38,6 +38,10 @@ step-budget caps a single agent's loop; cost-gating caps a single action's cost.
 - Total system cost across the agent tree is bounded by SLOs.
 - A kill-switch is available for emergency descent halt.
 
+## Therefore
+
+Therefore: maintain one global step budget across all descendants of a root request, cap fan-out per supervisor at five to ten children, and thread a `parent_run_id` through every spawn so the entire agent tree is inspectable and killable as a whole, so that recursive decomposition cannot blow the cost ceiling beneath per-agent caps.
+
 ## Solution
 
 Don't. Maintain a global step budget across all descendants of a root request. Cap fan-out per supervisor (typically 5-10 children). Track parent_run_id in lineage so the agent tree is inspectable. Pair with kill-switch for emergency descent halt.
