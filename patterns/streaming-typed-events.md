@@ -38,6 +38,10 @@ Waiting for the complete answer feels slow; a single text stream loses the struc
 - The client cannot consume streams or has no progressive UI.
 - A typed event vocabulary cannot be agreed across producer and consumer.
 
+## Therefore
+
+Therefore: split the stream into a typed event vocabulary (text_delta, card, tool_start, done, error) over SSE or WebSocket, so that each event routes to the right UI component as soon as it lands.
+
 ## Solution
 
 Use Server-Sent Events (or WebSocket) with a typed event vocabulary: text_delta (token), card (structured), suggestions, tool_start, tool_end, done, error. The client routes each event to the right UI component. Reconnect with last-event-id resumption.

@@ -17,6 +17,7 @@
         "Source selection requires capability descriptions.",
         "Loop bounds must prevent runaway retrieval."
       ],
+      "therefore": "Therefore: expose retrieval as a tool the agent chooses, reformulates, and bounds, so that retrieval becomes a planning decision rather than a fixed pipeline step.",
       "solution": "Treat retrieval as a tool. The agent decides whether to retrieve, formulates and reformulates the query, picks among multiple retrievers (vector, graph, keyword, web), evaluates retrieved evidence, and re-queries on insufficient results. Composes naturally with reflection, planning, and tool-use patterns.",
       "consequences": {
         "benefits": [
@@ -166,6 +167,7 @@
         "Prompt caching of the parent document amortises the cost.",
         "Context generation must be deterministic enough to keep the index stable."
       ],
+      "therefore": "Therefore: prepend an LLM-generated situating description to each chunk before embedding it, so that retrieval recall depends on the chunk's context, not just its words.",
       "solution": "For each chunk, prompt an LLM with the parent document and the chunk; receive a short description that situates the chunk. Prepend that description to the chunk. Embed the prepended chunk. Store BM25 over both prepended chunks (Contextual BM25) and dense vectors (Contextual Embeddings). Compose with reranking for further gains.",
       "consequences": {
         "benefits": [
@@ -269,6 +271,7 @@
         "Web fallback adds latency and external dependency.",
         "Three-way grading (correct / ambiguous / incorrect) needs calibration."
       ],
+      "therefore": "Therefore: insert a lightweight evaluator after retrieval and let its three-way grade trigger pass-through, web search, or rejection, so that bad retrievals are caught before they reach the generator.",
       "solution": "After retrieval, a lightweight evaluator (T5-based or similar) grades each document as Correct, Ambiguous, or Incorrect. Correct documents go forward as-is. Ambiguous documents trigger a web search for additional evidence. Incorrect documents are discarded and replaced via web search. The generator receives the corrected document set.",
       "consequences": {
         "benefits": [
@@ -365,6 +368,7 @@
         "Latency budget caps N (typically 20-100).",
         "Fine-tuning a custom reranker is a separate effort."
       ],
+      "therefore": "Therefore: rescore the cheap retriever's top-N with a cross-encoder that jointly attends over (query, candidate), so that final ranking reflects joint relevance rather than vector proximity alone.",
       "solution": "Two-stage retrieval. Stage 1: cheap retrieve (BM25, dense, hybrid) returns top-N. Stage 2: cross-encoder scores each (query, candidate) jointly. Return top-K << N to the generator.",
       "consequences": {
         "benefits": [
@@ -483,6 +487,7 @@
         "Graph quality depends on extraction prompts.",
         "Local-search vs global-search modes serve different query types and must be routed."
       ],
+      "therefore": "Therefore: index documents into an LLM-extracted knowledge graph with hierarchical community summaries and route queries by scope, so that global questions get global answers and local questions stay local.",
       "solution": "Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.",
       "consequences": {
         "benefits": [
@@ -579,6 +584,7 @@
         "Two indexes mean two pipelines to maintain.",
         "Tuning fusion weights is empirical and corpus-specific."
       ],
+      "therefore": "Therefore: index the corpus both lexically and semantically and fuse the rankings, so that exact-match recall and semantic recall both contribute to the final top-N.",
       "solution": "Index the corpus twice: BM25 for sparse, dense embeddings for semantic. At query time, retrieve top-k from each, fuse with Reciprocal Rank Fusion or weighted aggregation. Pass the fused top-N forward (typically into a reranker). Do not weight raw scores directly; use rank-based fusion (RRF) or score-normalised aggregation, since BM25 and dense scores live on incompatible scales.",
       "consequences": {
         "benefits": [
@@ -684,6 +690,7 @@
         "Adds an LLM call per query.",
         "Often paired with reranking to recover from off-topic hallucinations."
       ],
+      "therefore": "Therefore: have the LLM draft a hypothetical answer first and retrieve against its embedding, so that retrieval matches answer-shape, not just question-shape.",
       "solution": "On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.",
       "consequences": {
         "benefits": [
@@ -775,6 +782,7 @@
         "Embedding choice constrains retrieval quality.",
         "Single-shot retrieval misses multi-hop questions."
       ],
+      "therefore": "Therefore: chunk-embed the corpus, retrieve top-k by similarity to the query embedding, and condition generation on the retrieved chunks, so that knowledge lives outside the model parameters.",
       "solution": "Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed the query, retrieve top-k by similarity, prepend chunks to the prompt, generate. The simplest production RAG pipeline.",
       "consequences": {
         "benefits": [
@@ -917,6 +925,7 @@
         "Domain shift between training and serving distractors.",
         "Trade-off between generalisation and domain specialisation."
       ],
+      "therefore": "Therefore: train the model on examples containing both oracle and distractor documents, so that it learns to cite oracles and ignore distractors at serving time.",
       "solution": "Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.",
       "example_scenario": "A clinical-coding RAG assistant keeps citing topically-similar but wrong ICD chapters when the retriever pulls in adjacent conditions. The team builds a RAFT-style training set where each prompt has the oracle code reference plus three convincing distractors, and the gold answer cites only the oracle. After fine-tuning, the model learns to ignore distractors even when they dominate the retrieved context. Production accuracy on the long-tail comorbidity codes climbs without changing the retriever.",
       "consequences": {
@@ -1007,6 +1016,7 @@
         "Reflection tokens must be enforced at inference, not just trained.",
         "Self-evaluation correlates with the model's blind spots."
       ],
+      "therefore": "Therefore: teach the model to emit reflection tokens that gate retrieval, relevance, and support, so that the model itself decides when to retrieve and whether the result helps.",
       "solution": "A critic model is first trained to label data with reflection tokens. The generator is then fine-tuned on the labeled data to emit four reflection tokens inline at inference: [Retrieve], [IsRel] (is retrieved evidence relevant?), [IsSup] (is generation supported?), [IsUse] (is generation useful?). The host enforces the reflection grammar and uses tokens to control flow.",
       "example_scenario": "A document-QA agent always retrieves three chunks per query, even for trivial questions, and always generates an answer regardless of whether the retrieved chunks support one. The team fine-tunes a Self-RAG variant that emits inline reflection tokens: `[Retrieve]` decides per-query whether to retrieve, `[IsRel]` filters retrieved chunks, `[IsSup]` checks whether the generated claim is supported. Useless retrievals drop and unsupported answers are flagged before they reach the user.",
       "consequences": {

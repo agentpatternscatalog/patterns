@@ -38,6 +38,10 @@ Separate schemas per sub-type duplicate work and break clients that do not under
 - All clients understand all sub-types and a flat schema is simpler.
 - Sub-type extension blocks would proliferate unboundedly without governance.
 
+## Therefore
+
+Therefore: factor the family into a core schema with a discriminator plus namespaced extension blocks, so that common fields stay common and sub-types extend without breaking older clients.
+
 ## Solution
 
 Define a core schema with the common fields and a discriminator (e.g. `material_type`). Sub-type fields live in a namespaced extension block (e.g. `yarn: {...}` for yarn-specific). Clients that do not understand a sub-type still read the core fields and round-trip the rest without data loss.

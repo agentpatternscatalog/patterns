@@ -125,6 +125,9 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
             parts.append(f"<li>{esc(f)}</li>")
         parts.append("</ul>")
 
+    if p.get("therefore"):
+        parts.append(f"<h2>Therefore</h2><p>{esc(p['therefore'])}</p>")
+
     parts.append(f"<h2>Solution</h2><p>{esc(p['solution'])}</p>")
 
     if diagram:

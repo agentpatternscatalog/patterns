@@ -23,6 +23,10 @@ Generating citations after the answer hides them until the end; trusting the mod
 - Source spans need stable ids.
 - UI needs to render mid-stream without flickering.
 
+## Therefore
+
+Therefore: emit citations as typed events on the same stream as the text, so that the UI can render verifiable source links in place as content appears.
+
 ## Solution
 
 Define a streaming event vocabulary that includes citation events linked to source ids. The model is prompted to emit citation markers; the host extracts them into typed events alongside text deltas. The UI renders sources progressively. Final output includes a citation map.

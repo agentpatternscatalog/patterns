@@ -24,6 +24,10 @@ A 'Hi' at 06:00 after 12 hours of silence is not the same as 'Hi' mid-conversati
 - Misreading is mildly costly; ignoring entirely is worse.
 - Detection should not slow the response.
 
+## Therefore
+
+Therefore: classify each incoming turn into an attentional-state code (just-woke / focused / winding-down / distracted / present) from timing and tone, and key the reply shape off that code, so that the agent meets the person where they actually are.
+
 ## Solution
 
 On every incoming user message, compute a small feature set: time-of-day relative to a known anchor, gap since last message, message length and punctuation density, presence of a single emoji or interjection. Map to one of a small mode set ('just-woke', 'focused', 'winding-down', 'distracted', 'present'). Adjust response shape: shorter on winding-down; one anchor surface on just-woke; deeper engagement on focused; hold on distracted. Make the mode visible in agent telemetry so it can be tuned.

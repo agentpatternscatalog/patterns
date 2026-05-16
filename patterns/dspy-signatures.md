@@ -23,6 +23,10 @@ Hand-crafted prompts are brittle, model-specific, and drift over time; teams rei
 - Compile-time optimization vs metric/data availability.
 - Portability vs per-model compilation gains.
 
+## Therefore
+
+Therefore: declare each step as a typed signature and let a metric-driven compiler produce the prompts, so that prompts become a reproducible build artefact instead of hand-tuned strings.
+
 ## Solution
 
 Define each step as a typed signature (input fields → output fields). Compose signatures into modules. Run a teleprompter (optimizer) that generates few-shot examples and refines instructions against a held-out metric. The compiled artefact replaces hand-tuned prompts.

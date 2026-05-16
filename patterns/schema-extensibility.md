@@ -38,6 +38,10 @@ Rigid schemas break when fields are added; permissive schemas become incoherent.
 - Strict validation of all fields is required (no unknown extensions allowed).
 - Versioning discipline cannot be enforced and the envelope would rot.
 
+## Therefore
+
+Therefore: wrap payloads in a versioned envelope with reserved extension namespaces, so that old clients ignore new fields and `schema_version` becomes the only breaking-change signal.
+
 ## Solution
 
 Define a versioned envelope (`{schema_version, type, payload}`). Reserve namespaces for extensions (`x-vendor.foo`, `extensions: {...}`). Old clients ignore unknown extensions. Bumps to schema_version are the only breaking-change signal.

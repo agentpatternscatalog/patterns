@@ -37,6 +37,10 @@ Agents that emit on every cycle are noisy; agents that only emit on user request
 - Missing a low-salience event is unacceptable (compliance, safety telemetry).
 - No reliable salience signal can be constructed.
 
+## Therefore
+
+Therefore: score every internal event for salience and only emit when the score clears a threshold (and a rate-limit), so that output rate matches signal rate.
+
 ## Solution
 
 Score every internal event for salience (novelty + goal-relevance + recency + prediction-error - fatigue). When the score for a candidate output crosses a threshold, emit. Otherwise log and move on. Rate-limit emissions per time window.

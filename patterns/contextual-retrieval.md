@@ -23,6 +23,10 @@ Naive chunking destroys context; queries that name entities by full name miss ch
 - Prompt caching of the parent document amortises the cost.
 - Context generation must be deterministic enough to keep the index stable.
 
+## Therefore
+
+Therefore: prepend an LLM-generated situating description to each chunk before embedding it, so that retrieval recall depends on the chunk's context, not just its words.
+
 ## Solution
 
 For each chunk, prompt an LLM with the parent document and the chunk; receive a short description that situates the chunk. Prepend that description to the chunk. Embed the prepended chunk. Store BM25 over both prepended chunks (Contextual BM25) and dense vectors (Contextual Embeddings). Compose with reranking for further gains.

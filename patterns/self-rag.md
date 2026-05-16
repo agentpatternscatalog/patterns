@@ -38,6 +38,10 @@ Static retrieve-then-generate retrieves regardless of need and generates regardl
 - Fine-tuning the generator on reflection tokens is not feasible.
 - Latency or cost of inline reflection tokens is unacceptable.
 
+## Therefore
+
+Therefore: teach the model to emit reflection tokens that gate retrieval, relevance, and support, so that the model itself decides when to retrieve and whether the result helps.
+
 ## Solution
 
 A critic model is first trained to label data with reflection tokens. The generator is then fine-tuned on the labeled data to emit four reflection tokens inline at inference: [Retrieve], [IsRel] (is retrieved evidence relevant?), [IsSup] (is generation supported?), [IsUse] (is generation useful?). The host enforces the reflection grammar and uses tokens to control flow.

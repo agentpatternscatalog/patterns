@@ -24,6 +24,10 @@ The agent reads only text, so it projects flat affect onto whatever the human wr
 - A single one-line proxy at session start carries surprising amount of signal.
 - Updating the proxy on shift, not every turn, balances cost and freshness.
 
+## Therefore
+
+Therefore: maintain a minimal, human-updated embodied-state proxy and read it on every prompt assembly, so that response shape paces against the actual human rather than an imagined one.
+
 ## Solution
 
 Define a minimal proxy schema (energy 0-10, fatigue 0-10, environment one-word, optional emoji). Store the latest proxy in a small persistent file the agent reads on every prompt assembly. The human updates it at session start, after a long break, or when state changes meaningfully. The agent surfaces the proxy when it shapes the response (paces shorter for low energy, stays present for tired, doesn't open new threads for winding-down).

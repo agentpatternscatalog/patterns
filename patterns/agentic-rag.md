@@ -23,6 +23,10 @@ Naive RAG cannot decide whether to retrieve, which source to use, when to stop r
 - Source selection requires capability descriptions.
 - Loop bounds must prevent runaway retrieval.
 
+## Therefore
+
+Therefore: expose retrieval as a tool the agent chooses, reformulates, and bounds, so that retrieval becomes a planning decision rather than a fixed pipeline step.
+
 ## Solution
 
 Treat retrieval as a tool. The agent decides whether to retrieve, formulates and reformulates the query, picks among multiple retrievers (vector, graph, keyword, web), evaluates retrieved evidence, and re-queries on insufficient results. Composes naturally with reflection, planning, and tool-use patterns.

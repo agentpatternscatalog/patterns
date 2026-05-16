@@ -23,6 +23,10 @@ Pure request/response chat misses the long-running case; pure push notifications
 - Inverse: starvation when the agent waits forever.
 - Authority: not every user-typed line should be a command.
 
+## Therefore
+
+Therefore: pair sigil-prefixed user commands that bypass the model with salience-gated agent pushes on one channel, so that both sides can interrupt without spamming the other.
+
 ## Solution
 
 A single CLI/chat surface where the user can send sigil-prefixed commands (e.g. `!<verb> ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.

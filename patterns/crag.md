@@ -23,6 +23,10 @@ Naive RAG passes every retrieval into the generator; bad retrievals corrupt outp
 - Web fallback adds latency and external dependency.
 - Three-way grading (correct / ambiguous / incorrect) needs calibration.
 
+## Therefore
+
+Therefore: insert a lightweight evaluator after retrieval and let its three-way grade trigger pass-through, web search, or rejection, so that bad retrievals are caught before they reach the generator.
+
 ## Solution
 
 After retrieval, a lightweight evaluator (T5-based or similar) grades each document as Correct, Ambiguous, or Incorrect. Correct documents go forward as-is. Ambiguous documents trigger a web search for additional evidence. Incorrect documents are discarded and replaced via web search. The generator receives the corrected document set.

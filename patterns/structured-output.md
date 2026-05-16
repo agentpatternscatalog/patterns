@@ -38,6 +38,10 @@ Free-form output requires fragile post-hoc parsing; the model produces near-JSON
 - The schema would be so loose it provides no real type safety.
 - Strict schema enforcement triggers excessive retries that hurt UX.
 
+## Therefore
+
+Therefore: hand the schema to the provider's constrained-decoding mode and validate-and-retry on failure, so that the model cannot emit content that does not type-check.
+
 ## Solution
 
 Define a JSON Schema (or Pydantic / Zod / equivalent). Pass it to the model via the provider's structured-output mode. Validate the output. Reject and retry on validation failure. Cap retries.

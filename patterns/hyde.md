@@ -37,6 +37,10 @@ Query-document length and style asymmetry hurts dense retrieval recall on short 
 - Drafting hypothetical answers introduces unacceptable latency.
 - The corpus or query distribution makes hallucinated drafts misleading anchors.
 
+## Therefore
+
+Therefore: have the LLM draft a hypothetical answer first and retrieve against its embedding, so that retrieval matches answer-shape, not just question-shape.
+
 ## Solution
 
 On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.

@@ -23,6 +23,10 @@ Top-k from cheap retrieval contains both relevant and irrelevant candidates; the
 - Latency budget caps N (typically 20-100).
 - Fine-tuning a custom reranker is a separate effort.
 
+## Therefore
+
+Therefore: rescore the cheap retriever's top-N with a cross-encoder that jointly attends over (query, candidate), so that final ranking reflects joint relevance rather than vector proximity alone.
+
 ## Solution
 
 Two-stage retrieval. Stage 1: cheap retrieve (BM25, dense, hybrid) returns top-N. Stage 2: cross-encoder scores each (query, candidate) jointly. Return top-K << N to the generator.

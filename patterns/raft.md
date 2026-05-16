@@ -38,6 +38,10 @@ Generic RAG models are fooled by topically-similar distractors; the answer drift
 - No training pipeline exists to fine-tune on oracle-versus-distractor signals.
 - Inference-time retrieval is already filtered enough to make distractors rare.
 
+## Therefore
+
+Therefore: train the model on examples containing both oracle and distractor documents, so that it learns to cite oracles and ignore distractors at serving time.
+
 ## Solution
 
 Construct training examples where some documents are oracle and others are distractors. Train the model to cite oracle documents and ignore distractors. Couples chain-of-thought with citation discipline.

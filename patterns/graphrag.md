@@ -37,6 +37,10 @@ Naive RAG retrieves local chunks and cannot answer global queries; chunk-level r
 - The corpus is small or volatile enough that graph extraction will not pay off.
 - Entity and relation extraction quality is too low to trust the resulting graph.
 
+## Therefore
+
+Therefore: index documents into an LLM-extracted knowledge graph with hierarchical community summaries and route queries by scope, so that global questions get global answers and local questions stay local.
+
 ## Solution
 
 Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.

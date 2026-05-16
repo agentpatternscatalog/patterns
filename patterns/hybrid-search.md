@@ -23,6 +23,10 @@ Dense retrieval misses exact matches; sparse retrieval misses paraphrase. Each a
 - Two indexes mean two pipelines to maintain.
 - Tuning fusion weights is empirical and corpus-specific.
 
+## Therefore
+
+Therefore: index the corpus both lexically and semantically and fuse the rankings, so that exact-match recall and semantic recall both contribute to the final top-N.
+
 ## Solution
 
 Index the corpus twice: BM25 for sparse, dense embeddings for semantic. At query time, retrieve top-k from each, fuse with Reciprocal Rank Fusion or weighted aggregation. Pass the fused top-N forward (typically into a reranker). Do not weight raw scores directly; use rank-based fusion (RRF) or score-normalised aggregation, since BM25 and dense scores live on incompatible scales.

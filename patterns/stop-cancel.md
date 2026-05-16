@@ -38,6 +38,10 @@ Without an interrupt, users wait for completion or for the page to die; agents c
 - Cancellation cannot propagate cleanly and would leave inconsistent state.
 - The UI has no surface to expose a stop control.
 
+## Therefore
+
+Therefore: propagate a cancellation token from a visible stop control all the way through the loop, tools, and provider streams, so that wrong-direction runs cost seconds, not minutes.
+
 ## Solution
 
 Surface a stop control in the UI. On click, propagate a cancellation token through the agent loop, tool calls, and provider streams. Clean up partial state. Show what was done. Optionally save partial output for later resumption.

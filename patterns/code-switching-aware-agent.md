@@ -24,6 +24,10 @@ Mono-language pipelines mis-tokenise, mis-detect, or refuse mixed-language input
 - Tools and intents may be in one language while content is in another.
 - Strict monolingual pipelines reject natural input.
 
+## Therefore
+
+Therefore: treat code-switched input as the default shape — tokenise script-agnostically, tag language at the clause level, and route tools off the tagged spans — so that the user never has to commit to one language.
+
 ## Solution
 
 Adopt a three-part discipline. (1) Tokenise on Unicode + Latin without assuming a single script per turn. (2) Run language detection at clause level, not utterance level, so mixed-language tagging is preserved. (3) Choose models trained explicitly on code-switched corpora for the relevant language pair; if not available, prompt-engineer with code-switched few-shot examples. Tool slot extraction (entities like place names, times) must accept either script; normalise *after* extraction, not before.

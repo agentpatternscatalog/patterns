@@ -38,6 +38,10 @@ Parametric LMs hallucinate, cannot cite, and cannot be updated without retrainin
 - Global, corpus-wide questions need GraphRAG or hierarchical retrieval instead.
 - Chunk-level retrieval is the wrong shape for the queries you actually serve.
 
+## Therefore
+
+Therefore: chunk-embed the corpus, retrieve top-k by similarity to the query embedding, and condition generation on the retrieved chunks, so that knowledge lives outside the model parameters.
+
 ## Solution
 
 Chunk the corpus. Embed each chunk with a dense encoder. At query time, embed the query, retrieve top-k by similarity, prepend chunks to the prompt, generate. The simplest production RAG pipeline.
