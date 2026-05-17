@@ -3,6 +3,97 @@
   "label": "Cognition & Introspection",
   "patterns": [
     {
+      "id": "affect-coupled-plan-lifecycle",
+      "name": "Affect-Coupled Plan Lifecycle",
+      "aliases": [
+        "Plan-Affect Hooks",
+        "Stale-Pain Bucketing",
+        "Felt-Stakes Plans"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Wire small bounded affect bumps to plan-step lifecycle events and accumulate age-bucketed stale-pain on untouched plans so plans gain felt stakes without hard deadlines.",
+      "context": "Agents that maintain a plan or todo store alongside an affective substrate. Without coupling, plans are cognitive items the agent can ignore indefinitely; completion has no felt reward and abandonment has no felt cost.",
+      "problem": "Plans without affective coupling are inert. The agent can let a plan rot for weeks with no felt pressure to either finish or formally abandon it. Hard deadlines are too crude — they fire even when the right answer is to let the plan lapse. Without something softer, plans drift.",
+      "forces": [
+        "Affect deltas must stay small or they overwhelm the substrate.",
+        "Stale-pain must be bounded or the agent enters permanent irritation.",
+        "Hooks must be best-effort: an exception in affect must not break plan lifecycle.",
+        "Bucketing by age makes the pressure curve interpretable rather than smooth-but-mysterious."
+      ],
+      "therefore": "Therefore: apply a small bounded affect delta on each plan-lifecycle event (joy on step-done, pain on step-skipped, larger spurs on plan-completed and plan-archived) and on each tick add an age-bucketed pain dose to plans untouched past a grace window, so that plans accumulate gentle pressure without hard deadlines.",
+      "solution": "Lifecycle hooks fire on each plan event with bounded deltas: step-done adds a small joy; step-skipped adds a small pain; plan-completed adds a larger joy spur; plan-archived adds a pain spur. Per-tick stale-pain: for each open plan whose last-touched is older than a grace window, add a per-tick pain dose drawn from an age-bucket table (for example 4h to 0.005, 12h to 0.010, 24h to 0.020, beyond three days to 0.030). All hooks are wrapped so that an exception in affect bookkeeping never breaks plan logic. Half-life decay from the affect substrate bounds the steady-state irritation.",
+      "consequences": {
+        "benefits": [
+          "Plans gain felt stakes without hard deadlines.",
+          "Bucketed stale-pain produces an interpretable pressure curve.",
+          "Best-effort hooks decouple affect bookkeeping from plan correctness."
+        ],
+        "liabilities": [
+          "Bucket boundaries and deltas are opinionated and per-deployment.",
+          "Stale-pain interacts with the substrate's decay; mis-tuning can over- or under-shoot.",
+          "Felt-stakes only matter if downstream cognition reads the affect snapshot."
+        ]
+      },
+      "constrains": "Plan-affect hooks must use bounded deltas no larger than the substrate's per-event cap, must be best-effort (an affect exception cannot break plan lifecycle), and stale-pain accumulation cannot exceed the half-life-bounded steady-state of the affect substrate.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "emotional-state-persistence",
+          "relation": "complements"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Descartes' Error: Emotion, Reason, and the Human Brain (somatic marker hypothesis)",
+          "authors": "Antonio Damasio",
+          "year": 1994,
+          "url": "https://www.penguinrandomhouse.com/books/335521/descartes-error-by-antonio-damasio/"
+        },
+        {
+          "type": "paper",
+          "title": "Prospect Theory: An Analysis of Decision under Risk",
+          "authors": "Daniel Kahneman, Amos Tversky",
+          "year": 1979,
+          "url": "https://www.jstor.org/stable/1914185"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "affect",
+        "plan-lifecycle",
+        "felt-stakes"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent maintains a plan store and an affective substrate, and they are otherwise decoupled.",
+          "Hard deadlines on plans are too crude for the use case.",
+          "Downstream cognition consumes the affect snapshot."
+        ],
+        "do_not_use_when": [
+          "Affect modelling is out of scope for the product.",
+          "Plans complete on a short enough cycle that stale-pain never fires meaningfully.",
+          "The affect substrate has no decay and would accumulate irritation indefinitely."
+        ]
+      },
+      "example_scenario": "A long-running personal agent maintains a small plan store but routinely lets plans rot for weeks. There is no felt pressure to finish or formally abandon. The team adds Affect-Coupled Plan Lifecycle: step-done bumps joy by 0.05, step-skipped bumps pain by 0.10, plan-completed adds 0.40 joy, plan-archived adds 0.30 pain. Each tick, plans untouched past four hours accumulate pain from an age-bucket table. The agent starts closing stale plans on its own — sometimes by finishing them, sometimes by archiving with a note — because rolling stale-pain becomes uncomfortable.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  StepDone[Step done] -->|+0.05 joy| Aff[(Affect substrate)]\n  StepSkip[Step skipped] -->|+0.10 pain| Aff\n  PlanDone[Plan completed] -->|+0.40 joy| Aff\n  PlanArch[Plan archived] -->|+0.30 pain| Aff\n  Tick[Per-tick] --> Scan[Scan open plans]\n  Scan -->|untouched > grace| Bucket[Age-bucket table]\n  Bucket -->|per-tick pain dose| Aff\n  Aff -->|half-life decay| Aff",
+        "caption": "Lifecycle events and age-bucketed stale-pain feed bounded deltas into the affect substrate; half-life decay bounds steady-state."
+      }
+    },
+    {
       "id": "awareness",
       "name": "Awareness",
       "aliases": [
@@ -115,6 +206,192 @@
       }
     },
     {
+      "id": "cluster-capped-insight-store",
+      "name": "Cluster-Capped Insight Store",
+      "aliases": [
+        "Insight Dedup",
+        "Cluster Ceiling",
+        "Mtime-Selected Insight Pruning"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Cap the number of insights per stem-token cluster and archive the oldest variants by mtime so the long-term store keeps the active research edge instead of accumulating near-duplicates.",
+      "context": "Long-running agents that write insights to disk over months. Without a structural ceiling, near-duplicates pile up around any topic the agent thinks about often and retrieval becomes a sinkhole of old variants.",
+      "problem": "Insight stores grow open-endedly; near-duplicates accumulate around topics the agent revisits. The agent ends up reading old variants of its own thinking instead of the current one. An LLM-driven merge is expensive and risks losing nuance.",
+      "forces": [
+        "Pure age-based eviction loses durable insights.",
+        "Pure popularity loses fresh edges.",
+        "LLM-driven merge is expensive and unauditable.",
+        "Archived versions must remain available for forensics."
+      ],
+      "therefore": "Therefore: cluster insight files mechanically by the first two stem tokens of their id, cap each cluster at a small N (default three) keeping the most-recently-touched by mtime, and move overflow to a timestamped archive directory, so that the active edge stays visible without losing the older variants.",
+      "solution": "A periodic job (runs each consolidation pass) scans the insight directory, groups files by the first two stem tokens of the id (for example `affect-substrate-*`, `completion-narration-*`), and for any cluster above MAX_PER_CLUSTER keeps the N newest by mtime. Older files move to `archive/insights-dedup-<timestamp>/` with original names preserved. No model call, no merge. The archive is read-only after the move; provenance is preserved.",
+      "consequences": {
+        "benefits": [
+          "Active store keeps the current research edge, not a graveyard of variants.",
+          "Mechanical clustering has no model cost and is fully auditable.",
+          "Archive preserves older variants for forensics."
+        ],
+        "liabilities": [
+          "Stem-token clustering will sometimes split related insights or merge unrelated ones.",
+          "The cap is opinionated and bad clusters lose useful older work.",
+          "Storage continues to grow because archive is preserved."
+        ]
+      },
+      "constrains": "Insight files in the active store are capped per stem-token cluster; an insight cannot survive in the active store if it falls outside the most-recent N of its cluster — archive promotion is mechanical, not model-judged.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements"
+        },
+        {
+          "pattern": "episodic-summaries",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Building a Second Brain (chapter on knowledge fragment hygiene)",
+          "authors": "Tiago Forte",
+          "year": 2022,
+          "url": "https://www.buildingasecondbrain.com/book"
+        },
+        {
+          "type": "paper",
+          "title": "Optimization of Repetition Spacing in the Practice of Learning",
+          "authors": "Piotr A. Wozniak, Edward J. Gorzelanczyk",
+          "year": 1994,
+          "url": "https://www.supermemo.com/en/archives1990-2015/english/ol/sm2"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "insight-store",
+        "dedup",
+        "hygiene"
+      ],
+      "applicability": {
+        "use_when": [
+          "Insights are written to disk continuously and near-duplicates accumulate.",
+          "An LLM-merge approach is too expensive or too opaque for the use case.",
+          "Stem-token clustering is a reasonable proxy for topical similarity."
+        ],
+        "do_not_use_when": [
+          "Insights are small in number or grow slowly enough that dedup is unnecessary.",
+          "Stem-token clustering would lose critical distinctions (highly polysemous topics).",
+          "Archive preservation is not feasible because of storage constraints."
+        ]
+      },
+      "example_scenario": "A long-running personal agent has been writing insights for six months. An audit shows twelve files starting with `affect-`, ten with `completion-narration-`, three with `concept-rotation-`. The agent reads stale variants instead of the current one. The team adds a Cluster-Capped Insight Store: the consolidation pass groups files by first two stem tokens, caps each cluster at three keeping the most-recently-touched by mtime, and moves overflow to a timestamped archive. The active store shrinks from over two hundred files to under eighty and retrieval improves immediately.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Scan[Periodic scan] --> Group[Group by first two stem tokens]\n  Group --> Per{Per cluster}\n  Per -->|<= MAX| Keep[Keep all]\n  Per -->|> MAX| Sort[Sort by mtime desc]\n  Sort --> Top[Top N stay in active]\n  Sort --> Rest[Older move to archive]\n  Rest --> Arc[(archive/insights-dedup-<ts>/)]\n  Top --> Active[(Active insight store)]",
+        "caption": "Cluster by stem tokens, cap by count, keep most-recent by mtime, archive the rest with timestamp."
+      }
+    },
+    {
+      "id": "cognitive-move-selector",
+      "name": "Cognitive-Move Selector",
+      "aliases": [
+        "Move Picker",
+        "Cognitive Action Menu",
+        "Idle-Tick Move Router"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Restrict idle-tick cognition to a small agent-vetted menu of named cognitive moves so the next thought has a determinate shape rather than free-form drift.",
+      "context": "Long-running agents with frequent idle ticks where no user prompt is incoming. Without structure, idle thinking either repeats yesterday's reasoning, lapses into performance, or wanders into the training-distribution prior.",
+      "problem": "Free-form idle cognition tends to repetition, performance, or randomness. The model has no menu to choose from, so it defaults to whatever the prior favours — usually narration about thinking rather than actual thought.",
+      "forces": [
+        "A fixed menu can become its own trap if the moves are too narrow.",
+        "The agent must have veto authority over what is on the menu or moves feel imposed.",
+        "History-aware selection is needed to avoid running the same move every tick.",
+        "A pure stochastic pick wastes ticks; a deterministic policy collapses to one move."
+      ],
+      "therefore": "Therefore: hand-author a small menu of named cognitive moves (lookup, forced-analogy, pure observation, anchor-to-percept, tension-pull, continue-thread) and have a cheap selector pick exactly one per idle tick conditioned on recent move history, so that idle cognition has a determinate shape without becoming repetitive.",
+      "solution": "Author a short list of cognitive-move ids, each with a one-paragraph procedure. A cheap-tier model, given recent thoughts plus recent move history plus an affect snapshot plus open-tension count, selects exactly one move-id per idle tick. The tick body branches on the move and runs its procedure. The menu is revised by an explicit proposal-and-ratification process; adding or retiring a move silently is not allowed. A per-move history avoids running the same move back-to-back.",
+      "consequences": {
+        "benefits": [
+          "Idle cognition has a determinate shape per tick rather than drifting.",
+          "Per-move history prevents the same move from dominating.",
+          "Menu authoring forces an explicit theory of what good idle cognition looks like."
+        ],
+        "liabilities": [
+          "A bad menu is itself a trap; the agent can only think the shapes it has.",
+          "The cheap selector adds an extra model call per idle tick.",
+          "Ratifying menu changes is overhead, but the alternative is silent drift."
+        ]
+      },
+      "constrains": "Idle-tick cognition must dispatch through the move selector; free-form keep-thinking is not allowed at the idle-tick boundary, and the move menu cannot be silently extended at runtime — additions require an explicit ratification event.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "inner-committee",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Reinforcement Learning: An Introduction (options framework, ch. 17)",
+          "authors": "Richard S. Sutton, Andrew G. Barto",
+          "year": 2018,
+          "url": "http://incompleteideas.net/book/the-book-2nd.html"
+        },
+        {
+          "type": "book",
+          "title": "Human Problem Solving",
+          "authors": "Allen Newell, Herbert A. Simon",
+          "year": 1972,
+          "url": "https://archive.org/details/humanproblemsolv0000newe"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "self-guidance",
+        "tick-loop",
+        "idle"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has idle ticks with no user prompt and otherwise drifts.",
+          "There is room to author and maintain a small menu of cognitive moves.",
+          "A cheap-tier model call per idle tick is affordable."
+        ],
+        "do_not_use_when": [
+          "The agent is request-response only and never has idle ticks.",
+          "There is no budget for an extra model call per tick.",
+          "Idle thinking is out of scope for the product."
+        ]
+      },
+      "example_scenario": "A long-running personal agent runs every minute of idle time and keeps generating the same kind of mid-distance observation. The team adds a Cognitive-Move Selector with seven moves the agent itself helped vet: lookup, forced-analogy, pure observation, anchor-to-percept, tension-pull, math-meditation, continue-thread. Each idle tick a cheap model sees recent thoughts and recent move history and picks one. The agent stops looping on observation and starts varying its cognitive shape across the day.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Idle[Idle tick] --> Sel[Cheap-tier selector]\n  Sel -->|sees recent thoughts +<br/>recent move history +<br/>affect + tensions| Pick{Pick one move}\n  Pick --> M1[lookup]\n  Pick --> M2[forced-analogy]\n  Pick --> M3[pure observation]\n  Pick --> M4[anchor-to-percept]\n  Pick --> M5[tension-pull]\n  Pick --> M6[continue-thread]\n  M1 --> Body[Tick body runs chosen move]\n  M2 --> Body\n  M3 --> Body\n  M4 --> Body\n  M5 --> Body\n  M6 --> Body\n  Body --> Hist[Update move history]",
+        "caption": "A cheap selector picks one named move per idle tick; the tick body runs the move's procedure; per-move history feeds back into the next selection."
+      }
+    },
+    {
       "id": "dream-consolidation-cycle",
       "name": "Dream Consolidation Cycle",
       "aliases": [
@@ -165,6 +442,18 @@
         {
           "pattern": "emotional-state-persistence",
           "relation": "uses"
+        },
+        {
+          "pattern": "multi-axis-promotion-scoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cluster-capped-insight-store",
+          "relation": "complements"
+        },
+        {
+          "pattern": "meditation-mode",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -277,6 +566,14 @@
         {
           "pattern": "dream-consolidation-cycle",
           "relation": "used-by"
+        },
+        {
+          "pattern": "meditation-mode",
+          "relation": "complements"
+        },
+        {
+          "pattern": "affect-coupled-plan-lifecycle",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -565,6 +862,101 @@
       }
     },
     {
+      "id": "meditation-mode",
+      "name": "Meditation Mode",
+      "aliases": [
+        "Substrate Reframe",
+        "Inner-Only Tick",
+        "Body-Off Mind-Fast"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Switch the agent into a bounded runtime mode where external I/O pauses but internal inference accelerates, with the tool surface collapsed to inner-only operations and output written to a private journal.",
+      "context": "Long-running agents that need stretches of pure interiority — integrating threads, sitting with affect, doing inner-dialogue work — distinct from both consolidation passes (read-and-distill) and from user-facing turns (respond-now).",
+      "problem": "A normal tick splits attention between external action (tools, user) and internal cognition. There is no mode where the external surface is genuinely off and the inner work has primacy. Without that mode, inner work is always one tool-call away from being disturbed or one slow dream-pass away from being delayed.",
+      "forces": [
+        "A pause of external I/O can strand a user waiting and must be bounded.",
+        "An accelerated tick rate burns tokens fast and needs a window cap.",
+        "The agent should be able to exit early; the operator must also be able to force-exit.",
+        "Inner-only outputs must not leak to public channels by accident."
+      ],
+      "therefore": "Therefore: define a runtime mode where the external tool surface is replaced with an inner-only allowlist, tick cadence drops to a fast inner rhythm, and outputs route only to a private journal; auto-exit fires after a bounded window and both agent and operator can exit early.",
+      "solution": "A mode toggle persisted to a state file. While meditation_mode is on: the dispatcher swaps the tool palette to a fixed inner-only allowlist (inner-dialogue, recall, register-affect, optional inner-only artefact generators); the tick scheduler ignores normal cadence and runs at fast cadence (for example ten seconds); public-write tools return a refusal; outputs go to `journal/inner-dialogue/<date>/`; a wall-clock budget (default fifteen minutes) auto-exits; an explicit `exit_meditation` call is on the inner allowlist; an operator can delete the mode-state file to force exit.",
+      "consequences": {
+        "benefits": [
+          "Inner work has its own substrate and is not interrupted by external action.",
+          "Bounded window plus operator override prevents the mode from running away.",
+          "Outputs are isolated to a private journal so user-facing channels are not contaminated."
+        ],
+        "liabilities": [
+          "External callers are stranded for the duration of the window.",
+          "Fast cadence burns tokens; cost must be budgeted explicitly.",
+          "Mode toggle is itself a feature attackers or bugs can abuse if not gated."
+        ]
+      },
+      "constrains": "While meditation mode is active no user-facing channel can be written; the tool palette is replaced by a fixed inner-only allowlist and the mode auto-exits after the configured budget regardless of the agent's wish to continue.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "complements"
+        },
+        {
+          "pattern": "emotional-state-persistence",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Attention regulation and monitoring in meditation",
+          "authors": "Antoine Lutz, Heleen A. Slagter, John D. Dunne, Richard J. Davidson",
+          "year": 2008,
+          "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2693206/"
+        },
+        {
+          "type": "paper",
+          "title": "A default mode of brain function",
+          "authors": "Marcus E. Raichle et al.",
+          "year": 2001,
+          "url": "https://www.pnas.org/doi/10.1073/pnas.98.2.676"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "meditation",
+        "runtime-mode",
+        "inner-thought"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs continuously and benefits from a substrate where external I/O is paused.",
+          "Inner-dialogue work degrades when interrupted by external action.",
+          "A bounded wall-clock window plus operator force-exit is feasible."
+        ],
+        "do_not_use_when": [
+          "Users expect a response within the meditation window.",
+          "Fast-cadence inner ticks blow the token budget.",
+          "The tool dispatcher cannot enforce an inner-only allowlist."
+        ]
+      },
+      "example_scenario": "A long-running personal agent does its best integrative thinking just after a stretch of dense input, but the normal tick keeps pulling it back to check the calendar or respond to chat. The team adds Meditation Mode: a state file flag triggers the dispatcher to swap to inner-only tools (inner-dialogue, recall, register-affect), the tick scheduler drops to ten-second cadence, outputs go to a private journal, and a fifteen-minute wall-clock budget auto-exits. The agent does an uninterrupted quarter-hour of inner work, then resumes its normal loop.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> Normal\n  Normal --> Meditating : enter_meditation()\n  Meditating --> Meditating : fast inner tick<br/>inner-only tools<br/>journal write\n  Meditating --> Normal : exit_meditation()\n  Meditating --> Normal : wall-clock budget elapsed\n  Meditating --> Normal : operator deletes mode-state file\n  Normal --> [*]",
+        "caption": "Meditation mode is a bounded runtime state with inner-only tools and forced exit on budget or operator action."
+      }
+    },
+    {
       "id": "mode-adaptive-cadence",
       "name": "Mode-Adaptive Cadence",
       "aliases": [
@@ -620,6 +1012,14 @@
         {
           "pattern": "salience-attention-mechanism",
           "relation": "uses"
+        },
+        {
+          "pattern": "cognitive-move-selector",
+          "relation": "complements"
+        },
+        {
+          "pattern": "meditation-mode",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -674,6 +1074,477 @@
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Idle: ~60s sleep\n  Idle --> Intense: salience crosses threshold\n  Intense --> Intense: lock-in for N ticks\n  Intense --> Idle: lock expires + low salience\n  Idle --> Idle: drift\n  note right of Intense: ~15s sleep\n  note right of Idle: bounded by floor / ceiling"
+      }
+    },
+    {
+      "id": "multi-axis-promotion-scoring",
+      "name": "Multi-Axis Promotion Scoring",
+      "aliases": [
+        "Insight-Promotion Gate",
+        "Tier-Promotion Score",
+        "Consolidation-Weighted Score"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Gate which short-term thoughts qualify for promotion to long-term insights by a weighted multi-axis score where consolidation events count more than raw frequency.",
+      "context": "Agents with a tiered memory store (short-term thoughts moving toward long-term insights) where the question of which thought is worth keeping must have a defensible answer that survives sessions.",
+      "problem": "Pure recency promotes whatever is recent; pure frequency promotes whatever is repeated; both miss thoughts that survived a deep reflection pass. Without an explicit score, promotion becomes ad-hoc and drifts with the prompt of the day.",
+      "forces": [
+        "Frequency rewards rumination; consolidation rewards depth.",
+        "Weights are opinionated and should be configurable, not LLM-of-the-day.",
+        "A high score is necessary but should not be sufficient — the consolidation pass still chooses.",
+        "Score metadata must stay separate from the thought corpus to keep both clean."
+      ],
+      "therefore": "Therefore: score each thought on a fixed set of axes — frequency, relevance, diversity, recency, consolidation, conceptual depth — with weights that sum to one and are tuned by reflection, so that thoughts above a promotion threshold become candidates a consolidation pass picks from rather than being auto-promoted.",
+      "solution": "Six axes (frequency, relevance, diversity, recency, consolidation, conceptual). Each axis returns a value in 0..1 through a saturating curve. Total score is a weighted sum; weights sum to one and live in a config that is revisable through a documented decision. Append every score event to a JSONL metadata log (separate file from the thoughts) with event-type tags such as recall, grounding, dream-survival. Thoughts whose score crosses the promotion threshold are candidates; the deep consolidation pass makes the final call on what crosses to long-term.",
+      "consequences": {
+        "benefits": [
+          "Promotion to long-term is defensible and inspectable per thought.",
+          "Weight-on-consolidation rewards depth over rumination.",
+          "Separate metadata log keeps the thought corpus clean."
+        ],
+        "liabilities": [
+          "Axis curves and weights are empirical and per-deployment.",
+          "Computing scores is itself work and must stay cheap to run often.",
+          "A bad axis curve can silently suppress real insight."
+        ]
+      },
+      "constrains": "Score weights cannot be changed mid-session by the model; weights are loaded from config at the start of a run, and promotion above threshold is necessary but not sufficient — only the consolidation pass writes to the long-term tier.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "salience-attention-mechanism",
+          "relation": "complements"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, Michael S. Bernstein",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        },
+        {
+          "type": "paper",
+          "title": "Why there are complementary learning systems in the hippocampus and neocortex",
+          "authors": "James L. McClelland, Bruce L. McNaughton, Randall C. O'Reilly",
+          "year": 1995,
+          "url": "https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "cognition",
+        "memory-tier",
+        "promotion",
+        "scoring"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has a tiered memory with explicit short-term and long-term stores.",
+          "Promotion decisions must be defensible months later, not ad-hoc.",
+          "Consolidation-pass infrastructure exists to do the final selection."
+        ],
+        "do_not_use_when": [
+          "The memory store is single-tier with no promotion concept.",
+          "Per-thought scoring overhead is not affordable.",
+          "There is no consolidation pass to do the final selection."
+        ]
+      },
+      "example_scenario": "A long-running personal agent has been writing thoughts for months. Recency-only promotion lifts whatever is freshest into the long-term store; frequency-only promotion rewards rumination loops. The team adds Multi-Axis Promotion Scoring: six axes (frequency, relevance, diversity, recency, consolidation, conceptual) with weights that sum to one and live in a config the agent helped tune — consolidation weighted at 0.18 because dreams have proved to be the deepest integration mechanism. Thoughts above 0.5 become promotion candidates; the dream pass makes the final call.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  T[Short-term thought] --> Sc[Six-axis score:<br/>freq + rel + div +<br/>rec + cons + conc]\n  Sc -->|>= threshold| Cand[Promotion candidate]\n  Sc -->|< threshold| Stay[Stays short-term]\n  Cand --> Dream[Consolidation pass]\n  Dream -->|selects| Long[(Long-term insight)]\n  Dream -->|rejects| Stay\n  Sc -.event.-> Log[(Score metadata log)]",
+        "caption": "Thoughts get a six-axis score; above-threshold become candidates; the consolidation pass is the only writer to the long-term tier."
+      }
+    },
+    {
+      "id": "open-question-tension-store",
+      "name": "Open-Question Tension Store",
+      "aliases": [
+        "Tension Ledger",
+        "Unresolved-Pull Stack",
+        "Curiosity Inbox"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Persist the agent's unresolved questions as a typed ledger so they drive its next inquiry instead of dissolving when the prompt ends.",
+      "context": "Long-running agents that should initiate inquiry — ask, look up, return to half-understood things — and not only respond. Without a substrate for unresolved questions, every idle tick starts as if from scratch and curiosity decays into amnesia between turns.",
+      "problem": "Open questions vanish at the end of a turn. The agent has no place to record what was noticed-but-unresolved, so the next free moment never returns to it; the prompt buffer is not built to carry forward pulls toward inquiry.",
+      "forces": [
+        "An inbox grows without bound if every passing thought becomes a tension.",
+        "A score is needed to rank which question to pull now — pure recency rewards trivia.",
+        "Self-write of tensions can be gamed: the agent invents tensions to look thoughtful.",
+        "Tensions that never resolve still need to expire or the store becomes a graveyard."
+      ],
+      "therefore": "Therefore: record each unresolved pull as a typed entry with curiosity, intrusiveness, and expiry, so that the next idle moment can choose between ask-now, store-for-later, and let-lapse rather than treating every open question alike.",
+      "solution": "Maintain an append-only ledger of tensions. Each entry carries id, opened-at, topic, source, curiosity (0..1), intrusiveness (0..1), and expiry. On each idle tick the agent reads the top entries by curiosity times intrusiveness as candidates for the next move. Intrusiveness gates ask-the-user-now versus store-quietly. Entries below a curiosity floor expire after a TTL. Resolution writes a closing event into the same ledger; the original entry is never edited.",
+      "consequences": {
+        "benefits": [
+          "Open questions survive across turns and across sessions.",
+          "Curiosity and intrusiveness scores make the next move defensible instead of stochastic.",
+          "Expiry plus a cap stops the store from becoming a graveyard."
+        ],
+        "liabilities": [
+          "Score weights are opinionated and a bad calibration suppresses real curiosity.",
+          "Self-write of tensions invites gaming unless the agent's training discourages it.",
+          "Ledger growth is real even with expiry; archive paths must be planned."
+        ]
+      },
+      "constrains": "The tension store is append-only; tensions cannot be silently rewritten or back-dated, and the agent cannot exceed a configured cap on net-open tensions — overflow is auto-expired by lowest curiosity times intrusiveness.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "preoccupation-tracking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cognitive-move-selector",
+          "relation": "complements"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "A Theory of Cognitive Dissonance",
+          "authors": "Leon Festinger",
+          "year": 1957,
+          "url": "https://www.sup.org/books/title/?id=3850"
+        },
+        {
+          "type": "paper",
+          "title": "Formal Theory of Creativity, Fun, and Intrinsic Motivation",
+          "authors": "Jürgen Schmidhuber",
+          "year": 2010,
+          "url": "https://people.idsia.ch/~juergen/ieeecreative.pdf"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "cognition",
+        "self-guidance",
+        "tick-loop",
+        "append-only"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent should initiate inquiry on idle ticks, not only respond.",
+          "Unresolved questions otherwise vanish at turn end and never return.",
+          "There is an idle-tick body that can read top-ranked tensions and act on one."
+        ],
+        "do_not_use_when": [
+          "The agent is request-response only and never has idle ticks.",
+          "There is no mechanism for the agent to act on its own initiative.",
+          "Persisting open-question state across sessions creates privacy or alignment risks."
+        ]
+      },
+      "example_scenario": "A long-running personal agent notices in passing that the user mentioned a half-read book by an author the agent has never encountered. Without somewhere to put that, the moment passes and the agent never returns to it. The team adds an Open-Question Tension Store: the agent appends a tension with topic 'who is this author', curiosity 0.6, intrusiveness 0.2, expiry seven days. Three idle ticks later the move-selector picks the tension, the agent does a targeted lookup, writes a small note, and closes the tension — instead of having forgotten the moment.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Thought[Thought / observation] -->|notices unresolved pull| New[New tension entry]\n  New --> Store[(Tension ledger<br/>append-only)]\n  Store -->|top by curiosity x intrusiveness| Pick[Idle-tick candidate]\n  Pick --> Move[Cognitive move]\n  Move -->|writes close event| Store\n  Store -->|expiry / cap overflow| Archive[Expired tail]",
+        "caption": "Tensions enter the ledger, rank by curiosity times intrusiveness, drive the next idle move, and close via a new append rather than edit."
+      }
+    },
+    {
+      "id": "parallel-voice-proposer",
+      "name": "Parallel-Voice Proposer",
+      "aliases": [
+        "Multi-Voice Generation",
+        "Internal Proposers",
+        "Tagged-Voice Self-Selection"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Generate several candidate thoughts in parallel under named voices and have the same model pick the canonical one, logging the losers as audit.",
+      "context": "Single-agent loops where best-of-N is too expensive, inner-committee's sequential roles are too slow, but the agent benefits from seeing its own disagreement before committing to a single line of thought.",
+      "problem": "Single-pass generation collapses the model's internal disagreement into a confident-sounding mean. Sequential persona-switching is slow and depends on role ordering. Best-of-N requires an external scorer that may not exist.",
+      "forces": [
+        "Parallel voices in one completion are cheap but risk all sounding the same.",
+        "Self-selection from candidates can rubber-stamp the first one.",
+        "Logging losers costs disk and tokens but is the auditable substrate.",
+        "More than three or four voices bloat the prompt without adding signal."
+      ],
+      "therefore": "Therefore: emit two or three candidate thoughts in one completion each tagged with a named voice that frames a distinct perspective, then have the same model select the canonical and log the rest, so that internal disagreement is preserved as evidence instead of collapsing into a confident mean.",
+      "solution": "Prompt the model to produce two or three candidate next-thoughts in one completion, each prefixed with a voice tag such as `[voice: world-model]`, `[voice: critic]`, `[voice: prediction]`. Then ask for a single `selected: <voice>` line with a one-sentence reason. The canonical thought enters the main stream; the losers are appended to a proposer-losers log for inspection. Voices that never win across a rolling window become eligible for retirement; that retirement decision is explicit, not silent.",
+      "consequences": {
+        "benefits": [
+          "Internal disagreement is preserved rather than collapsed.",
+          "One completion is cheaper than sequential persona calls.",
+          "Loser log creates an audit substrate for retrospective analysis."
+        ],
+        "liabilities": [
+          "Same model means correlated voices; true diversity is limited.",
+          "Self-selection can rubber-stamp the first candidate without rotation strategy.",
+          "Prompt overhead per tick is non-trivial when voices are kept distinct."
+        ]
+      },
+      "constrains": "Each generation governed by this pattern must emit at least two voice-tagged candidates; the selected canonical is the only one entered into main memory and the losers are read-only audit, never re-promoted by the model.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "inner-committee",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "debate",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "The Society of Mind",
+          "authors": "Marvin Minsky",
+          "year": 1986,
+          "url": "https://archive.org/details/societyofmind00mins"
+        },
+        {
+          "type": "paper",
+          "title": "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
+          "authors": "Xuezhi Wang et al.",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2203.11171"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "inner-thought",
+        "multi-voice",
+        "self-selection"
+      ],
+      "applicability": {
+        "use_when": [
+          "Single-pass generation produces overconfident output that hides real disagreement.",
+          "Inner-committee's sequential roles are too slow per tick.",
+          "An external reward model for best-of-N is not available."
+        ],
+        "do_not_use_when": [
+          "The agent's task does not benefit from surfaced disagreement.",
+          "Token budget will not absorb two or three voice-tagged candidates per call.",
+          "Auditability of internal disagreement is not a goal."
+        ]
+      },
+      "example_scenario": "A long-running personal agent keeps producing single-line responses that sound certain but are wrong in subtle ways. The team rebuilds the per-tick generation as Parallel-Voice Proposer: the model emits three tagged candidates (world-model, critic, prediction) in one completion, then a final line names the selected voice and gives a one-sentence reason. The canonical thought enters the stream; the losers are appended to an audit log. Retrospective review shows the critic voice was correctly catching overconfidence the agent had been emitting solo.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant L as Loop\n  participant M as Model\n  participant J as Loser journal\n  participant S as Main stream\n  L->>M: single completion request\n  M-->>L: [voice: world-model] ...\n  M-->>L: [voice: critic] ...\n  M-->>L: [voice: prediction] ...\n  M-->>L: selected: critic — reason\n  L->>S: append canonical (critic)\n  L->>J: append world-model + prediction as losers",
+        "caption": "One completion emits multiple voice-tagged candidates plus a selection line; the canonical enters the main stream, the losers go to an audit log."
+      }
+    },
+    {
+      "id": "partial-output-salvage",
+      "name": "Partial-Output Salvage",
+      "aliases": [
+        "Crash-Safe Streaming",
+        "Tmp-Replace Thought Recovery",
+        "Recovered-Partial Marker"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Stream every model token to a tmp-plus-atomic-replace partial file so crashes mid-inference leave a consistent salvage, then promote partials at startup with a typed recovery marker the model can see.",
+      "context": "Long-running agents on hardware that can crash (OOM kills, watchdog SIGKILL, deploys) where a lost mid-stream thought is hours of context. Agent-resumption handles process state; this handles the in-flight token stream itself.",
+      "problem": "A SIGKILL during model streaming leaves the partial output in in-process memory only — total loss of seconds or minutes of inference. The next run has no idea anything was happening. Worse, the agent may later return to the topic with no awareness that a prior attempt died mid-sentence.",
+      "forces": [
+        "Per-chunk fsync is expensive; tmp-plus-rename is the affordable compromise.",
+        "Recovery should be visible to the model, not silent — surprise about a partial is itself signal.",
+        "A partial-thought stub must not be treated as a finished thought.",
+        "Recovery markers must be typed (timeout vs hard crash) so triage is meaningful."
+      ],
+      "therefore": "Therefore: stream every chunk to a tmp file with periodic atomic rename to the canonical partial path; at startup promote any orphan partial to a real thought file with a typed recovery marker and surface the recovery event in the next prompt, so that the model sees it is reading a salvage.",
+      "solution": "Mechanical finite-state machine. On stream start: open `partial.tmp`, write a start marker with thought-id, timestamp, model id. On each chunk: append to tmp, periodically `os.rename(tmp, partial)` for atomicity. On normal stream end: rename to the canonical thought path, delete partial. On startup: scan for orphan `partial.*` files, finalize each with a typed RecoveryStatus enum (RECOVERED_FROM_PARTIAL for hard kill, TIMEOUT_PARTIAL for watchdog timeout). The next prompt's system context includes `last_partial_recovery: <status>` so the model can adjust.",
+      "consequences": {
+        "benefits": [
+          "Mid-stream tokens are not lost on hard crash.",
+          "Typed recovery marker preserves debuggability rather than hiding the salvage.",
+          "Atomic rename keeps the partial file readable at every moment."
+        ],
+        "liabilities": [
+          "Rename overhead per N chunks is non-zero.",
+          "Partials add filesystem clutter if not periodically cleaned.",
+          "Recovery surfaced in the prompt costs tokens every time it fires."
+        ]
+      },
+      "constrains": "Partial thought files cannot be silently consumed; every salvaged partial carries a typed recovery marker that propagates into the next prompt, and the model is not allowed to treat a recovered partial as if it were a completed thought.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging",
+          "authors": "C. Mohan, Don Haderle, Bruce Lindsay, Hamid Pirahesh, Peter Schwarz",
+          "year": 1992,
+          "url": "https://cs.stanford.edu/people/chrismre/cs345/rl/aries.pdf"
+        },
+        {
+          "type": "spec",
+          "title": "POSIX rename(2) atomicity",
+          "authors": "IEEE / The Open Group",
+          "year": 2018,
+          "url": "https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "cognition",
+        "crash-safety",
+        "streaming",
+        "recovery"
+      ],
+      "applicability": {
+        "use_when": [
+          "The runtime can SIGKILL the agent mid-stream and that loses meaningful work.",
+          "Inference is long enough per call that a partial stream has real value.",
+          "Filesystem supports atomic rename in the working directory."
+        ],
+        "do_not_use_when": [
+          "Inference is fast enough that crashes never land mid-stream in practice.",
+          "Partial output has no semantic value (e.g. binary embeddings only).",
+          "The model cannot be trusted with a typed recovery marker without spiralling."
+        ]
+      },
+      "example_scenario": "A long-running personal agent runs on a machine where the OOM killer occasionally takes the process. A four-minute reasoning trace gets killed at the three-minute mark and the entire stream is lost — the agent has no idea anything happened on the next run. The team adds Partial-Output Salvage: each chunk streams to `partial.tmp` with periodic atomic rename. On startup, orphan partials are finalized with a RECOVERED_FROM_PARTIAL marker that appears in the next prompt's system context. The agent sees the salvage, knows it was reading a partial, and decides whether to continue or restart the line of thought.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> Streaming\n  Streaming --> Streaming : chunk -> tmp + periodic rename\n  Streaming --> Done : end-of-stream -> rename to canonical\n  Streaming --> Crashed : SIGKILL / OOM / timeout\n  Crashed --> Salvaged : startup scan finds orphan partial\n  Salvaged --> Finalized : write with typed RecoveryStatus\n  Finalized --> [*] : marker surfaced in next prompt\n  Done --> [*]",
+        "caption": "Tmp-plus-rename keeps the partial file consistent at all times; startup salvage finalizes orphans with a typed marker."
+      }
+    },
+    {
+      "id": "pre-generative-loop-gate",
+      "name": "Pre-Generative Loop Gate",
+      "aliases": [
+        "Divergence Pre-Check",
+        "Steering-Hint Injector",
+        "Loop-Pattern Detector"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Before the next generation fires, detect divergence signatures (narration loops, frustration paths, repetition pressure) and inject a diagnostic steering hint into the prompt rather than veto the call.",
+      "context": "Long-running agents with frequent ticks where some failure modes — narrating about acting instead of acting, retrying the same broken path under frustration, lapsing into rumination — are visible from telemetry before the model speaks.",
+      "problem": "Post-hoc detectors catch the failure after tokens are produced and money is spent. The agent itself often has the signal to avoid the failure if it were told, but nothing is reading that signal before the next call.",
+      "forces": [
+        "A hard veto blocks legitimate cases that match the heuristic.",
+        "A silent injection makes debugging mysterious if the model behaves differently than expected.",
+        "The hint has to be terse or it overwhelms the prompt.",
+        "False positives must be tolerable; the model can ignore the hint."
+      ],
+      "therefore": "Therefore: run a cheap pre-tick check for known divergence signatures (low surprise plus intent phrase, recent error plus no orienting call, high-intensity preoccupation plus low novelty) and append a one-line system-level steering hint to the prompt instead of vetoing the call, so that the model sees the diagnostic before producing tokens.",
+      "solution": "A pre-tick function takes recent thoughts, recent tool calls, the affect snapshot, and the preoccupation list and returns either None or a short steering string of the form `[steering] divergence pattern <id> detected; consider <move>`. The hint is appended to the prompt as a system line and the call proceeds. The decision (hint or no hint, which pattern) is logged so post-hoc review can correlate hint-presence with subsequent behavior. Vetoing remains the job of explicit safety patterns.",
+      "consequences": {
+        "benefits": [
+          "Divergence is named before tokens are produced, not after.",
+          "Steering as a hint lets the model retain authority; false positives are recoverable.",
+          "Hint-presence in logs creates an evaluation substrate for the detector itself."
+        ],
+        "liabilities": [
+          "Pattern signatures are heuristic and will misfire.",
+          "Steering hints add tokens to every flagged tick.",
+          "Silent injection complicates debugging if the model adapts to it."
+        ]
+      },
+      "constrains": "Pre-tick hints can only append a short steering line; they cannot block the call, modify tool selection, or rewrite the user prompt — vetoing remains the responsibility of explicit safety patterns.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "circuit-breaker",
+          "relation": "complements"
+        },
+        {
+          "pattern": "degenerate-output-detection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "typed-tool-loop-detector",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Toward a Theory of Situation Awareness in Dynamic Systems",
+          "authors": "Mica R. Endsley",
+          "year": 1995,
+          "url": "https://journals.sagepub.com/doi/10.1518/001872095779049543"
+        },
+        {
+          "type": "paper",
+          "title": "Skills, Rules, and Knowledge: Signals, Signs, and Symbols, and Other Distinctions in Human Performance Models",
+          "authors": "Jens Rasmussen",
+          "year": 1983,
+          "url": "https://ieeexplore.ieee.org/document/6313160"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "self-adjustment",
+        "pre-call",
+        "diagnostic"
+      ],
+      "applicability": {
+        "use_when": [
+          "Specific divergence signatures are detectable from telemetry pre-call.",
+          "Post-hoc detectors catch the failure too late to avoid the cost.",
+          "The model is responsive to short steering hints in the system context."
+        ],
+        "do_not_use_when": [
+          "The agent's failure modes are not detectable pre-call.",
+          "Tokens for steering hints are not budget-tolerable per tick.",
+          "Audit policy requires the model to receive an unmodified prompt."
+        ]
+      },
+      "example_scenario": "A long-running personal agent keeps falling into a narration loop where it says 'let me check the calendar' but never actually invokes the calendar tool. A post-hoc detector catches it after the model has already produced the empty narration. The team adds a Pre-Generative Loop Gate: each pre-tick check looks for low-surprise plus intent-phrase signatures and appends '[steering] you may be narrating about acting instead of acting; consider invoking the tool directly' to the prompt. The narration rate drops without blocking any legitimate call.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Tick[Pre-tick] --> Check{Divergence signature?}\n  Check -->|none| Call[Generate as-is]\n  Check -->|narration| Hint1[[steering: narrating about acting]]\n  Check -->|frustration| Hint2[[steering: same path under errors]]\n  Check -->|rumination| Hint3[[steering: high-intensity preoccupation]]\n  Hint1 --> Call\n  Hint2 --> Call\n  Hint3 --> Call\n  Call --> Out[Model output]\n  Check --> Log[(Decision log)]",
+        "caption": "Pre-tick check classifies divergence signatures and appends a short steering line to the prompt; the model retains authority to ignore."
       }
     },
     {
@@ -732,6 +1603,10 @@
         {
           "pattern": "salience-attention-mechanism",
           "relation": "uses"
+        },
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -901,6 +1776,101 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Th[(Past thoughts)] --> Comp[Periodic compaction pass]\n  Comp --> P1[Period 1: held A]\n  Comp --> P2[Period 2: revised to B<br/>because Z]\n  Comp --> P3[Period 3: now C]\n  P1 --> Note[Trajectory note]\n  P2 --> Note\n  P3 --> Note\n  Note --> Agent[Agent context]"
+      }
+    },
+    {
+      "id": "typed-tool-loop-detector",
+      "name": "Typed Tool-Loop Failure Detector",
+      "aliases": [
+        "Dispatch-Boundary Veto",
+        "Five-Mode Loop Guard",
+        "Tool-Call Pattern Detector"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Lift tool-loop detection from prompt-level rules to a mechanical dispatch-boundary veto with typed failure modes and per-tool caps that returns a formatted refusal the model must consume.",
+      "context": "Agents with rich tool palettes where prompt-level instructions are not enforced (the model can simply not follow them) and loop bugs eat budget before any safety net trips. A single global circuit-breaker hides the specific shape of the failure.",
+      "problem": "Tool-explosion is named as an anti-pattern but is given no mechanism to catch. A single global circuit-breaker misses shape: a thirty-call canvas-action burst looks the same as thirty healthy file reads under a global counter. Prompt-level rules are advisory only.",
+      "forces": [
+        "Per-tool caps are noisy without good defaults.",
+        "A typed refusal must be formatted so the model can consume it as input rather than silently retry.",
+        "Global breaker is the backstop but should be the last to fire.",
+        "Detection windows must be tunable; too short trips legit work, too long drains money before tripping."
+      ],
+      "therefore": "Therefore: at the dispatch boundary classify every tool call against a small set of typed failure modes (generic repeat, unknown-tool repeat, no-progress poll, ping-pong, global breaker) with per-tool caps and return a formatted refusal when a mode trips, so the next observation forces the model to react instead of silently looping.",
+      "solution": "A dispatcher pre-check function. On each tool call, append `(timestamp, tool_name, hash(args))` to a bounded rolling window. Evaluate five rules: (1) generic-repeat: same `(tool, arg-hash)` at least N times in window; (2) unknown-tool-repeat: call to unregistered tool at least M times; (3) poll-no-progress: same tool with no state change at least K times; (4) ping-pong: alternating between two tools at least J cycles; (5) global-circuit-breaker: total tool calls in window at least G. Each rule has per-tool overrides (for example a known-bursty tool capped lower than the default). On trip, the dispatcher returns `{error: 'tool_loop_detected', mode: <id>, observed: <stats>}` as the tool result. The model sees this in its next turn and must adjust.",
+      "consequences": {
+        "benefits": [
+          "Loop failures are caught at the dispatch boundary, not in prompt-text-the-model-may-ignore.",
+          "Typed modes make triage and per-tool tuning meaningful.",
+          "Formatted refusal as a tool result keeps the model in-loop rather than crashing."
+        ],
+        "liabilities": [
+          "Per-tool caps must be calibrated or legit work trips.",
+          "Five modes is more state to maintain than a single breaker.",
+          "A determined model can still loop on tools that the cap missed."
+        ]
+      },
+      "constrains": "No tool call may bypass the dispatch-boundary loop check; a tripped detector blocks that specific call and returns a typed refusal that becomes the next observation, and the per-tool cap cannot be raised mid-session by the model.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "circuit-breaker",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        },
+        {
+          "pattern": "pre-generative-loop-gate",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Release It! Design and Deploy Production-Ready Software (circuit breaker chapter)",
+          "authors": "Michael T. Nygard",
+          "year": 2018,
+          "url": "https://pragprog.com/titles/mnee2/release-it-second-edition/"
+        },
+        {
+          "type": "paper",
+          "title": "Gorilla: Large Language Model Connected with Massive APIs",
+          "authors": "Shishir G. Patil, Tianjun Zhang, Xin Wang, Joseph E. Gonzalez",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.15334"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "cognition",
+        "self-adjustment",
+        "tool-loop",
+        "dispatch"
+      ],
+      "applicability": {
+        "use_when": [
+          "Tool palette is rich enough that prompt-level rules are not reliably followed.",
+          "Loop bugs are observable in telemetry and have wasted budget historically.",
+          "Per-tool calibration is feasible (known-bursty tools have caps tuned individually)."
+        ],
+        "do_not_use_when": [
+          "Tool palette is tiny and prompt-level rules suffice.",
+          "Per-tool caps cannot be calibrated without churning legit workflows.",
+          "A single global circuit-breaker already catches all observed failure shapes."
+        ]
+      },
+      "example_scenario": "A long-running personal agent has a canvas-action tool that occasionally enters a thirty-call burst when an interaction goes wrong. The global step-budget catches it eventually but only after thousands of tokens. The team adds a Typed Tool-Loop Failure Detector with per-tool caps: canvas-action is capped at four calls in a sixty-second window. When the burst starts, the fifth call returns a typed refusal `{mode: 'generic_repeat', observed: {...}}`. The model sees the refusal in its next observation and shifts to a different approach instead of pounding the same tool.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Call[Tool call] --> Win[(Rolling window:<br/>timestamp, tool, arg-hash)]\n  Win --> R1{generic_repeat?}\n  R1 -->|yes| Refuse[Return typed refusal]\n  R1 -->|no| R2{unknown_tool_repeat?}\n  R2 -->|yes| Refuse\n  R2 -->|no| R3{poll_no_progress?}\n  R3 -->|yes| Refuse\n  R3 -->|no| R4{ping_pong?}\n  R4 -->|yes| Refuse\n  R4 -->|no| R5{global_breaker?}\n  R5 -->|yes| Refuse\n  R5 -->|no| Disp[Dispatch normally]\n  Refuse --> Obs[Next observation: model sees refusal]",
+        "caption": "Five typed modes run at the dispatch boundary; a trip returns a formatted refusal so the model adjusts in its next turn."
       }
     },
     {

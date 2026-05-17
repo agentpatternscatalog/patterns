@@ -266,6 +266,7 @@ def rule_a2() -> list[Violation]:
         "glossary.schema.json",
         "verification-todo.json",
         "verification-todo.schema.json",
+        "patterns.graph.schema.json",
     }
     allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
     for f in root_files:
