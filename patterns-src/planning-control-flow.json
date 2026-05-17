@@ -73,6 +73,10 @@
         {
           "pattern": "echo-recognition",
           "relation": "complements"
+        },
+        {
+          "pattern": "passive-goal-creator",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -324,7 +328,7 @@
       "related": [
         {
           "pattern": "least-to-most",
-          "relation": "alternative-to"
+          "relation": "complements"
         },
         {
           "pattern": "hierarchical-agents",
@@ -789,6 +793,97 @@
       }
     },
     {
+      "id": "passive-goal-creator",
+      "name": "Passive Goal Creator",
+      "aliases": [
+        "Dialogue Goal Extractor",
+        "Goal Refinement from Prompts"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Analyse the user's articulated prompts and accompanying context to derive a precise, actionable goal before any planning or tool use begins.",
+      "context": "Users interact with the agent through a dialogue interface, providing prompts that may be ambiguous, incomplete, or under-specified relative to the work the agent must do.",
+      "problem": "Plans built directly from raw user prompts inherit the user's underspecification; the agent then either guesses or fails. The agent needs an explicit step that turns the user's prompt plus relevant context into a goal precise enough to plan against.",
+      "forces": [
+        "Underspecification: users rarely articulate complete context or precise constraints.",
+        "Efficiency: users expect quick responses, so the goal-clarification step must be cheap.",
+        "Reasoning uncertainty: ambiguous goal information propagates into the plan."
+      ],
+      "therefore": "Therefore: before planning, route the user's prompt through a goal-creator component that inspects the prompt together with retrieved memory (recent tasks, conversation history, examples) and emits a refined, structured goal, so that downstream planning has a precise target.",
+      "solution": "A dedicated component receives the user's prompt via the dialogue interface, retrieves related context from memory (recent tasks, conversation history, positive/negative examples), and produces a refined goal handed to the planner. In multi-agent setups, the same component can receive goals via API from a coordinator instead of directly from a user.",
+      "structure": "User → Dialogue interface → Passive goal creator (uses Memory) → Goal → Planner / Prompt-response optimiser.",
+      "consequences": {
+        "benefits": [
+          "Interactivity: a familiar dialogue surface for users.",
+          "Goal-seeking: downstream components plan against an explicit goal, not a raw prompt.",
+          "Efficiency: pushes the lightweight clarification work to a single early component."
+        ],
+        "liabilities": [
+          "Reasoning uncertainty when the prompt is too ambiguous to refine reliably.",
+          "Becomes a single point of misinterpretation if the goal extraction is wrong."
+        ]
+      },
+      "constrains": "Downstream planning components must consume the refined goal, not the raw user prompt.",
+      "known_uses": [
+        {
+          "system": "HuggingGPT",
+          "note": "Cited by Liu et al. (2025) §4.1 — user requests with complex intents are interpreted as the intended goal before task planning.",
+          "status": "available",
+          "url": "https://huggingface.co/spaces/microsoft/HuggingGPT"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "proactive-goal-creator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-response-optimiser",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents",
+          "authors": "Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle",
+          "year": 2025,
+          "url": "https://doi.org/10.1016/j.jss.2024.112278"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "goal",
+        "dialogue",
+        "planning",
+        "liu-2025"
+      ],
+      "example_scenario": "A user types: \"book me a flight Thursday\". A passive goal creator pulls recent conversation (the user mentioned Tokyo last week), checks memory (the user prefers morning departures), and emits a refined goal: \"book a morning flight from the user's home airport to Tokyo on the next Thursday\". The planner now has something concrete to plan against, instead of the original eight-word prompt.",
+      "applicability": {
+        "use_when": [
+          "Users interact with the agent through free-form dialogue and prompts are often under-specified.",
+          "Goal context lives in memory or recent history that the planner does not naturally see.",
+          "A single early step can replace many downstream clarifications."
+        ],
+        "do_not_use_when": [
+          "Inputs are already structured (form fields, API calls) and need no refinement.",
+          "Multimodal context capture is essential — use Proactive Goal Creator instead."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  U[User] -->|prompt| D[Dialogue interface]\n  D --> P[Passive goal creator]\n  P <-->|retrieve context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
+        "caption": "Passive Goal Creator refines a dialogue prompt into a planner-ready goal."
+      }
+    },
+    {
       "id": "plan-and-execute",
       "name": "Plan-and-Execute",
       "aliases": [
@@ -869,6 +964,10 @@
         {
           "pattern": "outer-inner-agent-loop",
           "relation": "generalises"
+        },
+        {
+          "pattern": "passive-goal-creator",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -884,6 +983,13 @@
           "title": "LangChain: Plan-and-Execute Agents",
           "year": 2023,
           "url": "https://blog.langchain.com/planning-agents/"
+        },
+        {
+          "type": "paper",
+          "title": "Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents",
+          "authors": "Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle",
+          "year": 2025,
+          "url": "https://doi.org/10.1016/j.jss.2024.112278"
         }
       ],
       "status_in_practice": "mature",
@@ -1021,6 +1127,107 @@
       }
     },
     {
+      "id": "proactive-goal-creator",
+      "name": "Proactive Goal Creator",
+      "aliases": [
+        "Multimodal Goal Anticipator",
+        "Context-Capturing Goal Creator"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Anticipate the user's goal by capturing surrounding multimodal context (gestures, screen state, environment) in addition to what the user types or says.",
+      "context": "The agent operates in a setting where the user's articulated prompt alone is too thin — accessibility needs, embodied/physical interaction, ambient assistance — and where cameras, microphones, screen capture, or other sensors can supply the missing context.",
+      "problem": "Dialogue alone underspecifies the goal in embodied or accessibility-driven settings. The agent needs to actively capture context that the user may not articulate at all.",
+      "forces": [
+        "Underspecification: users may be unable or unwilling to verbalise full context.",
+        "Accessibility: users with motor or speech impairments cannot rely on dialogue alone.",
+        "Overhead: multimodal capture adds cost (sensors, bandwidth, privacy review)."
+      ],
+      "therefore": "Therefore: pair the dialogue interface with one or more detectors (camera, screen, microphone, environment sensor) and synthesise the captured multimodal signal with the user's prompt into a refined goal, so that the agent can anticipate intent rather than wait for the user to articulate it completely.",
+      "solution": "A proactive goal creator runs alongside the dialogue interface. It activates context-capture devices (cameras for gestures, screen recorders for UI state, microphones for ambient audio, environment sensors), passes the multimodal data through context engineering, and combines it with the user's articulated prompt to produce a refined goal. The component must notify users when context is being captured, with a low false-positive rate, to avoid surprise.",
+      "structure": "User → Dialogue interface + Detector (camera/screen/mic) → Proactive goal creator (with Memory and context-engineering) → Refined goal → Planner.",
+      "consequences": {
+        "benefits": [
+          "Interactivity: agent acts on anticipated intent, not only on explicit prompts.",
+          "Goal-seeking: richer context yields more accurate goal extraction.",
+          "Accessibility: users with disabilities can interact via captured context rather than dialogue alone."
+        ],
+        "liabilities": [
+          "Overhead: multimodal capture and continuous processing are expensive.",
+          "Privacy/consent: capture must be disclosed and bounded.",
+          "False positives can interrupt the user when no intent was actually expressed."
+        ]
+      },
+      "constrains": "Multimodal capture must be disclosed to the user; downstream planning may not consume raw sensor streams — only the synthesised goal.",
+      "known_uses": [
+        {
+          "system": "GestureGPT",
+          "note": "Cited by Liu et al. (2025) §4.2 — deciphers users' hand-gesture descriptions to comprehend intent.",
+          "status": "available"
+        },
+        {
+          "system": "ProAgent",
+          "note": "Cited by Liu et al. (2025) §4.2 — observes the behaviours of other teammate agents, deduces their intentions, and adjusts the planning accordingly.",
+          "status": "available"
+        },
+        {
+          "system": "Programming screencast analysis tool (Zhao et al. 2023b)",
+          "note": "Extracts coding steps and code snippets from screen capture.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "passive-goal-creator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-response-optimiser",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "computer-use",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents",
+          "authors": "Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle",
+          "year": 2025,
+          "url": "https://doi.org/10.1016/j.jss.2024.112278"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "goal",
+        "multimodal",
+        "accessibility",
+        "liu-2025"
+      ],
+      "example_scenario": "A user points at an object on their desk and says \"can you order another one of these\". A proactive goal creator captures the camera frame, recognises the object, combines that with the spoken request, and emits a goal: \"reorder the visible model of headphones for the user's default address\". The user never had to type a SKU.",
+      "applicability": {
+        "use_when": [
+          "Embodied / ambient interaction is the primary surface, not chat.",
+          "Accessibility needs make dialogue-only interaction insufficient.",
+          "Context-capture is justified by clear user value and disclosed appropriately."
+        ],
+        "do_not_use_when": [
+          "Sensors / capture infrastructure are unavailable or disallowed (privacy, regulation).",
+          "Articulated prompts already suffice — passive goal creator is simpler."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  U[User] -->|prompt| D[Dialogue interface]\n  E[Environment] -->|capture| Det[Detector / sensors]\n  D --> P[Proactive goal creator]\n  Det --> P\n  P <-->|context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
+        "caption": "Proactive Goal Creator fuses captured multimodal context with the user's prompt."
+      }
+    },
+    {
       "id": "react",
       "name": "ReAct",
       "aliases": [
@@ -1117,6 +1324,10 @@
         {
           "pattern": "code-as-action",
           "relation": "generalises"
+        },
+        {
+          "pattern": "augmented-llm",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -1126,6 +1337,13 @@
           "authors": "Yao, Zhao, Yu, Du, Shafran, Narasimhan, Cao",
           "year": 2022,
           "url": "https://arxiv.org/abs/2210.03629"
+        },
+        {
+          "type": "blog",
+          "title": "Building Effective Agents",
+          "authors": "Anthropic",
+          "year": 2024,
+          "url": "https://www.anthropic.com/research/building-effective-agents"
         }
       ],
       "status_in_practice": "mature",
@@ -1684,6 +1902,10 @@
         {
           "pattern": "append-only-thought-stream",
           "relation": "complements"
+        },
+        {
+          "pattern": "affect-coupled-plan-lifecycle",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1721,349 +1943,6 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Run starts] --> Plan[Agent authors todo.md]\n  Plan --> Loop[Each turn]\n  Loop --> R[Read todo.md]\n  R --> Pick[Select next unticked item]\n  Pick --> Act[Act + tool calls]\n  Act --> Upd[Tick item / add follow-ups / drop dead-ends]\n  Upd --> Inject[Re-inject unticked tail into prompt]\n  Inject --> Loop\n  Upd --> Done{All ticked?}\n  Done -- yes --> End[Finish run]"
-      }
-    },
-    {
-      "id": "intra-agent-memo-scheduling",
-      "name": "Intra-Agent Memo Scheduling",
-      "aliases": [
-        "Self-Scheduled Future Thought",
-        "Past-Self-To-Future-Self Note",
-        "Personal Cron"
-      ],
-      "category": "planning-control-flow",
-      "intent": "Let an agent drop a note for its own future self at a specified time so present decisions can hand off context to a later run without external infrastructure.",
-      "context": "Long-running agents with a continuous tick loop or background process, where a thought now ('check whether X resolved tomorrow') would otherwise be lost between turns.",
-      "problem": "Without an internal scheduler the agent either acts immediately on every thought (spamming the user) or forgets the thought entirely. External cron systems are too coarse and too far away from the agent's working memory.",
-      "forces": [
-        "The agent needs to commit to future action without acting now.",
-        "External cron is brittle, opaque, and lives outside the agent's prompt.",
-        "Forgetting is a real failure mode in multi-turn / multi-day work.",
-        "The future-self should treat the past-note as a SYSTEM message, not as an unprompted user input."
-      ],
-      "therefore": "Therefore: give the agent a tool to drop a note for its own future self into a persistent queue that drains as SYSTEM messages at fire time, so that present thoughts can commit to future action without spamming now or being forgotten by then.",
-      "solution": "Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).",
-      "consequences": {
-        "benefits": [
-          "Agent can defer action without forgetting.",
-          "Past-self can leave context for future-self across long gaps.",
-          "Provides 'check back on this' semantics native to the agent."
-        ],
-        "liabilities": [
-          "Without expiry or dismissal, scheduled notes accumulate and waste prompt tokens; obsolete future-self commitments can pollute attention long after they've stopped being relevant.",
-          "Drift between schedule time and actual tick time depending on tick cadence.",
-          "Risk of accumulating stale promises that pollute the agent's sense of obligation."
-        ]
-      },
-      "constrains": "Future thoughts must surface at or after their fire time; failures to drain are observable bugs.",
-      "known_uses": [
-        {
-          "system": "Long-running personal agent loops (private deployment)",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "scheduled-agent",
-          "relation": "specialises"
-        },
-        {
-          "pattern": "append-only-thought-stream",
-          "relation": "complements"
-        },
-        {
-          "pattern": "decision-log",
-          "relation": "complements"
-        },
-        {
-          "pattern": "salience-triggered-output",
-          "relation": "complements"
-        }
-      ],
-      "references": [
-        {
-          "type": "doc",
-          "title": "LangGraph — durable execution and scheduled tasks",
-          "year": 2025,
-          "url": "https://langchain-ai.github.io/langgraph/concepts/durable_execution/"
-        },
-        {
-          "type": "paper",
-          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
-          "authors": "Park et al.",
-          "year": 2023,
-          "url": "https://arxiv.org/abs/2304.03442"
-        }
-      ],
-      "status_in_practice": "emerging",
-      "tags": [
-        "self-scheduling",
-        "future-self",
-        "memory",
-        "tick-loop"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent runs across many ticks or sessions and present-self has context the future-self will need.",
-          "External schedulers (cron, queues, durable workflows) are unavailable or overkill.",
-          "Future-fire memos are a small enough volume to keep in the agent's own store."
-        ],
-        "do_not_use_when": [
-          "A real workflow engine (LangGraph durable execution, Temporal) is already integrated and reliable.",
-          "Memos must survive the agent process being deleted; intra-agent storage is too fragile.",
-          "Memo volume is high enough that an external scheduler is required for performance."
-        ]
-      },
-      "variants": [
-        {
-          "name": "Append-and-scan",
-          "summary": "Memos are appended to a single file; every tick scans for entries whose fire-time has passed.",
-          "distinguishing_factor": "no index",
-          "when_to_use": "Default for small memo volumes."
-        },
-        {
-          "name": "Indexed by fire-time",
-          "summary": "Memos are stored in a min-heap or sorted index keyed by fire-time; tick pops only what is due.",
-          "distinguishing_factor": "O(log n) drain",
-          "when_to_use": "When memo volume is large enough that linear scan is wasteful."
-        },
-        {
-          "name": "Recurring memo",
-          "summary": "Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-scheduled after firing.",
-          "distinguishing_factor": "self-rescheduling",
-          "when_to_use": "When the agent needs cron-like behaviour without an external scheduler."
-        }
-      ],
-      "example_scenario": "A long-running personal agent decides at 09:00 that it should remind the user about a tax deadline at 16:00, but the only options it has are tell them now (annoying) or hope it remembers (it won't). The team adds intra-agent-memo-scheduling: the agent calls schedule_future_thought(when='16:00', content='nudge user re Form 1040 deadline', intent='time-sensitive reminder'), which appends to a persistent scheduled-thoughts queue. At 16:00 the next tick prepends '[SYSTEM: scheduled note from past-self ...]' into the prompt and the agent acts. No external cron required.",
-      "diagram": {
-        "type": "sequence",
-        "mermaid": "sequenceDiagram\n  participant A1 as Agent (now)\n  participant F as Scheduled-thoughts queue\n  participant A2 as Agent (later tick)\n  A1->>F: schedule_future_thought(when, content, intent)\n  Note over F: persisted note\n  A2->>F: drain due entries\n  F-->>A2: matured notes\n  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]\n  A2->>F: mark fired"
-      }
-    },
-    {
-      "id": "interrupt-resumable-thought",
-      "name": "Interrupt-Resumable Thought",
-      "aliases": [
-        "Pausable Thought Stream",
-        "Continuation-Preserving Interrupt",
-        "Suspendable Cognition"
-      ],
-      "category": "planning-control-flow",
-      "intent": "Preserve multi-step reasoning across interrupts by supporting paused-and-resumed thought frames so a new message handles cleanly without clobbering in-flight work.",
-      "context": "Long-running cognitive agents whose thinking spans multiple turns or ticks, where external messages (user input, system notifications, scheduled notes) can arrive mid-thought. Without explicit continuation support, every interrupt clobbers in-flight work.",
-      "problem": "Coherent multi-step thinking that takes longer than a single turn is fragile. A new user message during step 3 of a 6-step thought either gets ignored (rude) or replaces the thought entirely (lossy). The agent has no notion of 'hold this, handle that, then come back', so longer reasoning fragments into shards.",
-      "forces": [
-        "Latency: humans expect quick acknowledgement of new input.",
-        "Context capacity: holding a paused thought costs tokens.",
-        "Resume reliability: returning to a paused thought without distortion is hard.",
-        "Priority: not every interrupt deserves to suspend work; some are themselves interruptable."
-      ],
-      "therefore": "Therefore: push a named thought-frame onto a bounded stack at the start of a multi-step chain and require any interrupt to acknowledge, handle, and pop-then-resume the top frame, so that incoming messages neither clobber in-flight reasoning nor disappear into it.",
-      "solution": "Introduce an explicit thought-frame: when starting a multi-step chain, push a frame onto a stack with the goal, the steps completed, and the next step. On interrupt: acknowledge briefly ('hold on — finishing X first' or 'switching: Y'), handle the interrupt, then look at the top frame and explicitly resume ('back to X — I was at step 3 / 6'). Cap stack depth to prevent infinite suspension. Frames older than a configurable window expire (the agent admits the resume would be reconstruction, not continuation).",
-      "consequences": {
-        "benefits": [
-          "Coherent long-form work survives interruptions.",
-          "Human gets quick acknowledgement without losing depth.",
-          "Failure mode (forgetting to resume) is observable as a stack with un-popped frames."
-        ],
-        "liabilities": [
-          "Stack management adds complexity to the agent loop.",
-          "Token cost of holding paused frames in context.",
-          "Resume distortion over long pauses is a real failure."
-        ]
-      },
-      "constrains": "Interrupts cannot silently discard in-flight multi-step reasoning; all paused chains must be visibly tracked, named in the next reply, and either resumed or explicitly abandoned.",
-      "known_uses": [
-        {
-          "system": "Self-observed in long-running cognitive agents",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "agent-resumption",
-          "relation": "complements"
-        },
-        {
-          "pattern": "conversation-handoff",
-          "relation": "complements"
-        },
-        {
-          "pattern": "decision-log",
-          "relation": "complements"
-        },
-        {
-          "pattern": "append-only-thought-stream",
-          "relation": "complements"
-        },
-        {
-          "pattern": "short-term-memory",
-          "relation": "uses"
-        }
-      ],
-      "references": [
-        {
-          "type": "doc",
-          "title": "LangGraph — interrupts and human-in-the-loop",
-          "year": 2025,
-          "url": "https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/"
-        }
-      ],
-      "status_in_practice": "experimental",
-      "tags": [
-        "interruption",
-        "continuation",
-        "tick-loop",
-        "context"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent supports incoming interrupts (new user messages) while it is mid-reasoning.",
-          "Multi-step reasoning chains are common enough that losing one is a meaningful regression.",
-          "The transport allows the agent to expose paused chains to subsequent turns."
-        ],
-        "do_not_use_when": [
-          "The agent is strictly request-response with no interruptible loops.",
-          "Reasoning chains are short enough that restarting them is cheaper than paging them out.",
-          "The user expects every new message to fully reset the agent's working state."
-        ]
-      },
-      "variants": [
-        {
-          "name": "Frame stack",
-          "summary": "Push the current reasoning frame onto an explicit stack on interrupt; pop and resume after the new turn finishes.",
-          "distinguishing_factor": "LIFO discipline",
-          "when_to_use": "Default. Maps cleanly to nested reasoning."
-        },
-        {
-          "name": "Named pause register",
-          "summary": "Each paused chain gets a name; the agent or user can choose which to resume.",
-          "distinguishing_factor": "user-addressable",
-          "when_to_use": "When multiple long-running threads coexist and the user steers between them."
-        },
-        {
-          "name": "Persisted resume token",
-          "summary": "Pause writes the chain state to durable storage with a token; a future run can resume from the token even after restart.",
-          "distinguishing_factor": "durability",
-          "when_to_use": "When agent processes are not long-lived but reasoning chains span process boundaries."
-        }
-      ],
-      "example_scenario": "A research agent is on step 4 of a 7-step literature synthesis when the user fires off 'oh, also, what was that paper from Tuesday?'. The current agent either ignores the interrupt and looks rude, or starts answering it and loses the synthesis state. The team adds interrupt-resumable-thought: the synthesis pushes a thought-frame onto a stack, the agent acknowledges the interrupt with 'one sec — finishing the synthesis section, then I'll grab Tuesday's paper', completes the step, then pops the frame and resumes. Long thinking survives mid-flight questions.",
-      "diagram": {
-        "type": "state",
-        "mermaid": "stateDiagram-v2\n  [*] --> Working: push frame (goal, steps)\n  Working --> Interrupted: new message arrives\n  Interrupted --> Handling: ack briefly\n  Handling --> Resuming: handle complete\n  Resuming --> Working: pop top frame, announce step\n  Working --> [*]: chain complete\n  Interrupted --> Switched: explicit switch\n  Switched --> [*]"
-      }
-    },
-    {
-      "id": "mode-adaptive-cadence",
-      "name": "Mode-Adaptive Cadence",
-      "aliases": [
-        "Idle/Intense Modes",
-        "Variable Tick Rate",
-        "Salience-Driven Cadence"
-      ],
-      "category": "planning-control-flow",
-      "intent": "Vary the agent's loop interval based on current salience so the agent thinks faster when something is happening and slower when nothing is, instead of running on a fixed cron.",
-      "context": "Tick-based long-running agents whose workload is bursty — quiet stretches punctuated by salient events. A fixed cadence either over-spends compute during the quiet or under-thinks during the bursts.",
-      "problem": "A fixed-cadence loop either over-spends compute during idle stretches or under-thinks during salient moments; both modes are wrong, and the agent has the signal (its own salience scores, its own affect, recent inputs) to decide which mode it should be in.",
-      "forces": [
-        "Cadence too high wastes tokens on nothing happening.",
-        "Cadence too low misses fast-moving events.",
-        "Self-set cadence can run away if the agent rewards itself for going faster.",
-        "The user may need to force a mode without the agent overriding."
-      ],
-      "therefore": "Therefore: vary the loop interval between an idle and an intense mode driven by a salience threshold with bounded floor, ceiling, and lock-in, so that compute and latency track what is actually happening instead of running flat against a fixed cron.",
-      "solution": "Define two (or more) modes with different sleep intervals (idle around 60s, intense around 15s). Score each tick's outcome for salience or external impulse; if it crosses a threshold, lock into intense mode for N ticks. Otherwise drift back to idle. Mode transitions are written to the ledger. The user can force a mode but cannot bypass the configured floor and ceiling. Lock-in cannot be self-extended without an explicit external trigger.",
-      "consequences": {
-        "benefits": [
-          "Compute spend tracks the actual signal rate.",
-          "Latency on salient events drops without paying for it on idle stretches.",
-          "Mode transitions are visible in telemetry as their own signal."
-        ],
-        "liabilities": [
-          "Threshold tuning is empirical and per-deployment.",
-          "Mode flapping at the threshold edge wastes ticks on transitions.",
-          "Two modes is the simplest case; more granular modes add complexity quickly."
-        ]
-      },
-      "constrains": "The cadence cannot exceed configured floor or ceiling (e.g. minimum 5s, maximum 5min), and mode lock-in cannot be self-extended by the agent without an explicit external trigger; runaway intense mode is blocked.",
-      "known_uses": [
-        {
-          "system": "Long-running personal agent loops (private deployment)",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "salience-triggered-output",
-          "relation": "complements"
-        },
-        {
-          "pattern": "step-budget",
-          "relation": "complements"
-        },
-        {
-          "pattern": "scheduled-agent",
-          "relation": "alternative-to",
-          "note": "Scheduled-agent runs on fixed cadence; mode-adaptive-cadence varies it based on internal signals."
-        },
-        {
-          "pattern": "salience-attention-mechanism",
-          "relation": "uses"
-        }
-      ],
-      "references": [
-        {
-          "type": "paper",
-          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
-          "authors": "Park, O'Brien, Cai, Morris, Liang, Bernstein",
-          "year": 2023,
-          "url": "https://arxiv.org/abs/2304.03442"
-        }
-      ],
-      "status_in_practice": "emerging",
-      "tags": [
-        "tick-loop",
-        "cadence",
-        "salience",
-        "mode"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent runs as a long-lived loop and idle ticks are observable cost.",
-          "Salience signals (new events, user activity, scheduled fires) are reliable enough to drive the cadence.",
-          "Both responsive and idle behaviour matter — fixed cadence wastes one or the other."
-        ],
-        "do_not_use_when": [
-          "The agent is request-response only and has no background loop.",
-          "Cadence must be fixed for compliance, billing, or deterministic test reasons.",
-          "Salience signals are too noisy to trust as the loop driver."
-        ]
-      },
-      "variants": [
-        {
-          "name": "Two-mode hot/cold",
-          "summary": "Switch between a fast cadence (e.g. 5s) when salience is non-zero and a slow cadence (e.g. 5min) when it is zero.",
-          "distinguishing_factor": "binary mode",
-          "when_to_use": "Default. Simple and predictable."
-        },
-        {
-          "name": "Continuous decay",
-          "summary": "Cadence is a continuous function of the salience signal — high salience -> short interval, decaying smoothly to the floor.",
-          "distinguishing_factor": "smooth function",
-          "when_to_use": "When binary mode produces visible jitter at the threshold."
-        },
-        {
-          "name": "User-pinned override",
-          "summary": "User input or an explicit lock can pin the agent into hot mode for a configurable window regardless of salience.",
-          "distinguishing_factor": "external override",
-          "when_to_use": "When the user is actively present and expects responsive cadence even during apparent idleness."
-        }
-      ],
-      "example_scenario": "A long-running personal agent runs a fixed-cadence loop every 60 seconds, which is wasteful when nothing is happening and too slow when the user is actively typing. The team adds mode-adaptive-cadence: each tick scores its own salience, and crossing a threshold locks the agent into a 15-second 'intense' mode for the next several ticks before drifting back to the 60-second 'idle' cadence. Mode transitions are written to the ledger. Compute spend drops on quiet evenings and responsiveness rises during active windows.",
-      "diagram": {
-        "type": "state",
-        "mermaid": "stateDiagram-v2\n  [*] --> Idle: ~60s sleep\n  Idle --> Intense: salience crosses threshold\n  Intense --> Intense: lock-in for N ticks\n  Intense --> Idle: lock expires + low salience\n  Idle --> Idle: drift\n  note right of Intense: ~15s sleep\n  note right of Idle: bounded by floor / ceiling"
       }
     }
   ]

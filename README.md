@@ -2,7 +2,7 @@
 
 A machine-readable reference of agentic design patterns in GoF/POSA form. Pure data — no code, no scripts.
 
-**179 patterns across 13 categories, 850 typed cross-pattern edges.**
+**214 patterns across 14 categories, 1118 typed cross-pattern edges.**
 
 ## What "agentic" means
 

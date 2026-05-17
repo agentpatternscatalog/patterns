@@ -11,7 +11,7 @@ Let the agent discover available tools at runtime rather than hardcoding the too
 
 ## Context
 
-Tool palettes evolve; new tools land without redeploying the agent. MCP and similar protocols make discovery feasible.
+Tool palettes evolve; new tools land without redeploying the agent. MCP and similar protocols make discovery feasible. Distinct from tool-agent-registry: tool-discovery is the general mechanism ("agent fetches its tool palette at runtime"); tool-agent-registry is a specialisation that also catalogues agents and exposes selection metadata (cost, quality, capability) for ranking.
 
 ## Problem
 
@@ -99,5 +99,6 @@ The agent's tool palette at any moment is exactly the discovered set; off-regist
 ## References
 
 - (doc) *Model Context Protocol Specification*, <https://modelcontextprotocol.io/specification>
+- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
 
 **Tags:** discovery, tool-use, registry

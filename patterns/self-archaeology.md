@@ -2,7 +2,7 @@
 
 **Also known as:** Trajectory Distillation, Self-History Synthesis, Agent-Memory Compaction
 
-**Category:** Memory
+**Category:** Cognition & Introspection
 **Status in practice:** experimental
 
 ## Intent

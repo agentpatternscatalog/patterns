@@ -2,7 +2,7 @@
 
 **Also known as:** Mid-Term Working Memory, Affect-Tagged Concerns, Background Chewing
 
-**Category:** Memory
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

@@ -1,8 +1,8 @@
 # Taxonomy
 
-Thirteen categories. Each pattern belongs to exactly one. Boundaries are pragmatic: when a pattern straddles two buckets, we pick the one a reader would search first.
+Fourteen categories. Each pattern belongs to exactly one. Boundaries are pragmatic: when a pattern straddles two buckets, we pick the one a reader would search first.
 
-The thirteen: **reasoning**, **planning-control-flow**, **tool-use-environment**, **retrieval**, **memory**, **multi-agent**, **verification-reflection**, **safety-control**, **routing-composition**, **governance-observability**, **structure-data**, **streaming-ux**, **anti-patterns**.
+The fourteen: **reasoning**, **planning-control-flow**, **tool-use-environment**, **retrieval**, **memory**, **multi-agent**, **verification-reflection**, **safety-control**, **routing-composition**, **governance-observability**, **structure-data**, **streaming-ux**, **cognition-introspection**, **anti-patterns**.
 
 ## planning-control-flow
 
@@ -63,6 +63,12 @@ Examples: Structured Output (JSON Schema), Polymorphic Record, Schema Extensibil
 How partial state reaches the user. Streaming, push messages, agent-initiated communication, salience-driven output.
 
 Examples: SSE Typed Events, Bidirectional Impulse Channel, Salience-Triggered Output, Citation Streaming, Stop/Cancel.
+
+## cognition-introspection
+
+How a long-running agent observes, modulates, and steers its own cognition. Self-models, affect substrates, tick cadence, dreaming, meditation, inner thought streams, hypothesis-to-insight promotion. The architecture of the agent's inner life — distinct from memory mechanics (what is stored) and from verification (whether outputs are correct).
+
+Examples: Awareness, World-Model Separation, Emotional State Persistence, Dream Consolidation Cycle, Preoccupation Tracking, Mode-Adaptive Cadence, Open-Question Tension Store, Cognitive-Move Selector, Meditation Mode, Multi-Axis Promotion Scoring.
 
 ## reasoning
 

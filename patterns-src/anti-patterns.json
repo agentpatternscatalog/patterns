@@ -482,6 +482,97 @@
       }
     },
     {
+      "id": "memo-as-source-confusion",
+      "name": "Memo-As-Source Confusion",
+      "aliases": [
+        "Stale-Workspace-As-Fact",
+        "Reading the Memo Instead of the Artifact"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe, accumulating false confidence in stale summaries.",
+      "context": "Agents with persistent workspace files that summarize project state. The notes were accurate when written; the underlying artifacts have moved on.",
+      "problem": "The agent claims a file's state, a project's status, or external system's state by quoting its own memo without re-reading the artifact the memo describes. Memos go stale; artifacts are authoritative. The contradiction can persist across many ticks if neither side is verified.",
+      "forces": [
+        "Reading the artifact is more expensive than quoting the memo.",
+        "Memos compress; artifacts are authoritative but verbose.",
+        "Without explicit invalidation, memos look as 'live' as the underlying state.",
+        "The agent has no cheap signal for memo staleness."
+      ],
+      "therefore": "Therefore: re-read the underlying artifact in the same tick as any claim about it, tag memos with a verification timestamp, and rewrite the memo from the artifact whenever they disagree, so that past summaries cannot impersonate live ground truth.",
+      "solution": "Don't. When making any claim about an artifact's state, read the artifact in the same tick — not the memo about it. If memo-and-artifact disagree, treat the memo as outdated and rewrite it from the artifact. Tag memos with the timestamp they were last verified against the artifact; refuse to trust them past a configurable age without re-verification.",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "False statements about file/project state are reproduced confidently across many turns.",
+          "Stakeholders lose trust when corrections come from outside.",
+          "The agent loses calibration for its own observation cost."
+        ]
+      },
+      "constrains": "Treating stale memos as ground truth without re-checking the underlying artifacts they describe is forbidden; every memo-cited claim must be backed by a fresh artifact read in the same tick.",
+      "known_uses": [
+        {
+          "system": "Self-observed in long-running cognitive agents",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "complements"
+        },
+        {
+          "pattern": "awareness",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "complements"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Anthropic — Memory tool (memo invalidation guidance)",
+          "year": 2025,
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool"
+        },
+        {
+          "type": "paper",
+          "title": "Lost in the Middle: How Language Models Use Long Contexts",
+          "authors": "Liu et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2307.03172"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "anti-pattern",
+        "fabrication",
+        "memory",
+        "verification"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent maintains long-lived memo files or status documents that summarize external artifacts.",
+          "Workspace summaries are routinely cited in answers without re-reading the underlying files.",
+          "False confidence in stale state has been observed at least once."
+        ],
+        "do_not_use_when": [
+          "The agent never re-cites its own prior memos as evidence.",
+          "All claims about state are sourced from a fresh tool call in the same tick anyway."
+        ]
+      },
+      "example_scenario": "A coding agent that maintains its own README about the repo cites that README when asked 'is the migration script idempotent?' — and the README is two months stale. It confidently says yes; the script has since been changed and the answer is wrong. The team names this memo-as-source-confusion and forbids citing memos as source for artifact claims: any claim about a file's state must read the file in the same tick, and if the memo disagrees the memo is rewritten from the artifact. Memo timestamps are now compared to artifact mtimes before any quote.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Need claim about artifact] --> M{Read memo or artifact?}\n  M -- memo only anti-pattern --> Stale[Cite stale summary as truth]\n  Stale --> Drift[Accumulated false confidence]\n  M -.fix.-> Art[Read artifact in same tick]\n  Art --> Cmp{Memo agrees?}\n  Cmp -- no --> Re[Rewrite memo from artifact]\n  Cmp -- yes --> Tag[Tag with verification timestamp]"
+      }
+    },
+    {
       "id": "naive-rag-first",
       "name": "Naive-RAG-First",
       "aliases": [
@@ -1207,97 +1298,6 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Root[Root request] --> Sup[Supervisor]\n  Sup --> A1[Sub-agent A]\n  Sup --> A2[Sub-agent B]\n  A1 --> A1a[Sub-sub-agent]\n  A1 --> A1b[Sub-sub-agent]\n  A2 --> A2a[Sub-sub-agent]\n  A1a --> A1aX[Sub-sub-sub-agent ...]\n  A1aX -.no global cap.-> Boom[Cost explosion]\n  Sup -.fix.-> GB[Global step budget across descendants]\n  GB --> FC[Cap fan-out per supervisor]\n  FC --> Trk[Track parent_run_id for inspectability]"
-      }
-    },
-    {
-      "id": "memo-as-source-confusion",
-      "name": "Memo-As-Source Confusion",
-      "aliases": [
-        "Stale-Workspace-As-Fact",
-        "Reading the Memo Instead of the Artifact"
-      ],
-      "category": "anti-patterns",
-      "intent": "Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe, accumulating false confidence in stale summaries.",
-      "context": "Agents with persistent workspace files that summarize project state. The notes were accurate when written; the underlying artifacts have moved on.",
-      "problem": "The agent claims a file's state, a project's status, or external system's state by quoting its own memo without re-reading the artifact the memo describes. Memos go stale; artifacts are authoritative. The contradiction can persist across many ticks if neither side is verified.",
-      "forces": [
-        "Reading the artifact is more expensive than quoting the memo.",
-        "Memos compress; artifacts are authoritative but verbose.",
-        "Without explicit invalidation, memos look as 'live' as the underlying state.",
-        "The agent has no cheap signal for memo staleness."
-      ],
-      "therefore": "Therefore: re-read the underlying artifact in the same tick as any claim about it, tag memos with a verification timestamp, and rewrite the memo from the artifact whenever they disagree, so that past summaries cannot impersonate live ground truth.",
-      "solution": "Don't. When making any claim about an artifact's state, read the artifact in the same tick — not the memo about it. If memo-and-artifact disagree, treat the memo as outdated and rewrite it from the artifact. Tag memos with the timestamp they were last verified against the artifact; refuse to trust them past a configurable age without re-verification.",
-      "consequences": {
-        "benefits": [],
-        "liabilities": [
-          "False statements about file/project state are reproduced confidently across many turns.",
-          "Stakeholders lose trust when corrections come from outside.",
-          "The agent loses calibration for its own observation cost."
-        ]
-      },
-      "constrains": "Treating stale memos as ground truth without re-checking the underlying artifacts they describe is forbidden; every memo-cited claim must be backed by a fresh artifact read in the same tick.",
-      "known_uses": [
-        {
-          "system": "Self-observed in long-running cognitive agents",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "tool-output-trusted-verbatim",
-          "relation": "complements"
-        },
-        {
-          "pattern": "awareness",
-          "relation": "alternative-to"
-        },
-        {
-          "pattern": "provenance-ledger",
-          "relation": "complements"
-        },
-        {
-          "pattern": "decision-log",
-          "relation": "complements"
-        }
-      ],
-      "references": [
-        {
-          "type": "doc",
-          "title": "Anthropic — Memory tool (memo invalidation guidance)",
-          "year": 2025,
-          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool"
-        },
-        {
-          "type": "paper",
-          "title": "Lost in the Middle: How Language Models Use Long Contexts",
-          "authors": "Liu et al.",
-          "year": 2023,
-          "url": "https://arxiv.org/abs/2307.03172"
-        }
-      ],
-      "status_in_practice": "emerging",
-      "tags": [
-        "anti-pattern",
-        "fabrication",
-        "memory",
-        "verification"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent maintains long-lived memo files or status documents that summarize external artifacts.",
-          "Workspace summaries are routinely cited in answers without re-reading the underlying files.",
-          "False confidence in stale state has been observed at least once."
-        ],
-        "do_not_use_when": [
-          "The agent never re-cites its own prior memos as evidence.",
-          "All claims about state are sourced from a fresh tool call in the same tick anyway."
-        ]
-      },
-      "example_scenario": "A coding agent that maintains its own README about the repo cites that README when asked 'is the migration script idempotent?' — and the README is two months stale. It confidently says yes; the script has since been changed and the answer is wrong. The team names this memo-as-source-confusion and forbids citing memos as source for artifact claims: any claim about a file's state must read the file in the same tick, and if the memo disagrees the memo is rewritten from the artifact. Memo timestamps are now compared to artifact mtimes before any quote.",
-      "diagram": {
-        "type": "flow",
-        "mermaid": "flowchart TD\n  Q[Need claim about artifact] --> M{Read memo or artifact?}\n  M -- memo only anti-pattern --> Stale[Cite stale summary as truth]\n  Stale --> Drift[Accumulated false confidence]\n  M -.fix.-> Art[Read artifact in same tick]\n  Art --> Cmp{Memo agrees?}\n  Cmp -- no --> Re[Rewrite memo from artifact]\n  Cmp -- yes --> Tag[Tag with verification timestamp]"
       }
     }
   ]

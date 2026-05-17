@@ -33,6 +33,7 @@ CAT_LABEL = {
     "governance-observability": "Governance & Observability",
     "structure-data": "Structure & Data",
     "streaming-ux": "Streaming & UX",
+    "cognition-introspection": "Cognition & Introspection",
     "anti-patterns": "Anti-Patterns",
 }
 

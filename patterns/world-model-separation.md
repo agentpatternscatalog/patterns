@@ -2,7 +2,7 @@
 
 **Also known as:** World Model File, Self/World Split, Environment Model
 
-**Category:** Memory
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

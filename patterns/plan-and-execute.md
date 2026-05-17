@@ -112,5 +112,6 @@ The executor cannot deviate from the current plan without raising a replan reque
 
 - (paper) Wang, Xu, Lan, Hu, Lan, Lee, Lim, *Plan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models*, 2023, <https://arxiv.org/abs/2305.04091>
 - (blog) *LangChain: Plan-and-Execute Agents*, 2023, <https://blog.langchain.com/planning-agents/>
+- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
 
 **Tags:** planning, two-stage
