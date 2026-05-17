@@ -111,5 +111,6 @@ Each step the model may call exactly one tool; reasoning between calls is not ac
 ## References
 
 - (paper) Yao, Zhao, Yu, Du, Shafran, Narasimhan, Cao, *ReAct: Synergizing Reasoning and Acting in Language Models*, 2022, <https://arxiv.org/abs/2210.03629>
+- (blog) Anthropic, *Building Effective Agents* (2024) — https://www.anthropic.com/research/building-effective-agents
 
 **Tags:** react, loop, tool-use

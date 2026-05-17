@@ -2,7 +2,7 @@
 
 **Also known as:** Idle/Intense Modes, Variable Tick Rate, Salience-Driven Cadence
 
-**Category:** Planning & Control Flow
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

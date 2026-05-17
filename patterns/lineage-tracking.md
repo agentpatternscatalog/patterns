@@ -1,6 +1,6 @@
 # Lineage Tracking
 
-**Also known as:** Data Lineage, Prompt Versioning, Artefact Provenance
+**Also known as:** Data Lineage, Artefact Provenance
 
 **Category:** Governance & Observability  
 **Status in practice:** mature

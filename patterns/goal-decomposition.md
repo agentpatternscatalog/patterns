@@ -87,7 +87,7 @@ Action is taken only at leaf goals; non-leaf goals must decompose further before
 
 ## Related patterns
 
-- *alternative-to* → [least-to-most](least-to-most.md)
+- *complements* → [least-to-most](least-to-most.md) — least-to-most is the prompting tactic at the language layer; goal-decomposition is the planner architecture at the agent layer.
 - *complements* → [hierarchical-agents](hierarchical-agents.md)
 - *specialises* → [plan-and-execute](plan-and-execute.md)
 

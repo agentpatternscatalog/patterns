@@ -2,7 +2,7 @@
 
 **Also known as:** Situational Awareness, Capability Self-Knowledge
 
-**Category:** Memory  
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

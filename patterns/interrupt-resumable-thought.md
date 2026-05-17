@@ -2,7 +2,7 @@
 
 **Also known as:** Pausable Thought Stream, Continuation-Preserving Interrupt, Suspendable Cognition
 
-**Category:** Planning & Control Flow
+**Category:** Cognition & Introspection
 **Status in practice:** experimental
 
 ## Intent

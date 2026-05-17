@@ -2,7 +2,7 @@
 
 **Also known as:** Affect State, Visceral Sensation Tracking, Decaying Emotion Scalars
 
-**Category:** Verification & Reflection
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

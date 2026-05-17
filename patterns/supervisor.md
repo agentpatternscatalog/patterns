@@ -11,7 +11,7 @@ Place a coordinating agent above a set of specialised agents and route work to t
 
 ## Context
 
-Different request types benefit from different system prompts, tool palettes, and models; routing alone is too coarse because the lanes themselves want their own loop.
+Different request types benefit from different system prompts, tool palettes, and models; routing alone is too coarse because the lanes themselves want their own loop. Distinct from orchestrator-workers: supervisor routes work to a *fixed* set of pre-existing specialist agents; orchestrator-workers dynamically *decomposes* a task into ad-hoc subtasks per request.
 
 ## Problem
 

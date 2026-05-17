@@ -2,7 +2,7 @@
 
 **Also known as:** Dream Pass, Slow Sleep Reflection, Emotional Reset Cycle
 
-**Category:** Verification & Reflection
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

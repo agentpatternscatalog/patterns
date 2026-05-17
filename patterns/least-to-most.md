@@ -93,7 +93,7 @@ Subproblems must be solved in the listed order; out-of-order solving is forbidde
 - *alternative-to* → [chain-of-thought](chain-of-thought.md)
 - *complements* → [self-ask](self-ask.md)
 - *complements* → [plan-and-execute](plan-and-execute.md)
-- *alternative-to* → [goal-decomposition](goal-decomposition.md)
+- *complements* → [goal-decomposition](goal-decomposition.md) — least-to-most is the prompting tactic; goal-decomposition is the planner architecture. Both can be used together.
 
 ## References
 

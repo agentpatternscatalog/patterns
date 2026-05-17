@@ -93,5 +93,6 @@ Tools see only the domain shape; the vendor shape never reaches the model.
 ## References
 
 - (book) Eric Evans, *Domain-Driven Design (Anti-Corruption Layer)*, 2003
+- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
 
 **Tags:** translation, anti-corruption, ddd

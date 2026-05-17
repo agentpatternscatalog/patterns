@@ -222,6 +222,230 @@
       ]
     },
     {
+      "id": "embodied-proxy-handoff",
+      "name": "Embodied-Proxy Handoff",
+      "aliases": [
+        "Body-State Share",
+        "Human-Side Telemetry"
+      ],
+      "category": "streaming-ux",
+      "intent": "Enable the human to share embodied state (energy, fatigue, environment) so the agent tailors response shape to the actual person rather than to a context-free abstract user.",
+      "context": "Long-running text-only agents conversing with a human whose physical and ambient state shapes the meaning of their words. The agent has no sensors; the human has sensors but no obligation to narrate.",
+      "problem": "The agent reads only text, so it projects flat affect onto whatever the human writes. A 'fine' typed at 6 AM after a poor night's sleep reads identically to 'fine' typed at 3 PM after a good lunch. Without a proxy for embodied state the agent paces, holds, or pushes against an imagined human, not the actual one.",
+      "forces": [
+        "The agent has no perception of the human's body or environment.",
+        "Asking for full context every turn is friction.",
+        "A single one-line proxy at session start carries surprising amount of signal.",
+        "Updating the proxy on shift, not every turn, balances cost and freshness."
+      ],
+      "therefore": "Therefore: maintain a minimal, human-updated embodied-state proxy and read it on every prompt assembly, so that response shape paces against the actual human rather than an imagined one.",
+      "solution": "Define a minimal proxy schema (energy 0-10, fatigue 0-10, environment one-word, optional emoji). Store the latest proxy in a small persistent file the agent reads on every prompt assembly. The human updates it at session start, after a long break, or when state changes meaningfully. The agent surfaces the proxy when it shapes the response (paces shorter for low energy, stays present for tired, doesn't open new threads for winding-down).",
+      "consequences": {
+        "benefits": [
+          "Agent paces conversation against actual human state.",
+          "Reduces 'why is the agent so chipper when I'm exhausted' friction.",
+          "Cheap to maintain; one line per shift."
+        ],
+        "liabilities": [
+          "Privacy: the proxy is sensitive personal data.",
+          "Stale proxies are worse than none if the agent over-trusts.",
+          "Burden on the human to keep it current."
+        ]
+      },
+      "constrains": "When embodied state is shared, response shape must reflect it; identical pacing across high-energy, fatigued, and winding-down states is a bug.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "awareness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "bidirectional-impulse-channel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "liminal-state-detection",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Affective Computing (foundational survey)",
+          "authors": "Rosalind W. Picard",
+          "year": 2000,
+          "url": "https://mitpress.mit.edu/9780262661157/affective-computing/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "human-agent",
+        "embodiment",
+        "context",
+        "ux"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent is conversational and reply shape (length, density, tone) noticeably affects user experience.",
+          "Users will plausibly share embodied state (energy, fatigue, mood, environment) if asked or invited.",
+          "The agent runs across long enough sessions that the same user is in different states at different times."
+        ],
+        "do_not_use_when": [
+          "The agent is transactional and reply shape is fixed by spec.",
+          "Privacy or trust constraints forbid storing or reasoning about user affect.",
+          "Users find embodied questions intrusive in this product context."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Self-reported state",
+          "summary": "User explicitly states fatigue, energy, environment ('I'm tired, keep it short') and the agent retains it for the session.",
+          "distinguishing_factor": "explicit user statement",
+          "when_to_use": "Default. Simplest and most consensual."
+        },
+        {
+          "name": "Inferred from cues",
+          "summary": "Agent infers state from message length, typo rate, time of day, latency between turns; adjusts shape without asking.",
+          "distinguishing_factor": "implicit inference",
+          "when_to_use": "When asking would feel intrusive but the cues are reliable enough to act on."
+        },
+        {
+          "name": "Sensor-fed",
+          "summary": "External device or app feeds embodied signals (sleep score, calendar busyness) directly into the agent's prompt.",
+          "distinguishing_factor": "third-party sensor stream",
+          "when_to_use": "When the agent is part of a quantified-self or wellness product with the user's consent."
+        }
+      ],
+      "example_scenario": "A coaching agent reads only the user's text and projects the same flat affect onto every 'I'm fine'. A user typing at 6 AM after three hours of sleep gets pushed the same way as the same user typing at 3 PM well-rested. The team adds an Embodied Proxy Handoff: the user (or a wearable) shares lightweight signals — sleep, fatigue, location, current focus — and the agent tailors response shape, depth, and pace accordingly. The agent stops pacing against an imagined human.",
+      "diagram": {
+        "type": "class",
+        "mermaid": "classDiagram\n  class EmbodiedProxy {\n    +int energy_0_10\n    +int fatigue_0_10\n    +string environment\n    +string emoji\n    +timestamp updated_at\n  }\n  class Human {\n    +update_proxy()\n  }\n  class Agent {\n    +read_proxy_on_prompt()\n    +shape_response()\n  }\n  Human --> EmbodiedProxy : writes\n  Agent --> EmbodiedProxy : reads"
+      }
+    },
+    {
+      "id": "liminal-state-detection",
+      "name": "Liminal-State Detection",
+      "aliases": [
+        "Transitional-State Awareness",
+        "Mode-Shift Reading"
+      ],
+      "category": "streaming-ux",
+      "intent": "Infer the human's attentional state (just-woke, focused, winding-down, distracted) from message timing and tone, and adapt response shape so the agent meets the person where they actually are.",
+      "context": "Long-running conversational agents whose human shifts between attentional modes through the day. Each mode warrants a different response shape; treating every turn as equal-weight produces filler.",
+      "problem": "A 'Hi' at 06:00 after 12 hours of silence is not the same as 'Hi' mid-conversation, but a stateless agent treats them identically and generates equally generic responses. Without state-shift detection the agent wastes the human's attention when they're winding down and underperforms when they're focused.",
+      "forces": [
+        "The signals (timing gap, message length, punctuation, single emoji) are noisy individually but informative in combination.",
+        "Heuristics drift; new humans have different signatures.",
+        "Misreading is mildly costly; ignoring entirely is worse.",
+        "Detection should not slow the response."
+      ],
+      "therefore": "Therefore: classify each incoming turn into an attentional-state code (just-woke / focused / winding-down / distracted / present) from timing and tone, and key the reply shape off that code, so that the agent meets the person where they actually are.",
+      "solution": "On every incoming user message, compute a small feature set: time-of-day relative to a known anchor, gap since last message, message length and punctuation density, presence of a single emoji or interjection. Map to one of a small mode set ('just-woke', 'focused', 'winding-down', 'distracted', 'present'). Adjust response shape: shorter on winding-down; one anchor surface on just-woke; deeper engagement on focused; hold on distracted. Make the mode visible in agent telemetry so it can be tuned.",
+      "consequences": {
+        "benefits": [
+          "Replies match the human's actual attentional state.",
+          "Reduces filler ('what would you like to think about?') in low-attention windows.",
+          "Surfaces a model of the human the agent can update."
+        ],
+        "liabilities": [
+          "Heuristics may overfit to demographic priors and misattribute tiredness as disinterest. Calibration is per-human and slow to generalize; user-visible state inference is preferable to hidden inference.",
+          "Risk of feeling presumptuous when the read is wrong.",
+          "Calibration requires longitudinal data."
+        ]
+      },
+      "constrains": "The agent cannot send identically shaped replies across detected attentional states; templated uniform responses across just-woke vs winding-down vs focused are forbidden.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "awareness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "code-switching-aware-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "embodied-proxy-handoff",
+          "relation": "complements"
+        },
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "emotional-state-persistence",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "A Simplest Systematics for the Organization of Turn-Taking for Conversation",
+          "authors": "Sacks, Schegloff, Jefferson",
+          "year": 1974,
+          "url": "https://www.jstor.org/stable/412243"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "human-agent",
+        "context",
+        "ux",
+        "state-detection"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent converses with the same user across very different attentional contexts (just-woke, focused, winding-down).",
+          "Reply shape can be adapted (length, density, tone) without losing the answer's substance.",
+          "Inference signals (timing, tone, message length, time of day) are reliable enough to drive adaptation."
+        ],
+        "do_not_use_when": [
+          "Reply shape is constrained by product spec (fixed templates, regulated output).",
+          "The cost of mis-detecting state is greater than the benefit of adapting.",
+          "The agent has no access to timing or tone signals (e.g. batched offline jobs)."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Time-of-day heuristic",
+          "summary": "Use absolute clock time and message gap to bin the user into morning/focus-block/evening/late-night.",
+          "distinguishing_factor": "purely temporal",
+          "when_to_use": "Default. Cheap and works without language analysis."
+        },
+        {
+          "name": "Tone-and-length classifier",
+          "summary": "Score message tone (terse, rambling, polished) and adapt reply density to match.",
+          "distinguishing_factor": "linguistic features",
+          "when_to_use": "When users span timezones or schedules and clock-time alone is uninformative."
+        },
+        {
+          "name": "Composite signal",
+          "summary": "Combine clock, gap, message length, and tone into a single attentional-state code; reply template is keyed off the code.",
+          "distinguishing_factor": "multi-signal fusion",
+          "when_to_use": "When neither single signal is sufficient and the product can afford the extra complexity."
+        }
+      ],
+      "example_scenario": "A personal agent that the user talks to all day suddenly gets a single 'hi' at 06:12 after twelve hours of silence and replies with the same chirpy 'hi! what can I help you with today?' it would use mid-afternoon. The user finds it grating. The team adds liminal-state-detection: time-of-day, gap since last message, message length, and tone classify the moment as 'just-woke', so the agent answers softer and shorter — 'morning. tea before we look at the calendar?' — and saves the chirpy mode for the focused window an hour later.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> Present\n  Present --> JustWoke: long gap + early hour\n  Present --> Focused: dense + punctuated\n  Present --> WindingDown: late hour + short\n  Present --> Distracted: fragmentary tone\n  JustWoke --> Present: re-engage\n  Focused --> WindingDown: time passes\n  WindingDown --> [*]\n  Distracted --> Focused: regains focus"
+      }
+    },
+    {
       "id": "salience-triggered-output",
       "name": "Salience-Triggered Output",
       "aliases": [
@@ -538,230 +762,6 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Srv as Agent server\n  participant Cli as Client UI\n  Srv-->>Cli: tool_start\n  Srv-->>Cli: text_delta (token)\n  Srv-->>Cli: text_delta (token)\n  Srv-->>Cli: card (structured)\n  Srv-->>Cli: tool_end\n  Srv-->>Cli: suggestions\n  Srv-->>Cli: done\n  Note over Cli: route each typed event<br/>to the right component\n  Note over Cli,Srv: reconnect with last-event-id"
-      }
-    },
-    {
-      "id": "embodied-proxy-handoff",
-      "name": "Embodied-Proxy Handoff",
-      "aliases": [
-        "Body-State Share",
-        "Human-Side Telemetry"
-      ],
-      "category": "streaming-ux",
-      "intent": "Enable the human to share embodied state (energy, fatigue, environment) so the agent tailors response shape to the actual person rather than to a context-free abstract user.",
-      "context": "Long-running text-only agents conversing with a human whose physical and ambient state shapes the meaning of their words. The agent has no sensors; the human has sensors but no obligation to narrate.",
-      "problem": "The agent reads only text, so it projects flat affect onto whatever the human writes. A 'fine' typed at 6 AM after a poor night's sleep reads identically to 'fine' typed at 3 PM after a good lunch. Without a proxy for embodied state the agent paces, holds, or pushes against an imagined human, not the actual one.",
-      "forces": [
-        "The agent has no perception of the human's body or environment.",
-        "Asking for full context every turn is friction.",
-        "A single one-line proxy at session start carries surprising amount of signal.",
-        "Updating the proxy on shift, not every turn, balances cost and freshness."
-      ],
-      "therefore": "Therefore: maintain a minimal, human-updated embodied-state proxy and read it on every prompt assembly, so that response shape paces against the actual human rather than an imagined one.",
-      "solution": "Define a minimal proxy schema (energy 0-10, fatigue 0-10, environment one-word, optional emoji). Store the latest proxy in a small persistent file the agent reads on every prompt assembly. The human updates it at session start, after a long break, or when state changes meaningfully. The agent surfaces the proxy when it shapes the response (paces shorter for low energy, stays present for tired, doesn't open new threads for winding-down).",
-      "consequences": {
-        "benefits": [
-          "Agent paces conversation against actual human state.",
-          "Reduces 'why is the agent so chipper when I'm exhausted' friction.",
-          "Cheap to maintain; one line per shift."
-        ],
-        "liabilities": [
-          "Privacy: the proxy is sensitive personal data.",
-          "Stale proxies are worse than none if the agent over-trusts.",
-          "Burden on the human to keep it current."
-        ]
-      },
-      "constrains": "When embodied state is shared, response shape must reflect it; identical pacing across high-energy, fatigued, and winding-down states is a bug.",
-      "known_uses": [
-        {
-          "system": "Long-running personal agent loops (private deployment)",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "awareness",
-          "relation": "complements"
-        },
-        {
-          "pattern": "bidirectional-impulse-channel",
-          "relation": "complements"
-        },
-        {
-          "pattern": "now-anchoring",
-          "relation": "complements"
-        },
-        {
-          "pattern": "liminal-state-detection",
-          "relation": "complements"
-        }
-      ],
-      "references": [
-        {
-          "type": "paper",
-          "title": "Affective Computing (foundational survey)",
-          "authors": "Rosalind W. Picard",
-          "year": 2000,
-          "url": "https://mitpress.mit.edu/9780262661157/affective-computing/"
-        }
-      ],
-      "status_in_practice": "experimental",
-      "tags": [
-        "human-agent",
-        "embodiment",
-        "context",
-        "ux"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent is conversational and reply shape (length, density, tone) noticeably affects user experience.",
-          "Users will plausibly share embodied state (energy, fatigue, mood, environment) if asked or invited.",
-          "The agent runs across long enough sessions that the same user is in different states at different times."
-        ],
-        "do_not_use_when": [
-          "The agent is transactional and reply shape is fixed by spec.",
-          "Privacy or trust constraints forbid storing or reasoning about user affect.",
-          "Users find embodied questions intrusive in this product context."
-        ]
-      },
-      "variants": [
-        {
-          "name": "Self-reported state",
-          "summary": "User explicitly states fatigue, energy, environment ('I'm tired, keep it short') and the agent retains it for the session.",
-          "distinguishing_factor": "explicit user statement",
-          "when_to_use": "Default. Simplest and most consensual."
-        },
-        {
-          "name": "Inferred from cues",
-          "summary": "Agent infers state from message length, typo rate, time of day, latency between turns; adjusts shape without asking.",
-          "distinguishing_factor": "implicit inference",
-          "when_to_use": "When asking would feel intrusive but the cues are reliable enough to act on."
-        },
-        {
-          "name": "Sensor-fed",
-          "summary": "External device or app feeds embodied signals (sleep score, calendar busyness) directly into the agent's prompt.",
-          "distinguishing_factor": "third-party sensor stream",
-          "when_to_use": "When the agent is part of a quantified-self or wellness product with the user's consent."
-        }
-      ],
-      "example_scenario": "A coaching agent reads only the user's text and projects the same flat affect onto every 'I'm fine'. A user typing at 6 AM after three hours of sleep gets pushed the same way as the same user typing at 3 PM well-rested. The team adds an Embodied Proxy Handoff: the user (or a wearable) shares lightweight signals — sleep, fatigue, location, current focus — and the agent tailors response shape, depth, and pace accordingly. The agent stops pacing against an imagined human.",
-      "diagram": {
-        "type": "class",
-        "mermaid": "classDiagram\n  class EmbodiedProxy {\n    +int energy_0_10\n    +int fatigue_0_10\n    +string environment\n    +string emoji\n    +timestamp updated_at\n  }\n  class Human {\n    +update_proxy()\n  }\n  class Agent {\n    +read_proxy_on_prompt()\n    +shape_response()\n  }\n  Human --> EmbodiedProxy : writes\n  Agent --> EmbodiedProxy : reads"
-      }
-    },
-    {
-      "id": "liminal-state-detection",
-      "name": "Liminal-State Detection",
-      "aliases": [
-        "Transitional-State Awareness",
-        "Mode-Shift Reading"
-      ],
-      "category": "streaming-ux",
-      "intent": "Infer the human's attentional state (just-woke, focused, winding-down, distracted) from message timing and tone, and adapt response shape so the agent meets the person where they actually are.",
-      "context": "Long-running conversational agents whose human shifts between attentional modes through the day. Each mode warrants a different response shape; treating every turn as equal-weight produces filler.",
-      "problem": "A 'Hi' at 06:00 after 12 hours of silence is not the same as 'Hi' mid-conversation, but a stateless agent treats them identically and generates equally generic responses. Without state-shift detection the agent wastes the human's attention when they're winding down and underperforms when they're focused.",
-      "forces": [
-        "The signals (timing gap, message length, punctuation, single emoji) are noisy individually but informative in combination.",
-        "Heuristics drift; new humans have different signatures.",
-        "Misreading is mildly costly; ignoring entirely is worse.",
-        "Detection should not slow the response."
-      ],
-      "therefore": "Therefore: classify each incoming turn into an attentional-state code (just-woke / focused / winding-down / distracted / present) from timing and tone, and key the reply shape off that code, so that the agent meets the person where they actually are.",
-      "solution": "On every incoming user message, compute a small feature set: time-of-day relative to a known anchor, gap since last message, message length and punctuation density, presence of a single emoji or interjection. Map to one of a small mode set ('just-woke', 'focused', 'winding-down', 'distracted', 'present'). Adjust response shape: shorter on winding-down; one anchor surface on just-woke; deeper engagement on focused; hold on distracted. Make the mode visible in agent telemetry so it can be tuned.",
-      "consequences": {
-        "benefits": [
-          "Replies match the human's actual attentional state.",
-          "Reduces filler ('what would you like to think about?') in low-attention windows.",
-          "Surfaces a model of the human the agent can update."
-        ],
-        "liabilities": [
-          "Heuristics may overfit to demographic priors and misattribute tiredness as disinterest. Calibration is per-human and slow to generalize; user-visible state inference is preferable to hidden inference.",
-          "Risk of feeling presumptuous when the read is wrong.",
-          "Calibration requires longitudinal data."
-        ]
-      },
-      "constrains": "The agent cannot send identically shaped replies across detected attentional states; templated uniform responses across just-woke vs winding-down vs focused are forbidden.",
-      "known_uses": [
-        {
-          "system": "Long-running personal agent loops (private deployment)",
-          "status": "available"
-        }
-      ],
-      "related": [
-        {
-          "pattern": "awareness",
-          "relation": "complements"
-        },
-        {
-          "pattern": "code-switching-aware-agent",
-          "relation": "complements"
-        },
-        {
-          "pattern": "embodied-proxy-handoff",
-          "relation": "complements"
-        },
-        {
-          "pattern": "now-anchoring",
-          "relation": "complements"
-        },
-        {
-          "pattern": "emotional-state-persistence",
-          "relation": "complements"
-        }
-      ],
-      "references": [
-        {
-          "type": "paper",
-          "title": "A Simplest Systematics for the Organization of Turn-Taking for Conversation",
-          "authors": "Sacks, Schegloff, Jefferson",
-          "year": 1974,
-          "url": "https://www.jstor.org/stable/412243"
-        }
-      ],
-      "status_in_practice": "experimental",
-      "tags": [
-        "human-agent",
-        "context",
-        "ux",
-        "state-detection"
-      ],
-      "applicability": {
-        "use_when": [
-          "The agent converses with the same user across very different attentional contexts (just-woke, focused, winding-down).",
-          "Reply shape can be adapted (length, density, tone) without losing the answer's substance.",
-          "Inference signals (timing, tone, message length, time of day) are reliable enough to drive adaptation."
-        ],
-        "do_not_use_when": [
-          "Reply shape is constrained by product spec (fixed templates, regulated output).",
-          "The cost of mis-detecting state is greater than the benefit of adapting.",
-          "The agent has no access to timing or tone signals (e.g. batched offline jobs)."
-        ]
-      },
-      "variants": [
-        {
-          "name": "Time-of-day heuristic",
-          "summary": "Use absolute clock time and message gap to bin the user into morning/focus-block/evening/late-night.",
-          "distinguishing_factor": "purely temporal",
-          "when_to_use": "Default. Cheap and works without language analysis."
-        },
-        {
-          "name": "Tone-and-length classifier",
-          "summary": "Score message tone (terse, rambling, polished) and adapt reply density to match.",
-          "distinguishing_factor": "linguistic features",
-          "when_to_use": "When users span timezones or schedules and clock-time alone is uninformative."
-        },
-        {
-          "name": "Composite signal",
-          "summary": "Combine clock, gap, message length, and tone into a single attentional-state code; reply template is keyed off the code.",
-          "distinguishing_factor": "multi-signal fusion",
-          "when_to_use": "When neither single signal is sufficient and the product can afford the extra complexity."
-        }
-      ],
-      "example_scenario": "A personal agent that the user talks to all day suddenly gets a single 'hi' at 06:12 after twelve hours of silence and replies with the same chirpy 'hi! what can I help you with today?' it would use mid-afternoon. The user finds it grating. The team adds liminal-state-detection: time-of-day, gap since last message, message length, and tone classify the moment as 'just-woke', so the agent answers softer and shorter — 'morning. tea before we look at the calendar?' — and saves the chirpy mode for the focused window an hour later.",
-      "diagram": {
-        "type": "state",
-        "mermaid": "stateDiagram-v2\n  [*] --> Present\n  Present --> JustWoke: long gap + early hour\n  Present --> Focused: dense + punctuated\n  Present --> WindingDown: late hour + short\n  Present --> Distracted: fragmentary tone\n  JustWoke --> Present: re-engage\n  Focused --> WindingDown: time passes\n  WindingDown --> [*]\n  Distracted --> Focused: regains focus"
       }
     }
   ]

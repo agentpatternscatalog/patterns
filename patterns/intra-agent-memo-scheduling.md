@@ -2,7 +2,7 @@
 
 **Also known as:** Self-Scheduled Future Thought, Past-Self-To-Future-Self Note, Personal Cron
 
-**Category:** Planning & Control Flow
+**Category:** Cognition & Introspection
 **Status in practice:** emerging
 
 ## Intent

@@ -1,6 +1,6 @@
 # Pattern Index
 
-198 patterns across 13 categories.
+204 patterns across 13 categories.
 
 ## Reasoning
 
@@ -26,8 +26,10 @@
 - [Language Agent Tree Search](patterns/lats.md) *(a.k.a. LATS, MCTS for Agents, Tree-Search Agent, Backtracking Agent)* — Lift the agent loop into a search tree with a learned value function and backtracking.
 - [MapReduce for Agents](patterns/map-reduce.md) *(a.k.a. LLM×MapReduce, Divide-and-Conquer)* — Split an oversize task into independent chunks, process each in parallel, then aggregate.
 - [Outer-Inner Agent Loop](patterns/outer-inner-agent-loop.md) *(a.k.a. Dual-Loop Agent, Planner-Outside Executor-Inside, Dispatch-and-Act Loop)* — Run two nested loops: an outer planner agent that decomposes the goal into subtasks and dispatches them, and an inner executor agent that runs its own tool-use/ReAct loop on each subtask; the outer can interrupt and replan based on the inner's progress.
+- [Passive Goal Creator](patterns/passive-goal-creator.md) *(a.k.a. Dialogue Goal Extractor, Goal Refinement from Prompts)* — Before planning, refine the user's articulated prompt plus retrieved memory context into a precise, planner-ready goal.
 - [Plan-and-Execute](patterns/plan-and-execute.md) *(a.k.a. Plan-Then-Execute, Outline-Then-Run)* — Plan all the steps once with a strong model, then execute each step with a cheaper model under the plan.
 - [Planner-Executor-Observer](patterns/planner-executor-observer.md) *(a.k.a. Three-Role Loop, POE)* — Add an explicit Observer role between Planner and Executor so progress is checked against the plan instead of trusted blindly.
+- [Proactive Goal Creator](patterns/proactive-goal-creator.md) *(a.k.a. Multimodal Goal Anticipator, Context-Capturing Goal Creator)* — Anticipate the user's goal by capturing surrounding multimodal context (gestures, screen, environment) alongside what the user types or says.
 - [ReAct](patterns/react.md) *(a.k.a. Reason+Act, Think-Act-Observe Loop)* — Interleave a single thought, a single tool call, and a single observation per step so the agent reasons over fresh evidence.
 - [ReWOO](patterns/rewoo.md) *(a.k.a. Reasoning Without Observation, Plan-as-DAG, Placeholder-Variable Plan)* — Plan a complete dependency DAG with placeholder variables before any tool runs, then execute and substitute observations into the plan.
 - [Replan on Failure](patterns/replan-on-failure.md) *(a.k.a. Adaptive Replanning, Plan Revision)* — Trigger a fresh planning step when execution evidence contradicts the current plan.
@@ -44,6 +46,7 @@
 - [Agent Skills](patterns/agent-skills.md) *(a.k.a. Author-Time Procedures, Slash Commands, Agent Rules)* — Package author-time procedures (markdown + optional resources) the agent loads on demand for specific task types.
 - [Agent-Computer Interface](patterns/agent-computer-interface.md) *(a.k.a. ACI, Agent-Friendly Tooling, SWE-Agent ACI)* — Design the tool surface for an LLM agent specifically, with affordances different from human-facing CLIs.
 - [App Exploration Phase](patterns/app-exploration-phase.md) *(a.k.a. Pre-Deployment Exploration, App Onboarding Crawl, UI Element Documentation)* — Before deploying an agent against an opaque app, have it explore (or watch a human demonstrate) the app, generating a per-element documentation knowledge base; at deployment, retrieve element docs to ground actions.
+- [Augmented LLM](patterns/augmented-llm.md) *(a.k.a. Augmented Model, LLM + Tools + Memory, Foundational Agent Block)* — Build the foundational agent block as an LLM augmented with retrieval, tools, and memory that the model actively chooses to use, rather than a bare-model call.
 - [Browser Agent](patterns/browser-agent.md) *(a.k.a. Web Agent, Browser Automation Agent)* — Expose websites to the agent through a structured DOM/accessibility tree plus a small action vocabulary, sitting between raw HTML and pixel-level Computer Use.
 - [Code Execution](patterns/code-execution.md) *(a.k.a. Code-Then-Execute, CodeAct, Program of Thoughts)* — Let the model emit code, run it in a sandbox, and treat the run as the answer instead of trusting the model to compute in its head.
 - [Code-as-Action Agent](patterns/code-as-action.md) *(a.k.a. CodeAct Agent, Code-Writing Agent, Python-Action ReAct, Executable Code Actions)* — Have the agent emit a Python (or similar) code snippet as its action at each step, executed in a constrained interpreter, instead of emitting a JSON tool call; tool composition becomes function nesting and control flow inside the snippet.
@@ -59,6 +62,7 @@
 - [Tool Loadout](patterns/tool-loadout.md) *(a.k.a. Tool Subset Selection, Per-Task Tool Filtering, Tool Filter, Limit Exposed Tools)* — Select a small task-relevant subset of available tools per request rather than exposing the full registry to the model.
 - [Tool Result Caching](patterns/tool-result-caching.md) *(a.k.a. Memoised Tools, Idempotent Cache)* — Cache the result of expensive deterministic tool calls keyed by their arguments so repeat calls within a session return immediately.
 - [Tool Search Lazy Loading](patterns/tool-search-lazy-loading.md) *(a.k.a. Lazy Tool Loading, On-Demand Tool Schema Loading, ToolSearch Primitive)* — Defer loading tool schemas into the context window until a search step shows they are needed.
+- [Tool/Agent Registry](patterns/tool-agent-registry.md) *(a.k.a. Capability Catalogue, Agent Marketplace, Tool and Agent Directory)* — Maintain a single queryable catalogue of both available tools and available agents, with metadata (capability, cost, latency, quality) the agent uses to pick the right one for a task.
 - [Tool Use](patterns/tool-use.md) *(a.k.a. Function Calling, Tool Calling, Action Use)* — Let the LLM produce typed calls against an external toolkit instead of producing free-form text the surrounding system has to parse.
 - [Toolformer](patterns/toolformer.md) *(a.k.a. Self-Supervised Tool Learning)* — Train the model to learn when and how to call tools through self-supervised data, without human annotation.
 - [Translation Layer](patterns/translation-layer.md) *(a.k.a. Anti-Corruption Layer, Adapter Pattern (Agentic), API Façade)* — Insert a typed boundary between the agent's clean domain model and a messy or legacy external API.
@@ -122,6 +126,7 @@
 - [Subagent Isolation](patterns/subagent-isolation.md) *(a.k.a. Worktree Subagent, Parallel Subagent, Isolated Worker)* — Run subagents in isolated workspaces so their writes do not collide and parallelism is safe.
 - [Supervisor](patterns/supervisor.md) *(a.k.a. Multi-Agent Supervisor, Lane Supervisor)* — Place a coordinating agent above a set of specialised agents and route work to them.
 - [Swarm](patterns/swarm.md) *(a.k.a. Society of Mind, Peer Agents, Decentralised Multi-Agent)* — Run many peer agents that interact directly without a central supervisor, achieving emergent coordination.
+- [Voting-Based Cooperation](patterns/voting-based-cooperation.md) *(a.k.a. Multi-Agent Voting, Agent Consensus by Vote, Inter-Agent Election)* — Finalise a decision across multiple agents by tallying their votes on candidate options through a defined mechanism (majority, weighted, ranked).
 
 ## Verification & Reflection
 
@@ -194,7 +199,7 @@
 - [Eval as Contract](patterns/eval-as-contract.md) *(a.k.a. Test-Driven Agent, Eval-Gated Release)* — Treat the eval suite as the contract the agent must satisfy; releases ship only if evals pass.
 - [Incident Response Runbook](patterns/incident-response-runbook.md) *(a.k.a. IR Runbook, Agent Failure Playbook, Agent Incident Procedure)* — Maintain pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) so detected incidents trigger known steps.
 - [LLM-as-Judge](patterns/llm-as-judge.md) *(a.k.a. Model Grading, Auto-Evaluator)* — Use an LLM to score open-ended outputs against rubric criteria when no exact-match metric applies.
-- [Lineage Tracking](patterns/lineage-tracking.md) *(a.k.a. Data Lineage, Prompt Versioning, Artefact Provenance)* — Track which prompt version, model version, and data sources produced each agent output.
+- [Lineage Tracking](patterns/lineage-tracking.md) *(a.k.a. Data Lineage, Artefact Provenance)* — Track which prompt version, model version, and data sources produced each agent output.
 - [Model Card](patterns/model-card.md) *(a.k.a. System Card)* — Maintain a structured document describing the model/agent's intended use, limitations, evaluation results, and risks.
 - [Prompt Versioning](patterns/prompt-versioning.md) *(a.k.a. Prompt-as-Artifact, Prompt Registry, Versioned Prompts)* — Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.
 - [Provenance Ledger](patterns/provenance-ledger.md) *(a.k.a. Audit Trail, Action Log)* — Log every agent decision and state change with enough metadata to explain or reverse it later.
@@ -207,6 +212,7 @@
 - [Code-Switching-Aware Agent](patterns/code-switching-aware-agent.md) *(a.k.a. Mixed-Language Input Handling, Hinglish-Tolerant Agent, Romanised-Indic Agent)* — Treat mixed-language input (e.g. Hinglish — Hindi-English code-switching, often in Roman script) as the expected input shape, not an error, and design tokenisation, language tagging, and tool routing to handle it natively without forcing the user to commit to one language.
 - [DSPy Signatures](patterns/dspy-signatures.md) *(a.k.a. Prompt Programs, Compiled Prompts)* — Specify agent behaviour as declarative typed signatures and modules; compile prompts and few-shot examples automatically against a metric.
 - [Polymorphic Record](patterns/polymorphic-record.md) *(a.k.a. Tagged Union, Discriminated Union)* — Represent a family of related entities in a single core schema with type-specific extensions.
+- [Prompt/Response Optimiser](patterns/prompt-response-optimiser.md) *(a.k.a. Prompt Template Runtime, Runtime Prompt Refinement, Prompt Standardiser)* — Transform user inputs and model outputs at runtime against template/constraint registries so prompts and responses are standardised across consumers.
 - [Schema Extensibility](patterns/schema-extensibility.md) *(a.k.a. Reserved Fields, Namespaced Extensions)* — Build schemas that evolve without breaking old clients via reserved namespaces and extension blocks.
 - [Structured Output](patterns/structured-output.md) *(a.k.a. JSON Mode, Schema-Constrained Generation, Typed Output)* — Constrain the model's output to conform to a JSON Schema (or similar typed shape).
 

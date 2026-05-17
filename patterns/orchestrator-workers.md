@@ -11,7 +11,7 @@ An orchestrator dynamically breaks a task into subtasks at runtime and delegates
 
 ## Context
 
-The subtasks needed are not known in advance and depend on the task; coding tasks where the number of files to change varies are the canonical example.
+The subtasks needed are not known in advance and depend on the task; coding tasks where the number of files to change varies are the canonical example. Distinct from supervisor: orchestrator-workers does *dynamic* decomposition into ad-hoc subtasks per request; supervisor routes work to a *fixed* set of pre-existing specialist agents.
 
 ## Problem
 
