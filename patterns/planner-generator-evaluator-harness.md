@@ -38,6 +38,26 @@ The Planner runs once (or rarely) and emits a structured feature-list artefact: 
 Driver --> {Planner | Generator | Evaluator}. Planner reads user prompt, writes feature-list.json. Generator reads feature-list.json + artefact, writes artefact'. Evaluator reads artefact' + rubric, writes findings.json. Driver dispatches based on findings.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  U[User prompt] --> PL[Planner<br/>runs once]
+  PL --> FL[(feature-list.json:<br/>ordered chunks + acceptance criteria)]
+  DR[Driver loop] --> GEN[Generator<br/>fresh context per chunk]
+  FL --> GEN
+  ART[(Artefact state)] --> GEN
+  GEN --> ART2[Artefact']
+  ART2 --> EV[Evaluator<br/>fresh context, rubric only]
+  RUB[(Rubric)] --> EV
+  EV --> FIND[(findings.json)]
+  FIND --> DR
+  DR -->|pass| DONE[Done]
+  DR -->|fail| GEN
+```
+
+*Three role-isolated agents talk only through structured artefacts on disk; the evaluator never sees the generator's trace.*
+
 ## Example scenario
 
 A coding agent is asked to add OAuth support across a large web app. The Planner reads the prompt and writes feature-list.json: ten ordered chunks with acceptance criteria. The Generator boots a fresh context per chunk, edits files, exits. The Evaluator boots its own fresh context, reads only the diff and the rubric ("does it compile, do the new tests pass, are there no plaintext secrets"), and returns findings. Chunk 4 fails; the driver re-invokes the Generator with the findings but not the Evaluator's reasoning trace. Across two days the artefact converges without any one context exceeding its limit.

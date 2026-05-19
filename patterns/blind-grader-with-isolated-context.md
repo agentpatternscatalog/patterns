@@ -39,6 +39,24 @@ When the producer finishes, the orchestrator allocates a new context window (a n
 Producer (full reasoning trace in context A) -> artefact + rubric -> NEW context window B containing only {artefact, rubric, grader instructions} -> grader verdict -> verdict logged against trace A (post hoc, not inside the grader's context).
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant PROD as Producer (context A)
+  participant ORCH as Orchestrator
+  participant GRAD as Grader (context B, freshly allocated)
+  participant LOG as Audit log
+  PROD->>PROD: think, scratch, build artefact
+  PROD->>ORCH: artefact
+  ORCH->>GRAD: NEW context: {artefact, rubric, grader instructions only}
+  Note over GRAD: producer trace, scratchpad,<br/>prior turns deliberately excluded
+  GRAD-->>ORCH: verdict + structured findings
+  ORCH->>LOG: verdict logged against trace A (post hoc)
+```
+
+*The grader runs in a freshly allocated context with only the artefact and rubric; the producer's framing cannot leak in.*
+
 ## Example scenario
 
 A coding agent produces a fix for a flaky integration test. A naive critic reading the producer's reasoning agrees the fix is sound. The team instead routes the patch to a blind grader: a fresh context window containing only the patch diff and a rubric asking 'does this change the test's intent?' and 'does it suppress the underlying race?'. The blind grader flags that the patch widens a timeout and suppresses the race instead of fixing it — a verdict the trace-aware critic missed because the producer's reasoning made the widening sound deliberate.

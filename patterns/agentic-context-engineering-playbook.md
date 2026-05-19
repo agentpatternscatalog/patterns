@@ -39,6 +39,21 @@ The playbook is stored as an ordered list of items with stable identifiers; each
 Trajectory + outcome -> Generator (proposes item deltas) -> Reflector (scores items vs outcomes) -> Curator (applies add/edit/remove patches against item ids, with dedup) -> updated item-addressable playbook. No role rewrites the playbook wholesale; the Curator is the only writer.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  RUN[Run] --> TO[Trajectory + outcome]
+  TO --> G[Generator<br/>proposes item deltas]
+  G --> R[Reflector<br/>scores items vs outcomes]
+  R --> CU[Curator<br/>applies add / edit / remove<br/>against item ids, dedup]
+  CU --> PB[(Item-addressable playbook)]
+  PB --> RUN
+  CU -.no wholesale rewrites.-> PB
+```
+
+*Three role-separated stages turn each run into small delta updates against an item-addressable playbook.*
+
 ## Example scenario
 
 A coding agent accumulates a playbook of testing tactics over months of runs. The team switches from whole-prompt rewrites to a three-role loop. After each task, the Generator proposes new items like 'before running pytest in this repo, install dev extras'; the Reflector compares the proposal against the run outcome and against existing items; the Curator adds it as item 47, edits item 12 (which was a vaguer version of the same tactic), and removes item 33 (which the Reflector flagged as wrong in two recent runs). The playbook keeps growing in specificity instead of decaying into generalities.

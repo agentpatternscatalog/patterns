@@ -39,6 +39,26 @@ A small conductor model (often in the 7B–13B range) sits in front of a pool of
 User task -> Conductor (small RL-trained meta-model) -> (sub-task instruction, worker id) -> Worker pool {frontier LLMs, tools, conductor-as-worker} -> worker output -> Conductor next step ... -> final answer. Reward from task outcome flows back into the conductor's policy only.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant U as User task
+  participant C as Conductor (small RL meta-model)
+  participant W as Worker pool (frontier LLMs, tools, conductor-as-worker)
+  participant R as Reward signal
+  U->>C: task
+  loop until done or budget
+    C->>W: sub-task instruction + worker id
+    W-->>C: worker output
+    C->>C: decide next move (continue, switch worker, recurse, stop)
+  end
+  C-->>U: final answer
+  R-->>C: end-of-task reward (updates conductor policy only)
+```
+
+*A small RL-trained conductor dispatches sub-tasks across frozen frontier workers; only the conductor learns.*
+
 ## Example scenario
 
 A product routes user tasks across four frontier models plus a code-execution tool. The team replaces its rule-based router with a 7B conductor trained on six months of task outcomes. The conductor learns that long-context summarisation goes to one vendor, code synthesis to another, image understanding to a third, and that some research tasks should be broken into three sub-tasks where the conductor recursively calls itself as the second-level planner. Average cost-per-task drops, and routing improves without anyone editing rules.

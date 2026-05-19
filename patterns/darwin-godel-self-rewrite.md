@@ -39,6 +39,22 @@ The agent maintains a versioned archive of self-modifications. Each generation: 
 Archive (variants with score + lineage) -> sample parent (diversity-weighted) -> propose mutation -> viability gate -> score on objective -> if viable, add to archive. Outer loop iterates; archive is the memory of evolution, not just the leaderboard.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  ARCH[(Archive: variants + score + lineage)] --> SEL[Sample parent<br/>diversity-weighted, not strictly best]
+  SEL --> MUT[Propose code / prompt mutation]
+  MUT --> GATE{Viability gate:<br/>compiles? safe? smoke test passes?}
+  GATE -->|fail| DROP[Discard]
+  GATE -->|pass| SCORE[Score on objective]
+  SCORE --> ADD[Add to archive with score + lineage]
+  ADD --> ARCH
+  ARCH -.bounded; eviction keeps diverse stepping-stones.-> ARCH
+```
+
+*Mutation parents are sampled for diversity, not best score, so low-scoring novel variants can seed future high-scoring ones.*
+
 ## Example scenario
 
 A research agent rewrites its own coding scaffolding to maximise a benchmark score. The greedy version stalls at a plateau after twenty generations. Switching to an archive-sampled scheme, a worse-scoring variant from generation six becomes the parent for generation twenty-two; its odd tool-handling structure happens to combine well with a mutation that the greedy line never reached, and the score jumps. The archive stored that stepping-stone for sixteen generations before it paid off.
