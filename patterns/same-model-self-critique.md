@@ -83,6 +83,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## References
 
-- (blog) *Theaiengineer.substack: ReAct vs Plan-and-Execute vs ReWOO vs Reflexion*, 2025
+- (blog) *Theaiengineer.substack: ReAct vs Plan-and-Execute vs ReWOO vs Reflexion*, 2025, <https://theaiengineer.substack.com/>
+- (paper) Justin Kruger, David Dunning, *Unskilled and Unaware of It: How Difficulties in Recognizing One's Own Incompetence Lead to Inflated Self-Assessments*, 1999, <https://pubmed.ncbi.nlm.nih.gov/10626367/>
 
 **Tags:** anti-pattern, reflection

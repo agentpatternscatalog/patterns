@@ -97,5 +97,6 @@ Verification answers are produced without the draft in context; coupled verifica
 ## References
 
 - (paper) Dhuliawala, Komeili, Xu, Raileanu, Li, Celikyilmaz, Weston, *Chain-of-Verification Reduces Hallucination in Large Language Models*, 2023, <https://arxiv.org/abs/2309.11495>
+- (paper) Raymond S. Nickerson, *Confirmation Bias: A Ubiquitous Phenomenon in Many Guises*, 1998, <https://doi.org/10.1037/1089-2680.2.2.175>
 
 **Tags:** reasoning, verification, hallucination

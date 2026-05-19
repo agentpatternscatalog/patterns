@@ -100,5 +100,7 @@ The reviewer may only critique against criteria fixed by the surrounding system;
 
 - (paper) Madaan et al., *Self-Refine: Iterative Refinement with Self-Feedback*, 2023, <https://arxiv.org/abs/2303.17651>
 - (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
+- (book) Donald A. Schön, *The Reflective Practitioner: How Professionals Think in Action*, 1983, <https://archive.org/details/reflectivepracti0000scho>
+- (paper) John H. Flavell, *Metacognition and Cognitive Monitoring: A New Area of Cognitive-Developmental Inquiry*, 1979, <https://doi.org/10.1037/0003-066X.34.10.906>
 
 **Tags:** reflection, self-critique
