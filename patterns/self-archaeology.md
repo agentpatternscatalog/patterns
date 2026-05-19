@@ -123,5 +123,6 @@ A long-running agent is asked 'how has your view of the project's risks evolved'
 ## References
 
 - (paper) Packer, Wooders, Lin, Fang, Patil, Stoica, Gonzalez, *MemGPT: Towards LLMs as Operating Systems*, 2024, <https://arxiv.org/abs/2310.08560>
+- (paper) Martin A. Conway, *Memory and the self*, 2005, <https://doi.org/10.1016/j.jml.2005.08.005>
 
 **Tags:** memory, distillation, self-model, trajectory

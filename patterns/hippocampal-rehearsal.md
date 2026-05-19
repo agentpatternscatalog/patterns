@@ -87,6 +87,8 @@ Archived items become readable only after rehearsal lifts them; direct cold read
 
 ## References
 
-- (paper) *Memory consolidation through hippocampal-cortical replay (review)*, 2017
+- (paper) *Memory consolidation through hippocampal-cortical replay (review)*, 2017, <https://www.cell.com/current-biology/fulltext/S0960-9822(20)31397-3>
+- (paper) György Buzsáki, *Hippocampal sharp wave-ripple: A cognitive biomarker for episodic memory and planning*, 2015, <https://pmc.ncbi.nlm.nih.gov/articles/PMC4648295/>
+- (paper) David J. Foster, Matthew A. Wilson, *Reverse replay of behavioural sequences in hippocampal place cells during the awake state*, 2006, <https://pubmed.ncbi.nlm.nih.gov/16474382/>
 
 **Tags:** memory, rehearsal

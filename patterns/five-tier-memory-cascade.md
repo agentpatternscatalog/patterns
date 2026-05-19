@@ -98,5 +98,7 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 
 - (paper) Park et al., *Generative Agents (memory stream + reflection)*, 2023, <https://arxiv.org/abs/2304.03442>
 - (book) Bernard Baars, *A Cognitive Theory of Consciousness (Global Workspace Theory)*, 1988, <https://www.goodreads.com/book/show/1148175.A_Cognitive_Theory_of_Consciousness>
+- (book) Richard C. Atkinson, Richard M. Shiffrin, *Human Memory: A Proposed System and Its Control Processes*, 1968, <https://www.sciencedirect.com/science/article/abs/pii/S0079742108604223>
+- (book) Endel Tulving, *Episodic and Semantic Memory*, 1972, <https://www.semanticscholar.org/paper/Episodic-and-semantic-memory-Tulving/d792562462dbb687015954805d31620240db57a1>
 
 **Tags:** memory, cognitive-architecture

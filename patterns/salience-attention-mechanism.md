@@ -122,5 +122,6 @@ A long-running personal agent has months of memory; dumping it all into context 
 ## References
 
 - (paper) Park, O'Brien, Cai, Morris, Liang, Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
+- (paper) Laurent Itti, Christof Koch, *Computational modelling of visual attention*, 2001, <https://pubmed.ncbi.nlm.nih.gov/11256080/>
 
 **Tags:** memory, salience, attention, scoring

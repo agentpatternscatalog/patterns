@@ -103,5 +103,6 @@ No single agent's output may be returned as final; only the option that wins the
 
 - (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
 - (paper) Chi-Min Chan et al., *ChatEval: Towards Better LLM-based Evaluators Through Multi-Agent Debate* (2024) — https://arxiv.org/abs/2308.07201
+- (book) James Surowiecki, *The Wisdom of Crowds: Why the Many Are Smarter Than the Few*, 2004, <https://www.penguinrandomhouse.com/books/175380/the-wisdom-of-crowds-by-james-surowiecki/>
 
 **Tags:** multi-agent, voting, consensus, liu-2025

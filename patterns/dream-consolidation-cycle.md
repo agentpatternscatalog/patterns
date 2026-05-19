@@ -119,5 +119,7 @@ A long-running personal agent has been talking with its user daily for three mon
 ## References
 
 - (paper) McClelland, McNaughton, O'Reilly, *Why there are complementary learning systems in the hippocampus and neocortex: insights from the successes and failures of connectionist models of learning and memory*, 1995, <https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf>
+- (paper) Susanne Diekelmann, Jan Born, *The memory function of sleep*, 2010, <https://pubmed.ncbi.nlm.nih.gov/20046194/>
+- (paper) Robert Stickgold, J. Allan Hobson, Roar Fosse, Magdalena Fosse, *Sleep, learning, and dreams: off-line memory reprocessing*, 2001, <https://pubmed.ncbi.nlm.nih.gov/11691983/>
 
 **Tags:** reflection, consolidation, affect, tick-loop

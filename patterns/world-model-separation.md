@@ -122,5 +122,6 @@ A long-running agent's reflection pass corrupts its own personality file because
 ## References
 
 - (paper) Ha, Schmidhuber, *World Models*, 2018, <https://arxiv.org/abs/1803.10122>
+- (paper) Karl Friston, *The free-energy principle: a unified brain theory?*, 2010, <https://pubmed.ncbi.nlm.nih.gov/20068583/>
 
 **Tags:** memory, world-model, self-model, separation
