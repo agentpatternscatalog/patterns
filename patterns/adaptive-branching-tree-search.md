@@ -39,6 +39,29 @@ Each node in the search tree maintains posterior estimates over the value of its
 Root -> per-node {posterior over (deepen | branch | choose-model)} -> Thompson sample -> rollout via chosen LLM -> score -> posterior update.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  ROOT[Search tree root] --> PICK[Pick a node]
+  PICK --> POST[Per-node posterior over actions:<br/>deepen / branch / choose-model]
+  POST --> TS[Thompson sample]
+  TS --> ACT{Sampled action}
+  ACT -->|deepen| DEEP[Refine current candidate]
+  ACT -->|branch| BR[Generate fresh sibling]
+  ACT -->|choose-model| MOD[Select LLM M]
+  DEEP --> RO[Rollout via chosen LLM]
+  BR --> RO
+  MOD --> RO
+  RO --> SC[Score: verifier / tests / oracle]
+  SC --> UPD[Update posterior at node]
+  UPD --> BUD{Budget hit?}
+  BUD -->|no| PICK
+  BUD -->|yes| OUT[Return best candidate]
+```
+
+*Each node samples width vs depth (and optionally LLM) from a Thompson posterior, updated by rollout scores.*
+
 ## Example scenario
 
 A team tackles ARC-AGI-2 puzzles with three different LLMs. They drop the puzzles into TreeQuest, which builds a search tree where each node decides via Thompson sampling whether to refine the current candidate program, generate a fresh sibling, and which of the three models to use. After a fixed compute budget the tree has concentrated rollouts on the branches that scored well — and on the model that turned out to handle that puzzle family best — producing higher pass rates than flat best-of-N at the same cost.

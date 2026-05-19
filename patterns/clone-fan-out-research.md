@@ -38,6 +38,27 @@ A driver computes the input partition (one slice per clone), allocates N isolate
 Driver -> partition -> {Clone_1 ... Clone_N in isolated sandboxes} -> structured outputs -> Aggregator -> single answer.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  IN[Input] --> DR[Driver]
+  DR --> PART[Partition into N input slices]
+  PART --> C1[Clone 1<br/>isolated sandbox]
+  PART --> C2[Clone 2<br/>isolated sandbox]
+  PART --> CDOT[...]
+  PART --> CN[Clone N<br/>isolated sandbox]
+  C1 --> BUCKET[(Structured result bucket)]
+  C2 --> BUCKET
+  CDOT --> BUCKET
+  CN --> BUCKET
+  BUCKET --> AGG[Aggregator<br/>vote / rank / dedup / synthesise]
+  AGG --> OUT[Single answer]
+  C1 -.no inter-clone communication.-> C2
+```
+
+*N identical full-capability agents run in isolation; aggregation is a single one-shot pass at the end.*
+
 ## Example scenario
 
 A user asks an agent to compare 200 candidate libraries against five evaluation criteria. The driver partitions the list into 200 slices and spawns 200 identical agents, each in its own sandbox VM, each tasked with evaluating one library and emitting a structured row. After all clones finish, an aggregator pass ranks the rows and synthesises a shortlist. None of the clones talked to each other; the fan-out is bounded by the declared N=200.

@@ -39,6 +39,27 @@ At connection time, walk each MCP server's tool list and emit a file per tool (e
 Agent <-> Model context (small) | Sandbox runtime executes generated code | Tool wrapper tree (one file per MCP tool, typed) | MCP servers behind wrappers | Large intermediate data stays in sandbox memory; only printed output returns to context.
 ```
 
+## Diagram
+
+```mermaid
+flowchart LR
+  A[Agent context<br/>small] -->|writes script| SCR[Generated code]
+  SCR --> SAND[Sandbox runtime]
+  subgraph FS[Tool wrapper tree on filesystem]
+    W1[servers/gdrive/getDocument.ts]
+    W2[servers/slack/listChannels.ts]
+    W3[servers/.../tool.ts]
+  end
+  SAND -->|imports| FS
+  FS --> MCP[MCP servers]
+  MCP --> FS
+  FS --> SAND
+  SAND -->|only printed / saved output| A
+  SAND -.large intermediate data stays in sandbox memory.-> SAND
+```
+
+*Tool wrappers live on a readable filesystem; the agent ships code that chains them in the sandbox, so bulk data never enters the context.*
+
 ## Example scenario
 
 An assistant must take meeting notes from Google Drive, identify action items, and post them in the right Slack channels. The naive approach pulls the entire transcript into context, then pulls the channel list, then formats messages — burning ~150K tokens. With MCP-as-Code-API, the model writes a short TypeScript that imports gdrive.getDocument and slack.postMessage, filters action items in-process, and prints only a confirmation. Total tokens dropped to ~2K because the transcript never crossed the context boundary.

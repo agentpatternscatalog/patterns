@@ -38,6 +38,24 @@ Each outer iteration runs five named phases: (1) think — emit an updated worki
 Single agent runtime with named cycle phases. State: working hypothesis, evidence ledger, cycle counter, budget. Tools: retrieval, browser, code execution. Termination: confidence threshold OR budget OR answer-ready.
 ```
 
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Think
+  Think --> Search: working hypothesis
+  Search --> Verify: new evidence
+  Verify --> Revise: pass / fail notes
+  Revise --> Act: narrowed / replaced hypothesis
+  Act --> Think: next cycle (context compacted)
+  Verify --> Done: confidence threshold reached
+  Act --> Done: answer-ready signal
+  Think --> Done: budget exhausted
+  Done --> [*]
+```
+
+*Each outer iteration cycles five named phases; the loop exits on confidence, budget, or an answer-ready signal.*
+
 ## Example scenario
 
 A user asks an agent to assess whether a recent paper's empirical claims hold up. The agent forms an initial hypothesis (claim is supported), then over forty cycles searches for replications, reads supplementary materials, runs small reproductions in a sandbox, narrows the hypothesis to one specific table, eventually flips to claim is partially supported with one figure non-reproducible, and writes the verified findings into a structured report. No subagents are spawned; the same model carries the thread end-to-end.

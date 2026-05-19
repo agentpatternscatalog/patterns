@@ -39,6 +39,34 @@ Pipeline each step through three models. Policy LLM reads the current screenshot
 Loop step: screenshot -> Policy LLM (action text) -> Localizer VLM (pixel coords) -> environment (click/type) -> new screenshot -> Validator VLM (complete? continue? failed?) -> branch.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant SC as Screen
+  participant P as Policy LLM
+  participant L as Localizer VLM
+  participant ENV as Environment
+  participant V as Validator VLM
+  loop per step
+    SC->>P: screenshot + task state
+    P-->>L: action text ("click Sign In top-right")
+    L->>L: ground description -> pixel coords
+    L->>ENV: click / type at coords
+    ENV-->>SC: new screenshot
+    SC->>V: new screenshot
+    alt confident complete
+      V-->>SC: halt
+    else confident failed
+      V-->>SC: retry / escalate
+    else uncertain
+      V-->>SC: continue loop
+    end
+  end
+```
+
+*Each GUI step is split across a Policy LLM, a Localizer VLM, and a Validator VLM, each at the smallest sufficient size.*
+
 ## Example scenario
 
 A booking agent must reserve a meeting room on an internal portal. Policy reads the screenshot and says 'click the Book button next to the 10 AM slot'. Localizer VLM, trained on UI grounding, returns coordinates (892, 437). After the click, Validator sees a confirmation modal and judges 'task complete, confidence 0.92'. When grounding once misfires — Localizer clicks the 11 AM Book button — the Validator catches the wrong confirmation slot and signals 'failed, retry'; the loop continues with corrected context.

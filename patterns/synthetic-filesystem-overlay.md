@@ -39,6 +39,25 @@ Mount each connector under a deterministic path: /slack/<workspace>/<channel>/<d
 Agent | Five-primitive interface (list, find, cat, search, locate_in_tree) | Path-routing layer | Per-source adapters (Slack, Notion, Drive, GitHub...) with their own auth and rate-limit governors | Lazy hydration: nodes materialize on cat, not on list.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  A[Agent] -->|list / find / cat / search / locate_in_tree| IF[Five-primitive interface]
+  IF --> RT[Path-routing layer]
+  RT --> AD1[Slack adapter<br/>/slack/...]
+  RT --> AD2[Notion adapter<br/>/notion/...]
+  RT --> AD3[Drive adapter<br/>/drive/...]
+  RT --> AD4[GitHub adapter<br/>/github/...]
+  AD1 --> API1[(Slack API)]
+  AD2 --> API2[(Notion API)]
+  AD3 --> API3[(Drive API)]
+  AD4 --> API4[(GitHub API)]
+  RT -.lazy hydration: list returns paths,<br/>cat materialises content.-> A
+```
+
+*Heterogeneous sources are projected into one Unix-like tree behind five filesystem primitives; nodes hydrate only on cat.*
+
 ## Example scenario
 
 An on-call engineer asks the assistant to summarize last week's incident. The agent runs find /slack -name '*incident*' -newer 2026-05-12, cats the matching channel transcripts, searches /notion for the linked postmortem template, and lists /github/infra/prs filtered by date. Three sources, one navigation idiom, no per-source SDK calls. The same agent on a new connector (Linear) needs only a new subtree under /linear/ — no new tools, no new prompts.

@@ -39,6 +39,29 @@ Maintain policies as code (OPA/Rego, Cedar, or equivalent) in a repository owned
 Agent --(action proposal)--> Policy Decision Point (OPA/Cedar) --(allow|deny|obligations + policy_hash)--> Agent --(on allow)--> Tool. Policy repo (compliance-owned) --(compile/sign/deploy)--> Policy Decision Point. Decision log captures {action, policy_hash, rule_id, verdict}.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant CR as Compliance repo (policies as code)
+  participant PDP as Policy Decision Point (OPA / Cedar)
+  participant A as Agent
+  participant T as Tool
+  participant L as Decision log
+  CR->>PDP: compile / sign / deploy policy bundle
+  A->>PDP: action proposal {tool, args, caller, data fingerprints}
+  PDP-->>A: allow | deny | allow-with-obligations<br/>+ policy_hash + rule_id
+  alt allow
+    A->>T: dispatch tool (with obligations applied)
+    T-->>A: result
+  else deny
+    A->>A: surface rule_id to user / escalate
+  end
+  A->>L: {action, policy_hash, rule_id, verdict}
+```
+
+*Every action is gated by an external policy engine; compliance authorship lives outside the agent and outside the prompt.*
+
 ## Example scenario
 
 A bank deploys an agent that can move money, open accounts, and call external KYC services. The compliance team writes its rules in Rego in a separately versioned policy repository, including jurisdiction-by-jurisdiction holds, sanctions checks, and threshold-based human-approval requirements. Before any tool call, the agent serialises the proposed action and sends it to an OPA sidecar. OPA returns allow with obligations (require dual approval, mask the customer name in the downstream call), and the agent honours those obligations on dispatch. When a regulator asks why a particular transfer was permitted, the audit log replays the action against the exact policy hash that was active at that moment.

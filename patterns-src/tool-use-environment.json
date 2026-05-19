@@ -1305,7 +1305,12 @@
           "Compliance forbids untrusted data flowing without per-step LLM inspection."
         ]
       },
-      "example_scenario": "An assistant must take meeting notes from Google Drive, identify action items, and post them in the right Slack channels. The naive approach pulls the entire transcript into context, then pulls the channel list, then formats messages — burning ~150K tokens. With MCP-as-Code-API, the model writes a short TypeScript that imports gdrive.getDocument and slack.postMessage, filters action items in-process, and prints only a confirmation. Total tokens dropped to ~2K because the transcript never crossed the context boundary."
+      "example_scenario": "An assistant must take meeting notes from Google Drive, identify action items, and post them in the right Slack channels. The naive approach pulls the entire transcript into context, then pulls the channel list, then formats messages — burning ~150K tokens. With MCP-as-Code-API, the model writes a short TypeScript that imports gdrive.getDocument and slack.postMessage, filters action items in-process, and prints only a confirmation. Total tokens dropped to ~2K because the transcript never crossed the context boundary.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  A[Agent context<br/>small] -->|writes script| SCR[Generated code]\n  SCR --> SAND[Sandbox runtime]\n  subgraph FS[Tool wrapper tree on filesystem]\n    W1[servers/gdrive/getDocument.ts]\n    W2[servers/slack/listChannels.ts]\n    W3[servers/.../tool.ts]\n  end\n  SAND -->|imports| FS\n  FS --> MCP[MCP servers]\n  MCP --> FS\n  FS --> SAND\n  SAND -->|only printed / saved output| A\n  SAND -.large intermediate data stays in sandbox memory.-> SAND",
+        "caption": "Tool wrappers live on a readable filesystem; the agent ships code that chains them in the sandbox, so bulk data never enters the context."
+      }
     },
     {
       "id": "mobile-ui-agent",
@@ -1677,7 +1682,12 @@
           "Latency budget cannot absorb sequential three-model passes per step."
         ]
       },
-      "example_scenario": "A booking agent must reserve a meeting room on an internal portal. Policy reads the screenshot and says 'click the Book button next to the 10 AM slot'. Localizer VLM, trained on UI grounding, returns coordinates (892, 437). After the click, Validator sees a confirmation modal and judges 'task complete, confidence 0.92'. When grounding once misfires — Localizer clicks the 11 AM Book button — the Validator catches the wrong confirmation slot and signals 'failed, retry'; the loop continues with corrected context."
+      "example_scenario": "A booking agent must reserve a meeting room on an internal portal. Policy reads the screenshot and says 'click the Book button next to the 10 AM slot'. Localizer VLM, trained on UI grounding, returns coordinates (892, 437). After the click, Validator sees a confirmation modal and judges 'task complete, confidence 0.92'. When grounding once misfires — Localizer clicks the 11 AM Book button — the Validator catches the wrong confirmation slot and signals 'failed, retry'; the loop continues with corrected context.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant SC as Screen\n  participant P as Policy LLM\n  participant L as Localizer VLM\n  participant ENV as Environment\n  participant V as Validator VLM\n  loop per step\n    SC->>P: screenshot + task state\n    P-->>L: action text (\"click Sign In top-right\")\n    L->>L: ground description -> pixel coords\n    L->>ENV: click / type at coords\n    ENV-->>SC: new screenshot\n    SC->>V: new screenshot\n    alt confident complete\n      V-->>SC: halt\n    else confident failed\n      V-->>SC: retry / escalate\n    else uncertain\n      V-->>SC: continue loop\n    end\n  end",
+        "caption": "Each GUI step is split across a Policy LLM, a Localizer VLM, and a Validator VLM, each at the smallest sufficient size."
+      }
     },
     {
       "id": "prompt-caching",
@@ -2116,7 +2126,12 @@
           "Real-time streaming dominates over snapshot reads."
         ]
       },
-      "example_scenario": "An on-call engineer asks the assistant to summarize last week's incident. The agent runs find /slack -name '*incident*' -newer 2026-05-12, cats the matching channel transcripts, searches /notion for the linked postmortem template, and lists /github/infra/prs filtered by date. Three sources, one navigation idiom, no per-source SDK calls. The same agent on a new connector (Linear) needs only a new subtree under /linear/ — no new tools, no new prompts."
+      "example_scenario": "An on-call engineer asks the assistant to summarize last week's incident. The agent runs find /slack -name '*incident*' -newer 2026-05-12, cats the matching channel transcripts, searches /notion for the linked postmortem template, and lists /github/infra/prs filtered by date. Three sources, one navigation idiom, no per-source SDK calls. The same agent on a new connector (Linear) needs only a new subtree under /linear/ — no new tools, no new prompts.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[Agent] -->|list / find / cat / search / locate_in_tree| IF[Five-primitive interface]\n  IF --> RT[Path-routing layer]\n  RT --> AD1[Slack adapter<br/>/slack/...]\n  RT --> AD2[Notion adapter<br/>/notion/...]\n  RT --> AD3[Drive adapter<br/>/drive/...]\n  RT --> AD4[GitHub adapter<br/>/github/...]\n  AD1 --> API1[(Slack API)]\n  AD2 --> API2[(Notion API)]\n  AD3 --> API3[(Drive API)]\n  AD4 --> API4[(GitHub API)]\n  RT -.lazy hydration: list returns paths,<br/>cat materialises content.-> A",
+        "caption": "Heterogeneous sources are projected into one Unix-like tree behind five filesystem primitives; nodes hydrate only on cat."
+      }
     },
     {
       "id": "tool-agent-registry",

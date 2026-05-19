@@ -39,6 +39,29 @@ Run two kinds of offline passes against the user's standing context. (1) Distill
 Idle scheduler -> Distillation pass (corpus -> summaries) -> Speculative-query generator -> Pre-answer pass (predicted Q -> A pairs, embedding-indexed) | Test-time: query -> embedding lookup -> pre-answer hit (cheap) or fallback to live inference (normal cost) -> append to prediction set.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  subgraph OFFLINE[Offline / idle]
+    SCH[Idle scheduler] --> DIST[Distillation pass]
+    DIST --> SUM[Per-file / per-topic summaries]
+    SCH --> SPEC[Speculative-query generator]
+    SPEC --> PA[Pre-answer pass]
+    PA --> CACHE[(Pre-answer cache<br/>embedding-indexed)]
+  end
+  subgraph LIVE[Test time]
+    Q[User query] --> LK[Embedding lookup]
+    LK -->|hit| HIT[Return / lightly adapt pre-answer]
+    LK -->|miss| INF[Live inference]
+    INF --> APP[Append query to prediction set]
+  end
+  CACHE -.-> LK
+  APP -.-> SPEC
+```
+
+*Offline distillation and speculative pre-answering populate a cache that absorbs most test-time queries.*
+
 ## Example scenario
 
 A developer agent has indexed a 200K-file monorepo as the user's standing context. Overnight it runs a distillation pass that summarizes each top-level module and predicts likely next-day queries from the user's commit history and yesterday's questions. When the developer asks the next morning 'what changed in the billing module last week and which tests cover it', the agent retrieves a pre-answer generated at 03:00 that morning and adapts it with one extra inference call instead of re-walking the repo from scratch.

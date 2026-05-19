@@ -39,6 +39,25 @@ In preprocessing, represent each training example as parallel token streams (sou
 Preprocessing: source stream || target stream offset by D tokens, interleaved on shared time axis. Training: single decoder-only model, next-token prediction over interleaved sequence. Inference: source tokens stream in, target tokens stream out at fixed lag D. No separate STT, LLM, TTS, or read/write policy.
 ```
 
+## Diagram
+
+```mermaid
+flowchart TD
+  subgraph PRE[Preprocessing]
+    SRC[Source stream] --> IL[Interleave on shared time axis]
+    TGT[Target stream] --> OFF[Offset by fixed delay D]
+    OFF --> IL
+  end
+  IL --> TR[Decoder-only transformer<br/>next-token over interleaved sequence]
+  subgraph INF[Inference]
+    LSRC[Live source tokens] --> M[Same decoder]
+    M --> LTGT[Target tokens emitted at lag D]
+  end
+  TR -.shared weights.-> M
+```
+
+*Fixed-offset interleaving turns streaming speech into a single next-token problem with no learned read/write policy.*
+
 ## Example scenario
 
 A simultaneous translator app needs French speech out within two seconds of English speech in, on-device. The team trains a single delayed-streams decoder with target French audio offset 2s behind source English audio. At inference the user speaks; French tokens stream out two seconds later from the same model — no separate STT, no separate LLM, no learned read/write policy. The same architecture, retrained with a tiny offset and both speakers' audio as parallel streams, powers their full-duplex dialogue assistant.

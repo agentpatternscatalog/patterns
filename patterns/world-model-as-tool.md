@@ -39,6 +39,27 @@ Register the generative world model behind a tool interface: input is a structur
 Planner -> generate candidate actions -> for each candidate, call generative world model tool (state, action) -> rollout + uncertainty -> aggregate evidence (rollouts + text reasoning) -> select action -> act in real environment. Rollouts are stored with the action trace.
 ```
 
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant PL as Planner
+  participant WM as World-model tool (generative simulator)
+  participant ENV as Real environment
+  participant LOG as Action trace
+  PL->>PL: generate candidate action sequences
+  loop for each candidate
+    PL->>WM: (state, candidate action sequence)
+    WM-->>PL: rollout (frames / trajectory / observations) + uncertainty
+  end
+  PL->>PL: aggregate rollouts + text reasoning
+  PL->>ENV: selected action
+  ENV-->>PL: observation
+  PL->>LOG: store rollouts alongside committed action
+```
+
+*The planner calls the world model as a tool to roll out hypothetical futures before any irreversible action.*
+
 ## Example scenario
 
 A household robot agent considers two candidate plans for placing a glass on a shelf. Before acting, it calls a generative world-model tool with the current scene and each candidate plan. The simulator returns two predicted rollouts; the second shows the glass tipping at the shelf edge with non-trivial probability. The agent picks the first plan and logs both rollouts alongside the action so the team can later audit why the second was rejected. The world model is not perfect, but its output catches a failure that text reasoning over the scene description had missed.

@@ -118,7 +118,12 @@
           "A single best-of-N pass already saturates the score."
         ]
       },
-      "example_scenario": "A team tackles ARC-AGI-2 puzzles with three different LLMs. They drop the puzzles into TreeQuest, which builds a search tree where each node decides via Thompson sampling whether to refine the current candidate program, generate a fresh sibling, and which of the three models to use. After a fixed compute budget the tree has concentrated rollouts on the branches that scored well — and on the model that turned out to handle that puzzle family best — producing higher pass rates than flat best-of-N at the same cost."
+      "example_scenario": "A team tackles ARC-AGI-2 puzzles with three different LLMs. They drop the puzzles into TreeQuest, which builds a search tree where each node decides via Thompson sampling whether to refine the current candidate program, generate a fresh sibling, and which of the three models to use. After a fixed compute budget the tree has concentrated rollouts on the branches that scored well — and on the model that turned out to handle that puzzle family best — producing higher pass rates than flat best-of-N at the same cost.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  ROOT[Search tree root] --> PICK[Pick a node]\n  PICK --> POST[Per-node posterior over actions:<br/>deepen / branch / choose-model]\n  POST --> TS[Thompson sample]\n  TS --> ACT{Sampled action}\n  ACT -->|deepen| DEEP[Refine current candidate]\n  ACT -->|branch| BR[Generate fresh sibling]\n  ACT -->|choose-model| MOD[Select LLM M]\n  DEEP --> RO[Rollout via chosen LLM]\n  BR --> RO\n  MOD --> RO\n  RO --> SC[Score: verifier / tests / oracle]\n  SC --> UPD[Update posterior at node]\n  UPD --> BUD{Budget hit?}\n  BUD -->|no| PICK\n  BUD -->|yes| OUT[Return best candidate]",
+        "caption": "Each node samples width vs depth (and optionally LLM) from a Thompson posterior, updated by rollout scores."
+      }
     },
     {
       "id": "clone-fan-out-research",
@@ -244,7 +249,12 @@
           "Per-clone cost makes N infeasible at the needed coverage."
         ]
       },
-      "example_scenario": "A user asks an agent to compare 200 candidate libraries against five evaluation criteria. The driver partitions the list into 200 slices and spawns 200 identical agents, each in its own sandbox VM, each tasked with evaluating one library and emitting a structured row. After all clones finish, an aggregator pass ranks the rows and synthesises a shortlist. None of the clones talked to each other; the fan-out is bounded by the declared N=200."
+      "example_scenario": "A user asks an agent to compare 200 candidate libraries against five evaluation criteria. The driver partitions the list into 200 slices and spawns 200 identical agents, each in its own sandbox VM, each tasked with evaluating one library and emitting a structured row. After all clones finish, an aggregator pass ranks the rows and synthesises a shortlist. None of the clones talked to each other; the fan-out is bounded by the declared N=200.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  IN[Input] --> DR[Driver]\n  DR --> PART[Partition into N input slices]\n  PART --> C1[Clone 1<br/>isolated sandbox]\n  PART --> C2[Clone 2<br/>isolated sandbox]\n  PART --> CDOT[...]\n  PART --> CN[Clone N<br/>isolated sandbox]\n  C1 --> BUCKET[(Structured result bucket)]\n  C2 --> BUCKET\n  CDOT --> BUCKET\n  CN --> BUCKET\n  BUCKET --> AGG[Aggregator<br/>vote / rank / dedup / synthesise]\n  AGG --> OUT[Single answer]\n  C1 -.no inter-clone communication.-> C2",
+        "caption": "N identical full-capability agents run in isolation; aggregation is a single one-shot pass at the end."
+      }
     },
     {
       "id": "disambiguation",
@@ -1502,7 +1512,12 @@
           "Latency matters more than quality; the inter-role hand-offs are too expensive."
         ]
       },
-      "example_scenario": "A coding agent is asked to add OAuth support across a large web app. The Planner reads the prompt and writes feature-list.json: ten ordered chunks with acceptance criteria. The Generator boots a fresh context per chunk, edits files, exits. The Evaluator boots its own fresh context, reads only the diff and the rubric (\"does it compile, do the new tests pass, are there no plaintext secrets\"), and returns findings. Chunk 4 fails; the driver re-invokes the Generator with the findings but not the Evaluator's reasoning trace. Across two days the artefact converges without any one context exceeding its limit."
+      "example_scenario": "A coding agent is asked to add OAuth support across a large web app. The Planner reads the prompt and writes feature-list.json: ten ordered chunks with acceptance criteria. The Generator boots a fresh context per chunk, edits files, exits. The Evaluator boots its own fresh context, reads only the diff and the rubric (\"does it compile, do the new tests pass, are there no plaintext secrets\"), and returns findings. Chunk 4 fails; the driver re-invokes the Generator with the findings but not the Evaluator's reasoning trace. Across two days the artefact converges without any one context exceeding its limit.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  U[User prompt] --> PL[Planner<br/>runs once]\n  PL --> FL[(feature-list.json:<br/>ordered chunks + acceptance criteria)]\n  DR[Driver loop] --> GEN[Generator<br/>fresh context per chunk]\n  FL --> GEN\n  ART[(Artefact state)] --> GEN\n  GEN --> ART2[Artefact']\n  ART2 --> EV[Evaluator<br/>fresh context, rubric only]\n  RUB[(Rubric)] --> EV\n  EV --> FIND[(findings.json)]\n  FIND --> DR\n  DR -->|pass| DONE[Done]\n  DR -->|fail| GEN",
+        "caption": "Three role-isolated agents talk only through structured artefacts on disk; the evaluator never sees the generator's trace."
+      }
     },
     {
       "id": "proactive-goal-creator",
@@ -2063,7 +2078,12 @@
           "Hard latency budgets forbid minutes-to-hours runs."
         ]
       },
-      "example_scenario": "A user asks an agent to assess whether a recent paper's empirical claims hold up. The agent forms an initial hypothesis (claim is supported), then over forty cycles searches for replications, reads supplementary materials, runs small reproductions in a sandbox, narrows the hypothesis to one specific table, eventually flips to claim is partially supported with one figure non-reproducible, and writes the verified findings into a structured report. No subagents are spawned; the same model carries the thread end-to-end."
+      "example_scenario": "A user asks an agent to assess whether a recent paper's empirical claims hold up. The agent forms an initial hypothesis (claim is supported), then over forty cycles searches for replications, reads supplementary materials, runs small reproductions in a sandbox, narrows the hypothesis to one specific table, eventually flips to claim is partially supported with one figure non-reproducible, and writes the verified findings into a structured report. No subagents are spawned; the same model carries the thread end-to-end.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> Think\n  Think --> Search: working hypothesis\n  Search --> Verify: new evidence\n  Verify --> Revise: pass / fail notes\n  Revise --> Act: narrowed / replaced hypothesis\n  Act --> Think: next cycle (context compacted)\n  Verify --> Done: confidence threshold reached\n  Act --> Done: answer-ready signal\n  Think --> Done: budget exhausted\n  Done --> [*]",
+        "caption": "Each outer iteration cycles five named phases; the loop exits on confidence, budget, or an answer-ready signal."
+      }
     },
     {
       "id": "scheduled-agent",
