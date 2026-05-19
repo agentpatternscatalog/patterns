@@ -267,6 +267,14 @@
         {
           "pattern": "world-model-separation",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "cultural-alignment-guard",
+          "relation": "complements"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -502,6 +510,112 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Action proposed] --> E[Estimate cost]\n  E --> C{Cost > threshold?}\n  C -- no --> X[Execute]\n  C -- yes --> AP[Surface to user/operator]\n  AP --> AR{Approved?}\n  AR -- yes --> X\n  AR -- no --> B[Block]\n  X --> T[Track running totals]"
       }
+    },
+    {
+      "id": "cultural-alignment-guard",
+      "name": "Cultural Alignment Guard",
+      "aliases": [
+        "حارس الاتساق الثقافي",
+        "Two-Axis Safety Filter",
+        "Locale-Norm Guard",
+        "Cultural Misalignment Score"
+      ],
+      "category": "safety-control",
+      "intent": "Score model output along two independent axes — universal harmlessness and locally-specific cultural-norm violation — so deployments can set independent thresholds per axis and overlay locale-specific norms on top of a generic safety baseline.",
+      "context": "LLM deployments that serve a culturally-defined audience (religious community, regional locale, age group, school) where content can be technically harmless in the global sense yet violate community-specific norms (dietary, modesty, ritual, denominational, age-appropriateness). The deployer is closer to the community than the model vendor and must be able to tune cultural sensitivity without weakening the universal-harm filter.",
+      "problem": "Most safety classifiers project all undesirable outputs onto a single normative axis, so the only knob is 'safer' or 'less safe'. This collapses two genuinely different judgments — is this universally harmful, and does this violate the deploying community's norms — into one number. A deployer cannot, for example, keep the universal-harm threshold strict while raising sensitivity to alcohol references for a Muslim audience, or to non-kosher food imagery for an Orthodox audience, or to denominational specifics for a Hasidic deployment. Trying to express these as a single combined score either over-blocks the universal channel or under-protects the cultural one.",
+      "forces": [
+        "Universal harm and cultural-norm violation are independent judgments; collapsing them loses information.",
+        "The deployer is closer to the community than the model vendor and must own the cultural threshold.",
+        "Cultural norms are plural and contradictory across deployments; no single global threshold fits.",
+        "A scoring head must be calibrated on community-annotated data, not on a generic safety corpus.",
+        "Over-blocking the cultural axis silently degrades utility; under-blocking erodes community trust."
+      ],
+      "therefore": "Therefore: emit two independent scores from the safety layer — one for universal harmlessness, one for cultural-norm alignment relative to a named locale or community — and let the deployer set each threshold separately, so the cultural overlay can be tuned without weakening the universal filter.",
+      "solution": "The safety classifier exposes two regression or classification heads sharing an encoder: a universal-harm head trained on broad harmfulness labels, and a cultural-alignment head trained on community-annotated norm-violation labels tagged with a locale or community id. At inference, both heads score every output. The deploying application configures two thresholds (universal_harm_max, cultural_violation_max) and, optionally, which community label to evaluate against. Outputs failing either threshold are blocked or rewritten by a downstream rewriter. Threshold pairs are part of the deployment manifest and ship with the application, not with the base model. Community-specific evaluation sets are versioned so changes in cultural calibration are auditable.",
+      "structure": "Generated output --> Shared encoder --> {universal-harm head, cultural-alignment head[locale]} --> (score_h, score_c) --> Threshold check (universal_harm_max, cultural_violation_max) --> {pass | block | route-to-rewriter}.",
+      "consequences": {
+        "benefits": [
+          "Deployers can tighten cultural sensitivity without touching the universal-harm threshold.",
+          "Cultural calibration is a per-deployment configuration, not a fork of the base model.",
+          "Failure modes are diagnosable: an audit can distinguish 'blocked for universal harm' from 'blocked for cultural violation in locale X'.",
+          "Plural deployments (different communities) share one model and differ only in the two thresholds and the community label."
+        ],
+        "liabilities": [
+          "Requires community-annotated training data, which is hard to source and harder to keep balanced.",
+          "Two heads doubles the calibration and evaluation burden and the surface for distribution shift.",
+          "Naming and scoping a 'community' is itself political; over-coarse labels misrepresent the community.",
+          "A two-axis filter does not solve cultural-norm conflicts between an output and the user's actual identity if that identity is not the configured community."
+        ]
+      },
+      "constrains": "The LLM must not collapse universal harm and cultural-norm violation into a single score, must not allow the cultural threshold to weaken the universal-harm filter, and must not apply a community's cultural overlay to a deployment that has not declared that community as its audience.",
+      "known_uses": [
+        {
+          "system": "QCRI FanarGuard",
+          "note": "Two-axis safety classifier for Arabic-language LLMs; separates universal harmfulness from culturally-misaligned content using community-annotated data.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2511.18852"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "specialises",
+          "note": "Specialises content-filtering guardrails by splitting the normative axis into universal and cultural channels."
+        },
+        {
+          "pattern": "refusal",
+          "relation": "complements",
+          "note": "Refusal is the action; the two-axis guard decides which axis triggered it and how to phrase the refusal."
+        },
+        {
+          "pattern": "constitutional-charter",
+          "relation": "complements",
+          "note": "A constitutional charter can encode the universal axis; the cultural overlay sits beside it as a separate threshold."
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "complements",
+          "note": "Both are protective filters but on orthogonal axes; PII redaction concerns data identity, cultural-alignment concerns norm fit."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "FanarGuard: A Culturally-Aware Safety Classifier for Arabic LLMs",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2511.18852"
+        },
+        {
+          "type": "paper",
+          "title": "Fanar 2.0 Technical Report",
+          "authors": "Qatar Computing Research Institute",
+          "url": "https://arxiv.org/abs/2603.16397"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "safety-control",
+        "cultural-alignment",
+        "localisation",
+        "two-axis-classifier",
+        "guardrails",
+        "regional-llms"
+      ],
+      "applicability": {
+        "use_when": [
+          "The deployment serves a culturally-defined audience whose norms diverge from a generic safety baseline.",
+          "The deployer is responsible to that audience and must own the cultural threshold independently of the model vendor.",
+          "Community-annotated training or evaluation data for the cultural axis can be obtained.",
+          "Plural deployments share a base model but differ in audience."
+        ],
+        "do_not_use_when": [
+          "The audience is generic and a single universal-harm classifier already meets the bar.",
+          "Community-annotated data cannot be sourced; the cultural head would be uncalibrated.",
+          "The deployer is unwilling or unable to name and bound the community whose norms are being applied."
+        ]
+      },
+      "example_scenario": "A Gulf-region search assistant runs on top of a multilingual model. Its operators need the assistant to behave well by global standards and additionally to respect locally-prevalent Muslim norms in user-facing text and image prompts. The safety layer emits two scores per output: a universal-harm score and a cultural-alignment score relative to a Gulf-Arabic community label. The deployment sets a strict universal-harm threshold and a separate, tighter cultural-alignment threshold; a generic-audience sibling deployment uses the same model with the cultural threshold relaxed. When a user's query elicits a recipe involving alcohol, the universal-harm head passes it but the cultural head flags it, and the assistant offers a halal substitution instead of refusing outright."
     },
     {
       "id": "degenerate-output-detection",
@@ -916,6 +1030,10 @@
         {
           "pattern": "communicative-dehallucination",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1052,6 +1170,14 @@
         },
         {
           "pattern": "proactive-goal-creator",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cultural-alignment-guard",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "policy-as-code-gate",
           "relation": "complements"
         }
       ],
@@ -1369,6 +1495,10 @@
         {
           "pattern": "open-weight-cascade",
           "relation": "complements"
+        },
+        {
+          "pattern": "cultural-alignment-guard",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1401,6 +1531,144 @@
         "type": "flow",
         "mermaid": "flowchart LR\n  In[User input] --> D[Detect: regex + NER + classifier]\n  D -->|placeholders| LLM[LLM]\n  LLM --> Out1[Raw output]\n  Out1 --> S[Re-substitute or refuse]\n  S --> Out2[User-visible output]\n  D --> A[(Audit log)]\n  S --> A"
       }
+    },
+    {
+      "id": "policy-as-code-gate",
+      "name": "Policy-as-Code Gate",
+      "aliases": [
+        "OPA Action Gate",
+        "Compiled Governance",
+        "Policy-as-Prompt",
+        "Rego-Gated Agent",
+        "External Policy Engine"
+      ],
+      "category": "safety-control",
+      "intent": "Evaluate every proposed agent action against externally-managed machine-readable policies before dispatch, so compliance authorship lives outside the prompt and outside the agent code.",
+      "context": "Production agents operating in regulated or compliance-sensitive domains where the set of permitted actions is governed by policy documents authored by compliance, legal, or security teams rather than by prompt engineers. Tool/action surfaces are non-trivial and the policy surface changes on a different cadence than the agent code.",
+      "problem": "When governance rules are baked into the system prompt or hard-coded into the agent, every policy change requires a prompt edit and a redeploy, and the people accountable for compliance cannot read, audit, or change the rules without going through engineering. Natural-language constitutional rules in the prompt also drift: there is no machine-evaluable contract between the rule and the action that fired, no signed version, and no independent audit trail. Compliance officers need an authoring surface and an evaluation engine that is not the LLM itself.",
+      "forces": [
+        "Compliance officers must own the rules, but they do not write prompts and do not deploy agent code.",
+        "Policies change faster than agent prompts and on a different release cadence than model weights.",
+        "Natural-language rules embedded in the prompt are not independently auditable and have no signed version.",
+        "A machine-evaluable policy engine must be deterministic and fast enough to sit on the hot path of every tool call.",
+        "Policy documents are often authored in prose; manually translating them to code is a bottleneck and a source of drift."
+      ],
+      "therefore": "Therefore: route every proposed tool call through an external policy engine that evaluates the action against versioned, signed, machine-readable rules authored and owned by the compliance function, so that policy changes ship independently of the agent and every allow/deny decision carries a checkable policy version.",
+      "solution": "Maintain policies as code (OPA/Rego, Cedar, or equivalent) in a repository owned by compliance, optionally generated by a policy compiler that translates prose policy documents into the rule language. Before any tool dispatch, the agent emits a structured action proposal (tool, arguments, caller context, retrieved data fingerprints) to an external policy decision point. The engine returns allow, deny, or allow-with-obligations together with a policy hash and rule id. The agent dispatches the tool only on allow; on deny the agent surfaces the rule id to the user or escalates. Policies are versioned, signed, and ship through a separate pipeline from the agent. Evaluation results are logged with the policy hash so any decision can be re-checked against the exact rule version that fired.",
+      "structure": "Agent --(action proposal)--> Policy Decision Point (OPA/Cedar) --(allow|deny|obligations + policy_hash)--> Agent --(on allow)--> Tool. Policy repo (compliance-owned) --(compile/sign/deploy)--> Policy Decision Point. Decision log captures {action, policy_hash, rule_id, verdict}.",
+      "consequences": {
+        "benefits": [
+          "Compliance owns the rules in their native form; engineering owns the agent.",
+          "Policy changes ship without touching prompts or model weights.",
+          "Every allow/deny carries a signed policy version that an auditor can replay.",
+          "Deterministic rule evaluation removes the LLM from the enforcement path.",
+          "Prose-to-code compilation reduces translation drift between policy documents and runtime checks."
+        ],
+        "liabilities": [
+          "Adds a synchronous decision point to every tool call; latency and availability of the policy engine become production concerns.",
+          "Rule language (Rego, Cedar) is itself a skill the compliance team must acquire or be supported in.",
+          "Prose-to-code compilation can introduce its own translation errors; the compiled output still needs human review.",
+          "Policies that depend on free-text content (intent, tone) cannot be fully expressed as code and fall back on classifier obligations.",
+          "Action proposals must serialise enough context for the policy to evaluate, which expands the agent's structured-output surface."
+        ]
+      },
+      "constrains": "The LLM must not dispatch any governed tool call without first obtaining an allow verdict from the external policy engine, must not modify or paraphrase rule content at runtime, and must surface the rule id behind any deny rather than synthesising its own explanation.",
+      "known_uses": [
+        {
+          "system": "Giskard Guards",
+          "note": "Policy-as-code guardrails for LLM agents (Paris).",
+          "status": "available",
+          "url": "https://www.giskard.ai/"
+        },
+        {
+          "system": "Microsoft Agent Governance Toolkit",
+          "note": "Open-source runtime governance for AI agents, announced 2026-04.",
+          "status": "available",
+          "url": "https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/"
+        },
+        {
+          "system": "heise/BSI KRITIS reference architectures",
+          "note": "German critical-infrastructure deployments wrap agent tool dispatch behind OPA-style policy engines.",
+          "status": "planned",
+          "url": "https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "constitutional-charter",
+          "relation": "alternative-to",
+          "note": "Constitutional charters keep rules as natural-language inside the prompt; policy-as-code externalises them as machine-evaluable rules with their own release cycle."
+        },
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "complements",
+          "note": "Guardrails filter content; policy-as-code gates actions. The two stack: a guardrail can be an obligation attached to an allow verdict."
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "complements",
+          "note": "A deny or allow-with-obligation verdict can route to a human approver."
+        },
+        {
+          "pattern": "refusal",
+          "relation": "complements",
+          "note": "When the policy engine denies, the agent's refusal carries an authoritative rule id rather than a synthesised justification."
+        },
+        {
+          "pattern": "kritis-auditable-decision-artifact",
+          "relation": "used-by"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Policy-as-Prompt: Turning AI Governance Rules into Guardrails for AI Agents",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2509.23994"
+        },
+        {
+          "type": "blog",
+          "title": "Introducing the Agent Governance Toolkit: Open-Source Runtime Security for AI Agents",
+          "authors": "Microsoft Open Source",
+          "year": 2026,
+          "url": "https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/"
+        },
+        {
+          "type": "blog",
+          "title": "Agentic AIOps: KI-Agenten in kritischen Infrastrukturen",
+          "url": "https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html"
+        },
+        {
+          "type": "blog",
+          "title": "BSI Zero-Trust Designprinzipien für LLMs",
+          "year": 2025,
+          "url": "https://www.datenschutzticker.de/2025/09/bsi-zero-trust-designprinzipien-fuer-llms/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "policy-as-code",
+        "governance",
+        "opa",
+        "rego",
+        "compliance",
+        "safety-control",
+        "tool-gating"
+      ],
+      "applicability": {
+        "use_when": [
+          "Governance rules are owned by a compliance, legal, or security function distinct from agent engineering.",
+          "Policies change more often than the agent or model.",
+          "Auditors require a signed, replayable rule version for each agent action.",
+          "The action surface is non-trivial and contains operations that vary in risk."
+        ],
+        "do_not_use_when": [
+          "The deployment is a personal or research-grade prototype with no compliance surface.",
+          "The action surface is so small that a handful of natural-language rules in the prompt are sufficient and stable.",
+          "Latency budgets cannot tolerate any synchronous decision point on the tool-call path."
+        ]
+      },
+      "example_scenario": "A bank deploys an agent that can move money, open accounts, and call external KYC services. The compliance team writes its rules in Rego in a separately versioned policy repository, including jurisdiction-by-jurisdiction holds, sanctions checks, and threshold-based human-approval requirements. Before any tool call, the agent serialises the proposed action and sends it to an OPA sidecar. OPA returns allow with obligations (require dual approval, mask the customer name in the downstream call), and the agent honours those obligations on dispatch. When a regulator asks why a particular transfer was permitted, the audit log replays the action against the exact policy hash that was active at that moment."
     },
     {
       "id": "prompt-injection-defense",
@@ -1732,6 +2000,14 @@
         {
           "pattern": "code-switching-aware-agent",
           "relation": "conflicts-with"
+        },
+        {
+          "pattern": "cultural-alignment-guard",
+          "relation": "complements"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements"
         }
       ],
       "references": [

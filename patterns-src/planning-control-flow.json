@@ -3,6 +3,250 @@
   "label": "Planning & Control Flow",
   "patterns": [
     {
+      "id": "adaptive-branching-tree-search",
+      "name": "Adaptive Branching Tree Search",
+      "aliases": [
+        "AB-MCTS",
+        "適応的分岐モンテカルロ木探索",
+        "TreeQuest",
+        "Multi-LLM AB-MCTS"
+      ],
+      "category": "planning-control-flow",
+      "intent": "At each node of an inference-time search tree, use Thompson sampling to decide whether to deepen an existing answer or branch a fresh attempt, optionally choosing per-node which underlying LLM to invoke.",
+      "context": "Inference-time search over LLM-generated candidates for tasks with verifiable or scorable outputs (code, math, ARC-style puzzles). The team has a budget of model calls and wants to spend them better than fixed-width tree-of-thoughts or flat best-of-N. Multiple LLMs may be available with complementary strengths.",
+      "problem": "Plain MCTS over LLM outputs (LATS) uses a fixed branching factor and treats every node identically. Tree-of-thoughts branches at a fixed width. Best-of-N is flat with no exploration of refinements. None of these adaptively trade width against depth based on which branches are paying off, and none can choose which LLM to call at a given node. On hard search problems this leaves a lot of compute on the table.",
+      "forces": [
+        "Width (more fresh attempts) and depth (refining existing ones) compete for the same budget.",
+        "The right width/depth balance differs per node and is not known in advance.",
+        "Multiple LLMs have complementary failure modes; picking the right one per node is itself a search axis.",
+        "Thompson sampling is principled but adds bookkeeping over plain MCTS.",
+        "Inference-time compute is expensive; wasted rollouts hurt directly."
+      ],
+      "therefore": "Therefore: at each tree node sample from a Thompson-sampling posterior over the actions \"deepen this branch\" versus \"branch a fresh attempt\" (and optionally \"with model M\"), so the search adaptively allocates width, depth, and model-choice based on observed payoffs rather than fixed branching parameters.",
+      "solution": "Each node in the search tree maintains posterior estimates over the value of its possible actions. Actions are: refine the current candidate (deepen), generate a fresh sibling (branch), and — in the multi-LLM variant — which model to call. At each step the controller draws a Thompson sample from the per-action posterior and picks the highest sampled value; the resulting rollout's score updates the posterior. Over many rollouts the tree concentrates compute on the branches and models that are paying off. The score function must be either verifiable (compiler, test, oracle) or a trusted evaluator. The framework runs until a budget or success threshold is hit.",
+      "structure": "Root -> per-node {posterior over (deepen | branch | choose-model)} -> Thompson sample -> rollout via chosen LLM -> score -> posterior update.",
+      "consequences": {
+        "benefits": [
+          "Adaptive width/depth balance outperforms fixed-shape search on hard problems.",
+          "Per-node model choice exploits complementary strengths of multiple LLMs.",
+          "Thompson sampling gives a principled exploration-exploitation trade-off.",
+          "Compute concentrates on payoff-rich branches automatically."
+        ],
+        "liabilities": [
+          "Requires a usable score function; without one, the posteriors are noise.",
+          "Bookkeeping is heavier than plain MCTS or best-of-N.",
+          "Inference cost is still high; the pattern reduces waste but does not make search cheap.",
+          "Multi-LLM variant adds operational complexity (different APIs, latencies, pricing)."
+        ]
+      },
+      "constrains": "The controller must update posteriors from observed rollout scores before drawing the next sample; node expansion must not exceed the declared budget; the agent itself cannot bypass the Thompson sample to pick a favoured branch directly.",
+      "known_uses": [
+        {
+          "system": "Sakana AI TreeQuest",
+          "note": "Open-source (Apache 2.0) framework implementing AB-MCTS and Multi-LLM AB-MCTS; benchmarked on ARC-AGI-2.",
+          "status": "available",
+          "url": "https://sakana.ai/ab-mcts-jp/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "lats",
+          "relation": "specialises",
+          "note": "AB-MCTS replaces LATS's fixed-branching MCTS with adaptive Thompson-sampled width/depth."
+        },
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "alternative-to",
+          "note": "ToT uses fixed branching; AB-MCTS adapts branching to payoffs."
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "generalises",
+          "note": "Best-of-N is the flat zero-depth case of this pattern."
+        },
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises",
+          "note": "A specific scheme for spending inference-time compute."
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "complements",
+          "note": "Self-consistency provides a voting score function that AB-MCTS can drive search against."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "AB-MCTS: 推論時の試行錯誤を効率化する新たなAIアルゴリズム",
+          "authors": "Sakana AI",
+          "year": 2025,
+          "url": "https://sakana.ai/ab-mcts-jp/"
+        },
+        {
+          "type": "blog",
+          "title": "Sakana AIが新アルゴリズムAB-MCTSを発表",
+          "authors": "gihyo.jp",
+          "year": 2025,
+          "url": "https://gihyo.jp/article/2025/07/sakana-ai-ab-mcts-algorithm"
+        },
+        {
+          "type": "blog",
+          "title": "Sakana AIの新アルゴリズム",
+          "authors": "WIRED Japan",
+          "year": 2025,
+          "url": "https://wired.jp/article/sakana-ai-new-algorithm/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "inference-time-search",
+        "mcts",
+        "thompson-sampling",
+        "multi-llm",
+        "test-time-compute"
+      ],
+      "applicability": {
+        "use_when": [
+          "A reliable score function (verifier, tests, oracle) is available.",
+          "The task benefits from a mix of refinement and fresh attempts.",
+          "Multiple LLMs are available and their strengths differ across the input distribution."
+        ],
+        "do_not_use_when": [
+          "No usable score function exists; the posteriors collapse to noise.",
+          "Latency budgets forbid multi-rollout search.",
+          "A single best-of-N pass already saturates the score."
+        ]
+      },
+      "example_scenario": "A team tackles ARC-AGI-2 puzzles with three different LLMs. They drop the puzzles into TreeQuest, which builds a search tree where each node decides via Thompson sampling whether to refine the current candidate program, generate a fresh sibling, and which of the three models to use. After a fixed compute budget the tree has concentrated rollouts on the branches that scored well — and on the model that turned out to handle that puzzle family best — producing higher pass rates than flat best-of-N at the same cost."
+    },
+    {
+      "id": "clone-fan-out-research",
+      "name": "Clone Fan-Out Research",
+      "aliases": [
+        "通用副本扇出",
+        "Wide Research",
+        "Identical-Worker Fan-Out",
+        "Manus Wide Research"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Spawn 100 or more identical, full-capability agent instances in parallel — each a complete general agent rather than a role-specialised worker — and aggregate their independent outputs into a single answer.",
+      "context": "Wide-coverage tasks such as comparing many candidates, scanning many sources, or sampling many independent strategies. Each subtask is large enough that a role-specialised lightweight worker is too weak, but small enough that a full agent can handle it. Per-agent isolation is available (sandbox VMs or worktrees).",
+      "problem": "Orchestrator-workers patterns assume specialisation — the orchestrator decomposes by role and dispatches to differently-skilled workers. Many real wide-coverage jobs are not role-decomposable: each unit of work needs the *same* full capability. Spawning hundreds of role-specialised workers wastes the orchestrator's effort and produces inconsistent worker quality. Spawning hundreds without isolation or aggregation produces the Unbounded Subagent Spawn anti-pattern.",
+      "forces": [
+        "Wide coverage demands high parallelism, but parallel agents collide if they share state.",
+        "Each unit of work needs full agent capability, not a stripped-down worker.",
+        "Aggregation must reconcile many independent outputs without an O(N²) comparison.",
+        "Spawn cost and per-agent isolation cost grow linearly with N."
+      ],
+      "therefore": "Therefore: spawn N identical full-capability agent clones into isolated sandboxes, give each the same prompt template parametrised by a different input slice, and pipe their structured outputs into a single aggregation pass so wide-coverage jobs scale by replication rather than by role decomposition.",
+      "solution": "A driver computes the input partition (one slice per clone), allocates N isolated sandboxes (e.g. VMs or worktrees) so the clones cannot interfere with one another, and launches N instances of the same agent with the same system prompt and tools — only the input slice differs. Each clone runs to completion independently and writes a structured result to a shared collection bucket. A separate aggregator pass (LLM or deterministic) consolidates results — voting, ranking, deduplication, or synthesis. The clones never communicate; aggregation is one-shot at the end. N is bounded by a declared budget and the available sandbox pool, not by the agent's own discretion.",
+      "structure": "Driver -> partition -> {Clone_1 ... Clone_N in isolated sandboxes} -> structured outputs -> Aggregator -> single answer.",
+      "consequences": {
+        "benefits": [
+          "Wide-coverage jobs scale linearly with sandbox count.",
+          "Identical clones simplify reasoning about per-agent quality.",
+          "No inter-clone coordination means no message-passing failure modes.",
+          "Isolation prevents one clone's failure from poisoning others."
+        ],
+        "liabilities": [
+          "Cost scales linearly with N; budgets must be explicit.",
+          "Aggregation quality caps overall quality; a weak aggregator wastes the fan-out.",
+          "Identical clones cannot specialise to harder slices.",
+          "Without strict spawn bounds this collapses into Unbounded Subagent Spawn."
+        ]
+      },
+      "constrains": "The driver must declare N up front; the agent itself cannot decide to spawn more clones recursively; clones must run in isolated sandboxes with no shared mutable state; results must be aggregated in a single declared pass, not by inter-clone chatter.",
+      "known_uses": [
+        {
+          "system": "Manus Wide Research (Monica / Manus AI)",
+          "note": "Wide Research mode spawns 100+ identical full-capability agent instances in parallel VMs.",
+          "status": "available",
+          "url": "https://zhuanlan.zhihu.com/p/1934558071381812623"
+        },
+        {
+          "system": "Manus Wide Research technical writeup (SegmentFault)",
+          "note": "Coverage of the architecture and parallelism model.",
+          "status": "available",
+          "url": "https://segmentfault.com/a/1190000047111276"
+        },
+        {
+          "system": "Manus Wide Research announcement (OSCHINA)",
+          "note": "Product-level introduction of the Wide Research feature.",
+          "status": "available",
+          "url": "https://www.oschina.net/news/363554/manus-wide-research"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "alternative-to",
+          "note": "Orchestrator-workers decomposes by role; clone fan-out replicates the same role."
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "specialises",
+          "note": "A specific shape of sectioning where every section gets the same full agent."
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "uses",
+          "note": "Each clone runs in its own isolated sandbox."
+        },
+        {
+          "pattern": "unbounded-subagent-spawn",
+          "relation": "conflicts-with",
+          "note": "This pattern is the bounded, aggregated counterpart of that anti-pattern."
+        },
+        {
+          "pattern": "lead-researcher",
+          "relation": "alternative-to",
+          "note": "Lead-researcher uses a small number of specialised subagents; clone fan-out uses many identical ones."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Manus大升级，100多个智能体并发给你做任务",
+          "year": 2025,
+          "url": "https://zhuanlan.zhihu.com/p/1934558071381812623"
+        },
+        {
+          "type": "blog",
+          "title": "Manus Wide Research：重新定义AI多智能体并发处理的技术革命",
+          "year": 2025,
+          "url": "https://segmentfault.com/a/1190000047111276"
+        },
+        {
+          "type": "blog",
+          "title": "Manus推出Wide Research功能",
+          "year": 2025,
+          "url": "https://www.oschina.net/news/363554/manus-wide-research"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "fan-out",
+        "parallel",
+        "multi-agent",
+        "wide-research",
+        "isolation"
+      ],
+      "applicability": {
+        "use_when": [
+          "The job naturally partitions into many independent units that each need full agent capability.",
+          "Isolated sandboxes are available so clones cannot interfere.",
+          "An aggregator (vote, rank, dedup, or synthesis) can produce one answer from N structured outputs."
+        ],
+        "do_not_use_when": [
+          "The subtasks are role-differentiated; use orchestrator-workers instead.",
+          "No aggregation strategy exists; raw N outputs are not a deliverable.",
+          "Per-clone cost makes N infeasible at the needed coverage."
+        ]
+      },
+      "example_scenario": "A user asks an agent to compare 200 candidate libraries against five evaluation criteria. The driver partitions the list into 200 slices and spawns 200 identical agents, each in its own sandbox VM, each tasked with evaluating one library and emitting a structured row. After all clones finish, an aggregator pass ranks the rows and synthesises a shortlist. None of the clones talked to each other; the fan-out is bounded by the declared N=200."
+    },
+    {
       "id": "disambiguation",
       "name": "Disambiguation",
       "aliases": [
@@ -76,6 +320,14 @@
         },
         {
           "pattern": "passive-goal-creator",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "complements"
+        },
+        {
+          "pattern": "madhhab-branching-agent",
           "relation": "complements"
         }
       ],
@@ -372,6 +624,116 @@
       }
     },
     {
+      "id": "initializer-agent",
+      "name": "Initializer Agent",
+      "aliases": [
+        "Bootstrap Session",
+        "One-Shot Scaffolder",
+        "Pre-Work Scaffold Agent"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Run one specialised agent session whose only job is to expand a vague user prompt into a durable on-disk scaffold that all subsequent agent sessions read on boot.",
+      "context": "Long-running coding-agent harnesses where many short sessions accumulate to deliver one large outcome. The first session has the freshest understanding of the user's intent but also the least committed work; later sessions inherit whatever state is on disk.",
+      "problem": "Without a dedicated bootstrap step, every later session re-derives the plan from the same vague prompt, often inconsistently. Asking the same agent that writes code to also scaffold the workspace conflates two very different prompts and frequently produces half-finished plans, missing init scripts, or no initial commit to roll back to. A separate session with a different system prompt — explicitly scoped to scaffolding only — produces cleaner, more durable artefacts that downstream sessions can trust.",
+      "forces": [
+        "The first session has the freshest read on the user's intent but the smallest budget for direct work.",
+        "Downstream sessions need a stable, machine-readable plan they did not author.",
+        "Scaffolding work (init scripts, feature lists, initial commit) is qualitatively different from coding work.",
+        "Re-scaffolding mid-run is expensive and destabilising; the scaffold must be right once."
+      ],
+      "therefore": "Therefore: dedicate a single one-shot agent session with a scaffolding-only prompt to produce a durable on-disk artefact (feature list, init script, progress note, initial commit) before any coding agent is invoked, so that every later session boots from a stable shared workspace.",
+      "solution": "The harness launches an Initializer with a prompt restricted to scaffolding: expand the user request into a feature-list.json, write an init.sh that brings a fresh checkout up to a working state, drop a progress.md with the run's intent and constraints, and make an initial git commit. The Initializer is forbidden from writing application code or running long tool sequences; its exit condition is the presence of the four artefacts. Subsequent coding agents start every session by reading the scaffold, never by re-deriving it. The Initializer itself is single-shot — if its scaffold is wrong, a human or a higher-level driver re-runs it, not the coding agent.",
+      "structure": "Initializer (single session) -> {feature-list.json, init.sh, progress.md, initial commit}. Coding agents (many sessions) -> read scaffold, write code, never re-scaffold.",
+      "consequences": {
+        "benefits": [
+          "Downstream sessions share a stable understanding of the job.",
+          "Scaffolding and coding prompts can each be tuned independently.",
+          "Initial commit provides a clean rollback point.",
+          "Fresh-context coding sessions are smaller because the plan lives on disk, not in prompt."
+        ],
+        "liabilities": [
+          "Adds an explicit first step to every run.",
+          "A bad scaffold poisons every downstream session until re-run.",
+          "Two different prompt styles to maintain.",
+          "Over-scaffolding for tiny jobs is wasted overhead."
+        ]
+      },
+      "constrains": "The Initializer must not write application code, must not start the coding work, and must terminate as soon as the scaffold artefacts exist; coding sessions must not modify the feature list without going back through the Initializer or a higher-level driver.",
+      "known_uses": [
+        {
+          "system": "Anthropic harness for long-running agents",
+          "note": "Initializer session pattern described in Anthropic's effective-harnesses post.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents"
+        },
+        {
+          "system": "Anthropic harness-design-long-running-apps guidance",
+          "note": "Bootstrap step formalised as part of the harness architecture.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/harness-design-long-running-apps"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "spec-first-agent",
+          "relation": "complements",
+          "note": "The Initializer's feature-list is a lightweight spec."
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "complements",
+          "note": "Initializer produces the durable todo list that later sessions execute against."
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements",
+          "note": "Initializer's commit provides the resumption anchor."
+        },
+        {
+          "pattern": "planner-generator-evaluator-harness",
+          "relation": "composes-with",
+          "note": "Initializer often runs ahead of a three-role harness."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Effective harnesses for long-running agents",
+          "authors": "Anthropic Engineering",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents"
+        },
+        {
+          "type": "blog",
+          "title": "Harness design for long-running application development",
+          "authors": "Anthropic Engineering",
+          "year": 2026,
+          "url": "https://www.anthropic.com/engineering/harness-design-long-running-apps"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "bootstrap",
+        "scaffold",
+        "harness",
+        "one-shot",
+        "long-running"
+      ],
+      "applicability": {
+        "use_when": [
+          "Many downstream sessions will inherit state from a single starting point.",
+          "The user prompt is vague enough that re-deriving the plan would be inconsistent across sessions.",
+          "There is a clear scaffold artefact set (feature list, init script, progress note) the team agrees on."
+        ],
+        "do_not_use_when": [
+          "The job fits in one session; scaffolding is overhead.",
+          "The workspace is already populated by a previous run; resume directly.",
+          "There is no agreement on what the scaffold should contain."
+        ]
+      },
+      "example_scenario": "A user asks for \"a new internal status dashboard\". Instead of the coding agent starting immediately, the harness launches an Initializer. It writes feature-list.json with eight chunks, init.sh that installs dependencies and seeds a database, progress.md restating the user's intent, and commits the empty scaffold. Over the next two days a dozen coding-agent sessions boot, each reading feature-list.json and progress.md, none re-deriving the plan from the original prompt."
+    },
+    {
       "id": "lats",
       "name": "Language Agent Tree Search",
       "aliases": [
@@ -434,6 +796,14 @@
         },
         {
           "pattern": "automatic-workflow-search",
+          "relation": "complements"
+        },
+        {
+          "pattern": "adaptive-branching-tree-search",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "world-model-as-tool",
           "relation": "complements"
         }
       ],
@@ -1093,6 +1463,10 @@
         {
           "pattern": "outer-inner-agent-loop",
           "relation": "generalises"
+        },
+        {
+          "pattern": "planner-generator-evaluator-harness",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1125,6 +1499,132 @@
         "type": "flow",
         "mermaid": "flowchart LR\n  G[Goal] --> P[Planner]\n  P -->|plan| E[Executor]\n  E -->|step result| O[Observer]\n  O -->|loop| E\n  O -->|replan| P\n  O -->|respond| R[Final answer]"
       }
+    },
+    {
+      "id": "planner-generator-evaluator-harness",
+      "name": "Planner-Generator-Evaluator Harness",
+      "aliases": [
+        "Three-Agent Harness",
+        "GAN-Inspired Agent Architecture",
+        "Spec-Plan-Generate-Evaluate Loop"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Decompose a long-running job into three role-isolated agents — a Planner emitting a feature list, a Generator working one chunk per fresh context, and an Evaluator grading against a rubric without seeing the Generator's trace.",
+      "context": "Long-running application development, large refactors, and other multi-day creative jobs run by a coding-agent harness where a single agent run cannot fit the task into one context window. The work has a clear external artefact (code, document, design) that can be evaluated independently of how it was produced.",
+      "problem": "Single-agent long-runs hit context limits and conflate planning, generation, and self-grading inside one head. Two-role evaluator-optimizer loops let the optimiser game the evaluator by reading its critiques as hints. Generic orchestrator-workers patterns do not specify a *grader* role with hard isolation, so quality drifts. The harness needs a three-way split where each role works in its own context and the evaluator cannot be social-engineered by the generator's reasoning.",
+      "forces": [
+        "Each role's context must stay small enough to fit, yet the overall job spans days.",
+        "The evaluator must judge the artefact, not the process, but the generator naturally wants to argue.",
+        "Plans must be machine-checkable so the generator can pick up the next chunk without re-reading the user's prompt.",
+        "Role isolation costs orchestration complexity and inter-role hand-off latency."
+      ],
+      "therefore": "Therefore: split the harness into three agents with disjoint contexts — Planner produces a structured feature list, Generator works one chunk at a time from a fresh context seeded only by the plan plus prior artefact, and Evaluator scores the artefact against a fixed rubric without access to the Generator's reasoning trace — so each role optimises one objective and cannot collude with the others.",
+      "solution": "The Planner runs once (or rarely) and emits a structured feature-list artefact: ordered chunks, acceptance criteria, dependencies. The Generator is invoked per-chunk in a fresh context that includes only (a) the feature-list, (b) the current artefact state, and (c) the chunk to build; it produces a new artefact revision and exits. The Evaluator is invoked in its own fresh context with only the artefact and the fixed rubric; it returns pass/fail plus structured findings, and never sees the Generator's chain of thought or scratch notes. A small driver loop routes between the three: failed evaluation re-invokes the Generator with the findings as input (not the full Evaluator transcript). The fixed rubric makes Evaluator behaviour reproducible across runs.",
+      "structure": "Driver --> {Planner | Generator | Evaluator}. Planner reads user prompt, writes feature-list.json. Generator reads feature-list.json + artefact, writes artefact'. Evaluator reads artefact' + rubric, writes findings.json. Driver dispatches based on findings.",
+      "consequences": {
+        "benefits": [
+          "Each role's context stays small and bounded.",
+          "Evaluator isolation makes scores harder to game from inside the generator.",
+          "Fresh-context generation per chunk avoids long-trace attention rot.",
+          "Plans are durable artefacts that survive crashes and resumption."
+        ],
+        "liabilities": [
+          "Three-agent orchestration adds significant harness complexity over single-agent loops.",
+          "Inter-role hand-offs through files add latency.",
+          "A weak or mis-specified rubric makes the Evaluator useless or actively harmful.",
+          "Planner errors propagate through the whole run because the Generator trusts the plan."
+        ]
+      },
+      "constrains": "The Evaluator must never receive the Generator's reasoning trace or scratch context, only the artefact and the rubric; the Generator must not re-plan (any plan change goes back to the Planner); the Planner must not generate the artefact directly.",
+      "known_uses": [
+        {
+          "system": "Anthropic harness for Claude Code long-running tasks",
+          "note": "Three-agent harness described in Anthropic engineering posts on long-running application development.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/harness-design-long-running-apps"
+        },
+        {
+          "system": "Anthropic effective-harnesses guidance",
+          "note": "Codifies role isolation and fresh-context generation as harness primitives.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "specialises",
+          "note": "Adds a separate Planner role and enforces evaluator isolation."
+        },
+        {
+          "pattern": "planner-executor-observer",
+          "relation": "alternative-to",
+          "note": "POE's observer is a monitor; here the evaluator is a peer grader with veto power."
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "specialises",
+          "note": "Fixes three named roles instead of dynamic worker decomposition."
+        },
+        {
+          "pattern": "spec-first-agent",
+          "relation": "complements",
+          "note": "The Planner output is a machine-readable spec."
+        },
+        {
+          "pattern": "frozen-rubric-reflection",
+          "relation": "uses",
+          "note": "Evaluator runs against a fixed rubric."
+        },
+        {
+          "pattern": "initializer-agent",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Harness design for long-running application development",
+          "authors": "Anthropic Engineering",
+          "year": 2026,
+          "url": "https://www.anthropic.com/engineering/harness-design-long-running-apps"
+        },
+        {
+          "type": "blog",
+          "title": "Effective harnesses for long-running agents",
+          "authors": "Anthropic Engineering",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents"
+        },
+        {
+          "type": "blog",
+          "title": "Anthropic Details Three-Agent Harness for Long-Running Coding Agents",
+          "authors": "InfoQ",
+          "year": 2026,
+          "url": "https://www.infoq.com/news/2026/04/anthropic-three-agent-harness-ai/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "harness",
+        "long-running",
+        "role-isolation",
+        "coding-agent",
+        "rubric"
+      ],
+      "applicability": {
+        "use_when": [
+          "A single agent run cannot fit the job into one context window.",
+          "There is a clear external artefact that can be evaluated without inspecting how it was produced.",
+          "A stable rubric exists or can be authored."
+        ],
+        "do_not_use_when": [
+          "The job is short enough for a single agent with extended thinking.",
+          "No meaningful rubric can be written; the evaluator will degrade to noise.",
+          "Latency matters more than quality; the inter-role hand-offs are too expensive."
+        ]
+      },
+      "example_scenario": "A coding agent is asked to add OAuth support across a large web app. The Planner reads the prompt and writes feature-list.json: ten ordered chunks with acceptance criteria. The Generator boots a fresh context per chunk, edits files, exits. The Evaluator boots its own fresh context, reads only the diff and the rubric (\"does it compile, do the new tests pass, are there no plaintext secrets\"), and returns findings. Chunk 4 fails; the driver re-invokes the Generator with the findings but not the Evaluator's reasoning trace. Across two days the artefact converges without any one context exceeding its limit."
     },
     {
       "id": "proactive-goal-creator",
@@ -1328,6 +1828,10 @@
         {
           "pattern": "augmented-llm",
           "relation": "generalises"
+        },
+        {
+          "pattern": "rumination-agent",
+          "relation": "specialises"
         }
       ],
       "references": [
@@ -1554,6 +2058,126 @@
         "type": "flow",
         "mermaid": "flowchart LR\n  G[Goal] --> Pl[Planner]\n  Pl -->|DAG with #t1, #t2 vars| Plan[Plan]\n  Plan --> W[Worker]\n  W -->|exec ToolA| O1[obs t1]\n  W -->|exec ToolB t1| O2[obs t2]\n  O1 --> Tr[Resolved trace]\n  O2 --> Tr\n  Tr --> S[Solver]\n  S --> Ans[Answer]"
       }
+    },
+    {
+      "id": "rumination-agent",
+      "name": "Rumination Agent",
+      "aliases": [
+        "沉思",
+        "Rumination Loop",
+        "Long-Horizon Research Loop",
+        "Hypothesis-Revising Agent"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Run a single agent through a protracted think-search-verify-revise-act loop spanning hundreds of tool calls, autonomously re-formulating hypotheses across the run.",
+      "context": "Open-ended research, deep-investigation, and long-horizon analysis tasks where a single short ReAct loop or a one-shot plan is too shallow. The agent has access to retrieval, browsing, and code-execution tools and is expected to spend minutes-to-hours on a single question.",
+      "problem": "Short reasoning budgets and one-shot plans collapse complex investigations into surface-level answers. Multi-agent research orchestrators (lead-researcher + subagents) introduce coordination overhead and message-passing artefacts. A single agent that can re-question its own working hypothesis across hundreds of tool calls — without handing off to peers — needs an explicit control loop, otherwise it either terminates too early or wanders into unbounded looping.",
+      "forces": [
+        "Depth of investigation requires many sequential tool calls, but long traces bloat context and degrade attention.",
+        "Re-formulating hypotheses mid-run is essential for hard questions, yet uncontrolled re-formulation is indistinguishable from drift.",
+        "A single agent avoids inter-agent message-passing overhead, but loses the natural checkpoints a multi-agent split provides.",
+        "The loop must be long-running but not unbounded; termination criteria are domain-dependent."
+      ],
+      "therefore": "Therefore: structure the agent's run as an explicit think-search-verify-revise-act cycle with named hypothesis state and a per-cycle revision step, so that one model can sustain a protracted investigation while keeping each cycle short enough to stay coherent.",
+      "solution": "Each outer iteration runs five named phases: (1) think — emit an updated working hypothesis given the trace so far; (2) search — issue retrieval, browsing, or tool calls scoped to that hypothesis; (3) verify — check the new evidence against the hypothesis with explicit pass/fail notes; (4) revise — either narrow, broaden, or replace the hypothesis based on verification; (5) act — write findings, update an externalised plan, or commit an artefact. The loop terminates on confidence threshold, budget exhaustion, or explicit answer-ready signal. Context is compacted between cycles by replacing prior search dumps with verified-evidence summaries, so the trace stays linear in cycles, not in tool calls.",
+      "structure": "Single agent runtime with named cycle phases. State: working hypothesis, evidence ledger, cycle counter, budget. Tools: retrieval, browser, code execution. Termination: confidence threshold OR budget OR answer-ready.",
+      "consequences": {
+        "benefits": [
+          "Single-agent simplicity avoids multi-agent coordination overhead.",
+          "Explicit hypothesis revision gives a checkable place where drift becomes visible.",
+          "Per-cycle compaction keeps context bounded even across hundreds of tool calls."
+        ],
+        "liabilities": [
+          "Long runs are expensive in tokens and wall-clock time.",
+          "Compaction loses raw evidence; replay fidelity degrades.",
+          "Without strong termination criteria the loop devolves into Unbounded Loop.",
+          "Single-agent self-revision still shares all the failure modes of Same-Model Self-Critique."
+        ]
+      },
+      "constrains": "The agent must not branch into parallel sub-investigations, must not skip the verify phase before revising the hypothesis, and must not extend the run past the declared cycle or token budget without explicit budget-extension authorisation.",
+      "known_uses": [
+        {
+          "system": "Kimi K2 Thinking (Moonshot AI)",
+          "note": "Long-horizon thinking model with explicit protracted reasoning loop over tool calls.",
+          "status": "available",
+          "url": "https://zhuanlan.zhihu.com/p/1969908447005873171"
+        },
+        {
+          "system": "GLM-Z1-Rumination (Zhipu AI)",
+          "note": "Z1 variant tuned for rumination-style research loops.",
+          "status": "available",
+          "url": "https://ai-bot.cn/glm-z1-rumination/"
+        },
+        {
+          "system": "AutoGLM沉思 (Zhipu AI)",
+          "note": "Consumer-facing agent built around the rumination loop.",
+          "status": "available",
+          "url": "https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "react",
+          "relation": "generalises",
+          "note": "ReAct is the short-loop ancestor; rumination is its protracted single-agent descendant."
+        },
+        {
+          "pattern": "extended-thinking",
+          "relation": "complements",
+          "note": "Extended thinking is single-turn; rumination spans many turns of tool use."
+        },
+        {
+          "pattern": "lead-researcher",
+          "relation": "alternative-to",
+          "note": "Lead-researcher splits the work across agents; rumination keeps it in one."
+        },
+        {
+          "pattern": "unbounded-loop",
+          "relation": "conflicts-with",
+          "note": "Rumination requires explicit termination criteria to avoid this anti-pattern."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Kimi K2 Thinking — Moonshot AI",
+          "year": 2025,
+          "url": "https://zhuanlan.zhihu.com/p/1969908447005873171"
+        },
+        {
+          "type": "blog",
+          "title": "GLM-Z1-Rumination — Zhipu AI",
+          "year": 2025,
+          "url": "https://ai-bot.cn/glm-z1-rumination/"
+        },
+        {
+          "type": "blog",
+          "title": "AutoGLM沉思 — Zhipu AI rolls out rumination-mode agent",
+          "year": 2025,
+          "url": "https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "long-horizon",
+        "single-agent",
+        "research",
+        "hypothesis-revision",
+        "deep-investigation"
+      ],
+      "applicability": {
+        "use_when": [
+          "The task is open-ended research where a short ReAct loop returns surface answers.",
+          "A single model can hold the investigation's working state and you want to avoid multi-agent coordination.",
+          "Hundreds of tool calls are acceptable and budgeted."
+        ],
+        "do_not_use_when": [
+          "The task is short or well-specified; ReAct or plan-and-execute is enough.",
+          "Verification needs an independent model; pair with cross-model review instead.",
+          "Hard latency budgets forbid minutes-to-hours runs."
+        ]
+      },
+      "example_scenario": "A user asks an agent to assess whether a recent paper's empirical claims hold up. The agent forms an initial hypothesis (claim is supported), then over forty cycles searches for replications, reads supplementary materials, runs small reproductions in a sandbox, narrows the hypothesis to one specific table, eventually flips to claim is partially supported with one figure non-reproducible, and writes the verified findings into a structured report. No subagents are spawned; the same model carries the thread end-to-end."
     },
     {
       "id": "scheduled-agent",
@@ -1795,6 +2419,14 @@
         {
           "pattern": "automatic-workflow-search",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "initializer-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "planner-generator-evaluator-harness",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1905,6 +2537,10 @@
         },
         {
           "pattern": "affect-coupled-plan-lifecycle",
+          "relation": "complements"
+        },
+        {
+          "pattern": "initializer-agent",
           "relation": "complements"
         }
       ],

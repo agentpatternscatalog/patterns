@@ -55,6 +55,10 @@
         {
           "pattern": "tool-loadout",
           "relation": "complements"
+        },
+        {
+          "pattern": "synthetic-filesystem-overlay",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -478,6 +482,10 @@
         {
           "pattern": "dual-system-gui-agent",
           "relation": "generalises"
+        },
+        {
+          "pattern": "policy-localizer-validator",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -589,6 +597,10 @@
         {
           "pattern": "structured-output",
           "relation": "complements"
+        },
+        {
+          "pattern": "mcp-as-code-api",
+          "relation": "composes-with"
         }
       ],
       "references": [
@@ -841,6 +853,10 @@
         {
           "pattern": "proactive-goal-creator",
           "relation": "complements"
+        },
+        {
+          "pattern": "policy-localizer-validator",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -943,6 +959,10 @@
         {
           "pattern": "structured-output",
           "relation": "uses"
+        },
+        {
+          "pattern": "policy-localizer-validator",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -1088,6 +1108,14 @@
         {
           "pattern": "tool-agent-registry",
           "relation": "used-by"
+        },
+        {
+          "pattern": "mcp-as-code-api",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "synthetic-filesystem-overlay",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1147,6 +1175,137 @@
           "when_to_use": "Newer MCP-conformant hosts; replaces the SSE-plus-HTTP split for simpler deployments."
         }
       ]
+    },
+    {
+      "id": "mcp-as-code-api",
+      "name": "MCP-as-Code-API",
+      "aliases": [
+        "Code-Execution-with-MCP",
+        "MCP-as-Typed-API",
+        "Filesystem-Mirrored Tools",
+        "Tools-as-Code-Modules"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Materialize MCP servers as a directory of typed code wrappers so the agent writes code that imports them and large tool outputs flow between calls inside the sandbox without ever entering the model's context window.",
+      "context": "Agents connected to many MCP servers, each exposing tens or hundreds of tools with verbose JSON outputs. Conventional tool calling loads every tool schema into the prompt and round-trips every tool result back through the model, so a single workflow that joins data across servers can burn six-figure token counts before any reasoning happens. The agent already has a code-execution sandbox (Python or TypeScript runtime).",
+      "problem": "Putting all MCP tool definitions in the prompt is wasteful when only a handful are used per task. Worse, every intermediate result — a 5MB spreadsheet, a paginated Slack thread, a binary diff — must be serialized into the context window even when the model only needs to pass it from one tool to the next. Token cost, latency, and context-window pressure all explode for workflows that are mostly plumbing.",
+      "forces": [
+        "Tool schemas are static and discoverable on the filesystem, but model context is scarce and per-turn-priced.",
+        "Intermediate data often flows tool-to-tool with no semantic reasoning in between, yet conventional MCP routes every byte through the model.",
+        "Code execution can manipulate large objects locally for free, but only if tool wrappers exist as callable code.",
+        "Typed wrappers give the model autocomplete-like affordances, but typing every tool by hand does not scale; wrappers must be generated from MCP schemas.",
+        "Security boundaries previously enforced by the model reading tool output now shift to the sandbox; untrusted data may flow without an LLM checkpoint."
+      ],
+      "therefore": "Therefore: generate a directory of typed code modules from each MCP server's schema, expose only that filesystem to the agent, and let the agent write code that imports the wrappers — keeping large intermediate results inside the sandbox so only the final summary returns to context.",
+      "solution": "At connection time, walk each MCP server's tool list and emit a file per tool (e.g. servers/gdrive/getDocument.ts, servers/slack/listChannels.ts) with full type signatures derived from the JSON schema. Expose this tree to the agent as a readable filesystem and let it explore via standard list/read primitives rather than loaded schemas. The agent then writes execution code — a short script that imports the wrappers, chains calls, transforms results in-memory, and prints only the final answer. Tool outputs live in sandbox variables; only what the script prints (or saves to a designated output) crosses back into model context. Pair with progressive disclosure: the model reads only the tool files it intends to use.",
+      "structure": "Agent <-> Model context (small) | Sandbox runtime executes generated code | Tool wrapper tree (one file per MCP tool, typed) | MCP servers behind wrappers | Large intermediate data stays in sandbox memory; only printed output returns to context.",
+      "consequences": {
+        "benefits": [
+          "Massive token reduction — Anthropic reports 98.7% on representative workflows.",
+          "Large tool outputs (sheets, transcripts, binaries) never enter context.",
+          "Composition becomes ordinary programming: filters, joins, retries are code, not prompted loops.",
+          "Tool discovery becomes filesystem navigation, reusing well-trained model behaviour.",
+          "Schemas are loaded on demand rather than all upfront."
+        ],
+        "liabilities": [
+          "Requires a working code-execution sandbox with network egress controls.",
+          "Model must be strong at code generation in the chosen runtime.",
+          "Untrusted data flowing through code without LLM checkpoints widens the prompt-injection surface inside the sandbox.",
+          "Wrapper generation must stay in sync with upstream MCP schema changes.",
+          "Debugging failures spans two layers — generated code and tool wrappers — rather than one tool call."
+        ]
+      },
+      "constrains": "The model must not request raw tool outputs into context when they exceed a configured size; it must route large outputs through sandbox variables and return only printed summaries. It must not invent wrapper modules — only those materialized on the filesystem from real MCP schemas are callable.",
+      "known_uses": [
+        {
+          "system": "Anthropic Claude (engineering blog reference implementation)",
+          "note": "Reports ~98.7% token reduction on representative MCP workflows.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/code-execution-with-mcp"
+        },
+        {
+          "system": "Cloudflare Code Mode",
+          "note": "Exposes MCP tools as a typed code API the model writes against.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "mcp",
+          "relation": "specialises",
+          "note": "Materializes the MCP protocol as a typed code surface instead of inline tool calls."
+        },
+        {
+          "pattern": "code-as-action",
+          "relation": "composes-with",
+          "note": "The agent emits code as its action — but the action imports MCP-derived wrappers rather than ad-hoc helpers."
+        },
+        {
+          "pattern": "tool-search-lazy-loading",
+          "relation": "complements",
+          "note": "Filesystem layout enables on-demand schema loading: the model reads only the wrapper files for tools it plans to call."
+        },
+        {
+          "pattern": "tool-loadout",
+          "relation": "alternative-to",
+          "note": "Loadout pre-selects a static tool subset; MCP-as-Code-API lets the model self-select at code-write time."
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "uses",
+          "note": "Relies on a code sandbox to hold large intermediate state outside model context."
+        },
+        {
+          "pattern": "tool-explosion",
+          "relation": "alternative-to",
+          "note": "Avoids the bloat by never loading all schemas into prompt at once."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Code execution with MCP: building more efficient AI agents",
+          "authors": "Anthropic Engineering",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/code-execution-with-mcp"
+        },
+        {
+          "type": "blog",
+          "title": "Code execution with MCP (annotation)",
+          "authors": "Simon Willison",
+          "year": 2025,
+          "url": "https://simonwillison.net/2025/Nov/4/code-execution-with-mcp/"
+        },
+        {
+          "type": "spec",
+          "title": "Model Context Protocol specification",
+          "year": 2024,
+          "url": "https://modelcontextprotocol.io"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "mcp",
+        "code-execution",
+        "token-efficiency",
+        "tool-use",
+        "sandbox"
+      ],
+      "applicability": {
+        "use_when": [
+          "Workflows chain many MCP tools and intermediate data is large.",
+          "A code-execution sandbox is already part of the agent stack.",
+          "Token cost or latency dominated by tool-output round-tripping.",
+          "Tool surface is too large to fit all schemas in prompt."
+        ],
+        "do_not_use_when": [
+          "Only a handful of tools are used and outputs are small.",
+          "No code sandbox is available or code generation in the runtime is weak.",
+          "Each tool result genuinely requires LLM reasoning before the next call.",
+          "Compliance forbids untrusted data flowing without per-step LLM inspection."
+        ]
+      },
+      "example_scenario": "An assistant must take meeting notes from Google Drive, identify action items, and post them in the right Slack channels. The naive approach pulls the entire transcript into context, then pulls the channel list, then formats messages — burning ~150K tokens. With MCP-as-Code-API, the model writes a short TypeScript that imports gdrive.getDocument and slack.postMessage, filters action items in-process, and prints only a confirmation. Total tokens dropped to ~2K because the transcript never crossed the context boundary."
     },
     {
       "id": "mobile-ui-agent",
@@ -1360,6 +1519,10 @@
         {
           "pattern": "code-switching-aware-agent",
           "relation": "complements"
+        },
+        {
+          "pattern": "delayed-streams-modeling",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1394,6 +1557,127 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant U as User (lang=L)\n  participant STT\n  participant LLM\n  participant TTS\n  U->>STT: speech (lang=L, dialect=D)\n  STT->>LLM: text + {lang:L, dialect:D}\n  LLM->>TTS: reply text + {lang:L, voice:V_L}\n  TTS->>U: speech (native voice for L)"
       }
+    },
+    {
+      "id": "policy-localizer-validator",
+      "name": "Policy-Localizer-Validator",
+      "aliases": [
+        "Three-Way GUI Agent",
+        "Surfer-H Architecture",
+        "Validator-Gated Browser Agent"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Split a GUI agent into three specialist models — a Policy that plans, a Localizer that grounds elements to pixels, and a Validator that judges completion — so each role uses the smallest sufficient model.",
+      "context": "Web and desktop agents that drive a real browser by reading screenshots and emitting clicks, types, and scrolls. A single multimodal model doing all three roles is expensive, slow, and confounds failure modes — was the click wrong because the plan was wrong, the coordinates were wrong, or the task was already done?",
+      "problem": "Monolithic GUI agents conflate three distinct skills: reasoning about what to do next, mapping a textual description to a pixel target, and deciding when to stop. Failures are hard to attribute, and the largest model is paid for tasks that smaller specialists handle better. Two-model splits (planner+vision, per Dual-System GUI Agent) improve cost but still leave commit decisions implicit in the planner's last token — there is no separate check on whether the task actually finished.",
+      "forces": [
+        "Planning, grounding, and completion-judgment have different optimal model sizes.",
+        "Pixel-precise grounding is a perception problem; large reasoning models overpay for it.",
+        "Completion judgment must be uncorrelated with the planner or it just rubber-stamps its own work.",
+        "Costs compound per step in long browser trajectories.",
+        "Latency on every action matters for real-time web use, so each role must be independently latency-tuned."
+      ],
+      "therefore": "Therefore: decompose the agent into three independently-trained models — Policy plans, Localizer grounds, Validator commits — and gate each commit on the Validator's separate judgment so grounding errors and premature stops are caught before action.",
+      "solution": "Pipeline each step through three models. Policy LLM reads the current screenshot plus task state and emits a textual action (\"click the Sign In button in the top-right\"). Localizer VLM, trained specifically for UI grounding, takes that description plus the screenshot and returns pixel coordinates. The action is executed. Validator VLM — separately trained on completion judgments — inspects the resulting screenshot and answers \"task complete?\" with calibrated confidence; if uncertain, the loop continues; if confident-complete, the agent halts; if confident-failed, the agent retries or escalates. Each model can be sized independently — typically Policy is the largest, Localizer is a small specialist VLM, Validator is mid-sized.",
+      "structure": "Loop step: screenshot -> Policy LLM (action text) -> Localizer VLM (pixel coords) -> environment (click/type) -> new screenshot -> Validator VLM (complete? continue? failed?) -> branch.",
+      "consequences": {
+        "benefits": [
+          "Each role uses the smallest sufficient model — total cost lower than monolithic.",
+          "Failures attribute cleanly: bad plan, bad grounding, or bad commit decision.",
+          "Validator gives a real stop signal uncorrelated with the planner's optimism.",
+          "Specialist VLMs can be trained on open weights without retraining the planner.",
+          "Independent latency tuning per role."
+        ],
+        "liabilities": [
+          "Three models means three deployment targets, three training pipelines, three versioning surfaces.",
+          "Inter-model interface (the textual action description) becomes a contract that must stay stable.",
+          "Validator must be calibrated or it stops too early / too late.",
+          "Cold-start: until the Validator is trained on the target domain, completion judgments are weak.",
+          "More moving parts to monitor at runtime."
+        ]
+      },
+      "constrains": "The Policy model must not emit pixel coordinates directly — grounding is the Localizer's exclusive responsibility. The agent must not commit to task-complete based on the Policy model's own output; only the Validator can stop the loop.",
+      "known_uses": [
+        {
+          "system": "H Company Surfer-H + Holo1 (Paris)",
+          "note": "Three-model browser agent with explicit Policy / Localizer / Validator roles; open-weights VLMs.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2506.02865"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dual-system-gui-agent",
+          "relation": "specialises",
+          "note": "Adds a third specialist (Validator) on top of the planner+vision split."
+        },
+        {
+          "pattern": "browser-agent",
+          "relation": "specialises",
+          "note": "A specific architecture for browser-based agents."
+        },
+        {
+          "pattern": "computer-use",
+          "relation": "specialises",
+          "note": "Same decomposition applied to desktop GUIs."
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "alternative-to",
+          "note": "Evaluator-Optimizer is a rewrite loop on text drafts; Validator here is a per-step gate on commit, not a critic of artifacts."
+        },
+        {
+          "pattern": "critic",
+          "relation": "alternative-to",
+          "note": "Critic patterns judge a model's draft; Validator judges environment state, not text."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Surfer-H Meets Holo1: Cost-Efficient Web Agent Powered by Open-Weights",
+          "authors": "H Company",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.02865"
+        },
+        {
+          "type": "repo",
+          "title": "Holo1 collection",
+          "authors": "H Company",
+          "year": 2025,
+          "url": "https://huggingface.co/Hcompany"
+        },
+        {
+          "type": "repo",
+          "title": "Surfer-H CLI",
+          "authors": "H Company",
+          "year": 2025,
+          "url": "https://github.com/hcompai/surfer-h-cli"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "gui-agent",
+        "browser-agent",
+        "multimodal",
+        "decomposition",
+        "cost-efficiency"
+      ],
+      "applicability": {
+        "use_when": [
+          "Agent drives a GUI or browser via screenshots and actions.",
+          "Trajectories are long enough that per-step cost matters.",
+          "Failure-mode attribution is needed for debugging or audit.",
+          "Open-weights specialist VLMs are available or trainable for the target domain."
+        ],
+        "do_not_use_when": [
+          "Task is short (a few clicks) — overhead of three models is not amortized.",
+          "Domain is too narrow to justify training a Validator.",
+          "Single capable multimodal model is cheap enough that splitting wastes engineering effort.",
+          "Latency budget cannot absorb sequential three-model passes per step."
+        ]
+      },
+      "example_scenario": "A booking agent must reserve a meeting room on an internal portal. Policy reads the screenshot and says 'click the Book button next to the 10 AM slot'. Localizer VLM, trained on UI grounding, returns coordinates (892, 437). After the click, Validator sees a confirmation modal and judges 'task complete, confidence 0.92'. When grounding once misfires — Localizer clicks the 11 AM Book button — the Validator catches the wrong confirmation slot and signals 'failed, retry'; the loop continues with corrected context."
     },
     {
       "id": "prompt-caching",
@@ -1465,6 +1749,10 @@
         },
         {
           "pattern": "now-anchoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sleep-time-compute",
           "relation": "complements"
         }
       ],
@@ -1580,6 +1868,10 @@
         {
           "pattern": "wasm-skill-runtime",
           "relation": "generalises"
+        },
+        {
+          "pattern": "mcp-as-code-api",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1711,6 +2003,120 @@
         "type": "flow",
         "mermaid": "flowchart LR\n  Run[Agent run] --> Need{Repeating routine?}\n  Need -- yes --> Write[Write new skill module]\n  Write --> Critic{Critic gate}\n  Critic -- pass --> Lib[(skills/ directory<br/>versioned)]\n  Critic -- fail --> Reject[Reject / revise]\n  Lib --> Load[Loader: importlib / dynamic import]\n  Load --> Next[Next run can call skill]"
       }
+    },
+    {
+      "id": "synthetic-filesystem-overlay",
+      "name": "Synthetic Filesystem Overlay",
+      "aliases": [
+        "Virtual Filesystem for Agents",
+        "Unified-Tree Data Surface",
+        "FS-as-Tool-API"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Project heterogeneous enterprise data sources into a single Unix-like tree exposed through filesystem primitives so the agent reuses path semantics it already knows instead of learning a bespoke API per source.",
+      "context": "Enterprise agents that must read across Notion, Slack, Google Drive, GitHub, Linear, Jira, email, and a dozen internal systems. Each source has its own auth, pagination, search dialect, and result shape. Even with MCP, the agent juggles dozens of source-specific tools and incompatible mental models per call.",
+      "problem": "Designing agent-friendly APIs per source (per the Agent-Computer Interface pattern) does not scale — every new source adds a new vocabulary the agent must learn. Vector RAG flattens everything into chunks and loses structure. The agent has strong priors for filesystem navigation (ls, find, cat, grep) from training on Unix-like data, but no native data source matches those semantics. Observations from internal logs show agents spontaneously inventing file-path syntax (\"/notion/eng/onboarding.md\") even when no filesystem exists, because the abstraction is intuitive.",
+      "forces": [
+        "Each source has unique semantics, but a unified surface must hide them.",
+        "The agent's strongest navigation priors are filesystem operations, not REST.",
+        "Cross-source joins (a Slack thread plus its linked Notion doc plus the related PR) require traversal, not separate tool calls.",
+        "Auth, rate limits, and pagination must remain per-source even when the surface is unified.",
+        "Lazy enumeration matters: listing all of Slack as a directory cannot fetch every message eagerly."
+      ],
+      "therefore": "Therefore: build a virtual filesystem that maps each data source under a path prefix (/slack/, /notion/, /drive/) and expose exactly five primitives — list, find, cat, search, locate_in_tree — so the agent traverses cross-source data with semantics it already has.",
+      "solution": "Mount each connector under a deterministic path: /slack/<workspace>/<channel>/<date>/<message>.md, /notion/<workspace>/<page-path>.md, /github/<org>/<repo>/.... Expose five primitives: list (enumerate children, paginated), find (path-pattern matching), cat (fetch a node's content), search (full-text query, optionally scoped to a subtree), and locate_in_tree (resolve an opaque ID to its path). Each primitive translates into source-specific API calls on demand; nodes are virtual until cat. The agent navigates with shell-like idioms — list /slack/eng/, find /notion -name '*onboarding*', search 'incident 2026-05' /slack/eng — and joins results by paths rather than per-source identifiers.",
+      "structure": "Agent | Five-primitive interface (list, find, cat, search, locate_in_tree) | Path-routing layer | Per-source adapters (Slack, Notion, Drive, GitHub...) with their own auth and rate-limit governors | Lazy hydration: nodes materialize on cat, not on list.",
+      "consequences": {
+        "benefits": [
+          "One mental model across all sources; new connectors add a subtree, not a new vocabulary.",
+          "Reuses the model's filesystem priors instead of training new tool affordances.",
+          "Cross-source traversal becomes path concatenation rather than ID translation.",
+          "Small primitive set keeps the tool surface tiny even as data grows.",
+          "Lazy hydration bounds per-call cost."
+        ],
+        "liabilities": [
+          "Source semantics that do not map to trees (graph-heavy data, time-series streams) must be flattened or hidden.",
+          "Path stability becomes a contract — renames in upstream sources can break agent memory of paths.",
+          "Permission systems differ per source; a unified path namespace must still enforce per-source ACLs.",
+          "Full-text search quality depends on each adapter; uneven coverage frustrates the agent.",
+          "Listing very large directories needs careful pagination defaults."
+        ]
+      },
+      "constrains": "The agent must access enterprise data only through the five primitives — direct per-source API calls are forbidden once the overlay is mounted. It must treat paths as the canonical identifier and not invent paths that locate_in_tree has not validated.",
+      "known_uses": [
+        {
+          "system": "Dust.tt production agents (Paris)",
+          "note": "Five-primitive synthetic filesystem across Notion, Slack, GitHub, Drive and others. Internal logs documented agents inventing file-path syntax before the FS existed.",
+          "status": "available",
+          "url": "https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "mcp",
+          "relation": "alternative-to",
+          "note": "MCP exposes per-source tool surfaces; this overlay collapses them into one filesystem-shaped interface."
+        },
+        {
+          "pattern": "agent-computer-interface",
+          "relation": "specialises",
+          "note": "Inverts ACI: instead of designing agent-friendly APIs per source, design one universal filesystem all sources project into."
+        },
+        {
+          "pattern": "tool-discovery",
+          "relation": "alternative-to",
+          "note": "Discovery becomes ls/find against a tree rather than runtime tool enumeration."
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "alternative-to",
+          "note": "Graph-of-triples vs tree-of-paths — different shapes for the same cross-source navigation problem."
+        },
+        {
+          "pattern": "naive-rag-first",
+          "relation": "alternative-to",
+          "note": "Preserves source structure where vector RAG flattens it into chunks."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Building Deep Dive: Infrastructure for AI Agents That Actually Go Deep",
+          "authors": "Dust",
+          "year": 2025,
+          "url": "https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/"
+        },
+        {
+          "type": "blog",
+          "title": "Dust.tt engineering blog",
+          "authors": "Dust",
+          "year": 2025,
+          "url": "https://blog.dust.tt/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "tool-design",
+        "enterprise",
+        "data-access",
+        "filesystem",
+        "unified-interface"
+      ],
+      "applicability": {
+        "use_when": [
+          "Agent must read across many heterogeneous enterprise data sources.",
+          "Cross-source joins are common and ID translation hurts.",
+          "Tool count is climbing past what the model handles cleanly.",
+          "Source data is mostly tree- or document-shaped."
+        ],
+        "do_not_use_when": [
+          "Only one or two data sources exist — overlay is overkill.",
+          "Data is fundamentally graph-shaped (e.g. social network) and trees lose information.",
+          "Per-source APIs already share a clean uniform shape.",
+          "Real-time streaming dominates over snapshot reads."
+        ]
+      },
+      "example_scenario": "An on-call engineer asks the assistant to summarize last week's incident. The agent runs find /slack -name '*incident*' -newer 2026-05-12, cats the matching channel transcripts, searches /notion for the linked postmortem template, and lists /github/infra/prs filtered by date. Three sources, one navigation idiom, no per-source SDK calls. The same agent on a new connector (Linear) needs only a new subtree under /linear/ — no new tools, no new prompts."
     },
     {
       "id": "tool-agent-registry",
@@ -1906,6 +2312,10 @@
         {
           "pattern": "tool-agent-registry",
           "relation": "generalises"
+        },
+        {
+          "pattern": "synthetic-filesystem-overlay",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2012,6 +2422,14 @@
           "pattern": "tool-search-lazy-loading",
           "relation": "alternative-to",
           "note": "Loadout selects a fixed subset up front; lazy search loads schemas during the run."
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "mcp-as-code-api",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2188,6 +2606,14 @@
         },
         {
           "pattern": "context-window-packing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "mcp-as-code-api",
           "relation": "complements"
         }
       ],
@@ -2412,6 +2838,10 @@
         {
           "pattern": "augmented-llm",
           "relation": "used-by"
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "generalises"
         }
       ],
       "references": [

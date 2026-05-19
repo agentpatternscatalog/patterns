@@ -491,6 +491,232 @@
       }
     },
     {
+      "id": "hierarchical-option-pruning",
+      "name": "Hierarchical Option Pruning",
+      "aliases": [
+        "Two-Stage Tool Routing",
+        "Coarse-then-LLM Routing",
+        "Filtrado Jerárquico",
+        "Banking Routing Agent"
+      ],
+      "category": "routing-composition",
+      "intent": "Pre-filter a large catalog of tools or operations with a coarse classifier down to a small candidate set before letting the LLM make the final selection, mitigating function-calling accuracy collapse at scale.",
+      "context": "Production agents whose action surface has grown into the hundreds of tools or operations (banking back-office, ERP, ticketing, internal platforms). The full catalog cannot be presented to the LLM in a single call without degrading function-calling accuracy and inflating token cost, but the catalog is largely stable and known in advance.",
+      "problem": "When the LLM is given a single-step choice over a large, mostly-stable tool inventory, function-calling accuracy degrades sharply (it picks plausible-looking but wrong tools, hallucinates argument shapes, or fails to pick at all). Static per-task subsets (loadouts) are too brittle when the same agent serves many user intents. Lazy schema fetching by semantic query helps when the catalog is huge and dynamic, but does not solve the accuracy collapse for a fixed inventory where the bottleneck is the size of the choice set, not the missing schemas. The agent needs a way to first reduce the choice set with a cheap, well-calibrated classifier and only then let the LLM choose.",
+      "forces": [
+        "Function-calling accuracy collapses as the number of candidate tools grows.",
+        "Token cost grows linearly with the number of fully-described tools exposed to the LLM.",
+        "Static per-task loadouts cannot anticipate the diversity of real user queries.",
+        "The catalog is stable enough to train a coarse classifier offline.",
+        "Coarse classifiers are cheaper and faster than LLM tool selection.",
+        "End-users do not care which stage made the decision; they care that the right tool fired with the right arguments."
+      ],
+      "therefore": "Therefore: insert a coarse classifier between the user query and the LLM's tool-call step that prunes the full catalog to a small candidate set (typically five to six), and let the LLM perform final selection and argument filling over that pruned set.",
+      "solution": "Train (or compile, or rule-author) a coarse classifier that maps the user query and minimal context to a short ranked list of candidate tools or operations from the full inventory. At runtime, the classifier runs first, returns the top-k candidates (commonly k=5 or k=6), and only those candidates' schemas are presented to the LLM. The LLM then performs final intent verification, picks one, and fills arguments. If the LLM cannot pick from the candidates (confidence below threshold, schema mismatch), fall back to a broader candidate set or escalate to disambiguation. The classifier is trained on labelled query/tool pairs and re-trained on production traffic; precision at top-k is the headline metric. The pruned set is logged so misroutes are diagnosable as classifier errors or LLM errors.",
+      "structure": "User query --> Coarse classifier --> Top-k candidate tools --> LLM (sees only k schemas) --> Final tool pick + arguments --> Dispatch. Logging: (query, classifier top-k, LLM pick) for offline evaluation.",
+      "consequences": {
+        "benefits": [
+          "Function-calling accuracy stays high because the LLM chooses from a small set.",
+          "Token cost is proportional to k, not to the full catalog size.",
+          "The classifier and the LLM stage are independently observable and improvable.",
+          "Coarse classifier training data accumulates naturally from production traffic.",
+          "Scales to inventories where lazy semantic search is overkill and static loadouts are too brittle."
+        ],
+        "liabilities": [
+          "Misroutes by the coarse classifier are invisible to the LLM; if the right tool is not in the top-k, the LLM cannot recover.",
+          "Two-stage pipelines require two evaluation harnesses and two monitoring surfaces.",
+          "The classifier becomes a hidden dependency on training-data freshness; concept drift in the inventory or in user phrasing degrades it silently.",
+          "Choosing k is a calibration knob between accuracy and recall; mis-set, it hurts one or the other.",
+          "Does not address the case where the catalog itself is dynamic at runtime (a different pattern fits there)."
+        ]
+      },
+      "constrains": "The LLM must not be presented with the full tool catalog when the inventory exceeds the size at which function-calling accuracy collapses, must not silently expand the candidate set beyond the classifier's top-k without logging the fallback, and must not pick a tool outside the pruned candidate set without an explicit fallback path.",
+      "known_uses": [
+        {
+          "system": "BBVA AI Factory routing agent",
+          "note": "Production banking assistants collapse a catalog of more than 150 banking operations to a 5-6 candidate set via a coarse routing classifier before LLM selection.",
+          "status": "available",
+          "url": "https://www.bbvaaifactory.com/the-routing-agent-a-key-component-for-agentic-ai-assistants/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "specialises",
+          "note": "Specialises single-step intent routing by inserting a coarse-then-LLM pruning stage instead of a single classifier-picks-one decision."
+        },
+        {
+          "pattern": "tool-loadout",
+          "relation": "alternative-to",
+          "note": "Tool loadout selects a static per-task subset up front; hierarchical option pruning selects dynamically per query."
+        },
+        {
+          "pattern": "tool-search-lazy-loading",
+          "relation": "alternative-to",
+          "note": "Lazy-loading fetches schemas on demand by semantic query, suited to huge or dynamic inventories; hierarchical pruning suits stable inventories where a trained classifier is cheaper and more precise."
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements",
+          "note": "Multi-model routing picks the model; hierarchical option pruning picks the tool. They compose."
+        },
+        {
+          "pattern": "mixture-of-experts-routing",
+          "relation": "alternative-to",
+          "note": "MoE routes among expert agents; hierarchical option pruning routes among tools within a single agent."
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "complements",
+          "note": "When the classifier's top-k is low-confidence or the LLM cannot pick, fall back to a clarifying question."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "The Routing Agent: A Key Component for Building Agentic AI Assistants at Scale",
+          "authors": "BBVA AI Factory",
+          "url": "https://www.bbvaaifactory.com/the-routing-agent-a-key-component-for-agentic-ai-assistants/"
+        },
+        {
+          "type": "blog",
+          "title": "From Message to Action: How Specialized Agents Operate in a Multi-Agent AI Assistant",
+          "authors": "BBVA AI Factory",
+          "url": "https://www.bbvaaifactory.com/specialized-ai-agents-in-an-ai-assistant/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "tool-selection",
+        "two-stage",
+        "function-calling",
+        "scalability",
+        "banking"
+      ],
+      "applicability": {
+        "use_when": [
+          "The tool or operation inventory is large enough (tens to hundreds) that exposing all of it to the LLM degrades function-calling accuracy.",
+          "The inventory is stable enough to train and maintain a coarse classifier.",
+          "Labelled query/tool data is available or can be bootstrapped from production traffic.",
+          "Misroutes are diagnosable and tolerable in the deployment's risk envelope."
+        ],
+        "do_not_use_when": [
+          "The inventory is small enough that a single-step LLM choice is accurate.",
+          "The inventory is highly dynamic at runtime and a trained classifier would be perpetually stale; lazy semantic search fits better.",
+          "There is no labelled data and no realistic path to bootstrap it.",
+          "The risk of a top-k miss (right tool not in the candidate set) is unacceptable and there is no escalation path."
+        ]
+      },
+      "example_scenario": "A bank's customer assistant exposes more than 150 distinct back-office operations — transfers, card actions, KYC updates, dispute filings, mortgage queries. Presenting all 150 to the LLM at once collapses function-calling accuracy and burns tokens. A coarse routing classifier is trained on historical query/operation pairs and runs first: for any incoming utterance it returns five to six candidate operations. Only those candidates' schemas are passed to the LLM, which verifies intent, picks one, and fills arguments. Production accuracy stays high; misroutes are traced back to either the classifier (right answer missing from top-k) or the LLM (right answer present but wrong choice) and each stage is improved on its own metric."
+    },
+    {
+      "id": "madhhab-branching-agent",
+      "name": "Madhhab-Branching Agent",
+      "aliases": [
+        "Identity-Conditioned Multi-Answer",
+        "Plural-Authority Forking",
+        "مذهب-حسّاس",
+        "Multi-School Fork"
+      ],
+      "category": "routing-composition",
+      "intent": "When a query has multiple legally- or doctrinally-valid answers conditional on the user's identity, fork the reasoning per identity and return school-attributed answers rather than picking one as ground truth.",
+      "context": "Domains where authoritative answers depend on the asker's affiliation rather than on any single ground truth: Islamic jurisprudence with multiple madhhabs, Christian or Jewish denominational practice, jurisdictional law (US federal vs state, EU member-state divergence), medical guidelines that differ between national bodies, accounting standards that differ between IFRS and US GAAP. The agent's role is to be correct for the user it is talking to, not to declare one school correct.",
+      "problem": "Standard routing and disambiguation patterns assume the agent should converge on one answer. In plural-authority domains this is a category error: the question 'what is the inheritance share of the daughter' has several simultaneously correct answers depending on which madhhab is consulted, and asking the user to declare an affiliation is sometimes appropriate but is itself a doctrinal claim about how identity binds practice. Picking one answer silently is worse — it imposes a school the user may not subscribe to. Most agent stacks have no first-class way to preserve plural valid answers.",
+      "forces": [
+        "Multiple authorities are simultaneously valid; only the user's identity (or the deployment's scope) determines which one applies.",
+        "Silently picking one authority misrepresents the domain and the user.",
+        "Always asking the user to declare an affiliation is intrusive and is itself a doctrinal claim.",
+        "Surfacing all forks every time is verbose and can be confusing when one authority clearly dominates the deployment's audience.",
+        "Citations must be authoritative per school, not a synthesised consensus."
+      ],
+      "therefore": "Therefore: when the domain admits plural valid answers, fork the reasoning per recognised school or authority and present school-attributed answers in parallel, preserving non-convergence by design, while letting the user (or deployment) narrow to one school when appropriate.",
+      "solution": "Detect plural-authority queries (a classifier or a router checks whether the domain admits identity-conditioned answers and whether the current query is in scope). For such queries, run a parallel reasoning pass per recognised school, each grounded in that school's own canonical sources. Present the answers side by side with explicit school attribution, citations from that school's authorities, and a note that the answers diverge by school of jurisprudence (or denomination, jurisdiction, etc.). Offer the user the option to filter to one school. Honour a deployment-level pin when the audience is monolithic (e.g. a Maliki-region deployment may default to Maliki but still expose the option to see other schools). Never present a single answer as 'the' answer when plural valid answers exist.",
+      "structure": "User query --> Plural-authority detector --> {single-authority pipeline | multi-authority fork}. Multi-authority fork: spawn per-school reasoning {school_1 reasoning, school_2 reasoning, ...} --> Aggregator that preserves attribution and citations --> Side-by-side school-labelled response.",
+      "consequences": {
+        "benefits": [
+          "Faithfully represents domains where ground truth is plural by construction.",
+          "Empowers users to see the landscape of valid answers and locate themselves.",
+          "Citations remain per-authority and verifiable; nothing is averaged into a synthetic consensus.",
+          "Generalises beyond religion to jurisdictional law, medical guidelines, accounting standards."
+        ],
+        "liabilities": [
+          "Higher token and latency cost: each query may trigger N parallel reasoning passes.",
+          "School-detection is itself a non-trivial classifier and a source of error.",
+          "Designating which schools to fork over is a doctrinal/political call that must be made and documented.",
+          "Presenting four answers when one is clearly relevant can degrade user experience; calibration matters.",
+          "Deployments cannot use this pattern to evade local-authority obligations where a single authority is legally binding."
+        ]
+      },
+      "constrains": "The LLM must not collapse plural valid answers into a single 'the' answer, must not strip per-school citations or paraphrase across schools, and must not silently adopt a school the user did not declare and the deployment did not configure.",
+      "known_uses": [
+        {
+          "system": "QCRI Fanar-Sadiq",
+          "note": "Verified Islamic-law reasoning agent with explicit Sunni-school handling and per-school attribution.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2603.08501"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "alternative-to",
+          "note": "Routing picks one branch; madhhab-branching preserves multiple branches by design when the domain admits plural valid answers."
+        },
+        {
+          "pattern": "disambiguation",
+          "relation": "complements",
+          "note": "Disambiguation asks the user to resolve ambiguity; madhhab-branching may follow when the user declines or when the deployment serves multiple identities."
+        },
+        {
+          "pattern": "parallelization",
+          "relation": "alternative-to",
+          "note": "Parallelization aggregates parallel branches toward a single answer; madhhab-branching keeps the branches intentionally distinct."
+        },
+        {
+          "pattern": "voting-based-cooperation",
+          "relation": "alternative-to",
+          "note": "Voting drives consensus; madhhab-branching forbids consensus when authority is genuinely plural."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Fanar-Sadiq: Verified Islamic-Law Reasoning Agent",
+          "url": "https://arxiv.org/abs/2603.08501"
+        },
+        {
+          "type": "paper",
+          "title": "Fanar 2.0 Technical Report",
+          "authors": "Qatar Computing Research Institute",
+          "url": "https://arxiv.org/abs/2603.16397"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "plural-authority",
+        "identity-conditioned",
+        "religious-llm",
+        "jurisdictional",
+        "multi-answer"
+      ],
+      "applicability": {
+        "use_when": [
+          "The domain has multiple recognised authorities that yield different valid answers (madhhabs, denominations, jurisdictions, specialty bodies).",
+          "The user's identity or the deployment's scope determines which authority applies.",
+          "Per-authority canonical sources are available and citation-quality is required.",
+          "Imposing one authority silently would be a category error for the domain."
+        ],
+        "do_not_use_when": [
+          "The domain has a single binding authority (e.g. a single jurisdiction's statute) and pluralism would mislead.",
+          "Per-authority sources are not available at citation quality; forking would produce shallow per-school answers.",
+          "The added latency and verbosity is not justified by the audience's need for plural answers."
+        ]
+      },
+      "example_scenario": "A user asks an Islamic-jurisprudence assistant how a deceased person's estate should be divided. The plural-authority detector recognises that inheritance rules diverge meaningfully across Sunni madhhabs. The agent runs four parallel reasoning passes — Hanafi, Maliki, Shafi'i, Hanbali — each grounded in that school's canonical fiqh sources, and returns four labelled answers side by side with citations. The user is then offered the option to filter to one school; if the deployment is region-pinned to Maliki, that school is shown first by default but the other three remain accessible."
+    },
+    {
       "id": "mixture-of-experts-routing",
       "name": "Mixture of Experts Routing",
       "aliases": [
@@ -545,6 +771,14 @@
         {
           "pattern": "tool-agent-registry",
           "relation": "complements"
+        },
+        {
+          "pattern": "rl-conductor-orchestrator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -657,6 +891,14 @@
         {
           "pattern": "degenerate-output-detection",
           "relation": "used-by"
+        },
+        {
+          "pattern": "rl-conductor-orchestrator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -963,6 +1205,14 @@
         {
           "pattern": "lead-researcher",
           "relation": "used-by"
+        },
+        {
+          "pattern": "clone-fan-out-research",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "madhhab-branching-agent",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1360,6 +1610,14 @@
         {
           "pattern": "augmented-llm",
           "relation": "uses"
+        },
+        {
+          "pattern": "hierarchical-option-pruning",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "madhhab-branching-agent",
+          "relation": "alternative-to"
         }
       ],
       "references": [
