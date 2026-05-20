@@ -149,7 +149,135 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> A{Agent: retrieve?}\n  A -- no --> ANS[Answer]\n  A -- yes --> P[Pick retriever<br/>vector / graph / web]\n  P --> R[Retrieve evidence]\n  R --> E{Sufficient?}\n  E -- no, reformulate --> P\n  E -- yes --> ANS"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "citation-attribution",
+      "name": "Citation Attribution",
+      "aliases": [
+        "Source Attribution",
+        "Answer-to-Source Binding",
+        "Span-Level Citations"
+      ],
+      "category": "retrieval",
+      "intent": "Track and surface, alongside a RAG-grounded answer, which retrieved chunks supported which claims, so the binding between answer span and source survives all the way to the user.",
+      "context": "RAG systems where the user must be able to trace any claim back to the retrieved evidence that supports it; compliance, research, and customer-support settings where unsupported claims are not acceptable.",
+      "problem": "Generating citations is not enough — they must be bound to the spans of the answer they support. Free-text citations the model writes are ungrounded (see hallucinated-citations); the binding has to be created by the retrieval pipeline and preserved through generation and delivery.",
+      "forces": [
+        "The chunk-to-claim binding can be at document, chunk, or span level; finer granularity is more useful but harder.",
+        "Models given retrieved context may still fabricate citations to documents that were not retrieved.",
+        "Span-level alignment requires the model to emit either citation markers or structured outputs that the runtime resolves.",
+        "Aggregating citations from multiple chunks behind one claim is common — single-source attribution is too narrow.",
+        "Distinct from citation-streaming, which is the delivery shape; this is the binding itself."
+      ],
+      "therefore": "Therefore: bind every claim in the answer to one or more retrieved-source ids during generation and validate the binding against the retrieval result before delivery, so that what reaches the user is span-anchored to evidence that was actually retrieved.",
+      "solution": "During retrieval, assign each chunk a stable source-id and keep a registry of which ids were retrieved for this turn. During generation, either (a) prompt the model to emit citation markers (`[src-id]`) at the chosen granularity, then resolve and validate them against the registry, refusing any id that was not retrieved; or (b) use a structured-output schema that has a `claims` array with `text` and `supporting_chunk_ids` fields. At delivery, attach the resolved source records to the answer so the UI can render the binding. Pair with citation-streaming (delivery), naive-rag / contextual-retrieval (the upstream retrieval), and hallucinated-citations (the anti-pattern that ignores binding).",
+      "structure": "Retriever → {chunk_id, content, source} registry → Generator (emits claims tagged with chunk_ids) → Validator (drops or refuses unknown ids) → Answer with bound citations.",
+      "consequences": {
+        "benefits": [
+          "Every claim is traceable to a retrieved chunk; unsupported claims are detectable.",
+          "Auditors and users can verify provenance independently.",
+          "The binding survives delivery, so UI components can render per-span source links.",
+          "Hallucinated citations are blocked at validation time, not noticed at user-report time."
+        ],
+        "liabilities": [
+          "Generation quality drops if the model is asked for tight span-level attribution and a coarser binding would suffice.",
+          "Multi-chunk claims need aggregation logic — single-source binding is too narrow.",
+          "Citation markers in prose can clutter UX; the delivery layer must render them well.",
+          "Validation that rejects unknown ids must be paired with a fallback to avoid empty answers."
+        ]
+      },
+      "constrains": "Every claim in the answer must be bound to at least one retrieved-source id from this turn's retrieval registry; citations to ids not in the registry must be rejected before delivery.",
+      "known_uses": [
+        {
+          "system": "Anthropic Claude (Citations API)",
+          "note": "Claude's Citations feature returns per-claim citations bound to provided source documents.",
+          "status": "available",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/citations"
+        },
+        {
+          "system": "OpenAI Responses API (file_citation / url_citation annotations)",
+          "note": "OpenAI's Responses API emits citation annotations bound to retrieved files or URLs.",
+          "status": "available",
+          "url": "https://cookbook.openai.com/examples/responses_api/responses_example"
+        },
+        {
+          "system": "Dify (automatic citations on knowledge retrieval)",
+          "note": "When an LLM node consumes context variables from knowledge retrieval, Dify automatically tracks citations.",
+          "status": "available",
+          "url": "https://github.com/langgenius/dify-docs/blob/main/en/use-dify/nodes/llm.mdx"
+        },
+        {
+          "system": "Perplexity / You.com / Phind",
+          "note": "Answer engines that show source links bound to claim spans as the headline UX.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "citation-streaming",
+          "relation": "complements"
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "uses"
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "uses"
+        },
+        {
+          "pattern": "hallucinated-citations",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Anthropic Claude — Citations",
+          "authors": "Anthropic",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/citations"
+        },
+        {
+          "type": "doc",
+          "title": "Dify — LLM node and citation tracking",
+          "authors": "LangGenius",
+          "url": "https://github.com/langgenius/dify-docs/blob/main/en/use-dify/nodes/llm.mdx"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "retrieval",
+        "citations",
+        "rag",
+        "anthropic",
+        "openai",
+        "dify"
+      ],
+      "applicability": {
+        "use_when": [
+          "Users must be able to trace each claim to a retrieved source.",
+          "Compliance, research, or audit settings make unsupported claims unacceptable.",
+          "The delivery UI can render per-claim or per-span source links.",
+          "The retrieval pipeline already assigns stable source ids to chunks."
+        ],
+        "do_not_use_when": [
+          "Answers do not depend on retrieved evidence (no retrieval, no binding).",
+          "The binding granularity required is finer than what the model and validator can deliver reliably.",
+          "Citation markers in prose would degrade the UX more than they help."
+        ]
+      },
+      "example_scenario": "A legal-research assistant retrieves case excerpts and must produce an analysis where every claim cites the source case. The team assigns each retrieved chunk a stable `chunk_id` and prompts the model to emit a structured output: a list of claims, each with `text` and `supporting_chunk_ids`. A validator rejects any `chunk_id` not in this turn's retrieval registry. The UI renders each claim with footnote-style links to the cited cases. When the model is uncertain it returns fewer claims rather than fabricating citations; the citation-attribution binding is what the auditor checks.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Q[Query] --> R[Retriever]\n  R --> Reg[(Source registry<br/>chunk_id -> chunk)]\n  Reg --> Gen[Generator<br/>emits claims with chunk_ids]\n  Gen --> V{Validator}\n  V -->|all ids known| Ans[Answer with bound citations]\n  V -->|unknown id| Drop[Drop claim / refuse]\n  Ans --> UI[UI renders span-to-source links]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "contextual-retrieval",
@@ -207,6 +335,10 @@
         {
           "pattern": "raft",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "citation-attribution",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -254,7 +386,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Doc[Parent document] --> P[LLM: situate chunk]\n  Chunk[Chunk] --> P\n  P --> Pre[Short description]\n  Pre --> J[Prepend to chunk]\n  Chunk --> J\n  J --> E[Embed]\n  J --> BM[Index BM25]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "crag",
@@ -349,7 +482,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> R[Retrieve docs]\n  R --> E[Evaluator grades each doc]\n  E --> C{Grade}\n  C -- Correct --> G[Generate]\n  C -- Ambiguous --> W[Web search<br/>augment]\n  C -- Incorrect --> W\n  W --> G\n  G --> A[Answer]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "cross-encoder-reranking",
@@ -469,7 +603,8 @@
           "distinguishing_factor": "list-aware ranking",
           "when_to_use": "Relative ordering matters more than absolute scores; available only with newer rerankers."
         }
-      ]
+      ],
+      "last_updated": "2026-05-20"
     },
     {
       "id": "graphrag",
@@ -566,7 +701,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  C[Chunks] --> Ext[Extract entities + relations]\n  Ext --> KG[Knowledge graph]\n  KG --> Cl[Cluster into hierarchical communities]\n  Cl --> Sum[Summarise each community]\n  Q[Query] --> Cls{Local or global?}\n  Cls -- local --> Anc[Entity-anchored retrieval]\n  Cls -- global --> MR[Map-reduce over community summaries]\n  Anc --> Ans[Answer]\n  MR --> Ans"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hybrid-search",
@@ -673,7 +809,8 @@
           "distinguishing_factor": "one retriever per query",
           "when_to_use": "Latency budget cannot afford two retrievers and the query mix is bimodal."
         }
-      ]
+      ],
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hyde",
@@ -764,7 +901,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[User query] --> Hyp[LLM drafts hypothetical answer]\n  Hyp --> Emb[Embed hypothetical answer]\n  Emb --> Ret[Retrieve top-k by similarity]\n  Ret --> RAG[Pass chunks into normal RAG]\n  RAG --> Ans[Final answer]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "naive-rag",
@@ -864,6 +1002,10 @@
         {
           "pattern": "augmented-llm",
           "relation": "used-by"
+        },
+        {
+          "pattern": "citation-attribution",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -918,7 +1060,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  C[Corpus] -->|chunk + embed| I[(Vector index)]\n  Q[Query] -->|embed| E[Query vector]\n  E -->|top-k| I\n  I -->|chunks| P[Prompt]\n  Q --> P\n  P --> G[Generator LLM]\n  G --> A[Answer]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "raft",
@@ -1010,7 +1153,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]\n  Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]\n  FT --> RAG[RAG inference]\n  Q[Query] --> RAG\n  RAG --> A[Answer with<br/>citation discipline]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "self-rag",
@@ -1100,8 +1244,9 @@
       ],
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart TD\n  Q[Query] --> Gen[Generator emits inline tokens]\n  Gen --> R{[Retrieve]?}\n  R -- yes --> Ret[Retrieve evidence]\n  R -- no --> Skip[Skip retrieval]\n  Ret --> Rel{[IsRel]?}\n  Rel -- relevant --> Use[Use evidence]\n  Rel -- not --> Drop[Drop chunk]\n  Use --> Sup{[IsSup]?}\n  Skip --> Sup\n  Sup -- supported --> UseT{[IsUse]?}\n  UseT --> Ans[Answer]"
-      }
+        "mermaid": "flowchart TD\n  Q[Query] --> Gen[Generator emits inline tokens]\n  Gen --> R{\"[Retrieve]?\"}\n  R -- yes --> Ret[Retrieve evidence]\n  R -- no --> Skip[Skip retrieval]\n  Ret --> Rel{\"[IsRel]?\"}\n  Rel -- relevant --> Use[Use evidence]\n  Rel -- not --> Drop[Drop chunk]\n  Use --> Sup{\"[IsSup]?\"}\n  Skip --> Sup\n  Sup -- supported --> UseT{\"[IsUse]?\"}\n  UseT --> Ans[Answer]"
+      },
+      "last_updated": "2026-05-20"
     }
   ]
 }

@@ -58,6 +58,10 @@
         {
           "pattern": "blind-grader-with-isolated-context",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "scorer-live-monitoring",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -98,7 +102,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Candidate as Candidate Agent\n  participant Trace as Trajectory\n  participant Judge as Judge Agent\n  participant Rubric\n  Candidate->>Trace: thoughts, tool calls, observations, answer\n  Trace-->>Judge: full trajectory\n  Judge->>Rubric: load criteria\n  Rubric-->>Judge: correctness, efficiency, safety\n  Judge-->>Candidate: score + per-step critique"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "agent-resumption",
@@ -188,6 +193,10 @@
         {
           "pattern": "partial-output-salvage",
           "relation": "complements"
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -224,7 +233,8 @@
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Running\n  Running --> Checkpointed : log effect / persist state\n  Checkpointed --> Running : continue\n  Running --> Suspended : crash / deploy / disconnect\n  Suspended --> Replaying : restart\n  Replaying --> Running : skip recorded effects, resume\n  Running --> Done\n  Done --> [*]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "attention-manipulation-explainability",
@@ -322,7 +332,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  IN[Input tokens] --> M[Run model]\n  M --> P0[Baseline output probs]\n  IN --> S[For each token:<br/>suppress its attention]\n  S --> M2[Re-run model]\n  M2 --> P1[Perturbed probs]\n  P0 --> D[Delta = importance]\n  P1 --> D\n  D --> R[Rank tokens by influence]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "cost-observability",
@@ -415,7 +426,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]\n  T[Tool call] -->|tag| TS\n  TS --> D[Dashboards<br/>by feature / model / hour]\n  TS --> A[Alerts on anomalies]\n  D --> Op[Operators]\n  A --> Op"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "decision-log",
@@ -496,6 +508,10 @@
         {
           "pattern": "echo-recognition",
           "relation": "complements"
+        },
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -549,7 +565,124 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  A[Agent action] --> P[(Provenance ledger)]\n  A --> R[Reasoning trace]\n  R --> L[(Decision log<br/>indexed by request id + time)]\n  P -->|link| L\n  Rev[Post-hoc reviewer] -->|query| L"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "durable-workflow-snapshot",
+      "name": "Durable Workflow Snapshot",
+      "aliases": [
+        "Workflow Checkpointing",
+        "Storage-Backed Workflow State",
+        "Snapshot Persistence"
+      ],
+      "category": "governance-observability",
+      "intent": "Capture workflow execution state as a snapshot in a pluggable storage provider so a paused run can resume across deployments, process restarts, and host crashes.",
+      "context": "Long-running agentic workflows that span minutes to hours, must survive ops events, and may be paused waiting on external signals (human approval, slow API, scheduled wake-up).",
+      "problem": "In-process resumption (see agent-resumption) survives crashes within one process but not deployments or host loss; without external durable storage of the entire workflow state, paused runs are lost on restart.",
+      "forces": [
+        "Workflow state grows with run length and must be serialisable to durable storage.",
+        "Storage providers vary in latency, cost, and consistency guarantees.",
+        "Schema versioning across deployments — a v1 snapshot may need to resume under v2 code.",
+        "Snapshot frequency trades resume granularity against write cost.",
+        "Snapshots are sensitive data; access control on the storage provider is part of the threat model."
+      ],
+      "therefore": "Therefore: serialise the entire workflow state into a pluggable storage provider at well-defined checkpoints, so that a paused run can resume on a different host, after a deploy, or after a process crash by loading the snapshot.",
+      "solution": "Treat the workflow runtime as a state machine whose state is fully serialisable. At checkpoints (after every step, on suspend, before risky actions) write a snapshot — `{step_index, local_state, awaited_signals, history}` — to a pluggable storage provider (Postgres, S3, Redis, vendor-managed). To resume, load the snapshot, rehydrate state, and continue from the recorded step. Version snapshot schemas; refuse to resume incompatible versions rather than corrupt the run. Pair with agent-resumption (the broader pattern), replay-time-travel (the auditor view), and provenance-ledger (linking snapshots to outputs).",
+      "structure": "WorkflowEngine → checkpoint(snapshot) → StorageProvider. On startup: StorageProvider → load(run_id) → WorkflowEngine.resume(snapshot).",
+      "consequences": {
+        "benefits": [
+          "Runs survive deployments, process restarts, and host loss.",
+          "Pluggable storage lets the same workflow run against different durability tiers.",
+          "Resume is observable: snapshots are inspectable artefacts.",
+          "Long suspensions (human approval, slow APIs) become cheap — no compute spend while waiting."
+        ],
+        "liabilities": [
+          "Snapshot schema versioning is real engineering work; mismatches must fail closed.",
+          "Storage I/O on each checkpoint adds latency and cost.",
+          "Resuming a snapshot under different code may reach states the new code does not expect.",
+          "Sensitive data lands in the storage provider and inherits its access-control posture."
+        ]
+      },
+      "constrains": "Workflow state must be fully serialisable into the storage provider at every checkpoint; no in-process-only data may participate in resumption, and snapshots are not allowed to resume under incompatible schema versions.",
+      "known_uses": [
+        {
+          "system": "Mastra workflows (suspend-and-resume)",
+          "note": "Mastra workflows write snapshots to a configured storage provider; snapshots persist across deployments and application restarts.",
+          "status": "available",
+          "url": "https://mastra.ai/docs/workflows/suspend-and-resume"
+        },
+        {
+          "system": "Temporal Workflows",
+          "note": "Temporal persists workflow execution history durably so workflows can run for years and survive process crashes.",
+          "status": "available",
+          "url": "https://docs.temporal.io/workflows"
+        },
+        {
+          "system": "Inngest / Restate / DBOS",
+          "note": "Same durable-execution shape: workflow state in pluggable storage, resumable across deployments.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-resumption",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "replay-time-travel",
+          "relation": "complements"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "complements"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Mastra — Suspend and Resume Workflows",
+          "authors": "Mastra",
+          "url": "https://mastra.ai/docs/workflows/suspend-and-resume"
+        },
+        {
+          "type": "doc",
+          "title": "Temporal — Workflows",
+          "authors": "Temporal Technologies",
+          "url": "https://docs.temporal.io/workflows"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "governance-observability",
+        "durable-execution",
+        "checkpointing",
+        "mastra",
+        "temporal"
+      ],
+      "applicability": {
+        "use_when": [
+          "Runs span deploys (anything longer than a typical release cycle).",
+          "Workflows may wait minutes-to-hours on external signals.",
+          "Host loss must not lose user work.",
+          "An audit trail of intermediate state is required."
+        ],
+        "do_not_use_when": [
+          "Workflows finish well inside a single process lifetime and idempotent retry is enough.",
+          "State is too large to snapshot at every checkpoint and a different durability shape (event sourcing, append-only) fits better.",
+          "Resuming with stale code under new deployments cannot be made safe."
+        ]
+      },
+      "example_scenario": "A loan-origination agent runs for hours, pausing twice for human approval. Without durable snapshots, every nightly deploy kills in-flight runs and the work restarts from zero the next morning. The team adds durable workflow snapshots written to Postgres after each step: on deploy, in-flight runs resume from their last checkpoint, the awaited approval is rehydrated, and the worst-case loss is one step. Snapshot schemas are versioned; the new deploy refuses to resume a snapshot it cannot understand and emits an explicit recovery task instead.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant W as Workflow Engine\n  participant S as Storage Provider\n  W->>W: run step 1\n  W->>S: snapshot(state_1)\n  W->>W: run step 2\n  W->>S: snapshot(state_2)\n  Note over W: host crashes / deploy\n  W->>S: load(run_id)\n  S-->>W: state_2\n  W->>W: resume from step 3"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "eval-as-contract",
@@ -637,7 +770,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  PR[Pull request] --> CI[Run tiered eval suite]\n  CI --> B{Blocking evals pass?}\n  B -- no --> X[Block release]\n  B -- yes --> Adv{Advisory evals}\n  Adv --> Track[Track regressions]\n  Adv --> R[Release proceeds]\n  EvChange[Eval change] --> Review[Architectural review + signoff]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "eval-harness",
@@ -712,6 +846,10 @@
         {
           "pattern": "automatic-workflow-search",
           "relation": "used-by"
+        },
+        {
+          "pattern": "scorer-live-monitoring",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -749,7 +887,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Golden dataset] --> Champ[Run champion]\n  G --> Chal[Run challenger]\n  Champ --> Sc1[Score]\n  Chal --> Sc2[Score]\n  Sc1 --> Cmp{Lift vs regression?}\n  Sc2 --> Cmp\n  Cmp -- lift --> Promote[Promote challenger]\n  Cmp -- regression --> Block[Block]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "incident-response-runbook",
@@ -845,7 +984,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Alert[Alert: kill-switch / sandbox-escape / cost spike] --> Sev{Severity}\n  Sev --> OnCall[Page on-call]\n  OnCall --> Cont[Containment: kill-switch / reroute]\n  Cont --> Pres[Pin traces beyond retention]\n  Pres --> Comp[Compensating actions]\n  Comp --> Comm[Customer + regulator comms]\n  Comm --> PM[Post-mortem]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "lineage-tracking",
@@ -950,7 +1090,8 @@
       "diagram": {
         "type": "class",
         "mermaid": "classDiagram\n  class Output { +id +text }\n  class Lineage {\n    +prompt_template_hash\n    +model_id_version\n    +tool_versions\n    +retrieved_doc_ids\n    +decision_log_id\n  }\n  class LineageStore { +queryable }\n  Output --> Lineage : tagged_with\n  Lineage --> LineageStore : stored_in\n  LineageStore ..> Output : joinable"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "llm-as-judge",
@@ -1011,6 +1152,10 @@
         {
           "pattern": "blind-grader-with-isolated-context",
           "relation": "generalises"
+        },
+        {
+          "pattern": "scorer-live-monitoring",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1044,7 +1189,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant C as Candidate model\n  participant J as Judge model (different family)\n  participant H as Human calibration set\n  C->>J: input + candidate output + rubric\n  J-->>C: structured score + rationale\n  H->>J: periodically calibrate\n  J-->>H: calibration drift report"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "model-card",
@@ -1144,7 +1290,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Agent / Model release] --> C[Model Card document]\n  C --> S1[Intended use]\n  C --> S2[Out-of-scope use]\n  C --> S3[Training & data lineage]\n  C --> S4[Evaluation results]\n  C --> S5[Limitations & risks]\n  C --> S6[Contact / owner]\n  C -->|versioned with| A"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "prompt-versioning",
@@ -1259,7 +1406,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Ed[Author edits prompt] --> H[Hash + semver tag]\n  H --> Reg[(Prompt registry<br/>immutable, signed)]\n  Code[Application code] -->|name + version| Reg\n  Reg --> Dep[Deployment]\n  Dep --> Eval[Eval harness]\n  Eval -.ties metrics to.-> Reg"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "provenance-ledger",
@@ -1348,6 +1496,14 @@
         {
           "pattern": "world-model-separation",
           "relation": "complements"
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "complements"
+        },
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1380,7 +1536,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Act[Agent action / state change] --> V[Validator: required fields?]\n  V -->|reject| Err[Error]\n  V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]\n  L --> Audit[Audit / explain]\n  L --> RB[Rollback by id]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "replay-time-travel",
@@ -1444,6 +1601,10 @@
         {
           "pattern": "lineage-tracking",
           "relation": "complements"
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1474,7 +1635,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]\n  Tr --> Sel[Pick step N]\n  Sel --> Mod[Modify prompt /<br/>model / tool result]\n  Mod --> Rep[Replay forward]\n  Rep --> Br[(Branch trace)]\n  Br --> Cmp[Compare branches]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "sandbox-escape-monitoring",
@@ -1559,7 +1721,115 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]\n  S -->|net egress not on allowlist| Tel\n  S -->|fs write outside workdir| Tel\n  Tel --> Det[Threshold detector]\n  Det -->|alert| Op[Operators]\n  Det -->|confirmed escape| KS[Kill-switch]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "scorer-live-monitoring",
+      "name": "Scorer Live Monitoring",
+      "aliases": [
+        "Live Evaluation",
+        "Production Scoring",
+        "Async Output Scorers"
+      ],
+      "category": "governance-observability",
+      "intent": "Score agent outputs asynchronously in production with non-blocking scorers that observe, alert, and log but do not regenerate the output.",
+      "context": "Production agent and workflow deployments where quality must be tracked on live traffic, but blocking the user response on a scoring call is unacceptable for latency or cost reasons.",
+      "problem": "Pre-release evals (see eval-harness) cover known distributions, not live traffic; closed-loop evaluator-optimizer adds latency and re-runs the model on every request. There is no cheap way to keep a continuous read on production quality without either of those costs.",
+      "forces": [
+        "Live quality data is the only honest signal that production matches lab.",
+        "Blocking the response on a judge model doubles latency and cost.",
+        "Async scorers can fall behind during traffic spikes and need back-pressure.",
+        "Open-loop scoring is informational only — the user already saw the output by the time the score lands.",
+        "Multiple scorer kinds (LLM judge, programmatic check, embedding-similarity, rubric) emit on different timescales."
+      ],
+      "therefore": "Therefore: emit each agent output onto a scoring stream that asynchronous, non-blocking scorers consume, so that production quality is monitored continuously without blocking the response or regenerating the output.",
+      "solution": "After the agent returns to the user, publish `{request_id, input, output, context}` to a scoring stream. Independent scorer workers consume the stream and emit `{request_id, scorer, score, evidence}` records. Scorers may be LLM judges, programmatic checks, embedding-similarity to a reference, or rubric checks. Aggregate scores into dashboards and alert rules; route low scores into a re-evaluation queue rather than triggering re-generation in the user's request path. Distinct from evaluator-optimizer (which closes the loop by re-prompting on failure) and from eval-harness (which scores on a fixed set, not live traffic).",
+      "structure": "Agent → user (fast). Agent → scoring stream → [scorer worker, scorer worker, ...] → score store → dashboard / alerting.",
+      "consequences": {
+        "benefits": [
+          "Continuous live-traffic quality signal without latency cost in the user path.",
+          "Many scorer kinds can run side-by-side without contention.",
+          "Low-score events accumulate into a review queue rather than firing in the moment.",
+          "Cost is bounded by sampling rates per scorer."
+        ],
+        "liabilities": [
+          "Open-loop: the bad output already reached the user; this pattern observes rather than corrects.",
+          "Async scorers under traffic spikes can lag the signal by minutes.",
+          "Judge-model scorers can drift across model versions; rubric versioning matters.",
+          "Scorer cost can creep — sampling rates need governance."
+        ]
+      },
+      "constrains": "Scorers do not run in the user's request path and may not modify or regenerate the agent's output; the user-visible response must not block on a scorer.",
+      "known_uses": [
+        {
+          "system": "Mastra Scorers (live evaluations)",
+          "note": "Mastra scorers run asynchronously alongside agents and workflows, scoring outputs without blocking responses.",
+          "status": "available",
+          "url": "https://mastra.ai/docs/evals/overview"
+        },
+        {
+          "system": "Langfuse / LangSmith / Helicone live evals",
+          "note": "Observability platforms ship live-eval / scorer features that run on traced production outputs.",
+          "status": "available",
+          "url": "https://langfuse.com/docs/scores"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "agent-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Mastra — Live evaluations",
+          "authors": "Mastra",
+          "url": "https://mastra.ai/docs/evals/overview"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "governance-observability",
+        "live-eval",
+        "scoring",
+        "mastra"
+      ],
+      "applicability": {
+        "use_when": [
+          "Production quality must be observed continuously, not just at release.",
+          "Latency budget on the user path does not allow a blocking judge call.",
+          "Multiple scorer kinds (LLM judge, programmatic check, embedding similarity) should run side by side."
+        ],
+        "do_not_use_when": [
+          "The agent's reply must be regenerated on low score — use evaluator-optimizer.",
+          "Pre-release coverage is sufficient and live traffic risk is low (use eval-harness alone).",
+          "Scorer cost would dominate the budget — sample more aggressively or drop the scorer."
+        ]
+      },
+      "example_scenario": "A customer-support agent serves thousands of replies per hour. The team wants a continuous read on reply quality but cannot afford to block each reply on a judge model. They emit every reply onto a scoring stream that three workers consume: an LLM-judge scorer for helpfulness, a programmatic scorer for forbidden phrases, and an embedding-similarity scorer against a curated reference set. Scores populate a dashboard with rolling p50/p95; replies below threshold flow into a human-review queue but the user has already seen the reply. When the LLM-judge score drops sharply after a model swap, the team rolls back before the next deploy.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Req[User request] --> Ag[Agent]\n  Ag --> Reply[Reply to user]\n  Ag --> Pub[(Scoring stream)]\n  Pub --> S1[LLM-judge scorer]\n  Pub --> S2[Programmatic checks]\n  Pub --> S3[Embedding similarity]\n  S1 --> Store[(Score store)]\n  S2 --> Store\n  S3 --> Store\n  Store --> Dash[Dashboards / alerts]\n  Store --> Q[Low-score review queue]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "shadow-canary",
@@ -1617,6 +1887,10 @@
         {
           "pattern": "prompt-versioning",
           "relation": "complements"
+        },
+        {
+          "pattern": "scorer-live-monitoring",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1649,7 +1923,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  U[User request] --> Split[Traffic split]\n  Split --> Champ[Champion agent]\n  Split --> Chall[Challenger agent]\n  Champ --> Resp[User response]\n  Chall --> Log[Shadow log]\n  Champ --> Diff[Diff metrics:<br/>judge / exact-match / latency / cost]\n  Log --> Diff\n  Diff --> Gate{Lift?}\n  Gate -- yes --> Promote[Promote challenger]\n  Gate -- regression --> Revert[Revert]"
-      }
+      },
+      "last_updated": "2026-05-20"
     }
   ]
 }
