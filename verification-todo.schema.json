@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agentpatternscatalog/patterns/verification-todo.schema.json",
   "title": "Catalog Verification TODO",
-  "description": "One entry per pattern and per framework. Tracks per-aspect verification status so future agents (or contributors) can work through the catalog item-by-item without re-deriving the list each time.",
+  "description": "Tracks per-aspect verification status across the catalog. One entry per pattern in patterns[], one entry per composition (recipe or framework) in compositions[]. Aspect sets differ by composition kind, so the per-entry aspects map is validated against the kind via conditional rules below. Aspect values: 'todo' (not yet checked), 'pass' (verified correct), 'fail' (verified wrong, needs fix), 'na' (does not apply). Top-level 'verified' is true only when every applicable aspect is pass or na. Verification freshness contract: compare entry.last_verified against the matching pattern.last_updated (in patterns-src/) or composition.last_updated (in compositions-src/). If entry.last_verified >= source.last_updated the verification is still current and Phase 2 reverification can skip it; if source.last_updated > entry.last_verified the entry was edited after verification and needs re-checking. last_verified is null while the entry has never been verified.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["last_analysis_date", "patterns", "frameworks"],
+  "required": ["last_analysis_date", "patterns", "compositions"],
   "properties": {
     "$schema": {"type": "string"},
     "title": {"type": "string"},
@@ -13,15 +13,34 @@
     "last_analysis_date": {"type": "string", "format": "date"},
     "aspect_definitions": {
       "type": "object",
-      "description": "Plain-English definitions of each aspect for both pattern and framework entries."
+      "description": "Plain-English definitions of each aspect, grouped by entry kind (patterns, compositions-recipe, compositions-framework)."
     },
     "patterns": {
       "type": "array",
       "items": {"$ref": "#/$defs/entry_pattern"}
     },
-    "frameworks": {
+    "compositions": {
       "type": "array",
-      "items": {"$ref": "#/$defs/entry_framework"}
+      "description": "One entry per composition in compositions-src/. Each carries a 'kind' field ('recipe' or 'framework') matching the source entry; the aspect set required depends on kind.",
+      "items": {"$ref": "#/$defs/entry_composition"}
+    },
+    "consumer_requirements": {
+      "type": "array",
+      "description": "Global verification items that are not per-entry — typically UI/consumer behaviour the catalog assumes (e.g., a confidence-level filter at http://localhost:8097/compositions/, or relative 'X days ago' rendering of last_updated). Tracked here so consumers of the catalog have a shared todo list.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "scope", "description", "status"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "scope": {"type": "string", "enum": ["ui", "api", "build", "docs", "consumer"]},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["todo", "in-progress", "done", "dropped"]},
+          "raised_at": {"type": "string", "format": "date"},
+          "resolved_at": {"type": "string", "format": "date"},
+          "owner": {"type": "string"}
+        }
+      }
     }
   },
   "$defs": {
@@ -86,23 +105,78 @@
         }
       ]
     },
-    "entry_framework": {
-      "allOf": [
-        {"$ref": "#/$defs/entry_common"},
-        {
+    "entry_composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "verified", "aspects"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {"type": "string"},
+        "kind": {
+          "type": "string",
+          "enum": ["recipe", "framework"]
+        },
+        "category": {
+          "type": "string",
+          "description": "Frameworks only. Mirrors composition.category."
+        },
+        "vendor": {
+          "type": "string",
+          "description": "Frameworks only."
+        },
+        "verified": {"type": "boolean"},
+        "last_verified": {
+          "anyOf": [
+            {"type": "string", "format": "date"},
+            {"type": "null"}
+          ]
+        },
+        "verifier": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "aspects": {
+          "type": "object",
+          "description": "Aspect-driven verification — automatic per-aspect statuses produced by the Phase 2 verifier (url_live, intent_present, members_have_evidence, status_in_practice_set, ...).",
+          "additionalProperties": {"$ref": "#/$defs/aspect_status"}
+        },
+        "quality_review": {
           "type": "object",
           "additionalProperties": false,
+          "description": "Composition-by-composition quality run — a separate, narrative, human-driven deep pass on this single composition. Distinct from the aspect-driven sweep: aspects answer 'is each field present and well-formed?', quality_review answers 'is this entry overall coherent, accurate, and ready to ship?'. Both flows share the underlying composition + members[].evidence_status data. The quality run is considered up-to-date when last_run >= the source composition's last_updated; otherwise it is stale and needs a re-run.",
           "properties": {
-            "id": true, "name": true, "verified": true,
-            "last_verified": true, "verifier": true, "notes": true,
-            "vendor": {"type": "string"},
-            "aspects": {
-              "type": "object",
-              "additionalProperties": {"$ref": "#/$defs/aspect_status"}
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in-progress", "passed", "failed", "stale"]
+            },
+            "last_run": {
+              "anyOf": [
+                {"type": "string", "format": "date"},
+                {"type": "null"}
+              ]
+            },
+            "reviewer": {
+              "anyOf": [
+                {"type": "string"},
+                {"type": "null"}
+              ]
+            },
+            "summary": {
+              "type": "string",
+              "description": "One-paragraph narrative summary of the deep-pass review — what was checked, what the reviewer concluded, what flags remain."
             }
           }
+        },
+        "notes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/note"}
         }
-      ]
+      }
     }
   }
 }

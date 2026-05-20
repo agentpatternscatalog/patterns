@@ -62,15 +62,15 @@ A document-QA agent always retrieves three chunks per query, even for trivial qu
 ```mermaid
 flowchart TD
   Q[Query] --> Gen[Generator emits inline tokens]
-  Gen --> R{[Retrieve]?}
+  Gen --> R{"[Retrieve]?"}
   R -- yes --> Ret[Retrieve evidence]
   R -- no --> Skip[Skip retrieval]
-  Ret --> Rel{[IsRel]?}
+  Ret --> Rel{"[IsRel]?"}
   Rel -- relevant --> Use[Use evidence]
   Rel -- not --> Drop[Drop chunk]
-  Use --> Sup{[IsSup]?}
+  Use --> Sup{"[IsSup]?"}
   Skip --> Sup
-  Sup -- supported --> UseT{[IsUse]?}
+  Sup -- supported --> UseT{"[IsUse]?"}
   UseT --> Ans[Answer]
 ```
 

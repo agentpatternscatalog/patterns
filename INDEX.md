@@ -1,6 +1,6 @@
 # Pattern Index
 
-229 patterns across 14 categories.
+245 patterns across 14 categories.
 
 ## Reasoning
 
@@ -24,6 +24,7 @@
 - [Event-Driven Agent](patterns/event-driven-agent.md) *(a.k.a. Event Subscriber, Reactive Agent, Webhook Agent)* — Trigger the agent on external events (webhooks, message queues, file changes) instead of user requests or schedules.
 - [Exploration vs Exploitation](patterns/exploration-exploitation.md) *(a.k.a. Exploration & Discovery, Curiosity-Driven Action)* — Balance taking the best-known action (exploit) with trying alternatives that might be better (explore).
 - [Goal Decomposition](patterns/goal-decomposition.md) *(a.k.a. Hierarchical Task Network, Goal Setting & Monitoring, Task Tree)* — Decompose a goal into sub-goals recursively until each leaf is directly actionable.
+- [Iteration Node](patterns/iteration-node.md) *(a.k.a. Map-Over-Collection Node, For-Each Sub-Workflow, Bounded Workflow Loop)* — Express map-over-collection inside a visual workflow as an explicit Iteration node that runs a subgraph once per element of an input array, with bounded, deterministic, observable execution.
 - [Language Agent Tree Search](patterns/lats.md) *(a.k.a. LATS, MCTS for Agents, Tree-Search Agent, Backtracking Agent)* — Lift the agent loop into a search tree with a learned value function and backtracking.
 - [LLMCompiler](patterns/llm-compiler.md) *(a.k.a. LLM Compiler, Parallel ReWOO)* — Take ReWOO's plan-as-DAG and run independent steps in parallel through a task-fetching dispatcher.
 - [MapReduce for Agents](patterns/map-reduce.md) *(a.k.a. LLM×MapReduce, Divide-and-Conquer)* — Split an oversize task into independent chunks, process each in parallel, then aggregate.
@@ -41,6 +42,7 @@
 - [Spec-Driven Loop](patterns/spec-driven-loop.md) *(a.k.a. Naive Iterative Loop, Ralph Wiggum Loop, Ralph Loop)* — Run the same prompt against a fixed spec in a deterministic outer loop until the spec is satisfied.
 - [Spec-First Agent](patterns/spec-first-agent.md) *(a.k.a. Specification-Driven Agent, Plan-as-Document)* — Drive the agent loop from a human-authored specification document rather than free-form prompts.
 - [Todo-List-Driven Autonomous Agent](patterns/todo-list-driven-agent.md) *(a.k.a. todo.md Agent, Persistent Markdown Plan, Externalised Plan File)* — Have the agent author a plan file (e.g. todo.md) early in the run, tick items as it completes them, and re-inject the remaining plan into context; the file is durable plan and working memory.
+- [Visual Workflow Graph](patterns/visual-workflow-graph.md) *(a.k.a. Typed-Node Canvas, Drag-and-Drop Workflow Builder, Low-Code Agent Canvas)* — Express agentic logic as a visual graph of typed nodes connected on a canvas with Start and End nodes so non-coding stakeholders can read and edit the flow.
 
 ## Tool Use & Environment
 
@@ -53,6 +55,7 @@
 - [Code-as-Action Agent](patterns/code-as-action.md) *(a.k.a. CodeAct Agent, Code-Writing Agent, Python-Action ReAct, Executable Code Actions)* — Have the agent emit a code snippet as its action each step, executed in a constrained interpreter, instead of emitting JSON tool calls; tool composition becomes function nesting and control flow inside the snippet.
 - [Computer Use](patterns/computer-use.md) *(a.k.a. Desktop Agent, GUI Agent, Screen Control)* — Let the model drive a desktop end-to-end via screenshots plus virtual mouse/keyboard tool calls instead of bespoke per-app APIs.
 - [Dual-System GUI Agent](patterns/dual-system-gui-agent.md) *(a.k.a. Decision-Plus-Grounding, Planner-and-Vision Split, Two-Model GUI Agent)* — Split a GUI agent into a decision model that plans and recovers from errors and a grounding model that observes pixels and emits the precise action; route each subproblem to the better-suited model.
+- [MCP Bidirectional Bridge](patterns/mcp-bidirectional-bridge.md) *(a.k.a. MCP Client and Server, Two-Way MCP, MCP Bridge Framework)* — Run a framework as both MCP client (consuming external MCP servers as tools) and MCP server (publishing its own agents, tools, and workflows back over MCP) so capabilities flow both directions across the protocol boundary.
 - [MCP-as-Code-API](patterns/mcp-as-code-api.md) *(a.k.a. Code-Execution-with-MCP, MCP-as-Typed-API, Filesystem-Mirrored Tools, Tools-as-Code-Modules)* — Materialize MCP servers as a directory of typed code wrappers so the agent writes code that imports them and large tool outputs flow between calls inside the sandbox without ever entering the model's context window.
 - [Mobile UI Agent](patterns/mobile-ui-agent.md) *(a.k.a. Smartphone Agent, Mobile App Agent, Touch-UI Agent)* — Drive a smartphone end-to-end through a small, touch-native action vocabulary (tap, long-press, swipe, type, back, home) over screenshots, as a distinct interaction surface from desktop Computer Use and from web Browser Agents.
 - [Model Context Protocol](patterns/mcp.md) *(a.k.a. MCP, Open Tool Protocol)* — Standardise how agents discover and call tools so that a tool written once is usable by any conformant agent.
@@ -75,6 +78,7 @@
 ## Retrieval & RAG
 
 - [Agentic RAG](patterns/agentic-rag.md) *(a.k.a. Iterative RAG)* — Replace static retrieve-then-generate with autonomous agents that plan, choose sources, retrieve iteratively, reflect, and re-query.
+- [Citation Attribution](patterns/citation-attribution.md) *(a.k.a. Source Attribution, Answer-to-Source Binding, Span-Level Citations)* — Track and surface, alongside a RAG-grounded answer, which retrieved chunks supported which claims, so the binding between answer span and source survives all the way to the user.
 - [Contextual Retrieval](patterns/contextual-retrieval.md) *(a.k.a. Chunk Contextualisation, Anthropic Contextual Embeddings)* — Prepend a short LLM-generated description to each chunk before embedding so the chunk carries its situating context.
 - [CRAG](patterns/crag.md) *(a.k.a. Corrective RAG)* — Add a lightweight retrieval evaluator that grades each retrieved document and triggers corrective web search on poor retrievals.
 - [Cross-Encoder Reranking](patterns/cross-encoder-reranking.md) *(a.k.a. Reranker, Two-Stage Retrieval, Retrieve-Then-Rerank)* — After cheap bi-encoder or BM25 retrieval, rescore top-N candidates with a cross-encoder that jointly attends over (query, candidate).
@@ -107,6 +111,7 @@
 
 ## Multi-Agent
 
+- [Actor-Model Agents](patterns/actor-model-agents.md) *(a.k.a. Actor Agents, Mailbox Agents, Message-Passing Agents)* — Implement each agent as an independent actor with its own mailbox, processing asynchronous messages one at a time and never sharing mutable state with peers.
 - [Agent-as-Tool Embedding](patterns/agent-as-tool-embedding.md) *(a.k.a. Sub-Agent as Function, Nested Agent, Agent Wrapped in a Tool Signature)* — Wrap a sub-agent (with its own loop, prompt, and tool palette) behind a single function-shaped tool signature, so the parent agent calls it like any other tool and never sees the sub-agent's internal turns.
 - [Blackboard](patterns/blackboard.md) *(a.k.a. Shared Workspace, Collaboration Whiteboard)* — Give multiple agents a shared, queryable workspace they can read from and write to as they collaborate.
 - [CAMEL Role-Playing](patterns/camel-role-playing.md) *(a.k.a. Inception Prompting, AI-User AI-Assistant)* — Have two agents role-play a user-assistant interaction to autonomously complete a task neither could solve alone.
@@ -116,6 +121,7 @@
 - [Cross-Domain Enterprise Agent Network](patterns/cross-domain-agent-network.md) *(a.k.a. Domain-Specialised Agent Mesh, Joule-Style Agent Collaboration, Per-Function Agent Network)* — Decompose enterprise agency into domain-specialised agents (finance, supply chain, HR, service), each grounded in its own system of record, and route artefacts between them through a standardised inter-agent protocol.
 - [Debate](patterns/debate.md) *(a.k.a. Multi-Agent Debate, Adversarial Debate)* — Have multiple agents argue different positions on a question and converge through structured exchange.
 - [Dynamic Expert Recruitment](patterns/dynamic-expert-recruitment.md) *(a.k.a. Recruiter Agent, Run-Time Team Assembly, Adaptive Role Generation)* — Generate the agent team — role descriptions and instances — at run time based on the specific task, then adjust team composition between iterations based on evaluation feedback.
+- [Group-Chat Manager](patterns/group-chat-manager.md) *(a.k.a. Speaker Selector, Conversation Chair, Team Manager Agent)* — Place a dedicated manager between the participants of a multi-agent group chat that decides which participant speaks next on each turn.
 - [Handoff](patterns/handoff.md) *(a.k.a. Agent Handoff, Transfer, Routine Switch)* — Transfer the active conversation from one agent to another, carrying context across the switch.
 - [Hierarchical Agents](patterns/hierarchical-agents.md) *(a.k.a. Manager-Worker Tree, Agent Hierarchy)* — Organise agents in a tree where higher-level agents decompose tasks for lower-level agents, recursively.
 - [Inner Committee](patterns/inner-committee.md) *(a.k.a. Multi-Persona Single Model, Self-as-Multiple-Roles)* — Run one model under several distinct personas (executor, critic, planner) within a single agent loop.
@@ -128,6 +134,7 @@
 - [Subagent Isolation](patterns/subagent-isolation.md) *(a.k.a. Worktree Subagent, Parallel Subagent, Isolated Worker)* — Run subagents in isolated workspaces so their writes do not collide and parallelism is safe.
 - [Supervisor](patterns/supervisor.md) *(a.k.a. Multi-Agent Supervisor, Lane Supervisor)* — Place a coordinating agent above a set of specialised agents and route work to them.
 - [Swarm](patterns/swarm.md) *(a.k.a. Society of Mind, Peer Agents, Decentralised Multi-Agent)* — Run many peer agents that interact directly without a central supervisor, achieving emergent coordination.
+- [Topic-Based Routing](patterns/topic-based-routing.md) *(a.k.a. Agent Pub/Sub, Topic and Subscription, Subject-Based Routing)* — Route inter-agent messages through named topics that agents subscribe to, instead of having senders address each other by id.
 - [Voting-Based Cooperation](patterns/voting-based-cooperation.md) *(a.k.a. Multi-Agent Voting, Agent Consensus by Vote, Inter-Agent Election)* — Finalise a decision across multiple agents by collecting and tallying their votes on candidate options, so the joint output reflects collective rather than single-agent judgement.
 
 ## Verification & Reflection
@@ -191,6 +198,7 @@
 - [Pipes and Filters](patterns/pipes-and-filters.md) *(a.k.a. Pipeline, Streaming Pipeline, EIP Pipeline)* — Compose stream-shaped processing as a chain of small filters connected by pipes.
 - [Prompt Chaining](patterns/prompt-chaining.md) *(a.k.a. Sequential Decomposition, Pipeline of Prompts)* — Decompose a task into a fixed sequence of LLM calls where each step's output becomes the next step's input.
 - [Provider Fallback](patterns/provider-fallback.md) *(a.k.a. Mid-Request Failover, Cross-Provider Recovery)* — When one provider's API errors mid-stream, transparently switch to another provider while preserving state.
+- [Provider-String Routing](patterns/provider-string-routing.md) *(a.k.a. Provider/Model String, Unified Model Identifier, Single-String Model Selection)* — Select the model and provider for a request through a single namespaced string (`provider/model`) backed by env-var credentials, so the caller specifies what to run with one parameter rather than a typed provider object.
 - [Routing](patterns/routing.md) *(a.k.a. Mode Selector, Intent Classifier, Task Router)* — Classify an incoming request and dispatch it to the specialist (lane / agent / model) best suited to handle it.
 
 ## Governance & Observability
@@ -200,6 +208,7 @@
 - [Attention-Manipulation Explainability](patterns/attention-manipulation-explainability.md) *(a.k.a. AtMan, Attention Perturbation Attribution, Token-Influence Map)* — Surface which input tokens caused a given output by perturbing attention across all transformer layers and measuring the resulting change in output probability, producing a per-token relevance map alongside the model's response.
 - [Cost Observability](patterns/cost-observability.md) *(a.k.a. Token Telemetry, Cost Dashboard)* — Surface per-request, per-user, and per-feature cost and token consumption to operators in near-real-time.
 - [Decision Log](patterns/decision-log.md) *(a.k.a. Reasoning Trace, Thought Trace)* — Persist the agent's reasoning trace alongside its actions so post-hoc review can explain why.
+- [Durable Workflow Snapshot](patterns/durable-workflow-snapshot.md) *(a.k.a. Workflow Checkpointing, Storage-Backed Workflow State, Snapshot Persistence)* — Capture workflow execution state as a snapshot in a pluggable storage provider so a paused run can resume across deployments, process restarts, and host crashes.
 - [Eval as Contract](patterns/eval-as-contract.md) *(a.k.a. Test-Driven Agent, Eval-Gated Release)* — Treat the eval suite as the contract the agent must satisfy; releases ship only if evals pass.
 - [Eval Harness](patterns/eval-harness.md) *(a.k.a. Golden Dataset Suite, Champion-Challenger, Regression Suite)* — Run a held-out dataset against agent versions to detect regressions and measure improvement.
 - [Incident Response Runbook](patterns/incident-response-runbook.md) *(a.k.a. IR Runbook, Agent Failure Playbook, Agent Incident Procedure)* — Maintain pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) so detected incidents trigger known steps.
@@ -210,6 +219,7 @@
 - [Provenance Ledger](patterns/provenance-ledger.md) *(a.k.a. Audit Trail, Action Log)* — Log every agent decision and state change with enough metadata to explain or reverse it later.
 - [Replay / Time-Travel](patterns/replay-time-travel.md) *(a.k.a. Trace Replay, Run Branching, Fork from Step N)* — Re-run a past agent trace from any step with modified inputs/prompts/tools to debug or branch.
 - [Sandbox Escape Monitoring](patterns/sandbox-escape-monitoring.md) *(a.k.a. Sandbox Telemetry, Boundary Violation Alerts)* — Treat sandbox boundary violations as telemetry; alert on syscalls, network egress, or filesystem writes outside expected scope.
+- [Scorer Live Monitoring](patterns/scorer-live-monitoring.md) *(a.k.a. Live Evaluation, Production Scoring, Async Output Scorers)* — Score agent outputs asynchronously in production with non-blocking scorers that observe, alert, and log but do not regenerate the output.
 - [Shadow Canary](patterns/shadow-canary.md) *(a.k.a. Shadow Agent, Canary Deployment)* — Run a candidate agent version in shadow alongside the champion, comparing outputs without affecting users.
 
 ## Structure & Data
@@ -231,6 +241,7 @@
 - [Salience-Triggered Output](patterns/salience-triggered-output.md) *(a.k.a. Endogenous Push, Threshold Notification)* — Have the agent emit a message only when an internal salience signal crosses a threshold, not on every cycle.
 - [Stop / Cancel](patterns/stop-cancel.md) *(a.k.a. User Interrupt, Abort Generation)* — Let the user interrupt an in-flight agent run cleanly, releasing resources and surfacing partial state.
 - [Streaming Typed Events](patterns/streaming-typed-events.md) *(a.k.a. SSE Streaming, Typed Event Stream, Token Stream + Cards)* — Push partial results to the client as typed events as they become available, rather than waiting for the full response.
+- [Unified Voice Interface](patterns/unified-voice-interface.md) *(a.k.a. Voice Abstraction Layer, TTS/STT/STS Unified API, Provider-Agnostic Voice)* — Expose text-to-speech, speech-to-text, and real-time speech-to-speech through a single interface so a voice agent can swap providers without rewriting the loop.
 
 ## Cognition & Introspection
 
@@ -257,18 +268,23 @@
 ## Anti-Patterns
 
 - [Black-Box Opaqueness](patterns/black-box-opaqueness.md) *(a.k.a. Opaque Agent, No-Trace Agent)* — Anti-pattern: ship an agent without traces, decision logs, or provenance, then debug from user reports.
+- [Errors Swept Under the Rug](patterns/errors-swept-under-the-rug.md) *(a.k.a. Error Hiding, Failure Erasure, Clean Trace Anti-Pattern)* — Anti-pattern: scrub failed actions, stack traces, and error observations from the agent's own context so the trace looks clean, leaving the model with no evidence of what did not work.
 - [Hallucinated Citations](patterns/hallucinated-citations.md) *(a.k.a. Fake URLs, Invented References)* — Anti-pattern: let the model emit citations as free text and trust them.
 - [Hallucinated Tools](patterns/hallucinated-tools.md) *(a.k.a. Phantom Tool Calls, Imagined Functions)* — Anti-pattern: trust the model to invoke only the tools it has been given, then debug calls to functions that do not exist.
 - [Hero Agent](patterns/hero-agent.md) *(a.k.a. Mega-Prompt Agent, God Agent)* — Anti-pattern: stuff every capability into one agent with one giant prompt.
 - [Hidden Mode Switching](patterns/hidden-mode-switching.md) *(a.k.a. Silent Model Swap, Undisclosed Routing)* — Anti-pattern: silently swap the underlying model between requests without disclosing the change to users or operators.
 - [Infinite Debate](patterns/infinite-debate.md) *(a.k.a. Stuck Multi-Agent, Convergence Failure, Agents Stuck Talking, Multi-Agent Loop)* — Anti-pattern: launch multi-agent debate without a termination rule and watch the agents loop forever.
+- [JSON-Only Action Schema](patterns/json-only-action-schema.md) *(a.k.a. JSON-Dict Tool Calls Only, No Code-as-Action, Function-Argument JSON as Action Language)* — Anti-pattern: restrict the agent's action language to JSON tool-call dictionaries even for tasks where code-as-action (functions composing, loops, conditionals over results) would be the natural shape.
 - [Memo-As-Source Confusion](patterns/memo-as-source-confusion.md) *(a.k.a. Stale-Workspace-As-Fact, Reading the Memo Instead of the Artifact)* — Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe, accumulating false confidence in stale summaries.
 - [Naive-RAG-First](patterns/naive-rag-first.md) *(a.k.a. RAG-By-Default, Vector-Store-First)* — Anti-pattern: reach for naive RAG before checking whether the knowledge actually needs retrieval.
 - [Perma-Beta](patterns/perma-beta.md) *(a.k.a. Forever Beta, Eval Vacuum)* — Anti-pattern: ship the agent in 'beta' indefinitely so that quality regressions are someone else's problem.
 - [Prompt Bloat](patterns/prompt-bloat.md) *(a.k.a. Prompt Accretion, Eternal System Prompt)* — Anti-pattern: every bug fix adds a sentence to the system prompt; nothing is ever removed.
+- [Role-Typed Subagents](patterns/role-typed-subagents.md) *(a.k.a. Predefined-Role Multi-Agent, Manager-Coder-Designer Layout, Fixed-Role Crew)* — Anti-pattern: pre-allocate roles (manager, coder, designer, researcher) across a fixed set of typed sub-agents and route tasks to them by role label.
 - [Same-Model Self-Critique](patterns/same-model-self-critique.md) *(a.k.a. Echo-Chamber Reflection, Single-Model Reflexion)* — Anti-pattern: have the same model both produce an answer and critique it, expecting independence.
 - [Schema-Free Output](patterns/schema-free-output.md) *(a.k.a. Free-Form Tool Call, String-Parsing the Model)* — Anti-pattern: parse free-form model output for downstream code instead of using structured output.
 - [Tool Explosion](patterns/tool-explosion.md) *(a.k.a. Bloated Tool Registry, 100-Tool Agent, Too Many Tools, Tool Registry Bloat, Function-Calling Accuracy Collapse)* — Anti-pattern: expose every available tool in every request and watch function-calling accuracy collapse.
+- [Tool Loadout Hot-Swap](patterns/tool-loadout-hotswap.md) *(a.k.a. Mid-Run Tool Set Mutation, Dynamic Tool Definitions Mid-Iteration, Reshuffling Tools During a Task)* — Anti-pattern: add or remove tool definitions during a running task so the tool set the model sees changes from turn to turn.
 - [Tool Output Trusted Verbatim](patterns/tool-output-trusted-verbatim.md) *(a.k.a. Untyped Tool Returns, No Tool Output Validation)* — Anti-pattern: trust whatever tools return without validation, schema enforcement, or trust labels.
 - [Unbounded Loop](patterns/unbounded-loop.md) *(a.k.a. No Step Cap, Open-Ended Agent, Agent Stuck, Loops Forever)* — Anti-pattern: run the agent loop without a step budget and let model self-termination decide.
 - [Unbounded Subagent Spawn](patterns/unbounded-subagent-spawn.md) *(a.k.a. Recursive Spawn, Subagent Fan-Out Bomb)* — Anti-pattern: a supervisor or orchestrator spawns sub-agents that can themselves spawn sub-agents without a global cap.
+- [Vendor Lock-In](patterns/vendor-lock-in.md) *(a.k.a. Single-Provider Coupling, Hard-Coded Provider SDK, Provider-Specific Application Code)* — Anti-pattern: couple application code directly to one model provider's SDK, request shape, and proprietary features so that switching providers requires rewriting application code rather than swapping an adapter.

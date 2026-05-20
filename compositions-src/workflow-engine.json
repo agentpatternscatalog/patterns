@@ -1,0 +1,1024 @@
+{
+  "kind": "framework",
+  "category": "workflow-engine",
+  "label": "Workflow Engines",
+  "compositions": [
+    {
+      "id": "inngest-agentkit",
+      "name": "Inngest AgentKit",
+      "kind": "framework",
+      "category": "workflow-engine",
+      "vendor": "Inngest",
+      "language": "TypeScript",
+      "license": "Apache-2.0",
+      "status": "active",
+      "first_released": "2024-11-22",
+      "url": "https://agentkit.inngest.com/",
+      "repo": "https://github.com/inngest/agent-kit",
+      "docs_url": "https://agentkit.inngest.com/",
+      "intent": "TypeScript framework for composing multi-agent networks where a Router decides which Agent runs next over a shared State, running on Inngest's durable-execution engine for fault-tolerance and human-in-the-loop pauses.",
+      "description": "Inngest AgentKit is an open-source TypeScript framework built on top of the Inngest workflow engine. The core primitives are Agent (an LLM call with prompts, tools, and MCP), Tool, Network (a system of agents sharing State), and Router (code-based, LLM-based, or hybrid logic that picks the next Agent each loop). The execution model is a while-loop over State; when AgentKit functions run inside Inngest, each step becomes a durable, replayable unit and `step.waitForEvent` lets agents pause for hours waiting on a human reply.",
+      "primary_use_cases": [
+        "multi-agent networks with deterministic or hybrid routing",
+        "tool-using agents over MCP server registries",
+        "long-running agent workflows with human-in-the-loop approval",
+        "fault-tolerant production agents on Inngest durable execution"
+      ],
+      "agent_loop_shape": "Network-as-while-loop. Each iteration: Router reads State and picks an Agent (or returns undefined to stop); the chosen Agent makes an inference call with its tools and any MCP servers; tool results and messages are appended to shared State; the loop continues until the Router stops or `maxIter` is hit. When deployed on Inngest, every Agent and tool call is wrapped in `step.*` so the run survives crashes, restarts, and arbitrary `waitForEvent` pauses.",
+      "key_concepts": [
+        {
+          "name": "Agent",
+          "summary": "Stateless wrapper around a model with a goal, prompts, and tools (including MCP).",
+          "maps_to_pattern": "tool-use",
+          "url": "https://agentkit.inngest.com/concepts/agents"
+        },
+        {
+          "name": "Network",
+          "summary": "While-loop with shared State that calls Agents and Tools until the Router stops.",
+          "maps_to_pattern": "supervisor",
+          "url": "https://agentkit.inngest.com/concepts/networks"
+        },
+        {
+          "name": "Router",
+          "summary": "Code-based, LLM-based (default routing agent / ReAct), or hybrid; decides the next Agent.",
+          "maps_to_pattern": "supervisor",
+          "url": "https://agentkit.inngest.com/concepts/routers"
+        },
+        {
+          "name": "State",
+          "summary": "Shared kv store + message history; typed; used by Router for routing decisions.",
+          "url": "https://agentkit.inngest.com/concepts/state"
+        },
+        {
+          "name": "MCP-as-tools",
+          "summary": "Any MCP server (Streamable HTTP / SSE / WS) plugs in as a tool source.",
+          "maps_to_pattern": "tool-use",
+          "url": "https://agentkit.inngest.com/advanced-patterns/mcp"
+        },
+        {
+          "name": "waitForEvent / human-in-the-loop",
+          "summary": "Inngest step that pauses an Agent's tool for hours waiting for an event.",
+          "maps_to_pattern": "approval-queue",
+          "url": "https://agentkit.inngest.com/advanced-patterns/human-in-the-loop"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  user[User input] --> net[Network]\n  net --> router{Router}\n  router -->|code-based| pick1[Deterministic choice]\n  router -->|LLM / ReAct| pick2[Default routing agent]\n  router -->|hybrid| pick3[Mix]\n  pick1 --> agent[Agent inference]\n  pick2 --> agent\n  pick3 --> agent\n  agent --> tools[Tools / MCP servers]\n  tools --> state[Append to shared State]\n  state --> hil{Tool needs human?}\n  hil -->|yes| wait[step.waitForEvent]\n  wait --> state\n  hil -->|no| router\n  router -->|stop / maxIter| done[Network result]\n  agent -.runs as.-> inngest[Inngest durable step]\n  inngest -.fault-tolerant.-> done",
+      "members": [
+        {
+          "pattern": "agent-resumption",
+          "role": "first-class",
+          "note": "When deployed on Inngest, AgentKit agents become fault-tolerant durable workflows that survive restarts; `step.waitForEvent` can pause for hours.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "AgentKit README - durable execution",
+              "url": "https://github.com/inngest/agent-kit",
+              "quote": "Combined with the Inngest Dev Server to start locally and its orchestration engine, making your Agents fault-tolerant when deployed.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "AgentKit human-in-the-loop - long wait",
+              "url": "https://agentkit.inngest.com/advanced-patterns/human-in-the-loop",
+              "quote": "The `ask_developer` tool will wait up to 4 hours for a `developer.response` event to be received",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "approval-queue",
+          "role": "first-class",
+          "note": "Human-in-the-loop tools built on Inngest `waitForEvent` pause the network until a matching event arrives.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit HITL - waitForEvent",
+              "url": "https://agentkit.inngest.com/advanced-patterns/human-in-the-loop",
+              "quote": "Human in the Loop tools are implemented using Inngest's `waitForEvent()` step method",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "AgentKit HITL - rationale",
+              "url": "https://agentkit.inngest.com/advanced-patterns/human-in-the-loop",
+              "quote": "Agents such as Support Agents, Coding or Research Agents might require human oversight.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "role": "first-class",
+          "note": "Agents react to and wait on Inngest events; the Inngest engine triggers and resumes runs on event arrival.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit HITL - event match",
+              "url": "https://agentkit.inngest.com/advanced-patterns/human-in-the-loop",
+              "quote": "Wait for developer response event",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "AgentKit README - waitForEvent for humans",
+              "url": "https://github.com/inngest/agent-kit",
+              "quote": "Inngest's `waitForEvent()` enables the Agent to ask a human for help.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "role": "supported",
+          "note": "Scheduling is inherited from Inngest (cron functions), not surfaced as a first-class AgentKit primitive in the docs fetched; honest downgrade from first-class.",
+          "evidence": [],
+          "evidence_status": "none"
+        },
+        {
+          "pattern": "step-budget",
+          "role": "first-class",
+          "note": "Networks support a `maxIter` option to cap loop iterations.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit networks - maxIter",
+              "url": "https://agentkit.inngest.com/concepts/networks",
+              "quote": "Specifying a `maxIter` option is useful when using a [Default Routing Agent] or a [Hybrid Router] to avoid infinite loops.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "supervisor",
+          "role": "first-class",
+          "note": "Router is the supervisor primitive: code, LLM-based (default routing agent), or hybrid.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit networks - router role",
+              "url": "https://agentkit.inngest.com/concepts/networks",
+              "quote": "A [Router], which chooses whether to stop or select the next agent to run in the loop",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "AgentKit README - router",
+              "url": "https://github.com/inngest/agent-kit",
+              "quote": "where the autonomy lives, from code-based to LLM-based (ex: ReAct) orchestration",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "tool-use",
+          "role": "first-class",
+          "note": "Tools are built via function-calling; AgentKit also exposes any MCP server as a tool source.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit tools - purpose",
+              "url": "https://agentkit.inngest.com/concepts/tools",
+              "quote": "Tools are functions that extend the capabilities of an Agent. Tools have two core uses: calling code, enabling models to interact with systems like your own database or external APIs.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "AgentKit MCP - any MCP server as tools",
+              "url": "https://agentkit.inngest.com/advanced-patterns/mcp",
+              "quote": "Using MCP as tools allows you to use any MCP server as a tool in your AgentKit network, enabling your Agent to access thousands of pre-built tools.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "mcp",
+          "role": "first-class",
+          "note": "First-class MCP client; Streamable HTTP / SSE / WS transports; Smithery registry integration.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "AgentKit MCP - Claude MCP support",
+              "url": "https://agentkit.inngest.com/advanced-patterns/mcp",
+              "quote": "AgentKit supports using Claude's Model Context Protocol as tools.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "AgentKit MCP - transports",
+              "url": "https://agentkit.inngest.com/advanced-patterns/mcp",
+              "quote": "AgentKit supports configuring MCP servers via Streamable HTTP, SSE or WS transports.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "temporal",
+          "relation": "competes-with",
+          "note": "Durable-execution peer; Temporal is a workflow engine for multiple languages, AgentKit is TS-only and agent-shaped."
+        },
+        {
+          "composition": "restack",
+          "relation": "competes-with",
+          "note": "Peer durable-agent platform; Restack runs on Temporal/Kubernetes, AgentKit runs on Inngest."
+        }
+      ],
+      "references": [
+        {
+          "type": "repo",
+          "title": "inngest/agent-kit",
+          "url": "https://github.com/inngest/agent-kit",
+          "quote": "Build multi-agent networks with deterministic routing and rich tooling via MCP.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "AgentKit documentation",
+          "url": "https://agentkit.inngest.com/",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "blog",
+          "title": "Introducing AgentKit and step.ai: orchestrating AI with confidence",
+          "url": "https://www.inngest.com/blog",
+          "quote": "Introducing AgentKit and step.ai: orchestrating AI with confidence",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "tags": [
+        "open-source",
+        "typescript",
+        "durable-execution",
+        "multi-agent",
+        "mcp"
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "partial",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "emerging"
+    },
+    {
+      "id": "modal",
+      "name": "Modal",
+      "kind": "framework",
+      "category": "workflow-engine",
+      "vendor": "Modal Labs",
+      "language": "Python",
+      "license": "Apache-2.0",
+      "status": "active",
+      "first_released": "2022",
+      "url": "https://modal.com/",
+      "repo": "https://github.com/modal-labs/modal-client",
+      "docs_url": "https://modal.com/docs",
+      "intent": "Serverless compute platform that turns Python functions into autoscaled cloud containers and exposes Sandboxes as ephemeral, secure runtimes for executing AI-generated code on demand.",
+      "description": "Modal is an AI infrastructure platform built by Modal Labs. Developers decorate Python functions with `@app.function` (optionally with a GPU, image, schedule, or `modal.Sandbox` reference) and Modal containerises and runs them in the cloud with sub-second cold starts and autoscaling. For agentic workloads the headline primitive is the Sandbox: a constructor (`Sandbox.create`) that programmatically spins up isolated containers to run untrusted or LLM-generated code, with filesystem, directory, and memory snapshots to checkpoint and restore state.",
+      "primary_use_cases": [
+        "secure sandboxed execution of LLM-generated code",
+        "GPU-backed inference and fine-tuning",
+        "scheduled / cron-driven serverless jobs",
+        "containerised batch compute for agents"
+      ],
+      "agent_loop_shape": "Modal is not itself an agent runtime; it is the substrate. Agent frameworks call `Sandbox.create()` to obtain an ephemeral container, send code or shell commands into it, observe stdout/stderr/files, optionally snapshot the filesystem or memory, and either reuse, detach, or terminate the Sandbox. Scheduled functions use the `schedule=modal.Period(...)` or `modal.Cron(...)` parameter on `@app.function` so the entry-point runs on a cadence without external orchestration.",
+      "key_concepts": [
+        {
+          "name": "App",
+          "summary": "Container for a set of related Modal Functions: `app = modal.App(\"name\")`.",
+          "url": "https://modal.com/docs/guide"
+        },
+        {
+          "name": "Function",
+          "summary": "Python function decorated with `@app.function(...)`; Modal builds an image and runs it in the cloud.",
+          "url": "https://modal.com/docs/guide"
+        },
+        {
+          "name": "Sandbox",
+          "summary": "Ephemeral isolated container created at runtime via `Sandbox.create` for executing untrusted/agent code.",
+          "maps_to_pattern": "sandbox-isolation",
+          "url": "https://modal.com/docs/guide/sandbox"
+        },
+        {
+          "name": "Sandbox snapshots",
+          "summary": "Filesystem, directory, and memory snapshots that save and restore Sandbox state.",
+          "maps_to_pattern": "agent-resumption",
+          "url": "https://modal.com/docs/guide/sandbox-snapshots"
+        },
+        {
+          "name": "Schedule (Period / Cron)",
+          "summary": "`schedule=modal.Period(...)` or `modal.Cron(...)` on `@app.function` runs the function on a cadence.",
+          "maps_to_pattern": "scheduled-agent",
+          "url": "https://modal.com/docs/guide/cron"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  user[Developer code] --> app[modal.App]\n  app --> fn[@app.function]\n  fn -->|schedule=Period/Cron| cron[Recurring run]\n  fn -->|invoked| run[Containerised execution]\n  fn -->|creates| sb[Sandbox.create]\n  sb --> iso[Isolated container]\n  iso --> exec[Run LLM-generated code / shell]\n  exec --> snap{Snapshot?}\n  snap -->|filesystem| fs[Filesystem snapshot]\n  snap -->|memory| mem[Memory snapshot]\n  snap -->|directory| dir[Directory snapshot]\n  snap -->|no| detach[detach / terminate]\n  fs --> restore[Restore later]\n  mem --> restore\n  dir --> restore",
+      "members": [
+        {
+          "pattern": "agent-resumption",
+          "role": "first-class",
+          "note": "Sandbox memory and filesystem snapshots checkpoint state and can be restored as exact clones.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Modal sandbox-snapshots - purpose",
+              "url": "https://modal.com/docs/guide/sandbox-snapshots",
+              "quote": "Snapshots allow you to save your Sandbox's state and restore it later",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Modal sandbox-snapshots - memory snapshot scope",
+              "url": "https://modal.com/docs/guide/sandbox-snapshots",
+              "quote": "Sandbox memory snapshots are copies of a Sandbox's entire state, both in memory and on the filesystem",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "code-execution",
+          "role": "first-class",
+          "note": "Sandboxes are advertised explicitly as the primitive for executing LLM-generated code.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Modal Sandbox - LLM code",
+              "url": "https://modal.com/docs/guide/sandbox",
+              "quote": "Execute code generated by a language model",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Modal homepage - sandbox positioning",
+              "url": "https://modal.com/docs/guide",
+              "quote": "Spin up thousands of isolated and secure Sandboxes to execute AI generated code",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "role": "first-class",
+          "note": "Sandbox is the headline isolation primitive: ephemeral, secure containers for untrusted code.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Modal Sandbox - secure containers",
+              "url": "https://modal.com/docs/guide/sandbox",
+              "quote": "secure containers for executing untrusted user or agent code on Modal",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Modal Sandbox - isolated env",
+              "url": "https://modal.com/docs/guide/sandbox",
+              "quote": "Create isolated environments for running untrusted code",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "role": "first-class",
+          "note": "`@app.function(schedule=modal.Period(...))` or `modal.Cron(...)` runs a function on a cadence.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Modal cron - decorator schedule",
+              "url": "https://modal.com/docs/guide/cron",
+              "quote": "To schedule this function to run once per day, create a Modal App and attach our function to it with the `@app.function` decorator and a schedule parameter",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Modal cron - Cron syntax",
+              "url": "https://modal.com/docs/guide/cron",
+              "quote": "`modal.Cron` gives you finer control using cron syntax",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "temporal",
+          "relation": "complements",
+          "note": "Modal provides sandboxed compute; Temporal provides durable workflow execution. Common pairing: Temporal workflow invokes Modal Sandboxes."
+        },
+        {
+          "composition": "restack",
+          "relation": "complements",
+          "note": "Different scopes: Restack is the agent runtime, Modal is the compute substrate."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Modal documentation",
+          "url": "https://modal.com/docs/guide",
+          "quote": "Modal is an AI infrastructure platform that lets you: Run low latency inference with sub-second cold starts",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "modal-labs/modal-client",
+          "url": "https://github.com/modal-labs/modal-client",
+          "quote": "convenient, on-demand access to serverless cloud compute from Python scripts on your local computer.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Modal Sandbox guide",
+          "url": "https://modal.com/docs/guide/sandbox",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "tags": [
+        "python",
+        "serverless",
+        "sandbox",
+        "gpu",
+        "scheduled-functions"
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "verified",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "mature"
+    },
+    {
+      "id": "restack",
+      "name": "Restack",
+      "kind": "framework",
+      "category": "workflow-engine",
+      "vendor": "Restack",
+      "language": "Python, TypeScript",
+      "status": "active",
+      "first_released": "2024-07-27",
+      "url": "https://www.restack.io/",
+      "repo": "https://github.com/restackio",
+      "docs_url": "https://docs.restack.io/",
+      "intent": "Backend platform for building long-running AI agents on top of Temporal and Kubernetes, with workflows-as-code, MCP-exposed tools, ClickHouse-backed context, and a product-team-facing visual interface.",
+      "description": "Restack is a vendor-managed agent platform for enterprise teams. Engineers write workflows in Python or TypeScript (`@restackio/ai`) by composing functions called via a `step` primitive; the platform runs these on a Temporal-backed durable engine deployed on Kubernetes so agents can run for weeks or months. Python functions are exposed to the agent as MCP tools, long-term context lives in a ClickHouse store, and product teams manage prompts, versions, and tests through a UI.",
+      "primary_use_cases": [
+        "long-running enterprise AI agents (weeks-to-months horizons)",
+        "durable workflows composed from Python or TypeScript functions",
+        "MCP-tool integrations exposing in-house Python code",
+        "self-hosted agent deployments on AWS / GCP / Azure / on-prem"
+      ],
+      "agent_loop_shape": "Restack agents and workflows are durable Temporal-backed processes. A workflow is a multi-step function that uses the `step` primitive to call user-defined functions (the activities); the framework records each step so that on crash or restart the run resumes from the last committed step. Agents are long-running variants that can wait on events, call MCP tools, pull context from the ClickHouse store, and be scheduled via the platform's Schedules feature. Restack manages the underlying Kubernetes + Temporal stack so users do not run Temporal directly.",
+      "key_concepts": [
+        {
+          "name": "Workflow",
+          "summary": "Multi-step orchestration coordinating model calls, API requests, and logic with durable state.",
+          "maps_to_pattern": "durable-workflow-snapshot",
+          "url": "https://docs.restack.io/features/workflows"
+        },
+        {
+          "name": "Step / Function",
+          "summary": "`step()` primitive inside a workflow calls user-defined functions (the activities of the run).",
+          "maps_to_pattern": "tool-use",
+          "url": "https://docs.restack.io/features/workflows"
+        },
+        {
+          "name": "Agent",
+          "summary": "Long-running variant of a workflow that handles errors, retries, and interruptions automatically.",
+          "maps_to_pattern": "agent-resumption",
+          "url": "https://docs.restack.io/architecture"
+        },
+        {
+          "name": "Context store",
+          "summary": "Built-in long-term memory powered by ClickHouse; stores past interactions and retrievable context.",
+          "url": "https://docs.restack.io/architecture"
+        },
+        {
+          "name": "MCP-out-of-the-box",
+          "summary": "Python functions are exposed to the agent as MCP tools by default.",
+          "maps_to_pattern": "mcp",
+          "url": "https://docs.restack.io/architecture"
+        },
+        {
+          "name": "Schedules",
+          "summary": "Cron / calendar schedules on workflows, agents, and functions.",
+          "maps_to_pattern": "scheduled-agent",
+          "url": "https://docs.restack.io/features/schedules"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  ui[Product UI: prompts, versions, tests] --> agent[Agent / Workflow]\n  agent --> step[step primitive]\n  step --> fn[User Python or TS function]\n  fn -.exposed as.-> mcp[MCP tool]\n  agent --> ctx[Context store: ClickHouse]\n  agent --> sched[Schedules: cron / calendar]\n  agent -.runs on.-> dur[Durable Execution]\n  dur -.powered by.-> temporal[Temporal + Kubernetes]\n  fail[Crash / restart] -.replay.-> agent",
+      "members": [
+        {
+          "pattern": "agent-resumption",
+          "role": "first-class",
+          "note": "Durable Execution lets Restack agents run for months, handling errors, retries, and interruptions automatically.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack architecture - durable execution",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "Durable Execution: Agents can run for months, handling errors, retries, and interruptions automatically.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Restack workflows - long horizon",
+              "url": "https://docs.restack.io/features/workflows",
+              "quote": "Build AI applications with a system capable of coordinating steps like calling models, making API requests, and executing logic, all while maintaining state over weeks or even months reliably.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "role": "supported",
+          "note": "Workflows can be scheduled from agents or other workflows; Restack exposes webhooks. No verbatim quote on event-driven agent triggers in the pages successfully fetched; honest downgrade from first-class.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack workflows - schedule from agents",
+              "url": "https://docs.restack.io/features/workflows",
+              "quote": "Agents can call workflows.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "role": "first-class",
+          "note": "Restack has a dedicated Schedules feature for workflows, agents, and functions; workflows can also be scheduled programmatically via `scheduleWorkflow`.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack workflows - scheduleWorkflow",
+              "url": "https://docs.restack.io/features/workflows",
+              "quote": "Any client can schedule the workflow to run.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Restack llms.txt - schedules feature",
+              "url": "https://docs.restack.io/llms.txt",
+              "quote": "Schedule workflows, agents, and functions with calendars and cron jobs",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "step-budget",
+          "role": "supported",
+          "note": "Workflows compose via the `step` primitive but no explicit step-budget cap is documented in the pages fetched; honest downgrade from first-class.",
+          "evidence": [],
+          "evidence_status": "none"
+        },
+        {
+          "pattern": "supervisor",
+          "role": "supported",
+          "note": "Workflows orchestrate functions and can call sub-workflows from an agent. No explicit router/supervisor primitive equivalent to AgentKit's was found on fetched pages; honest downgrade from first-class.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack workflows - workflow orchestration",
+              "url": "https://docs.restack.io/features/workflows",
+              "quote": "The workflow resides in a separate file using the step primitive to orchestrate the functions.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "tool-use",
+          "role": "first-class",
+          "note": "MCP is the default tool surface; Python functions are exposed as tools the agent can call.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack architecture - MCP",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "MCP Out of the Box: Restack uses the Model Context Protocol to expose Python functions as tools the agent can use.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "mcp",
+          "role": "first-class",
+          "note": "MCP is the integration mechanism: Restack uses MCP to expose Python functions as agent tools.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack architecture - integrations",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "Standard Python with MCP. Engineers build any integration using standard Python.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Restack architecture - MCP exposure",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "Restack uses the Model Context Protocol to expose Python functions as tools the agent can use.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "role": "first-class",
+          "note": "Built on Temporal and Kubernetes; Durable Execution is the marquee infrastructure property.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Restack architecture - infrastructure",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "Powered by Kubernetes and Temporal. Built for agents that run for weeks or months.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Restack architecture - no DevOps",
+              "url": "https://docs.restack.io/architecture",
+              "quote": "Restack manages all infrastructure and upgrades. No DevOps team required.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "temporal",
+          "relation": "wraps",
+          "note": "Restack runs on Temporal under the hood and adds an agent-shaped product layer, ClickHouse context, and a UI."
+        },
+        {
+          "composition": "inngest-agentkit",
+          "relation": "competes-with",
+          "note": "Peer durable-agent framework; AgentKit uses Inngest, Restack uses Temporal."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Restack architecture",
+          "url": "https://docs.restack.io/architecture",
+          "quote": "Powered by Kubernetes and Temporal. Built for agents that run for weeks or months.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Restack workflows feature",
+          "url": "https://docs.restack.io/features/workflows",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "restackio organisation",
+          "url": "https://github.com/restackio",
+          "quote": "The backend framework for accurate & reliable AI products",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "tags": [
+        "durable-execution",
+        "temporal-based",
+        "kubernetes",
+        "mcp",
+        "enterprise"
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "partial",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "emerging"
+    },
+    {
+      "id": "temporal",
+      "name": "Temporal",
+      "kind": "framework",
+      "category": "workflow-engine",
+      "vendor": "Temporal Technologies",
+      "language": "Go, Java, Python, TypeScript, .NET, PHP, Ruby",
+      "license": "MIT",
+      "status": "active",
+      "first_released": "2019-10-16",
+      "url": "https://temporal.io/",
+      "repo": "https://github.com/temporalio/temporal",
+      "docs_url": "https://docs.temporal.io/",
+      "intent": "Open-source durable-execution platform whose Workflows survive crashes, restarts, and infrastructure outages by replaying an event-sourced history; increasingly adopted as the substrate for long-running AI agents.",
+      "description": "Temporal is a durable-execution platform originating as a fork of Uber's Cadence and built by Temporal Technologies. The server (Go) coordinates workflows and activities; SDKs in Go, Java, Python, TypeScript, .NET, PHP, and Ruby let developers write Workflow Definitions (deterministic functions) that invoke Activities (idempotent side-effecting functions). The Temporal Service persists every command and event in a per-workflow Event History; when a Worker crashes or restarts, Temporal replays the history to reconstruct in-memory state and continues from the last unfinished step. Signals, Queries, Updates, Schedules, Retry Policies, and the Saga compensation pattern are first-class primitives. Agent frameworks adopt Temporal to make agent loops crash-proof.",
+      "primary_use_cases": [
+        "durable workflows for long-running, fault-tolerant business processes",
+        "AI-agent backbones with crash-proof tool loops",
+        "saga / compensation across distributed services",
+        "scheduled and signal-driven recurring jobs"
+      ],
+      "agent_loop_shape": "Workflow-as-code with deterministic replay. The agent loop is written as a Workflow Definition; each model call, tool call, or side effect runs as an Activity with built-in retries and timeouts. The Workflow's Event History is the source of truth: on Worker restart Temporal replays history step by step to rebuild the in-memory state, then resumes execution. Signals drive asynchronous inputs (user messages, approvals); Updates handle synchronous request/response; Queries inspect state without changing it; Schedules trigger periodic runs; Saga lists of compensating Activities roll back on failure.",
+      "key_concepts": [
+        {
+          "name": "Workflow",
+          "summary": "Deterministic code defining a sequence of steps; the Event History is replayed to reconstruct state.",
+          "maps_to_pattern": "durable-workflow-snapshot",
+          "url": "https://docs.temporal.io/workflows"
+        },
+        {
+          "name": "Activity",
+          "summary": "Normal function executing a single well-defined action; auto-retried, can be non-deterministic, should be idempotent.",
+          "maps_to_pattern": "tool-use",
+          "url": "https://docs.temporal.io/activities"
+        },
+        {
+          "name": "Signal / Query / Update",
+          "summary": "Asynchronous writes, read-only inspections, and synchronous tracked writes against a running Workflow.",
+          "maps_to_pattern": "event-driven-agent",
+          "url": "https://docs.temporal.io/encyclopedia/workflow-message-passing"
+        },
+        {
+          "name": "Retry Policy",
+          "summary": "Declarative retry settings on Activities and Workflows; Activities retry by default.",
+          "maps_to_pattern": "fallback-chain",
+          "url": "https://docs.temporal.io/encyclopedia/retry-policies"
+        },
+        {
+          "name": "Saga / Compensation",
+          "summary": "Maintain a list of compensating Activities, executed in reverse on failure.",
+          "maps_to_pattern": "compensating-action",
+          "url": "https://docs.temporal.io/develop/python/failure-detection"
+        },
+        {
+          "name": "Schedule",
+          "summary": "Periodic / cron triggers for Workflow Executions.",
+          "maps_to_pattern": "scheduled-agent"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  user[Agent / business code] --> wf[Workflow Definition]\n  wf --> act[Activity calls]\n  act --> ext[LLM / tool / API]\n  act --> retry{Activity failure?}\n  retry -->|yes| policy[Retry Policy]\n  policy --> act\n  retry -->|no| hist[Event History append]\n  wf --> sig[Signal / Update inbox]\n  sig --> hist\n  wf --> q[Query read-only]\n  hist --> persist[Temporal Service persists]\n  crash[Worker crash] -.replay.-> wf\n  saga[Saga compensations] -.on failure.-> reverse[Execute in reverse order]\n  sched[Schedule] -.triggers.-> wf",
+      "members": [
+        {
+          "pattern": "agent-resumption",
+          "role": "first-class",
+          "note": "Workflows pick up exactly where they left off; the engine replays Event History to reconstruct state.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal home - durable execution",
+              "url": "https://temporal.io/",
+              "quote": "Temporal Workflows automatically capture state at every step, and in the event of failure, can pick up exactly where they left off.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal workflows - replay",
+              "url": "https://docs.temporal.io/workflows",
+              "quote": "Temporal doesn't restore memory from a snapshot. It starts the Workflow code from the beginning, replays the Event History step by step.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "compensating-action",
+          "role": "first-class",
+          "note": "Saga pattern documented as a list of compensating Activities executed in reverse order on failure.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal saga - definition",
+              "url": "https://docs.temporal.io/develop/python/failure-detection",
+              "quote": "The Saga pattern coordinates a sequence of operations where each operation has a compensating action to undo its effects.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal saga - reverse order",
+              "url": "https://docs.temporal.io/develop/python/failure-detection",
+              "quote": "Execute compensating actions in reverse order to roll back previous operations.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "role": "first-class",
+          "note": "Signals (async writes), Updates (sync tracked writes), and Queries (reads) drive running Workflows.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal message-passing - Signals",
+              "url": "https://docs.temporal.io/encyclopedia/workflow-message-passing",
+              "quote": "Signals are asynchronous write requests. They cause changes in the running Workflow, but you cannot await any response or error.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal message-passing - Updates",
+              "url": "https://docs.temporal.io/encyclopedia/workflow-message-passing",
+              "quote": "Updates are synchronous, tracked write requests. The sender of the Update can wait for a response on completion or an error on failure.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "fallback-chain",
+          "role": "first-class",
+          "note": "Activities retry by default per a declarative Retry Policy; failures fall through retry intervals before surfacing.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal retry-policies - definition",
+              "url": "https://docs.temporal.io/encyclopedia/retry-policies",
+              "quote": "A Retry Policy is a collection of settings that tells Temporal how and when to try again after something fails in a Workflow Execution or Activity Task Execution.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal retry-policies - default activity retries",
+              "url": "https://docs.temporal.io/encyclopedia/retry-policies",
+              "quote": "Temporal's default behavior is to automatically retry an Activity that fails, so transient or intermittent failures require no action on your part.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "role": "limited",
+          "note": "Temporal provides the substrate for replanning (Workflows can catch Activity failures and pick a new branch) but does not prescribe a replanning algorithm. Honest limited.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal retry-policies - non-retryable",
+              "url": "https://docs.temporal.io/encyclopedia/retry-policies",
+              "quote": "Non-Retryable Errors specify errors that shouldn't be retried.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "scheduled-agent",
+          "role": "first-class",
+          "note": "Temporal Schedules are a first-class primitive for periodic / cron-driven Workflow Executions.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal docs - SDK list",
+              "url": "https://docs.temporal.io/encyclopedia/temporal-sdks",
+              "quote": "Despite supporting multiple languages, and supporting many features, Temporal SDKs aim to make developers feel at home in their language.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal home - state and timers",
+              "url": "https://temporal.io/",
+              "quote": "The Temporal Service persists the state of your application and has built-in retries, task queues, signals, and timers",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "session-isolation",
+          "role": "first-class",
+          "note": "Each Workflow Execution has its own Event History and runs in isolation from other executions; Workers process tasks per task queue.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal workflows - history per execution",
+              "url": "https://docs.temporal.io/workflows",
+              "quote": "Each Workflow Execution emits a series of Commands and processes a sequence of Events, which are recorded in an Event History.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "step-budget",
+          "role": "supported",
+          "note": "Activity timeouts and retry caps (max attempts, max interval) function as per-step budgets; the engine does not surface a global step-count budget. Honest supported.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal home - timeouts and retries",
+              "url": "https://temporal.io/",
+              "quote": "Activities have built-in support for timeouts and retries!",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "tool-use",
+          "role": "first-class",
+          "note": "Activities are the tool-use primitive: idempotent functions that call out to models, APIs, databases, MCP servers, etc.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal activities - definition",
+              "url": "https://docs.temporal.io/activities",
+              "quote": "An Activity is a normal function or method that executes a single, well-defined action (either short or long running)",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal home - activities as interactions",
+              "url": "https://temporal.io/",
+              "quote": "Temporal treats these interactions as Activities: functions that retry automatically and recover seamlessly.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "role": "first-class",
+          "note": "Event-sourced Workflow with deterministic replay is the headline feature.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Temporal workflows - deterministic",
+              "url": "https://docs.temporal.io/workflows",
+              "quote": "It has to make the same decisions when given the same history, which makes a Workflow deterministic.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Temporal workflows - history as source of truth",
+              "url": "https://docs.temporal.io/workflows",
+              "quote": "This history is the source of truth for everything that happens in the Workflow.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "restack",
+          "relation": "wrapped-by",
+          "note": "Restack is a managed agent platform built on top of Temporal."
+        },
+        {
+          "composition": "inngest-agentkit",
+          "relation": "competes-with",
+          "note": "AgentKit on Inngest is a TS-only peer durable-execution stack."
+        },
+        {
+          "composition": "modal",
+          "relation": "complements",
+          "note": "Modal supplies sandboxed compute; Temporal supplies the durable control plane."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Temporal homepage",
+          "url": "https://temporal.io/",
+          "quote": "Build applications that never lose state, even when everything else fails.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Temporal documentation",
+          "url": "https://docs.temporal.io/",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "temporalio/temporal",
+          "url": "https://github.com/temporalio/temporal",
+          "quote": "Temporal is a durable execution platform that enables developers to build scalable applications without sacrificing productivity or reliability.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Temporal home - durable AI agents",
+          "url": "https://temporal.io/",
+          "quote": "Develop agents that survive real-world chaos, reliable MCP & orchestrate training pipelines.",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "tags": [
+        "open-source",
+        "durable-execution",
+        "event-sourced",
+        "polyglot-sdks",
+        "saga"
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "verified",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "mature"
+    }
+  ]
+}

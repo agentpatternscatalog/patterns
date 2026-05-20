@@ -76,7 +76,97 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  S[Ship agent] --> U[User reports bug]\n  U --> R{Look at trace?}\n  R -- no traces exist --> X[Reproduce from vague timeline]\n  X --> F[Fail to explain]\n  F --> N[Next incident]\n  R -.fix anti-pattern.-> P[Add provenance + decision log]\n  P --> OK[Debuggable]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "errors-swept-under-the-rug",
+      "name": "Errors Swept Under the Rug",
+      "aliases": [
+        "Error Hiding",
+        "Failure Erasure",
+        "Clean Trace Anti-Pattern"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: scrub failed actions, stack traces, and error observations from the agent's own context so the trace looks clean, leaving the model with no evidence of what did not work.",
+      "context": "Agents that take many actions per task accumulate failures; teams tidy the transcript so prompts stay short, or retry silently, or replace failed tool outputs with placeholders.",
+      "problem": "Hiding the failure deletes the very signal the model would use to update its beliefs and stop repeating the same mistake. The agent then re-attempts the failed action, sometimes in a loop, because nothing in its context contradicts the choice.",
+      "forces": [
+        "Failed turns inflate context length and look untidy in transcripts.",
+        "Retries are easier to log as a single clean event than as fail-then-retry.",
+        "Models are sensitive to recency and adapt when they see the wrong turn explicitly.",
+        "Compliance reviewers may misread visible errors as system bugs rather than agent learning."
+      ],
+      "therefore": "Therefore: keep failed actions, stack traces, and rejection messages in the agent's own context as first-class observations, so that the model has the evidence it needs to update its beliefs and avoid repeating the failed path.",
+      "solution": "Don't. Treat failure observations as load-bearing context, not noise. Preserve stack traces, tool-error returns, and rejection messages in the agent's running transcript. Compress only after the run is done, not mid-loop. See decision-log and provenance-ledger for keeping the audit trail separate from the working context.",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "Agent repeats the same failed action because no evidence of failure persists.",
+          "Loop-detection heuristics misfire because the surface trace looks like progress.",
+          "Post-incident analysis cannot distinguish a clean run from a salvaged run."
+        ]
+      },
+      "constrains": "By definition, this anti-pattern imposes no useful constraint; the missing constraint — that failure observations must remain in context — is the failure mode.",
+      "known_uses": [
+        {
+          "system": "Manus (named as a deliberate design rejection)",
+          "note": "Manus's context engineering essay explicitly argues against hiding failed actions; the team leaves wrong turns in context so the model updates its internal beliefs.",
+          "status": "available",
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "decision-log",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "provenance-ledger",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "unbounded-loop",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Context Engineering for AI Agents — Lessons from Building Manus",
+          "authors": "Yichao 'Peak' Ji",
+          "year": 2025,
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        }
+      ],
+      "status_in_practice": "deprecated",
+      "tags": [
+        "anti-pattern",
+        "safety-control",
+        "context-engineering",
+        "manus"
+      ],
+      "applicability": {
+        "use_when": [
+          "Never. Hiding errors removes the signal the model needs to adapt.",
+          "Read this entry as a warning, then preserve failure observations in the agent's running context.",
+          "Compress only at run boundaries, not mid-loop."
+        ],
+        "do_not_use_when": [
+          "Always do not use. There is no scenario in which scrubbing failure evidence from the agent's own context helps the agent.",
+          "Cosmetic transcript cleanliness is not a reason to delete failure observations — separate the audit trail from working context instead."
+        ]
+      },
+      "example_scenario": "An ops agent calls a deployment tool that fails with a 500. The wrapper catches the error, replaces the failed observation with a generic 'retrying...' string, and lets the agent try again. The agent retries the same call eight times because the context shows eight clean attempts in progress and no evidence that anything is wrong. The team flips the policy: the failed response body, status code, and stack trace are inserted verbatim into the agent's transcript. On the next run the agent reads the 500, switches to the documented fallback endpoint, and succeeds in two steps.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[Agent calls tool] --> R{Result}\n  R -- success --> K[Keep going]\n  R -- failure --> H[Hide error, swap in placeholder]\n  H --> RT[Retry same action]\n  RT --> H\n  H -.fix.-> KE[Keep failure observation in context]\n  KE --> UB[Model updates beliefs]\n  UB --> AL[Tries alternative path]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hallucinated-citations",
@@ -118,6 +208,10 @@
         {
           "pattern": "naive-rag",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "citation-attribution",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -150,7 +244,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  M[Model emits free-text citation] --> T{Trust as-is?}\n  T -- yes anti-pattern --> F[Fabricated URL ships to user]\n  F --> Lose[Trust damage / retraction]\n  T -.fix.-> R[Wire citations to retrieved-source ids]\n  R --> V[Validate URLs before display]\n  V --> OK[Citation grounded]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hallucinated-tools",
@@ -223,7 +318,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  M[Model proposes tool call] --> Tr{Trust the name?}\n  Tr -- yes anti-pattern --> Dispatch[Dispatch to nonexistent function]\n  Dispatch --> Crash[Runtime error / silent skip]\n  Tr -.fix.-> Val[Validate against registered palette]\n  Val --> Ok{Known name?}\n  Ok -- yes --> Run[Run tool]\n  Ok -- no --> Rej[Reject with typed error]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hero-agent",
@@ -316,7 +412,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  P[Single giant prompt] --> H[Hero agent]\n  H --> T1[Tool 1]\n  H --> T2[Tool 2]\n  H --> Tn[Tool ...N]\n  Tn -.too many.-> Bug[Prompt + tool soup]\n  Bug -.fix.-> R[Extract specialists]\n  R --> Route[Routing / supervisor / multi-model-routing]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hidden-mode-switching",
@@ -396,7 +493,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Request] --> Sw{Silent model swap?}\n  Sw -- yes anti-pattern --> M1[Sometimes Opus]\n  Sw -- yes anti-pattern --> M2[Sometimes Haiku]\n  M1 --> User[User cannot tell which]\n  M2 --> User\n  User --> Conf[Inconsistent UX, no recourse]\n  Sw -.fix.-> Disc[Disclose model id per response]\n  Disc --> Insp[Inspectable routing decisions]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "infinite-debate",
@@ -479,7 +577,111 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Launch multi-agent debate] --> R1[Round 1]\n  R1 --> R2[Round 2]\n  R2 --> R3[Round 3]\n  R3 --> Rn[Round ...N forever]\n  Rn -.no termination rule.-> Burn[Token + latency burn]\n  Rn -.fix.-> Cap[Add round cap]\n  Cap --> Pred[Termination predicate]\n  Pred --> Judge[Judge / aggregator decides]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "json-only-action-schema",
+      "name": "JSON-Only Action Schema",
+      "aliases": [
+        "JSON-Dict Tool Calls Only",
+        "No Code-as-Action",
+        "Function-Argument JSON as Action Language"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: restrict the agent's action language to JSON tool-call dictionaries even for tasks where code-as-action (functions composing, loops, conditionals over results) would be the natural shape.",
+      "context": "Agent frameworks that standardised on the function-calling JSON contract and never reconsidered when tasks grew to need step nesting, intermediate variables, or local reductions over tool outputs.",
+      "problem": "JSON tool calls express one action per turn with flat arguments; expressing a loop, a conditional over an intermediate result, or a reuse of one tool's output as another tool's argument requires unrolling into many turns and re-shipping intermediate state through the model. Composability, object handling, and generality suffer.",
+      "forces": [
+        "JSON tool calls are the dominant industry contract and the easiest to log, validate, and rate-limit.",
+        "Code-as-action requires a sandboxed interpreter (Python, JS) with its own security envelope.",
+        "Multiple papers (Executable Code Actions Elicit Better LLM Agents; CodeAct) report that LLMs solve composition-heavy tasks better when allowed to emit code.",
+        "Code is over-represented in LLM training corpora compared to JSON tool-call traces."
+      ],
+      "therefore": "Therefore: when tasks demand nesting, intermediate variables, or local reductions over tool outputs, let the agent emit code that calls tools as functions, so that composability is expressed in the action language rather than unrolled across many turns.",
+      "solution": "Don't insist on JSON-only when the task needs composition. For composition-heavy work, swap to code-as-action: expose tools as ordinary functions in a sandboxed interpreter and let the agent write the glue. Keep JSON for simple one-tool one-arg actions where the contract genuinely fits. See code-as-action, agent-computer-interface, sandbox-isolation.",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "Nesting, loops, and conditionals get unrolled into many turns, multiplying tokens.",
+          "Intermediate objects (images, data frames, structured returns) round-trip through the model as strings.",
+          "Tasks that would be one code snippet become many turns of state passing.",
+          "The action language is further from the LLM's training distribution than code."
+        ]
+      },
+      "constrains": "By definition, this anti-pattern imposes no useful constraint; the JSON-only restriction is itself the failure when composition is needed.",
+      "known_uses": [
+        {
+          "system": "smolagents (named as a deliberate design rejection)",
+          "note": "smolagents documents JSON tool-calling as the industry default it explicitly rejects in favour of code-as-action; the docs cite three research papers in support.",
+          "status": "available",
+          "url": "https://huggingface.co/docs/smolagents/tutorials/secure_code_execution"
+        },
+        {
+          "system": "Hugging Face Transformers Agents (ReactCodeAgent)",
+          "note": "Same family — code-as-action is preferred over JSON-only.",
+          "status": "available",
+          "url": "https://huggingface.co/docs/transformers/v4.47.1/agents_advanced"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "code-as-action",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-computer-interface",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "smolagents — Secure code execution",
+          "authors": "Hugging Face",
+          "url": "https://huggingface.co/docs/smolagents/tutorials/secure_code_execution"
+        },
+        {
+          "type": "paper",
+          "title": "Executable Code Actions Elicit Better LLM Agents (CodeAct)",
+          "authors": "Wang et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2402.01030"
+        }
+      ],
+      "status_in_practice": "deprecated",
+      "tags": [
+        "anti-pattern",
+        "tool-use",
+        "code-as-action",
+        "smolagents"
+      ],
+      "applicability": {
+        "use_when": [
+          "Never as the default. JSON-only is fine for narrow one-tool-per-turn flows; declare that scope explicitly.",
+          "If the task needs nesting, conditionals, or reuse of intermediate results, switch to code-as-action.",
+          "Pair code-as-action with sandbox-isolation; the sandbox is the new security envelope."
+        ],
+        "do_not_use_when": [
+          "The task is composition-heavy (data wrangling, multi-tool reductions, conditional branching over results).",
+          "Tools return rich objects (images, frames, structured records) that should not be serialised through the model.",
+          "Token cost and turn count are constrained — code-as-action collapses many turns into one."
+        ]
+      },
+      "example_scenario": "A data-investigation agent has tools for query, transform, and chart. Under JSON-only it must call query, return the rows as a JSON blob through the model, call transform with that blob inlined, return another blob, then call chart. Token cost is dominated by the round-tripped tables; latency is dominated by turn count. The team switches to code-as-action: tools are exposed as Python functions, the agent writes a five-line script that pipes query into transform into chart, the interpreter executes it, and the agent receives the chart object back. One turn replaces five.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  T[Composition-heavy task] --> J{Action language?}\n  J -- JSON only --> T1[Turn 1: call A]\n  T1 --> T2[Round-trip result]\n  T2 --> T3[Turn 2: call B with inlined result]\n  T3 --> Tn[...many turns...]\n  J -- code-as-action --> Code[Agent emits code]\n  Code --> Run[Sandbox runs script]\n  Run --> One[Return composed result in one turn]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "memo-as-source-confusion",
@@ -570,7 +772,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Need claim about artifact] --> M{Read memo or artifact?}\n  M -- memo only anti-pattern --> Stale[Cite stale summary as truth]\n  Stale --> Drift[Accumulated false confidence]\n  M -.fix.-> Art[Read artifact in same tick]\n  Art --> Cmp{Memo agrees?}\n  Cmp -- no --> Re[Rewrite memo from artifact]\n  Cmp -- yes --> Tag[Tag with verification timestamp]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "naive-rag-first",
@@ -650,7 +853,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[New knowledge need] --> X{Where does it live?}\n  X -->|tool / DB / API| T[Use tool-use]\n  X -->|small + stable| P[Inline in system prompt]\n  X -->|truly external + large| R[Use naive-rag]\n  X -.skipped check.-> AP[Anti-pattern: RAG by default]\n  AP -.causes.-> Bloat[Index sprawl & latency]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "perma-beta",
@@ -728,7 +932,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']\n  V1 --> V2[v2 still 'beta']\n  V2 -.no eval gate.-> Reg[Quality regressions]\n  Reg -.blamed on.-> Users[Users]\n  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "prompt-bloat",
@@ -810,7 +1015,99 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  Bug1[Bug fix 1] -->|+sentence| P[System prompt]\n  Bug2[Bug fix 2] -->|+sentence| P\n  Bug3[Bug fix 3] -->|+sentence| P\n  P -->|never pruned| Bloat[Bloated prompt]\n  Bloat -.fix.-> Treat[Treat prompt as code:<br/>review, eval gate, prune]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "role-typed-subagents",
+      "name": "Role-Typed Subagents",
+      "aliases": [
+        "Predefined-Role Multi-Agent",
+        "Manager-Coder-Designer Layout",
+        "Fixed-Role Crew"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: pre-allocate roles (manager, coder, designer, researcher) across a fixed set of typed sub-agents and route tasks to them by role label.",
+      "context": "Multi-agent designs where the architect decides up-front which roles exist and assigns each sub-agent a narrow system prompt and tool palette tied to that role.",
+      "problem": "The fixed role table constrains the system to whatever decomposition the architect anticipated; tasks that do not fit a named role are forced into the closest one, and capability-equal parallelism (running many full-capability instances against the same task) is structurally unavailable.",
+      "forces": [
+        "Role labels make the architecture diagrammable and look like sound separation of concerns.",
+        "Cheaper per-call specialised prompts can outperform a single generalist on narrow tasks.",
+        "Real workloads do not partition cleanly into the roles named in advance.",
+        "Capability-equal fan-out (clone-fan-out-research) requires general-purpose sub-agents, which a typed role table forbids."
+      ],
+      "therefore": "Therefore: prefer general-purpose sub-agents with the full tool palette over a fixed role table, so that the system can decompose tasks the architect did not anticipate and can run capability-equal parallel instances against the same subtask.",
+      "solution": "Don't bake role types into the architecture. Use one general-purpose sub-agent shape with the full tool palette and let the orchestrator route by task content, not role label. When specialisation pays, scope it per-call (system-prompt overlay, tool subset for this task) rather than per-agent-type. For wide tasks, prefer capability-equal fan-out over typed crews. See clone-fan-out-research, role-assignment (the valid form: per-call persona, not per-agent type), supervisor.",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "Tasks outside the foreseen role table get squeezed into the nearest label.",
+          "Capability-equal parallelism is impossible by construction.",
+          "Adding a new role requires re-architecting rather than parameter changes.",
+          "The role labels invite team boundaries (the coder agent's team, the designer agent's team) that ossify the system."
+        ]
+      },
+      "constrains": "By definition, this anti-pattern imposes no useful constraint; the constraint it adds — fixed role membership — forbids capability-equal parallelism and tasks outside the anticipated role table.",
+      "known_uses": [
+        {
+          "system": "Manus Wide Research (named as a deliberate design rejection)",
+          "note": "Manus contrasts Wide Research with traditional predefined-roles multi-agent systems; every Wide Research sub-agent is a fully capable, general-purpose Manus instance.",
+          "status": "available",
+          "url": "https://manus.im/blog/introducing-wide-research"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "clone-fan-out-research",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Introducing Wide Research",
+          "authors": "Manus",
+          "year": 2025,
+          "url": "https://manus.im/blog/introducing-wide-research"
+        }
+      ],
+      "status_in_practice": "deprecated",
+      "tags": [
+        "anti-pattern",
+        "multi-agent",
+        "role-typing",
+        "manus"
+      ],
+      "applicability": {
+        "use_when": [
+          "Never as the architectural backbone; role labels are not a free lunch.",
+          "Treat persona prompts as per-call overlays on general-purpose sub-agents, not as a fixed agent typology.",
+          "When tempted to add a new typed sub-agent, ask first whether a general-purpose sub-agent with a per-call overlay would do."
+        ],
+        "do_not_use_when": [
+          "The task space is well-understood and stable across roles — even then, per-call overlays beat baked-in role types.",
+          "Capability-equal parallelism (many identical agents working in parallel) is on the roadmap.",
+          "The architecture is expected to grow new task shapes over time."
+        ]
+      },
+      "example_scenario": "A team builds a multi-agent product with manager, researcher, coder, and designer sub-agents, each with its own tightly scoped tool palette. A new task type — multilingual marketing copy with light data analysis — fits none of the roles, so it is forced into the researcher role and underperforms. The team rewrites the system: one general-purpose sub-agent shape with the full tool palette, and a per-call system-prompt overlay when specialisation pays. The marketing task now succeeds; a later wide-research task fans out twenty capability-equal instances against the same prompt, which the typed crew could not have done.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  T[Task] --> R{Role table}\n  R -->|manager| M[Manager-agent]\n  R -->|coder| C[Coder-agent]\n  R -->|designer| D[Designer-agent]\n  R -->|unmapped| Sqz[Squeezed into nearest role]\n  Sqz --> Bad[Underperforms]\n  R -.fix.-> GP[General-purpose sub-agent]\n  GP --> Many[Many capability-equal instances]\n  GP --> Overlay[Per-call persona overlay when useful]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "same-model-self-critique",
@@ -903,7 +1200,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  M[Same model] -->|produces| A[Answer]\n  M -->|critiques| A\n  A -.shared blind spots.-> Illusion[Illusion of independence]\n  Illusion -.fix.-> Diff[Use different model family<br/>or accept surface-only]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "schema-free-output",
@@ -985,7 +1283,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  M[LLM] -->|free-form text| Pr[Ad-hoc parser]\n  Pr -.brittle.-> Fail[Downstream breakage]\n  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "tool-explosion",
@@ -1037,6 +1336,10 @@
         {
           "pattern": "mcp-as-code-api",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "tool-loadout-hotswap",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1074,7 +1377,99 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Reg[Tool registry: 80+ tools] --> Exp[Expose ALL to model]\n  Exp --> Pick[Model picks tool]\n  Pick -.>20 tools.-> Wrong[Wrong tool / wrong args]\n  Wrong --> Drop[Accuracy collapse]\n  Exp -.fix.-> LO[tool-loadout: pick per-task subset]\n  LO --> Cap[Cap exposed set at tested threshold]\n  Cap --> OK[Stable selection accuracy]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "tool-loadout-hotswap",
+      "name": "Tool Loadout Hot-Swap",
+      "aliases": [
+        "Mid-Run Tool Set Mutation",
+        "Dynamic Tool Definitions Mid-Iteration",
+        "Reshuffling Tools During a Task"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: add or remove tool definitions during a running task so the tool set the model sees changes from turn to turn.",
+      "context": "Agent frameworks that grow their tool palette dynamically — exposing new MCP servers mid-run, removing tools as conditions change, or swapping the registry between iterations.",
+      "problem": "Mutating tool definitions mid-run invalidates the KV-cache for everything after the change and leaves the model uncertain which tools it can still call; recent turns may reference tools no longer present, or tools the model has not yet been told about, causing hallucinated calls and broken composition.",
+      "forces": [
+        "Tool palettes feel like they should grow with the task as new affordances become relevant.",
+        "Removing tools mid-run looks like good hygiene against tool-explosion.",
+        "Modern LLM serving relies on prefix KV-cache reuse; any change above the cursor invalidates it.",
+        "The model conditions on the system message and earlier turns; redefining tools makes those conditioning tokens contradict the present state."
+      ],
+      "therefore": "Therefore: keep the tool definitions stable across the run and constrain availability by masking token logits during decoding, so that KV-cache reuse is preserved and the model is never asked to reason against a moving tool registry.",
+      "solution": "Don't mutate tool definitions mid-task. Define the tool palette once at the start of a run and keep it stable. To constrain what the model is allowed to call in a given state, mask the corresponding tool-name token logits during decoding (or use response prefill) instead of removing the tool. See tool-loadout (pick the subset at run start, not mid-run), tool-search-lazy-loading (discover tools without redefining the registry), prompt-caching (KV-cache reuse depends on stable prefixes).",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "KV-cache is invalidated for all subsequent actions and observations, raising latency and cost.",
+          "The model may emit calls to tools that have just been removed or that did not exist at earlier turns.",
+          "Conditioning tokens from earlier turns now contradict the present tool registry.",
+          "Debugging traces is harder because the apparent tool set changes within a single run."
+        ]
+      },
+      "constrains": "By definition, this anti-pattern imposes no useful constraint; the missing rule — tool definitions must not change mid-run — is itself the failure mode.",
+      "known_uses": [
+        {
+          "system": "Manus (named as a deliberate design rejection)",
+          "note": "Manus's context engineering essay states explicitly that dynamic mid-iteration tool additions or removals invalidate KV-cache and confuse the model; Manus uses logit masking via response prefill instead.",
+          "status": "available",
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-loadout",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "tool-search-lazy-loading",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "prompt-caching",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-explosion",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Context Engineering for AI Agents — Lessons from Building Manus",
+          "authors": "Yichao 'Peak' Ji",
+          "year": 2025,
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        }
+      ],
+      "status_in_practice": "deprecated",
+      "tags": [
+        "anti-pattern",
+        "tool-use",
+        "kv-cache",
+        "manus"
+      ],
+      "applicability": {
+        "use_when": [
+          "Never. The combination of cache invalidation and contradicted conditioning is not worth the apparent flexibility.",
+          "Pick the tool loadout at run start (tool-loadout) and keep it stable across the run.",
+          "Constrain availability by masking logits during decoding, not by mutating the registry."
+        ],
+        "do_not_use_when": [
+          "Prefix KV-caching is in use — and in any serious deployment it is.",
+          "The agent reasons in chains that reference earlier tool decisions.",
+          "Observability requires a stable tool registry per run."
+        ]
+      },
+      "example_scenario": "A research agent dynamically attaches MCP servers as new domains become relevant during a long-running task. Each attachment redefines the tool list mid-run; KV-cache hit rate drops to near zero and per-step latency triples. Worse, the agent occasionally tries to call a tool that was just unmounted, because earlier turns referenced it. The team switches to a stable loadout for the whole run plus logit masking to constrain which tools are callable in a given state. KV-cache reuse returns and the contradictory tool references disappear.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  S[Start of run] --> T1[Define tools v1]\n  T1 --> Step1[Step 1 with KV-cache hit]\n  Step1 --> Mut[Mid-run: redefine tools v2]\n  Mut --> Inv[KV-cache invalidated]\n  Inv --> Conf[Model references gone tools]\n  Mut -.fix.-> Stable[Stable tool definitions for whole run]\n  Stable --> Mask[Mask logits to constrain availability]\n  Mask --> Cache[KV-cache reuse preserved]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "tool-output-trusted-verbatim",
@@ -1156,7 +1551,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  T[Tool returns response] --> Tr{Trust verbatim?}\n  Tr -- yes anti-pattern --> Ing[Ingest into context as-is]\n  Ing --> Bad[200 OK errors / oversized blob /<br/>injected instructions / scripts]\n  Bad --> Mis[Agent misbehaves silently]\n  Tr -.fix.-> Val[Validate against schema]\n  Val --> Cap[Cap size + sanitise]\n  Cap --> Lab[Attach trust label]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "unbounded-loop",
@@ -1205,6 +1601,10 @@
         {
           "pattern": "rumination-agent",
           "relation": "conflicts-with"
+        },
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1237,7 +1637,8 @@
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Step\n  Step --> Tool: call tool\n  Tool --> Step: result\n  Step --> Step: model says 'not done'\n  Step --> Burn: no step cap (anti-pattern)\n  Burn --> Burn: loops forever\n  Step --> Done: step-budget hit (fix)\n  Step --> Done: stop-hook predicate true (fix)\n  Done --> [*]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "unbounded-subagent-spawn",
@@ -1325,7 +1726,108 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Root[Root request] --> Sup[Supervisor]\n  Sup --> A1[Sub-agent A]\n  Sup --> A2[Sub-agent B]\n  A1 --> A1a[Sub-sub-agent]\n  A1 --> A1b[Sub-sub-agent]\n  A2 --> A2a[Sub-sub-agent]\n  A1a --> A1aX[Sub-sub-sub-agent ...]\n  A1aX -.no global cap.-> Boom[Cost explosion]\n  Sup -.fix.-> GB[Global step budget across descendants]\n  GB --> FC[Cap fan-out per supervisor]\n  FC --> Trk[Track parent_run_id for inspectability]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "vendor-lock-in",
+      "name": "Vendor Lock-In",
+      "aliases": [
+        "Single-Provider Coupling",
+        "Hard-Coded Provider SDK",
+        "Provider-Specific Application Code"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: couple application code directly to one model provider's SDK, request shape, and proprietary features so that switching providers requires rewriting application code rather than swapping an adapter.",
+      "context": "LLM applications and agent frameworks built directly against a single vendor's SDK without a provider-agnostic abstraction.",
+      "problem": "Each provider has its own request schema, streaming semantics, tool-call format, and rate-limit behaviour. Application code that depends on one provider's shape cannot be redirected to another without invasive changes, and quality/cost trade-offs (multi-model-routing, provider-fallback) become impossible to evaluate.",
+      "forces": [
+        "Provider SDKs are richer than the lowest common denominator and expose useful proprietary features.",
+        "An abstraction layer adds maintenance cost and may lag behind upstream features.",
+        "Per-provider quirks (streaming chunks, tool-call shapes, rate-limit headers) are non-trivial to unify.",
+        "Switching providers for quality, cost, or compliance reasons is a normal lifecycle event, not a hypothetical."
+      ],
+      "therefore": "Therefore: code against a provider-agnostic interface (a unified language-model spec, a `provider/model` string router, or a thin adapter), so that swapping providers is a configuration change rather than a code rewrite.",
+      "solution": "Don't couple application code to one provider's surface. Use a provider-agnostic abstraction (Vercel AI SDK's language model spec, LiteLLM, Mastra's `provider/model` string, OpenAI-API-compatible adapters) and keep provider-specific extensions behind capability flags. Where a feature only exists on one provider, isolate it in a feature module rather than threading it through the agent loop. See provider-string-routing, provider-fallback, multi-model-routing.",
+      "consequences": {
+        "benefits": [],
+        "liabilities": [
+          "Provider outage forces the whole application offline.",
+          "Quality/cost evaluation against rival providers becomes a fork-and-rewrite project.",
+          "Compliance moves (regional providers, sovereign inference) require invasive rewrites.",
+          "Negotiating-leverage with the incumbent provider erodes over time."
+        ]
+      },
+      "constrains": "By definition, this anti-pattern imposes no useful constraint; the missing constraint — application code must not depend on provider-specific surface — is the failure mode.",
+      "known_uses": [
+        {
+          "system": "Vercel AI SDK (named as a deliberate design rejection)",
+          "note": "Vercel AI SDK explicitly frames its standardised language-model specification against vendor lock-in.",
+          "status": "available",
+          "url": "https://ai-sdk.dev/docs/foundations/providers-and-models"
+        },
+        {
+          "system": "LiteLLM",
+          "note": "OpenAI-compatible proxy across 100+ providers, marketed as the lock-in avoidance layer.",
+          "status": "available",
+          "url": "https://docs.litellm.ai/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "provider-string-routing",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "provider-fallback",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "sovereign-inference-stack",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mcp-bidirectional-bridge",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "Vercel AI SDK — Providers and Models",
+          "authors": "Vercel",
+          "url": "https://ai-sdk.dev/docs/foundations/providers-and-models"
+        }
+      ],
+      "status_in_practice": "deprecated",
+      "tags": [
+        "anti-pattern",
+        "routing-composition",
+        "provider-agnostic",
+        "vercel-ai-sdk"
+      ],
+      "applicability": {
+        "use_when": [
+          "Never as a deliberate choice. If you must bind to one provider for a feature, isolate the binding behind a feature module.",
+          "Treat the provider as a swappable adapter from the first commit; retrofitting an abstraction later is expensive.",
+          "Even one-provider deployments benefit from an adapter — outages and price changes do happen."
+        ],
+        "do_not_use_when": [
+          "The application is expected to live longer than one provider contract cycle (twelve to twenty-four months).",
+          "Compliance, cost, or quality may push the team to a different provider in future.",
+          "The application reads provider headers, error shapes, or rate-limit semantics directly — those will diverge."
+        ]
+      },
+      "example_scenario": "A startup builds its agent product against one provider's SDK, threading provider-specific objects through the agent loop and reading provider-specific error fields in retry logic. Two years later, the provider doubles per-token price and tightens rate limits; the team wants to fall back to a competitor for cheap traffic and keep the incumbent for hard tasks. The migration takes three months because tool-call shapes, streaming chunk formats, and error semantics are all wired into application code. They rebuild against a provider-agnostic adapter and a `provider/model` string router; the next vendor evaluation is a config change.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  App[Application code] --> SDK[Single-provider SDK]\n  SDK --> P1[Provider X]\n  P1 -. outage / price hike .-> Down[Forced offline / forced rewrite]\n  App -.fix.-> Adp[Provider-agnostic adapter]\n  Adp --> R{Route on provider/model string}\n  R --> P1b[Provider X]\n  R --> P2[Provider Y]\n  R --> P3[Provider Z]"
+      },
+      "last_updated": "2026-05-20"
     }
   ]
 }

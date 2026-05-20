@@ -3,6 +3,119 @@
   "label": "Multi-Agent",
   "patterns": [
     {
+      "id": "actor-model-agents",
+      "name": "Actor-Model Agents",
+      "aliases": [
+        "Actor Agents",
+        "Mailbox Agents",
+        "Message-Passing Agents"
+      ],
+      "category": "multi-agent",
+      "intent": "Implement each agent as an independent actor with its own mailbox, processing asynchronous messages one at a time and never sharing mutable state with peers.",
+      "context": "Multi-agent systems where agents must run concurrently, communicate without a central conversational chair, and survive partial failures of peers.",
+      "problem": "Request/response conversational shape couples agents tightly to a single thread of control; shared mutable state across agents invites race conditions and makes failure containment hard.",
+      "forces": [
+        "Concurrency and asynchrony are natural to agent systems but hostile to shared-state programming.",
+        "Actor-style isolation makes per-agent failure containment straightforward.",
+        "Sequential conversations are easier to reason about than concurrent mailboxes — but they do not scale to many agents.",
+        "A mailbox queue per agent costs memory and needs back-pressure rules."
+      ],
+      "therefore": "Therefore: give each agent a mailbox, process its messages one at a time, and forbid shared mutable state across agents, so that concurrency, isolation, and partial-failure handling come from the actor discipline rather than ad-hoc locking.",
+      "solution": "Model each agent as an actor: a process or coroutine with its own mailbox, its own local state, and a message-handler that runs messages in receive order. Agents communicate only by sending messages — directly to a known agent id, or by publishing to a topic (see topic-based-routing). The runtime supervises actor lifecycles, restarts on crash, and routes messages across processes or machines. Pair with role-assignment when agents do have stable personas, and with supervisor when a coordinator is needed.",
+      "structure": "Agent A (mailbox A) ↔ Agent B (mailbox B) ↔ Agent C (mailbox C). All communication via send(agent_id, message); no shared state.",
+      "consequences": {
+        "benefits": [
+          "Concurrent agents without ad-hoc locks or shared-state hazards.",
+          "Per-actor crash recovery — one agent's failure does not corrupt peers.",
+          "Distributable across processes and machines under the same programming model.",
+          "Fits event-driven and pub/sub shapes naturally."
+        ],
+        "liabilities": [
+          "Message-driven debugging is harder to follow than a linear conversation.",
+          "Each agent needs its own mailbox queue with back-pressure rules.",
+          "Cross-agent transactions are not first-class — saga-style compensation is required."
+        ]
+      },
+      "constrains": "Agents do not share mutable state and may not call each other synchronously; all cross-agent interaction must go through asynchronous mailbox messages.",
+      "known_uses": [
+        {
+          "system": "AutoGen Core",
+          "note": "AutoGen Core documents explicitly that agents are developed using the Actor model.",
+          "status": "available",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html"
+        },
+        {
+          "system": "Akka / Pekko + LLM tool integrations",
+          "note": "JVM actor runtimes used as the substrate for multi-agent LLM systems.",
+          "status": "available",
+          "url": "https://doc.akka.io/libraries/akka-core/current/typed/actors.html"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "topic-based-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "complements"
+        },
+        {
+          "pattern": "autogen-conversational",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "AutoGen Core — Concepts",
+          "authors": "Microsoft",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html"
+        },
+        {
+          "type": "paper",
+          "title": "A Universal Modular ACTOR Formalism for Artificial Intelligence (IJCAI 1973) — overview",
+          "authors": "Hewitt, Bishop, Steiger",
+          "year": 1973,
+          "url": "https://en.wikipedia.org/wiki/Actor_model"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "actor-model",
+        "concurrency",
+        "autogen"
+      ],
+      "applicability": {
+        "use_when": [
+          "Agents must run concurrently with isolated state.",
+          "The system must survive partial failures of individual agents.",
+          "Communication is naturally event- or message-driven rather than turn-based dialogue.",
+          "The agent population is expected to scale to dozens or more participants."
+        ],
+        "do_not_use_when": [
+          "The interaction is a strict two-agent dialogue with a single thread of control (see autogen-conversational).",
+          "The team has no actor-runtime experience and the application is small enough that a sequential loop suffices.",
+          "Strong cross-agent transactions are required and saga-style compensation is not acceptable."
+        ]
+      },
+      "example_scenario": "A monitoring system has a perception agent that ingests telemetry, an analysis agent that hypothesises causes, and a remediation agent that proposes actions. Each runs as its own actor with a mailbox. Telemetry arrives as messages to perception; perception emits analysis-request messages; analysis emits remediation-proposal messages. When the analysis actor crashes on a malformed input the supervisor restarts it with an empty mailbox; perception and remediation keep running. None of the three actors shares mutable state.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant A as Agent A (actor)\n  participant B as Agent B (actor)\n  participant C as Agent C (actor)\n  A->>B: message m1 (async)\n  Note over B: mailbox: [m1]\n  B->>B: handle m1 (own state only)\n  B->>C: message m2 (async)\n  Note over C: mailbox: [m2]\n  C->>A: message m3 (async)\n  Note over A: mailbox: [m3]"
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
       "id": "agent-as-tool-embedding",
       "name": "Agent-as-Tool Embedding",
       "aliases": [
@@ -80,6 +193,10 @@
         {
           "pattern": "rl-conductor-orchestrator",
           "relation": "complements"
+        },
+        {
+          "pattern": "visual-workflow-graph",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -113,7 +230,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Parent as Parent Agent\n  participant SubTool as sub_agent(task)\n  participant Sub as Sub-Agent Loop\n  Parent->>SubTool: call like any tool\n  SubTool->>Sub: spawn fresh loop (own model, tools, budget)\n  loop sub-agent steps\n    Sub->>Sub: think / act / observe\n  end\n  Sub-->>SubTool: structured Result\n  SubTool-->>Parent: function return value"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "autogen-conversational",
@@ -163,6 +281,14 @@
         {
           "pattern": "camel-role-playing",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "actor-model-agents",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "group-chat-manager",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -196,7 +322,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Mgr as Conversation Manager\n  participant A as Agent A\n  participant B as Agent B\n  loop until completion criterion\n    Mgr->>A: your turn\n    A-->>Mgr: message\n    Mgr->>B: your turn\n    B-->>Mgr: message\n    Mgr->>Mgr: check criterion\n  end\n  Mgr-->>A: done"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "blackboard",
@@ -257,6 +384,10 @@
         {
           "pattern": "sop-encoded-multi-agent",
           "relation": "used-by"
+        },
+        {
+          "pattern": "topic-based-routing",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -289,7 +420,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  A1[Agent A] -->|write| BB[(Blackboard<br/>shared store)]\n  A2[Agent B] -->|write| BB\n  A3[Agent C] -->|write| BB\n  BB -->|read slice| A1\n  BB -->|read slice| A2\n  BB -->|read slice| A3\n  BB -->|notify| A1"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "camel-role-playing",
@@ -367,7 +499,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Sys as Inception Prompts\n  participant U as AI-User\n  participant A as AI-Assistant\n  Sys->>U: role: user, task fixed\n  Sys->>A: role: assistant, task fixed\n  loop until task complete or budget\n    U->>A: instruction\n    A-->>U: action / output\n  end\n  A-->>Sys: trajectory"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "chat-chain",
@@ -467,7 +600,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  In[Goal] --> P1[Phase 1<br/>designer + coder]\n  P1 --> A1[Artefact 1]\n  A1 --> P2[Phase 2<br/>coder + tester]\n  P2 --> A2[Artefact 2]\n  A2 --> P3[Phase N<br/>...]\n  P3 --> Out[Final artefact]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "communicative-dehallucination",
@@ -565,7 +699,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Instr as Instructor\n  participant Asst as Assistant\n  Instr->>Asst: instruction (missing context)\n  Asst->>Asst: detect missing piece\n  Asst-->>Instr: focused question (role reversal)\n  Instr-->>Asst: missing detail\n  Asst-->>Instr: grounded answer"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "cross-domain-agent-network",
@@ -671,7 +806,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  U[User request] --> R[Router]\n  R --> F[Finance Agent<br/>own data + tools]\n  R --> S[Supply Chain Agent]\n  R --> H[HR Agent]\n  R --> SV[Service Agent]\n  F <-->|A2A / MCP| S\n  S <-->|A2A / MCP| H\n  H <-->|A2A / MCP| SV"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "debate",
@@ -779,7 +915,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant A as Agent A (pos 1)\n  participant B as Agent B (pos 2)\n  participant J as Judge\n  loop N rounds\n    A-->>B: argument\n    B-->>A: counter-argument\n  end\n  A-->>J: final position\n  B-->>J: final position\n  J-->>J: select or synthesise"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "dynamic-expert-recruitment",
@@ -893,7 +1030,138 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Goal] --> Rec[Recruiter Agent]\n  Rec --> Roles[Generate role<br/>descriptions]\n  Roles --> Team[Instantiate team]\n  Team --> Iter[Iterate on task]\n  Iter --> Obs[Plan + agent observers]\n  Obs --> Adj{Adjust team?}\n  Adj -- yes --> Rec\n  Adj -- no --> Done[Result]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "group-chat-manager",
+      "name": "Group-Chat Manager",
+      "aliases": [
+        "Speaker Selector",
+        "Conversation Chair",
+        "Team Manager Agent"
+      ],
+      "category": "multi-agent",
+      "intent": "Place a dedicated manager between the participants of a multi-agent group chat that decides which participant speaks next on each turn.",
+      "context": "Multi-agent systems where several specialist agents share a conversation context and only one should speak per turn; without a chair, everyone speaks at once or nobody speaks.",
+      "problem": "Free-for-all turn-taking either talks over itself (every agent emits every turn) or stalls (no agent picks itself); per-pair hand-offs do not generalise past three agents.",
+      "forces": [
+        "Turn allocation must be explicit when more than two agents share a thread.",
+        "A round-robin chair is simple but blind to relevance; an LLM-based chair is relevance-aware but adds a model call per turn.",
+        "Termination must be evaluated centrally so the chat ends predictably.",
+        "Allowing any agent to hand off to any other (swarm-style) is flexible but harder to audit."
+      ],
+      "therefore": "Therefore: place one manager between the participants and let it pick the next speaker each turn — by round-robin, by LLM relevance scoring, by named-handoff token, or by orchestrator decree — so that turn allocation, termination, and audit-ability live in one component.",
+      "solution": "Define a Manager that owns the shared conversation transcript and a `select_next(transcript, participants) -> participant` function. On each turn the manager appends the new message to the transcript, calls `select_next`, and invokes the chosen participant. Implementations vary in how `select_next` is computed (see Variants). The manager also enforces termination — a turn cap, a content predicate, or an explicit `STOP` signal from a participant.",
+      "variants": [
+        {
+          "name": "Round-Robin Manager",
+          "summary": "Participants speak in a fixed rotation; the manager picks the next one by position.",
+          "distinguishing_factor": "Selection by deterministic rotation",
+          "when_to_use": "When every agent should contribute predictably and per-turn LLM cost matters."
+        },
+        {
+          "name": "Selector (LLM-Chosen)",
+          "summary": "An LLM reads the transcript and picks the most relevant next speaker.",
+          "distinguishing_factor": "Selection by ChatCompletion call on the transcript",
+          "when_to_use": "When relevance matters more than fairness and the per-turn model cost is acceptable."
+        },
+        {
+          "name": "Handoff Token",
+          "summary": "Each participant ends its turn with a token like `transfer_to(agent_id)`; the manager honours the named handoff.",
+          "distinguishing_factor": "Selection delegated to the current speaker",
+          "when_to_use": "Swarm-style systems where agents know who should answer next better than a central chair does.",
+          "see_also": "swarm"
+        },
+        {
+          "name": "Magentic Orchestrator",
+          "summary": "A long-lived orchestrator agent maintains a plan over the team and picks the next speaker against the plan.",
+          "distinguishing_factor": "Selection driven by a persistent plan rather than per-turn re-evaluation",
+          "when_to_use": "Long multi-step tasks where the team should remain coherent across many turns."
+        }
+      ],
+      "consequences": {
+        "benefits": [
+          "Single place to enforce turn allocation and termination.",
+          "Variants let the same skeleton serve fair (round-robin) and relevance-aware (selector) conversations.",
+          "Audit trail is centralised in the manager."
+        ],
+        "liabilities": [
+          "The manager is a single point of failure for the conversation.",
+          "LLM-based selectors add a model call per turn.",
+          "Per-pair affinity is harder to express than in pure handoff designs."
+        ]
+      },
+      "constrains": "Participants may not speak unless the manager selects them; no agent is allowed to emit a turn out of band.",
+      "known_uses": [
+        {
+          "system": "AutoGen Teams (RoundRobinGroupChat, SelectorGroupChat, Swarm, MagenticOneGroupChat)",
+          "note": "AutoGen's GroupChat family realises round-robin, LLM-selector, handoff-token, and orchestrator variants of this pattern.",
+          "status": "available",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html"
+        },
+        {
+          "system": "CAMEL role-playing",
+          "note": "Two-agent variant with an implicit fixed chair (user-agent speaks first, assistant-agent responds).",
+          "status": "available",
+          "url": "https://www.camel-ai.org/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "supervisor",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "autogen-conversational",
+          "relation": "complements"
+        },
+        {
+          "pattern": "handoff",
+          "relation": "uses"
+        },
+        {
+          "pattern": "swarm",
+          "relation": "complements"
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "AutoGen — Teams",
+          "authors": "Microsoft",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "multi-agent",
+        "speaker-selection",
+        "group-chat",
+        "autogen"
+      ],
+      "applicability": {
+        "use_when": [
+          "Three or more agents must share a single conversation context.",
+          "Turn order, termination, and audit need to live in one component.",
+          "Relevance-aware speaker selection is worth a per-turn model call."
+        ],
+        "do_not_use_when": [
+          "Only two agents are involved (use autogen-conversational instead).",
+          "Agents must run concurrently without a shared turn (use actor-model-agents).",
+          "Hand-offs are per-pair and a swarm of bilateral edges is simpler."
+        ]
+      },
+      "example_scenario": "A coding team agent has a planner, a coder, a reviewer, and a tester sharing one transcript. A round-robin manager is too rigid — the tester should not speak before the coder has produced code. The team swaps the manager for an LLM-driven selector that reads the transcript and picks the most relevant speaker, falling back to round-robin if the selector is uncertain. Termination triggers when the reviewer emits an `APPROVED` token or after twenty turns. The same skeleton later supports a swarm variant where the current speaker emits a `transfer_to(...)` token at the end of its turn.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant M as Manager\n  participant A as Planner\n  participant B as Coder\n  participant C as Reviewer\n  M->>A: select_next() -> Planner\n  A-->>M: turn (plan)\n  M->>B: select_next() -> Coder\n  B-->>M: turn (code)\n  M->>C: select_next() -> Reviewer\n  C-->>M: APPROVED\n  Note over M: termination predicate true"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "handoff",
@@ -952,6 +1220,10 @@
         {
           "pattern": "cross-domain-agent-network",
           "relation": "used-by"
+        },
+        {
+          "pattern": "group-chat-manager",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -982,7 +1254,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant U as User\n  participant A as Agent A\n  participant B as Agent B\n  U->>A: conversation in progress\n  A->>A: invoke handoff(target=B, summary)\n  A->>B: summary + original conversation\n  B-->>U: continues from there\n  Note over A,B: Loop detection prevents thrash"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "hierarchical-agents",
@@ -1069,7 +1342,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Root[Manager: top-level task] --> M1[Sub-manager A]\n  Root --> M2[Sub-manager B]\n  M1 --> S1[Specialist leaf]\n  M1 --> S2[Specialist leaf]\n  M2 --> S3[Specialist leaf]\n  S1 -.result.-> M1\n  S2 -.result.-> M1\n  S3 -.result.-> M2\n  M1 -.synthesis.-> Root\n  M2 -.synthesis.-> Root"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "inner-committee",
@@ -1157,7 +1431,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant L as Loop\n  participant Pl as Planner persona\n  participant Ex as Executor persona\n  participant Cr as Critic persona\n  L->>Pl: produce plan\n  Pl-->>L: plan\n  L->>Ex: execute step\n  Ex-->>L: result\n  L->>Cr: review\n  Cr-->>L: critique\n  L->>Pl: revise plan if needed"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "inter-agent-communication",
@@ -1222,6 +1497,14 @@
         {
           "pattern": "tool-agent-registry",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "actor-model-agents",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "topic-based-routing",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -1254,7 +1537,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant C as Client agent\n  participant R as Registry / discovery\n  participant S as Server agent\n  S->>R: advertise capabilities\n  C->>R: discover capability\n  R-->>C: endpoint + auth\n  C->>S: typed task envelope\n  S-->>C: typed result envelope"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "lead-researcher",
@@ -1349,7 +1633,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[User query] --> L[Lead researcher: plan]\n  L --> S1[Sub-agent: question 1]\n  L --> S2[Sub-agent: question 2]\n  L --> S3[Sub-agent: question 3]\n  S1 -.findings.-> L\n  S2 -.findings.-> L\n  S3 -.findings.-> L\n  L --> Syn{Gaps?}\n  Syn -- yes --> Sn[Spawn extra sub-agent]\n  Sn -.findings.-> L\n  Syn -- no --> Ans[Synthesised answer]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "orchestrator-workers",
@@ -1446,6 +1731,10 @@
         {
           "pattern": "planner-generator-evaluator-harness",
           "relation": "generalises"
+        },
+        {
+          "pattern": "role-typed-subagents",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1477,7 +1766,8 @@
       "diagram": {
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant U as User\n  participant O as Orchestrator\n  participant W1 as Worker 1\n  participant W2 as Worker 2\n  U->>O: task\n  O->>O: decide subtasks (runtime)\n  O->>W1: subtask A\n  O->>W2: subtask B\n  W1-->>O: result A\n  W2-->>O: result B\n  O->>U: synthesised answer"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "rl-conductor-orchestrator",
@@ -1594,7 +1884,8 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant U as User task\n  participant C as Conductor (small RL meta-model)\n  participant W as Worker pool (frontier LLMs, tools, conductor-as-worker)\n  participant R as Reward signal\n  U->>C: task\n  loop until done or budget\n    C->>W: sub-task instruction + worker id\n    W-->>C: worker output\n    C->>C: decide next move (continue, switch worker, recurse, stop)\n  end\n  C-->>U: final answer\n  R-->>C: end-of-task reward (updates conductor policy only)",
         "caption": "A small RL-trained conductor dispatches sub-tasks across frozen frontier workers; only the conductor learns."
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "role-assignment",
@@ -1678,6 +1969,14 @@
         {
           "pattern": "voting-based-cooperation",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "group-chat-manager",
+          "relation": "complements"
+        },
+        {
+          "pattern": "role-typed-subagents",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1715,7 +2014,8 @@
       "diagram": {
         "type": "class",
         "mermaid": "classDiagram\n  class Role {\n    +name\n    +system_prompt\n    +tool_palette\n    +acceptance_criteria\n  }\n  class Researcher\n  class Writer\n  class Critic\n  class Planner\n  Role <|-- Researcher\n  Role <|-- Writer\n  Role <|-- Critic\n  Role <|-- Planner"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "sop-encoded-multi-agent",
@@ -1837,7 +2137,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  PM[Product role] -->|PRD| Arch[Architect role]\n  Arch -->|design doc| Dev[Developer role]\n  Dev -->|code| QA[QA role]\n  QA -->|test plan| Doc[Tech-writer role]\n  Doc -->|user manual| Done[Release]\n  Pool[(Shared message pool<br/>+ subscription filter)] -.routes.-> PM\n  Pool -.routes.-> Arch\n  Pool -.routes.-> Dev\n  Pool -.routes.-> QA"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "subagent-isolation",
@@ -1968,7 +2269,8 @@
           "when_to_use": "Sub-agent runs untrusted code or third-party tools that must not see the parent's secrets.",
           "see_also": "sandbox-isolation"
         }
-      ]
+      ],
+      "last_updated": "2026-05-20"
     },
     {
       "id": "supervisor",
@@ -2078,6 +2380,18 @@
         {
           "pattern": "cross-domain-agent-network",
           "relation": "used-by"
+        },
+        {
+          "pattern": "actor-model-agents",
+          "relation": "complements"
+        },
+        {
+          "pattern": "group-chat-manager",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "role-typed-subagents",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2108,7 +2422,8 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  Req[User request] --> Sup[Supervisor: classify + dispatch]\n  Sup --> S1[Specialist A<br/>own prompt + tools + model]\n  Sup --> S2[Specialist B]\n  Sup --> S3[Specialist C]\n  S1 --> Sup\n  S2 --> Sup\n  S3 --> Sup\n  Sup --> Out[Aggregate or escalate]"
-      }
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "swarm",
@@ -2164,6 +2479,10 @@
         {
           "pattern": "blackboard",
           "relation": "complements"
+        },
+        {
+          "pattern": "group-chat-manager",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2194,7 +2513,111 @@
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]\n  A2[Peer agent 2] <--> Bus\n  A3[Peer agent 3] <--> Bus\n  A4[Peer agent N] <--> Bus\n  Bus --> Term{Env-level termination<br/>time / consensus / trigger}\n  Term --> Out[Emergent outcome]"
-      }
+      },
+      "last_updated": "2026-05-20"
+    },
+    {
+      "id": "topic-based-routing",
+      "name": "Topic-Based Routing",
+      "aliases": [
+        "Agent Pub/Sub",
+        "Topic and Subscription",
+        "Subject-Based Routing"
+      ],
+      "category": "multi-agent",
+      "intent": "Route inter-agent messages through named topics that agents subscribe to, instead of having senders address each other by id.",
+      "context": "Multi-agent systems where the sender does not know — and should not know — which agents are interested in a given message; new subscribers should be able to join without changing the sender.",
+      "problem": "Direct agent-to-agent addressing creates a dense web of senders that know about receivers; adding a new participant requires editing every sender that should reach it.",
+      "forces": [
+        "Decoupling sender from receiver is the central benefit of pub/sub.",
+        "Topic semantics — wildcards, ordering guarantees, durability — change the failure modes substantially.",
+        "Broadcast traffic on a busy topic can overwhelm slow subscribers without back-pressure.",
+        "Debugging is harder when nobody owns the addressing decision."
+      ],
+      "therefore": "Therefore: route inter-agent messages through named topics with explicit subscriptions, so that senders do not know who reads them and new subscribers can join without sender-side changes.",
+      "solution": "Define a small set of typed Topics (`telemetry.parsed`, `incident.opened`, `plan.proposed`). Agents publish to topics; agents that care subscribe to topics. The runtime fans messages out to all subscribers of a topic, applies back-pressure on slow consumers, and provides delivery guarantees appropriate to the topic class. Pair with actor-model-agents to keep each subscriber's processing isolated, and with event-driven-agent when the topic carries external events. Topic schemas are first-class artefacts; subscribers depend on the schema, not on the publisher.",
+      "consequences": {
+        "benefits": [
+          "Senders are decoupled from receivers; new subscribers join without sender changes.",
+          "Cross-cutting workflows (logging, audit, monitoring) attach as additional subscribers.",
+          "Scales to many participants where direct addressing would not."
+        ],
+        "liabilities": [
+          "Diagnosing 'who is supposed to handle this topic?' requires runtime subscription introspection.",
+          "Topic-schema drift can break subscribers silently.",
+          "Slow subscribers need explicit back-pressure rules or they degrade the topic for everyone."
+        ]
+      },
+      "constrains": "Senders do not address receivers by id; cross-agent messaging must go through named topics with explicit subscriptions, and topic schemas are not allowed to mutate without versioning.",
+      "known_uses": [
+        {
+          "system": "AutoGen Core (Topic and Subscription)",
+          "note": "AutoGen Core exposes Topic and Subscription as core primitives, with documented example scenarios.",
+          "status": "available",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html"
+        },
+        {
+          "system": "NATS / Kafka as agent buses",
+          "note": "Production multi-agent deployments often run topics on a message broker for durability and scale.",
+          "status": "available",
+          "url": "https://nats.io/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "actor-model-agents",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "inter-agent-communication",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "pipes-and-filters",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "AutoGen Core — Topic and Subscription",
+          "authors": "Microsoft",
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multi-agent",
+        "pub-sub",
+        "topic-routing",
+        "autogen"
+      ],
+      "applicability": {
+        "use_when": [
+          "Sender should not know which agents care about a message.",
+          "Subscribers join and leave over time without sender-side changes.",
+          "Cross-cutting concerns (audit, observability) need to attach by adding a subscriber."
+        ],
+        "do_not_use_when": [
+          "The interaction is strictly point-to-point and decoupling is overkill (use handoff or direct send).",
+          "Ordering and exactly-once semantics are required and the chosen bus does not provide them.",
+          "Schema discipline is impossible in the team — pub/sub without schema control is a hard place to debug."
+        ]
+      },
+      "example_scenario": "An incident-response platform has many agents. A monitor agent publishes to `telemetry.alert`; a triage agent subscribes to it and may publish to `incident.opened`; an audit agent subscribes to both topics; a paging agent subscribes only to `incident.opened`. Adding a new compliance-export agent that needs every incident is a one-line subscription on `incident.opened` — none of the existing publishers change. Topic schemas are versioned (`incident.opened.v1`) and subscribers declare which versions they accept.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  P1[Monitor agent] -->|publish| T1[(telemetry.alert)]\n  T1 --> S1[Triage agent]\n  T1 --> S2[Audit agent]\n  S1 -->|publish| T2[(incident.opened)]\n  T2 --> S3[Paging agent]\n  T2 --> S2\n  T2 --> S4[Compliance export agent<br/>added later — no sender changes]"
+      },
+      "last_updated": "2026-05-20"
     },
     {
       "id": "voting-based-cooperation",
@@ -2320,7 +2743,8 @@
         "type": "flow",
         "mermaid": "flowchart LR\n  U[User] --> C[Coordinator agent]\n  C -->|ballot| V1[Voter agent 1]\n  C -->|ballot| V2[Voter agent 2]\n  C -->|ballot| V3[Voter agent 3]\n  V1 -->|vote| C\n  V2 -->|vote| C\n  V3 -->|vote| C\n  C -->|winning option| U\n",
         "caption": "A coordinator collects votes from agent voters and returns the winning option."
-      }
+      },
+      "last_updated": "2026-05-20"
     }
   ]
 }

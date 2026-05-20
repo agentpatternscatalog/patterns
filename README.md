@@ -1,8 +1,6 @@
 # Agentic Patterns Catalog
 
-A machine-readable reference of agentic design patterns in GoF/POSA form. Pure data — no code, no scripts.
-
-**214 patterns across 14 categories, 1118 typed cross-pattern edges.**
+A machine-readable reference of agentic design patterns in GoF/POSA form. Pure data — no code, no scripts. Organised by category, with typed cross-pattern edges (`uses`, `composes-with`, `specialises`, `alternative-to`).
 
 ## What "agentic" means
 
@@ -34,9 +32,8 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 
 - **[`INDEX.md`](INDEX.md)** — every pattern grouped by category.
 - **[`patterns/`](patterns/)** — one Markdown page per pattern.
-- **[`patterns-src/`](patterns-src/)** — source of truth: 13 per-category JSON shards, each entry validated against [`schema.json`](schema.json).
-- **[`framework-coverage.json`](framework-coverage.json)** — which patterns each agent framework (LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy, n8n, Temporal, Vercel AI SDK, Claude Agent SDK, Google ADK, Letta, …) provides as `fully` / `limited` / `none` / `unknown`. Hand-curated, conservative; carries a `last_analysis_date` plus per-row `last_analyzed`.
-- **[`recipes.json`](recipes.json)** — named cross-category compositions: *modern coding agent*, *production RAG*, *voice agent stack*, *sovereign deployment*, *long-running autonomous agent*, *multi-agent debate*, *browser & computer-use stack*, *memory architecture*, *multi-agent coordination*, *safety hardening*, *eval & observability*, *structured output stack*, *streaming UX stack*, *planning loops*, *routing & fallback*, *reflection & self-correction*. Each recipe lists pattern members with role (`core`, `hardening`, `optional`).
+- **[`patterns-src/`](patterns-src/)** — source of truth: one JSON shard per category, each entry validated against [`schema.json`](schema.json).
+- **[`compositions-src/`](compositions-src/)** — single source of truth for *compositions*: named combinations of patterns with roles. Each entry is either `kind: recipe` (abstract design template: *modern coding agent*, *production RAG*, *voice agent stack*, *sovereign deployment*, …) or `kind: framework` (real shipping software: LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy, n8n, Temporal, Vercel AI SDK, Claude Agent SDK, Google ADK, Letta, …). Frameworks carry per-pattern evidence (URL + quote); each entry validated against [`compositions.schema.json`](compositions.schema.json).
 
 ## Find a pattern
 
@@ -48,7 +45,15 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 
 - **Categories:** [`docs/taxonomy.md`](docs/taxonomy.md).
 - **Pattern shape & required slots:** [`docs/schema.md`](docs/schema.md).
-- **Contribute:** [`docs/contributing.md`](docs/contributing.md).
+
+## Contribute
+
+See [`docs/contributing.md`](docs/contributing.md) for the rules a pattern must clear before it enters the catalog. There are four ways to contribute, matching the four files that hold catalog state:
+
+- **Add or amend a pattern.** Edit the relevant shard in [`patterns-src/`](patterns-src/) (validated against [`schema.json`](schema.json)) and, for new entries, add the corresponding [`patterns/<id>.md`](patterns/) page. Cut a branch, commit, open a pull request.
+- **Add or amend a composition.** Edit the relevant shard in [`compositions-src/`](compositions-src/) (validated against [`compositions.schema.json`](compositions.schema.json)). Recipes are abstract templates; frameworks are real shipping software and require per-pattern evidence (URL + quote).
+- **Suggest a pattern without authoring it yet.** Append an entry to [`pattern-todo.json`](pattern-todo.json) (validated against [`pattern-todo.schema.json`](pattern-todo.schema.json)) naming the candidate, the composition that raised it, and the upstream evidence. Candidates graduate from `proposed` → `drafting` → `authored` as they are written into `patterns-src/`.
+- **Flag something that needs systematic re-checking.** Add or update an entry in [`verification-todo.json`](verification-todo.json) (validated against [`verification-todo.schema.json`](verification-todo.schema.json)). Each pattern and composition carries per-aspect statuses (`todo` / `pass` / `fail` / `na`) — intent length, references live, edges correct, evidence quoted — so the catalog can be re-verified item-by-item over time.
 
 ## License
 

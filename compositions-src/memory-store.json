@@ -1,0 +1,419 @@
+{
+  "kind": "framework",
+  "category": "memory-store",
+  "label": "Memory Stores",
+  "compositions": [
+    {
+      "id": "mem0",
+      "name": "mem0",
+      "kind": "framework",
+      "category": "memory-store",
+      "vendor": "Mem0",
+      "language": "Python, TypeScript",
+      "license": "Apache-2.0",
+      "status": "active",
+      "url": "https://mem0.ai/",
+      "repo": "https://github.com/mem0ai/mem0",
+      "docs_url": "https://docs.mem0.ai",
+      "intent": "Drop-in memory layer that extracts salient facts from agent conversations and serves them back as personalized context across sessions, users, and agents.",
+      "description": "Mem0 is a managed and open-source memory layer for AI agents that turns ongoing conversations into a stored set of user facts, preferences, and episodes which the agent can search on subsequent turns. The agent sends raw messages to `add`; an LLM extracts salient items, deduplicates them against prior memory, and writes them to a vector store scoped by `user_id`, `agent_id`, or `run_id`. On later turns the agent calls `search` to retrieve the most relevant memories instead of replaying the full chat history. The project ships Python and TypeScript SDKs plus a hosted platform, and is described in the paper 'Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory'.",
+      "primary_use_cases": [
+        "persistent user memory across sessions",
+        "personalized assistants that learn preferences over time",
+        "reducing prompt bloat and token cost on long conversations",
+        "cross-agent shared memory in multi-agent systems"
+      ],
+      "agent_loop_shape": "Sidecar memory loop wrapped around an external agent. On every user turn the agent calls `mem0.search(query, user_id)` to retrieve relevant prior memories and injects them into the LLM prompt; after the turn the agent calls `mem0.add(messages, user_id)` which sends the messages through an extraction LLM that derives facts, resolves conflicts against existing memories, and writes the survivors to managed vector storage. Memory operations are add / search / update / delete; identity is keyed by user_id, agent_id, or run_id.",
+      "key_concepts": [
+        {
+          "name": "add / search / update / delete",
+          "summary": "Four operations on the memory store; `add` extracts facts via LLM, `search` returns relevant memories.",
+          "url": "https://docs.mem0.ai/core-concepts/memory-operations"
+        },
+        {
+          "name": "user_id / agent_id / run_id",
+          "summary": "Scoping identifiers that key memories to a person, an agent, or a single run.",
+          "maps_to_pattern": "session-isolation",
+          "url": "https://docs.mem0.ai/core-concepts/memory-operations"
+        },
+        {
+          "name": "Memory extraction (infer=True)",
+          "summary": "An LLM pulls out key facts, decisions, or preferences from raw messages and stores those rather than the verbatim turns.",
+          "url": "https://docs.mem0.ai/core-concepts/memory-operations"
+        },
+        {
+          "name": "Short-term vs long-term memory",
+          "summary": "Short-term covers conversation history, working memory, attention; long-term covers factual, episodic, and semantic memory.",
+          "maps_to_pattern": "episodic-summaries",
+          "url": "https://docs.mem0.ai/core-concepts/memory-types"
+        },
+        {
+          "name": "Vector store backend",
+          "summary": "Managed vector storage holds extracted memories; an entity-linking pass replaces the older optional graph store.",
+          "maps_to_pattern": "vector-memory",
+          "url": "https://docs.mem0.ai/core-concepts/memory-operations"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  user[User turn] --> search[mem0.search user_id]\n  search --> store[(Vector store)]\n  store --> ctx[Relevant memories]\n  ctx --> llm[Agent LLM]\n  llm --> reply[Reply to user]\n  reply --> add[mem0.add messages user_id]\n  add --> extract[Extraction LLM]\n  extract --> dedupe[Dedupe vs existing]\n  dedupe --> store",
+      "members": [
+        {
+          "pattern": "cross-session-memory",
+          "role": "first-class",
+          "note": "Core value prop: memories scoped by user_id persist across sessions and across agents, so the next conversation does not start blank.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Mem0 homepage",
+              "url": "https://mem0.ai/",
+              "quote": "AI memory that persists across sessions and agents",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 overview",
+              "url": "https://docs.mem0.ai/overview",
+              "quote": "Personalized replies: Memories persist across users and agents, cutting prompt bloat and repeat questions.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "vector-memory",
+          "role": "first-class",
+          "note": "Extracted memories land in managed vector storage; search returns by semantic similarity.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 memory operations",
+              "url": "https://docs.mem0.ai/core-concepts/memory-operations",
+              "quote": "The resulting memories land in managed vector storage (and optional graph storage) so future searches return them quickly.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 overview",
+              "url": "https://docs.mem0.ai/overview",
+              "quote": "Mem0 runs the vector store, graph services, and rerankers\u2014no provisioning, tuning, or maintenance.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "session-isolation",
+          "role": "first-class",
+          "note": "Every read and write carries a user_id / agent_id / run_id; memories are keyed by identity for retrieval.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 memory operations",
+              "url": "https://docs.mem0.ai/core-concepts/memory-operations",
+              "quote": "user_id, agent_id, or run_id that scope the memory for future searches.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "Mem0 README",
+              "url": "https://github.com/mem0ai/mem0",
+              "quote": "Multi-Level Memory: Seamlessly retains User, Session, and Agent state",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "episodic-summaries",
+          "role": "supported",
+          "note": "Mem0's long-term memory taxonomy explicitly names episodic memory as compressed summaries of past interactions; the add pipeline produces these via LLM extraction rather than verbatim logs.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 memory types",
+              "url": "https://docs.mem0.ai/core-concepts/memory-types",
+              "quote": "Episodic Memory: summaries of past interactions or completed tasks",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 memory operations",
+              "url": "https://docs.mem0.ai/core-concepts/memory-operations",
+              "quote": "Mem0 sends the messages through an LLM that pulls out key facts, decisions, or preferences to remember.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "role": "limited",
+          "note": "Graph memory backends (Neo4j, Memgraph, Kuzu, AGE, Neptune) were a first-class option in the older SDK but have been removed from the open-source SDK and replaced by built-in entity linking; managed platform still offers graph services.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 graph memory (deprecation note)",
+              "url": "https://docs.mem0.ai/open-source/graph_memory/overview",
+              "quote": "Graph store support has been removed from the open-source SDK. It is replaced by built-in entity linking, which runs natively with no external dependencies.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Mem0 docs \u2014 overview (managed)",
+              "url": "https://docs.mem0.ai/overview",
+              "quote": "Mem0 runs the vector store, graph services, and rerankers\u2014no provisioning, tuning, or maintenance.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "role": "limited",
+          "note": "Honest downgrade \u2014 mem0 is positioned as an alternative to MemGPT-style paging rather than an implementation of it. The mem0 paper benchmarks against MemGPT as the baseline; the design replaces context paging with LLM-extracted facts in a vector store.",
+          "evidence": [
+            {
+              "type": "paper",
+              "title": "Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory",
+              "url": "https://arxiv.org/abs/2504.19413",
+              "quote": "dynamically extracting, consolidating, and retrieving salient information from ongoing conversations",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory",
+          "url": "https://arxiv.org/abs/2504.19413",
+          "quote": "Mem0 achieves 26% relative improvements in the LLM-as-a-Judge metric over OpenAI ... 91% lower p95 latency and saves more than 90% token cost",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "mem0ai/mem0 on GitHub",
+          "url": "https://github.com/mem0ai/mem0",
+          "quote": "enhances AI assistants and agents with an intelligent memory layer, enabling personalized AI interactions",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Mem0 documentation \u2014 overview",
+          "url": "https://docs.mem0.ai/overview",
+          "quote": "The memory engine that keeps conversations contextual so users never repeat themselves and your agents respond with continuity.",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "verified",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "mature"
+    },
+    {
+      "id": "zep",
+      "name": "Zep",
+      "kind": "framework",
+      "category": "memory-store",
+      "vendor": "Zep AI",
+      "language": "Python, TypeScript, Go",
+      "license": "Apache-2.0",
+      "status": "active",
+      "url": "https://www.getzep.com/",
+      "repo": "https://github.com/getzep/zep",
+      "docs_url": "https://help.getzep.com/",
+      "intent": "Context engineering platform that builds a per-user temporal knowledge graph from chat messages and business data, then assembles low-latency context for agent turns.",
+      "description": "Zep is a context engineering platform built around Graphiti, an open-source temporal knowledge graph engine that ingests conversational messages and structured business data and turns them into a graph of entities and facts with bi-temporal validity windows. Each user has their own User Graph; threads under that user feed messages into the graph via `thread.add_messages`, and agents retrieve assembled context with `thread.get_user_context` or low-level `graph.search`. When new data contradicts a prior fact, Zep stores the invalidation time on the fact's edge rather than deleting it, so agents can reason about how preferences and relationships changed. SDKs are available in Python, TypeScript, and Go.",
+      "primary_use_cases": [
+        "long-term agent memory with temporal reasoning",
+        "voice and video agents needing sub-200ms context retrieval",
+        "personalized assistants that track changing user state",
+        "Graph RAG over conversational and business data"
+      ],
+      "agent_loop_shape": "Sidecar memory service backed by a temporal knowledge graph. The application creates a User and a Thread; on each user turn it calls `thread.add_messages` which ingests messages into that user's graph, where Graphiti extracts entities and facts as edges with valid_at and invalid_at timestamps. Before generating a reply the agent calls `thread.get_user_context` (high-level) or `graph.search` (low-level) to retrieve assembled context. Fact invalidation is handled automatically: when new data contradicts an existing fact, Zep stamps the old edge as invalidated rather than deleting it.",
+      "key_concepts": [
+        {
+          "name": "User Graph",
+          "summary": "Per-user knowledge graph; threads belonging to that user feed into it.",
+          "maps_to_pattern": "session-isolation",
+          "url": "https://help.getzep.com/concepts"
+        },
+        {
+          "name": "Threads",
+          "summary": "A conversation under a user; thread.add_messages ingests messages into the user-level graph.",
+          "url": "https://help.getzep.com/threads"
+        },
+        {
+          "name": "Graphiti (temporal knowledge graph)",
+          "summary": "Open-source engine that builds the graph; entities are nodes, facts are edges with valid_at/invalid_at.",
+          "maps_to_pattern": "knowledge-graph-memory",
+          "url": "https://github.com/getzep/graphiti"
+        },
+        {
+          "name": "Fact invalidation",
+          "summary": "When new data contradicts a fact, the edge is stamped invalidated rather than deleted.",
+          "url": "https://help.getzep.com/concepts"
+        },
+        {
+          "name": "thread.get_user_context",
+          "summary": "High-level retrieval call returning assembled context (facts, entities, summaries) for the agent turn.",
+          "maps_to_pattern": "cross-session-memory",
+          "url": "https://help.getzep.com/concepts"
+        },
+        {
+          "name": "Episodes / thread summaries / user summary",
+          "summary": "Distinct primitives Zep produces from a user graph: facts, entities, episodes, thread summaries, observations, user summary.",
+          "maps_to_pattern": "episodic-summaries",
+          "url": "https://help.getzep.com/concepts"
+        }
+      ],
+      "pattern_composition": "flowchart TD\n  user[User turn] --> thread[Thread under User]\n  thread --> add[thread.add_messages]\n  add --> graphiti[Graphiti extractor]\n  graphiti --> entities[Entities as nodes]\n  graphiti --> facts[Facts as edges]\n  facts --> valid[valid_at / invalid_at]\n  newdata[New contradicting fact] --> invalidate[Stamp prior edge invalid]\n  invalidate --> facts\n  agent[Agent before reply] --> get[thread.get_user_context]\n  get --> usergraph[(User Graph)]\n  entities --> usergraph\n  facts --> usergraph\n  usergraph --> ctx[Assembled context]\n  ctx --> llm[Agent LLM]",
+      "members": [
+        {
+          "pattern": "cross-session-memory",
+          "role": "first-class",
+          "note": "The User Graph persists across threads; messages added to any thread of that user are ingested into that user's graph, so prior sessions inform later ones.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 concepts (threads)",
+              "url": "https://help.getzep.com/concepts",
+              "quote": "Conversation threads of a user. By default, all messages added to any thread of that user are ingested into that user's graph.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Zep homepage",
+              "url": "https://www.getzep.com/",
+              "quote": "Zep assembles the right context from chat history, business data, and user behavior.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "role": "first-class",
+          "note": "Graphiti is the core engine; nodes are entities, edges are facts, and the whole store is positioned as a unified knowledge graph rather than a vector index.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 concepts",
+              "url": "https://help.getzep.com/concepts",
+              "quote": "Zep's unified knowledge store for agents. Nodes represent entities, edges represent facts/relationships.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "Graphiti README",
+              "url": "https://github.com/getzep/graphiti",
+              "quote": "Triplets (Entity \u2192 Relationship \u2192 Entity) with temporal validity windows",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "Zep README",
+              "url": "https://github.com/getzep/zep",
+              "quote": "Graphiti autonomously builds and maintains knowledge graphs while reasoning about state changes over time.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "session-isolation",
+          "role": "first-class",
+          "note": "Every thread belongs to a user; the per-user User Graph is the isolation boundary, and threadIds map to your business objects for further scoping.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 concepts (user graph)",
+              "url": "https://help.getzep.com/concepts",
+              "quote": "Special type of graph for storing personalized context for a user of your application.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 threads",
+              "url": "https://help.getzep.com/threads",
+              "quote": "Threads represent a conversation. Each User can have multiple threads, and each thread is a sequence of chat messages.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "episodic-summaries",
+          "role": "first-class",
+          "note": "Zep produces explicit episodic primitives: episodes (raw ingested data), thread summaries, and a user summary, alongside extracted facts and entities.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 concepts (primitives)",
+              "url": "https://help.getzep.com/concepts",
+              "quote": "The distinct primitives Zep produces from a user graph: facts, entities, episodes, thread summaries, observations, and user summary.",
+              "accessed": "2026-05-20"
+            },
+            {
+              "type": "repo",
+              "title": "Graphiti README \u2014 episodes",
+              "url": "https://github.com/getzep/graphiti",
+              "quote": "Episodes \u2014 the raw data that produced it",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "five-tier-memory-cascade",
+          "role": "limited",
+          "note": "Honest downgrade \u2014 Zep produces six primitive types (facts, entities, episodes, thread summaries, observations, user summary) but does not formalise the sensory/working/short-term/episodic/long-term cognitive cascade. The structure is graph-shaped, not tier-shaped.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "Zep docs \u2014 concepts",
+              "url": "https://help.getzep.com/concepts",
+              "quote": "The distinct primitives Zep produces from a user graph: facts, entities, episodes, thread summaries, observations, and user summary.",
+              "accessed": "2026-05-20"
+            }
+          ],
+          "evidence_status": "limited"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Zep: A Temporal Knowledge Graph Architecture for Agent Memory",
+          "url": "https://arxiv.org/abs/2501.13956",
+          "quote": "a novel memory layer service for AI agents that outperforms the current state-of-the-art system, MemGPT",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "getzep/zep on GitHub",
+          "url": "https://github.com/getzep/zep",
+          "quote": "Zep is an end-to-end context engineering platform that delivers the right information at the right time with sub-200ms latency.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "repo",
+          "title": "getzep/graphiti on GitHub",
+          "url": "https://github.com/getzep/graphiti",
+          "quote": "When information changes, old facts are invalidated \u2014 not deleted.",
+          "accessed": "2026-05-20"
+        },
+        {
+          "type": "doc",
+          "title": "Zep documentation \u2014 concepts",
+          "url": "https://help.getzep.com/concepts",
+          "quote": "When new data invalidates a prior fact, the time the fact became invalid is stored on that fact's edge in the knowledge graph.",
+          "accessed": "2026-05-20"
+        }
+      ],
+      "last_analyzed": "2026-05-20",
+      "verification_status": "verified",
+      "last_updated": "2026-05-20",
+      "status_in_practice": "mature"
+    }
+  ]
+}
