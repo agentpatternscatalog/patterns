@@ -3,6 +3,144 @@
   "label": "Reasoning",
   "patterns": [
     {
+      "id": "adaptive-compute-allocation",
+      "name": "Adaptive Compute Allocation",
+      "aliases": [
+        "Input-Adaptive Thinking Budget",
+        "Per-Query Compute Routing",
+        "Adaptive Thinking"
+      ],
+      "category": "reasoning",
+      "intent": "Allocate inference-time compute (thinking tokens, samples, depth, model size) per query based on input difficulty, rather than using a fixed budget across all queries.",
+      "context": "A reasoning agent or inference router serves queries of widely varying difficulty: simple lookups, moderate multi-step reasoning, hard novel problems. Compute per query is the dominant cost. The trivial policy — fixed budget across all queries — either wastes compute on simple ones or under-serves hard ones.",
+      "problem": "Static compute budgets force a single trade-off across all queries. With LLM inference cost dominating production economics, the slack on simple queries is large; the deficit on hard queries is real. Recent work (the 2025 arXiv survey 'Reasoning on a Budget', the 2026 ACM Web Conference paper on adaptive routing) shows that input-conditional allocation can reduce cost without sacrificing quality — but only if there is a reliable signal for per-query difficulty available before commitment.",
+      "forces": [
+        "Compute is expensive; over-allocation wastes; under-allocation produces wrong answers.",
+        "Per-query difficulty is not always knowable upfront; some signals (self-consistency, model-uncertainty) require partial generation to read.",
+        "Routing-quality and routing-overhead trade off — a complex router can eat the savings."
+      ],
+      "therefore": "Therefore: use a cheap difficulty estimator (self-consistency on a small sample, length heuristics, prior-task similarity) to pick a compute budget per query, and ramp budget on signals of low-confidence partial output.",
+      "solution": "Adopt a per-query budget pipeline: cheap difficulty estimator picks initial budget; partial-output signals (low self-consistency, low model confidence, branching mid-reasoning) trigger budget ramp; hard ceiling on budget per query prevents runaway. Variants include model routing (small model first, escalate on uncertainty), thinking-token budget control, and sample-count adaptation. Distinct from test-time-compute-scaling by being explicitly input-conditional.",
+      "consequences": {
+        "benefits": [
+          "Lower mean cost per query without quality regression.",
+          "Hard queries get more compute when they need it; simple queries get less.",
+          "Per-query economic visibility — cost is now an attribute of difficulty, not a flat ledger entry."
+        ],
+        "liabilities": [
+          "Routing-overhead can eat savings if the difficulty estimator is itself expensive.",
+          "Adversarial inputs can exploit the estimator to either burn budget or starve hard queries.",
+          "Calibration drifts as the underlying model changes — yesterday's difficulty estimator is wrong today."
+        ]
+      },
+      "constrains": "Imposes a per-query difficulty estimation step before commitment to a compute level; constrains compute budgets to be elastic per query rather than flat across the deployment.",
+      "known_uses": [
+        {
+          "system": "ACM Web Conference 2026 — Adaptive Model and Strategy Routing for Cost-Efficient LLM Services",
+          "status": "available"
+        },
+        {
+          "system": "arXiv 2507.02076 — Reasoning on a Budget survey (2025)",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Claude — extended thinking budget controls (2025)",
+          "status": "available"
+        },
+        {
+          "system": "Reported Korean and Chinese-Traditional 2026 'Slow AI / adaptive thinking' coverage (Switas, fordige.com)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "test-time-compute-scaling",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "sleep-time-compute",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "process-reward-model",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs",
+          "year": 2025,
+          "url": "https://arxiv.org/html/2507.02076v1"
+        },
+        {
+          "type": "paper",
+          "title": "Adaptive Model and Strategy Routing for Cost-Efficient LLM Services (ACM Web Conference 2026)",
+          "year": 2026,
+          "url": "https://dl.acm.org/doi/abs/10.1145/3774904.3792556"
+        },
+        {
+          "type": "blog",
+          "title": "스위타스 — 7가지 에이전트 기반 및 LLM 혁신 기술",
+          "year": 2026,
+          "url": "https://www.switas.com/ko/articles/the-ai-avalanche-7-agentic-llm-breakthroughs-reshaping-march-2026"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "reasoning",
+        "compute",
+        "routing",
+        "test-time",
+        "cost"
+      ],
+      "applicability": {
+        "use_when": [
+          "Production deployments where mean-query cost dominates and query difficulty varies widely.",
+          "Reasoning agents with extended-thinking / sample-count controls available.",
+          "Multi-model setups where smaller and larger models can be selected per query."
+        ],
+        "do_not_use_when": [
+          "Workloads where queries have uniform difficulty.",
+          "Small deployments where routing overhead exceeds compute savings.",
+          "Settings where the difficulty estimator's adversarial robustness has not been validated."
+        ]
+      },
+      "example_scenario": "A customer-support assistant serves 10M queries/month. Profiling shows ~70% are FAQ-style (one-shot), ~25% are multi-step (need plan+execute), ~5% are genuinely novel (need extended thinking). Current setup uses a fixed extended-thinking budget on every query. The team adds a difficulty estimator: a small classifier scores prompt complexity, routes the 70% to the small fast path with no thinking tokens, the 25% to a moderate budget, the 5% to the full extended-thinking budget. Net inference cost drops 60% with no quality regression on production traffic.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Incoming query] --> D[Cheap difficulty estimator]\n  D -- easy --> S[Small budget / fast model]\n  D -- moderate --> M[Moderate budget / extended thinking]\n  D -- hard --> L[Full budget / large model]\n  S --> Ans1[Answer]\n  M --> C{Confidence ok?}\n  L --> Ans2[Answer]\n  C -- yes --> Ans3[Answer]\n  C -- no --> L\n"
+      },
+      "components": [
+        "Difficulty estimator — small classifier or heuristic that scores per-query complexity before commitment",
+        "Budget controller — translates difficulty score into thinking tokens, sample count, or model size",
+        "Confidence monitor — reads partial-output signals (self-consistency, uncertainty) to trigger budget ramp",
+        "Hard budget ceiling — caps any single query from consuming unbounded compute"
+      ],
+      "tools": [
+        "Prompt-complexity classifier — predicts difficulty from prompt features",
+        "Extended-thinking / sample-count control — the budget knob the controller turns",
+        "Self-consistency probe — small-N parallel samples used as a difficulty indicator",
+        "Cost telemetry — per-query compute accounting feeding back into the controller"
+      ],
+      "evaluation_metrics": [
+        "Mean compute per query — primary cost target",
+        "Quality regression on hard subset — confirms hard queries are not under-served",
+        "Routing accuracy — share of queries routed to the budget tier matching held-out difficulty labels",
+        "Budget-ramp trigger rate — frequency that partial-output signals escalate budget mid-run",
+        "Routing overhead share — fraction of total compute spent on difficulty estimation"
+      ],
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "chain-of-thought",
       "name": "Chain of Thought",
       "aliases": [

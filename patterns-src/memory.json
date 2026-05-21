@@ -1281,6 +1281,144 @@
       "last_updated": "2026-05-21"
     },
     {
+      "id": "procedural-memory",
+      "name": "Procedural Memory",
+      "aliases": [
+        "Skill Memory",
+        "How-To Memory",
+        "Learned-Procedure Store"
+      ],
+      "category": "memory",
+      "intent": "Maintain a third agent memory type alongside episodic (past events) and semantic (facts): procedural memory captures *learned how-to* — reusable skills, workflows, and self-rewritten system instructions that map situations directly to actions.",
+      "context": "An agent operates across many sessions and accumulates experience. Some of that experience is best stored as facts (semantic), some as event records (episodic). A third category — how to do something — does not fit either: it's the agent's accumulated playbook, recipes, and shortcuts. Without a dedicated store, this knowledge either lives in a static system prompt (no learning) or gets re-derived from episodic memory each time (slow, wasteful).",
+      "problem": "Episodic memory stores 'on 2026-03-12 I did X'; semantic memory stores 'X is true'. Neither stores 'when situation S arises, the right action sequence is A1, A2, A3'. Without a procedural store, the agent re-derives skills from raw episodes on every invocation, or relies on a frozen system prompt that cannot improve. LangChain's LangMem SDK explicitly names this gap and provides three memory types; the arXiv ProcMEM paper shows learned procedural memory outperforms episodic-only retrieval on reusable-skill tasks.",
+      "forces": [
+        "Episodic memory recalls past events but does not generalise to reusable shortcuts.",
+        "Static system prompts cannot improve from experience.",
+        "Procedural memory must be safely updatable — the agent rewriting its own instructions is itself a risk surface (see rogue-agent-drift).",
+        "Skills must be retrievable by situation, not by keyword — requires structured indexing."
+      ],
+      "therefore": "Therefore: maintain a procedural store keyed by situation pattern; allow the agent to read, append, and revise entries; gate updates with provenance and review; retrieve at decision-time by matching current situation against stored patterns.",
+      "solution": "Implement a procedural-memory store as a first-class memory type alongside episodic and semantic. Entries are (situation pattern, action sequence, success record). The agent reads at planning time and appends after successful workflows. Updates are gated — naïvely letting the agent overwrite its own playbook risks rogue-drift, so add provenance and review. Common implementations: LangChain's LangMem 'procedural' channel, Claude Agent Skills (manually authored), ProcMEM-style learned skill libraries.",
+      "consequences": {
+        "benefits": [
+          "Agent learns reusable skills across sessions without re-deriving from raw episodes.",
+          "Skills compose: complex procedures built from learned sub-procedures.",
+          "Inference cost drops on recurring tasks — retrieved procedures replace re-planning."
+        ],
+        "liabilities": [
+          "Procedural memory updates by the agent itself create rogue-drift risk.",
+          "Retrieval by situation requires structured indexing — keyword search is insufficient.",
+          "Stale procedures persist after the environment changes; needs invalidation discipline."
+        ]
+      },
+      "constrains": "Imposes a third memory type with structured situation→action indexing and update governance; constrains the agent to retrieve procedures by situation match rather than by free-text query.",
+      "known_uses": [
+        {
+          "system": "LangChain LangMem SDK — procedural memory channel (2025)",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic Claude Agent Skills — manually-authored procedural surface (2025)",
+          "status": "available"
+        },
+        {
+          "system": "ProcMEM — learned procedural memory via non-parametric PPO (arXiv 2026)",
+          "status": "available"
+        },
+        {
+          "system": "techsy.io Italian memory taxonomy — names procedural memory as one of the seven memory types",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-summaries",
+          "relation": "complements"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "self-archaeology",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rogue-agent-drift",
+          "relation": "conflicts-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "LangChain — LangMem SDK for Agent Long-Term Memory",
+          "year": 2025,
+          "url": "https://www.langchain.com/blog/langmem-sdk-launch"
+        },
+        {
+          "type": "paper",
+          "title": "ProcMEM: Learning Reusable Procedural Memory from Experience",
+          "year": 2026,
+          "url": "https://arxiv.org/pdf/2602.01869"
+        },
+        {
+          "type": "blog",
+          "title": "techsy.io — Memoria degli Agenti IA",
+          "year": 2026,
+          "url": "https://techsy.io/it/blog/guida-memoria-agenti-ia"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "skills",
+        "long-term",
+        "learning"
+      ],
+      "applicability": {
+        "use_when": [
+          "Agents that operate across many sessions and encounter recurring task shapes.",
+          "Workflows where the cost of re-deriving the right action sequence is high.",
+          "Long-running agents that benefit from accumulated playbooks."
+        ],
+        "do_not_use_when": [
+          "Single-session agents with no recurring task structure.",
+          "Deployments where rogue-drift risk outweighs skill-reuse benefit.",
+          "Settings where situation-pattern indexing infrastructure is unavailable."
+        ]
+      },
+      "example_scenario": "A software-engineering agent works across hundreds of pull-request reviews. Initially, it re-derives the right review approach (run tests, check coverage, look for security smells) from its general training each time. After adopting procedural memory, the agent stores 'on PRs touching auth code, the right procedure is: 1) load OWASP cheatsheet, 2) check auth-test coverage, 3) flag any new secrets to security review'. On future auth PRs, the procedural retrieval surfaces this playbook, saving derivation cost and producing more consistent reviews. Updates to the procedure require a successful application before they overwrite the prior version.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  S[Current situation] --> R[Procedural retrieval by situation pattern]\n  R -- match --> P[Stored procedure A1→A2→A3]\n  R -- no match --> Plan[Plan from scratch]\n  P --> Exec[Execute]\n  Plan --> Exec\n  Exec --> Out[Outcome]\n  Out -- success + novel --> Append[Append to procedural store]\n  Out -- failure --> Mark[Mark procedure for review]\n  Append --> Store[(Procedural memory)]\n  Mark --> Store\n  Store --> R\n"
+      },
+      "components": [
+        "Procedural store — keyed by situation pattern, stores (situation, action sequence, success record)",
+        "Situation matcher — retrieves stored procedures whose pattern matches the current situation",
+        "Update gate — controls when and how the agent can append or revise procedures",
+        "Provenance tracker — records who/what authored each procedure (manual, learned, imported)"
+      ],
+      "tools": [
+        "LangMem-style procedural channel — production library implementation",
+        "Skill registry — manually-authored procedures (Anthropic Agent Skills)",
+        "Situation embedding index — vector store keyed by situation features for retrieval",
+        "Procedure success ledger — tracks outcomes so failed procedures get demoted"
+      ],
+      "evaluation_metrics": [
+        "Procedure hit rate — share of decisions where a stored procedure matches the current situation",
+        "Skill-reuse cost saving — inference cost saved by retrieving vs re-planning",
+        "Procedure success rate — fraction of stored procedures that produce successful outcomes when retrieved",
+        "Update-governance violation rate — frequency of unsupervised self-rewrites of the procedural store",
+        "Procedure staleness — share of stored procedures that fail validation against current environment"
+      ],
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "reasoning-trace-carry-forward",
       "name": "Reasoning Trace Carry-Forward",
       "aliases": [
