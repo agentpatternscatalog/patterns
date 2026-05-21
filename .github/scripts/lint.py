@@ -272,8 +272,19 @@ def rule_a2() -> list[Violation]:
         "verification-todo.json",
         "verification-todo.schema.json",
         "patterns.graph.schema.json",
+        "compositions.schema.json",
+        "examples.schema.json",
+        "pattern-todo.json",
+        "pattern-todo.schema.json",
     }
-    allowed_dirs = {"patterns-src", "patterns", "docs", ".github"}
+    allowed_dirs = {
+        "patterns-src",
+        "patterns",
+        "docs",
+        ".github",
+        "compositions-src",
+        "examples-src",
+    }
     for f in root_files:
         if f not in allowed_top:
             out.append(Violation("A2.2", f, "unexpected tracked file at repo root"))
