@@ -101,7 +101,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  W[Candidate workflow] --> B[Run on benchmark]\n  B --> S[Score]\n  S --> SEL[MCTS Selection<br/>UCB on past scores]\n  SEL --> EXP[Expand: mutate node / op]\n  EXP --> W\n  S --> BEST[Best workflow so far]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Workflow representation — code or graph encoding of router, planner, ensemble, review, revise nodes",
+        "Mutation operator — proposes edits (swap node, add review, change ensemble width) to expand the search frontier",
+        "Eval harness — runs a candidate workflow end-to-end against the benchmark and returns a score",
+        "MCTS controller — UCB selection over visited workflows, backpropagation of benchmark scores",
+        "Held-out validator — re-scores the best workflow on an unseen split before deployment"
+      ],
+      "tools": [
+        "Benchmark dataset with ground-truth answers — the only signal the search trusts",
+        "LLM API — invoked once per node per evaluation run, so the cheapest viable tier is normal",
+        "Workflow runner / orchestrator — executes a candidate graph reproducibly inside the eval loop"
+      ],
+      "evaluation_metrics": [
+        "Best-workflow benchmark score vs hand-designed baseline — the headline lift the search has to justify",
+        "Held-out vs search-set score gap — flags overfitting of the discovered workflow to the search benchmark",
+        "Evaluations consumed per point of score lift — search efficiency under a fixed compute budget",
+        "Operator library coverage in the surviving workflow — which mutations actually contributed to wins",
+        "Cost per inference of the deployed workflow — the bill the discovered shape will run at in production"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "circuit-breaker",
@@ -207,7 +226,26 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Closed\n  Closed --> Open : error rate > threshold\n  Open --> HalfOpen : cooldown elapsed\n  HalfOpen --> Closed : trial calls succeed\n  HalfOpen --> Open : trial calls fail\n  Open --> Open : route to fallback / fail fast"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Breaker state machine — Closed, Open, HalfOpen with transitions driven by error rate and cooldown",
+        "Error-rate window — per-dependency counter of successes and failures over a sliding interval",
+        "Trip threshold and cooldown — tuned parameters that decide when to open and when to probe",
+        "Fallback path — fail-fast response or alternate handler invoked while the breaker is Open",
+        "Trial-call gate — limited probe traffic in HalfOpen that decides whether to close again"
+      ],
+      "tools": [
+        "Circuit-breaker library — Resilience4j, Polly, pybreaker, or an equivalent maintained implementation",
+        "Metrics backend — per-dependency error and trip counters published for dashboards and alerts",
+        "Config store or feature flag — runtime updates to thresholds and cooldowns without redeploy"
+      ],
+      "evaluation_metrics": [
+        "Trip rate per dependency per hour — how often the breaker opens, and against which upstreams",
+        "False-trip rate — Open transitions that close again on the first HalfOpen probe (threshold too tight)",
+        "Mean Open duration — how long a tripped dependency stays cut off before recovering",
+        "Cost and latency saved while Open — calls suppressed times their unit cost and tail latency",
+        "Cascading-failure incidents avoided — incident reviews where the breaker stopped a retry storm"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "dynamic-scaffolding",
@@ -296,7 +334,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Incoming task] --> C{Classify task type}\n  C -- SQL --> S1[Inject schema scaffold]\n  C -- refactor --> S2[Inject refactor exemplars]\n  C -- rename --> S3[No scaffold]\n  S1 --> P[Assemble prompt]\n  S2 --> P\n  S3 --> P\n  P --> M[Model] --> A[Audit which scaffolds fired]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Task classifier — labels the incoming request with a task type used as scaffold key",
+        "Scaffold library — versioned store of few-shot examples, schemas, and hints keyed by task type",
+        "Prompt assembler — composes the base prompt with the matched scaffolds for this request",
+        "Audit log — records which scaffolds fired per request so the library can be evaluated and pruned",
+        "Default path — bare prompt taken when no scaffold matches or classification is low-confidence"
+      ],
+      "tools": [
+        "Lightweight classifier model or rule engine — labels the task cheaply before the main call",
+        "Prompt-template engine — Jinja, DSPy signatures, or equivalent, with scaffold injection points",
+        "LLM API — primary inference with the assembled prompt"
+      ],
+      "evaluation_metrics": [
+        "Per-task-type quality lift over bare-prompt baseline — does the scaffold actually help its class",
+        "Token overhead per request — extra tokens the scaffold added vs the bare prompt",
+        "Misclassification rate — fraction of requests routed to a scaffold that did not apply",
+        "Scaffold-firing distribution — which scaffolds dominate, which are dead and removable",
+        "Quality regression on default path — confirms unclassified traffic is not made worse"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "fallback-chain",
@@ -405,7 +462,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> H1[Handler 1]\n  H1 --> C1{Confident?}\n  C1 -- yes --> Out[Answer]\n  C1 -- no --> H2[Handler 2]\n  H2 --> C2{Confident?}\n  C2 -- yes --> Out\n  C2 -- no --> H3[Handler 3]\n  H3 --> C3{Confident?}\n  C3 -- yes --> Out\n  C3 -- no --> IDK[\"I don't know\"]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Ordered handler chain — primary, secondary, tertiary handlers with a defined progression",
+        "Confidence signal — per-handler indicator (score, error, schema-validation result) that triggers handoff",
+        "Cascade controller — walks the chain, applies the gate at each step, enforces a depth bound",
+        "Honest-failure terminator — final 'I don't know' response when every handler passes",
+        "Per-layer telemetry — records which handler produced the served answer"
+      ],
+      "tools": [
+        "LangChain `with_fallbacks` runnable or equivalent chaining library — wires the ordered handlers",
+        "Multiple LLM provider APIs or rule-based handlers — the heterogeneous backends the chain calls",
+        "Structured-output validator — schema check that promotes a parse failure into a low-confidence signal"
+      ],
+      "evaluation_metrics": [
+        "Per-layer hit rate — share of requests served by handler 1, 2, 3, and 'I don't know'",
+        "Quality delta between layers — does each fallback genuinely degrade gracefully or sharply",
+        "Cumulative p95 latency under full cascade — worst-case wait when every layer is tried",
+        "Hidden-regression rate — share of requests where the primary returned low confidence on tasks it used to handle",
+        "Honest-IDK rate — share ending in the terminator instead of a wrong answer"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "graceful-degradation",
@@ -493,7 +569,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Request] --> Dep{Dependency healthy?}\n  Dep -- yes --> Full[Full feature path]\n  Dep -- vision down --> T[Text-only mode]\n  Dep -- retrieval down --> NC[Reply without citations]\n  Dep -- code exec down --> Sum[Simple summary mode]\n  T --> Disc[Disclose degraded mode]\n  NC --> Disc\n  Sum --> Disc\n  Disc --> Resp[Response to user]\n  Full --> Resp"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Health check — per-dependency probe that decides whether the full path is available",
+        "Per-feature fallback handlers — text-only, no-citations, simple-summary paths defined ahead of time",
+        "Feature-flag store — runtime switch to force a feature into degraded mode without redeploy",
+        "Disclosure layer — composes the user-visible notice that degraded mode is active",
+        "Hard-fail allowlist — features (payment, PII) that refuse to degrade and surface an explicit error"
+      ],
+      "tools": [
+        "Feature-flag platform — LaunchDarkly, Unleash, OpenFeature, or an in-house store",
+        "Dependency health probes — synthetic checks against vision, retrieval, sandbox endpoints",
+        "Observability stack — metrics and traces tagging each response with its degradation mode"
+      ],
+      "evaluation_metrics": [
+        "Per-feature degraded-mode firing rate — how often each downgrade path is taken",
+        "User-visible disclosure completeness — share of degraded responses that carried the notice",
+        "Conversion or task-completion delta under degraded vs full mode — value preserved by the downgrade",
+        "Hard-fail rate on allowlisted features — degradation correctly refused for PII or payment paths",
+        "Time-to-recovery — how quickly each feature flips back to full mode after the dependency heals"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "mixture-of-experts-routing",
@@ -588,7 +683,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Request] --> R[Router: classify domain]\n  R --> Top{Top-1 or top-k?}\n  Top -- top-1 --> E1[Expert: legal]\n  Top -- top-1 --> E2[Expert: code]\n  Top -- top-1 --> E3[Expert: medical]\n  Top -- top-k --> Multi[Run multiple experts]\n  Multi --> Agg[Aggregate outputs]\n  E1 --> Out[Answer]\n  E2 --> Out\n  E3 --> Out\n  Agg --> Out"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Domain router — classifier that maps each query to one or more expert labels",
+        "Expert agents — specialised prompts, tool palettes, and possibly fine-tuned models per domain",
+        "Top-k arbiter — decides whether to dispatch to one expert or to several whose outputs will be merged",
+        "Aggregator — combines multi-expert outputs into a single answer for cross-domain queries",
+        "Generalist fallback — explicit lane for queries no expert claims with confidence"
+      ],
+      "tools": [
+        "Domain classifier — small LLM or fine-tuned model that returns expert labels",
+        "Per-expert retrieval indexes — IRS publications for tax, case law for legal, clinical guidelines for medical",
+        "LLM provider APIs — possibly different models per expert lane",
+        "Aggregation logic — judge prompt, voting, or weighted merge for top-k dispatch"
+      ],
+      "evaluation_metrics": [
+        "Per-expert quality vs the generalist baseline — does each expert actually outperform on its domain",
+        "Router accuracy on a labelled domain test set — share of queries dispatched to the correct expert",
+        "Cross-domain query handling rate — fraction sent to top-k aggregation and the agreement among experts",
+        "Generalist-fallback firing rate — share of traffic no expert confidently claimed",
+        "Expert maintenance cost per domain — eval drift and prompt revisions over time"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "multi-model-routing",
@@ -712,7 +827,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Request] --> CL[Cheap classifier model]\n  CL -->|easy class| WC[Cheap model]\n  CL -->|hard class| WS[Strong model]\n  WC -->|low confidence| WS\n  WC --> O[Response]\n  WS --> O"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Difficulty classifier — small model or rule that labels each request as easy or hard",
+        "Cheap-model tier — handles the easy class and the first leg of confidence cascades",
+        "Strong-model tier — frontier model reserved for the hard class and low-confidence escalations",
+        "Confidence cascade — gate that promotes a cheap-model result to the strong model when uncertain",
+        "Cost telemetry — per-request token spend tagged by tier for ongoing tuning"
+      ],
+      "tools": [
+        "Multiple LLM provider APIs across price tiers — Haiku/Sonnet/Opus, gpt-mini/gpt, or equivalent",
+        "Classifier model or feature-based router — the cheapest viable component the budget allows",
+        "Cost-and-quality dashboard — per-class hit rate, per-class score, per-class spend"
+      ],
+      "evaluation_metrics": [
+        "Per-class quality on the strong vs cheap tier — confirms the cheap tier meets the bar on its lane",
+        "Class-distribution drift — share of traffic the classifier sends to each tier over time",
+        "Escalation rate from cheap to strong — fraction of cheap responses promoted on low confidence",
+        "Cost per resolved request vs single-strong-model baseline — the saving this pattern is meant to deliver",
+        "Misroute cost — quality regressions when an easy classification turned out hard"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "open-weight-cascade",
@@ -814,7 +948,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Request] --> S{Sensitive?}\n  S -->|yes| OW[Open-weight in-boundary]\n  OW -->|low conf.| Deg[Degrade or refuse]\n  S -->|no| D{Difficulty?}\n  D -->|easy| Sm[Small open-weight]\n  D -->|hard| Fr[Hosted frontier]\n  Sm -->|low conf.| Fr"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Sensitivity classifier — first gate; decides whether the request may ever cross the boundary",
+        "In-boundary open-weight tier — self-hosted model that handles all sensitive traffic",
+        "Insensitive difficulty router — second gate that splits easy vs hard inside the insensitive path",
+        "Hosted frontier tier — external strong model reachable only from the insensitive path",
+        "Degrade-or-refuse handler — fallback for sensitive low-confidence cases where escalation is forbidden"
+      ],
+      "tools": [
+        "Self-hosted inference stack — vLLM, TGI, or Triton serving Mistral, Mixtral, Pharia, Llama weights",
+        "Hosted frontier API — Anthropic, OpenAI, Google, or Mistral Large for the insensitive hard lane",
+        "Data-classification service — DLP scanner or PII detector that feeds the sensitivity gate",
+        "Routing policy engine — enforces the residency rule before any model call leaves the boundary"
+      ],
+      "evaluation_metrics": [
+        "Sensitivity-classifier recall on a labelled audit set — share of truly sensitive requests caught",
+        "Boundary-leak count — confirmed cases where a sensitive request reached the hosted tier (target zero)",
+        "Quality gap between open-weight and hosted tiers on the insensitive eval — capability cliff size",
+        "Cost-arbitrage saving on the insensitive path — share of traffic served cheaply by self-hosted models",
+        "Degrade-or-refuse rate on sensitive low-confidence requests — operational cost of sovereignty"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "parallel-tool-calls",
@@ -918,7 +1072,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant M as Model\n  participant H as Host\n  participant T1 as Tool 1\n  participant T2 as Tool 2\n  M->>H: assistant turn: [call(T1), call(T2)]\n  par fan-out\n    H->>T1: invoke\n  and\n    H->>T2: invoke\n  end\n  T1-->>H: result 1\n  T2-->>H: result 2\n  H->>M: tool messages 1+2\n  M->>H: next assistant turn"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Multi-call assistant turn — provider-supported message format carrying several tool calls",
+        "Host fan-out executor — runs the calls concurrently under a bounded concurrency limit",
+        "Per-tool adapter — invokes each tool and returns a tool-message result keyed to its call id",
+        "Result joiner — collects all tool messages into the next assistant turn's context",
+        "Rate-limit guard — backoff and queue logic for tools with strict per-second limits"
+      ],
+      "tools": [
+        "Provider tool-use API supporting multiple tool calls per assistant turn — OpenAI, Anthropic, equivalents",
+        "Async runtime (asyncio, Trio, Go routines) — the host-side fan-out primitive",
+        "Bounded-concurrency semaphore — caps simultaneous tool invocations per dependency"
+      ],
+      "evaluation_metrics": [
+        "Mean tool calls per assistant turn — how often the model actually parallelises",
+        "Wall-clock latency reduction vs sequential dispatch — the saving the pattern is meant to deliver",
+        "Independence violation rate — sampled audit of turns where the calls turned out to depend on each other",
+        "Concurrency saturation — share of turns hitting the host's concurrency cap or upstream rate limits",
+        "Result-join failure rate — turns where a fan-out result was dropped or mis-keyed"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "parallelization",
@@ -1029,7 +1202,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Task] --> Sp[Split / replicate]\n  Sp --> A[Call A]\n  Sp --> B[Call B]\n  Sp --> C[Call C]\n  A --> Agg[Aggregate]\n  B --> Agg\n  C --> Agg\n  Agg --> R[Result]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Splitter or replicator — fans the task into sectioning subtasks or repeated voting branches",
+        "Parallel branches — independent LLM calls that share no state during execution",
+        "Aggregator — majority vote, judge model, union, or concatenation depending on flavour",
+        "Concurrency controller — bounds the fan-out width against rate limits and budget",
+        "Failure-isolation wrapper — per-branch error handling that does not poison the join"
+      ],
+      "tools": [
+        "Async LLM client (LangChain `RunnableParallel`, asyncio gather, Promise.all) — drives the fan-out",
+        "Multiple LLM API keys or load-balanced endpoints — sustain the parallel request rate",
+        "Aggregation library — voting helpers, judge prompts, or merge utilities"
+      ],
+      "evaluation_metrics": [
+        "Wall-clock latency vs sequential baseline (sectioning) — the speedup the fan-out delivers",
+        "Quality lift over single-attempt baseline (voting) — accuracy gain from majority or judge",
+        "Branch agreement rate (voting) — how often branches converge, which calibrates n",
+        "Cost multiplier per resolved request — branch count times unit cost",
+        "Aggregation-step error rate — judge or vote miscalls measured on a labelled set"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "pipes-and-filters",
@@ -1121,7 +1313,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[Input stream] --> F1[Filter 1]\n  F1 -->|pipe| F2[Filter 2]\n  F2 -->|pipe| F3[Filter 3]\n  F3 -->|pipe| F4[Filter 4]\n  F4 --> Out[Output stream]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Filter — small single-responsibility processing stage with a typed input and output",
+        "Pipe — typed connector between filters (function return, queue, or stream)",
+        "Pipeline composer — assembles filters in order and enforces type compatibility at the seams",
+        "Filter registry or library — reusable filters shared across pipelines",
+        "Backpressure controller — handles slow consumers when pipes are queues or streams"
+      ],
+      "tools": [
+        "Stream or queue runtime — Kafka, Redis Streams, Apache Beam, or in-process generators",
+        "Schema enforcement — Pydantic, JSON Schema, or Protocol Buffers on each pipe contract",
+        "LangChain `RunnableSequence` or equivalent — function-call-style pipelines for LLM stages"
+      ],
+      "evaluation_metrics": [
+        "Per-filter unit-test coverage — share of filters with isolated fixtures and assertions",
+        "Filter reuse count across pipelines — concrete evidence the decomposition paid off",
+        "End-to-end latency vs monolith baseline — overhead the pipe boundaries added",
+        "Schema-violation rate at each pipe — frequency of contract breaks between stages",
+        "Stage-level failure attribution — share of incidents pinned to a single filter rather than the whole flow"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "prompt-chaining",
@@ -1211,7 +1422,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[Input] --> P1[Prompt 1<br/>validate]\n  P1 -->|out_1| P2[Prompt 2<br/>validate]\n  P2 -->|out_2| P3[Prompt 3<br/>validate]\n  P3 --> Out[Output]\n  P2 -.fail.-> Retry[Retry or abort]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Per-step prompt — system prompt, exemplars, and output schema scoped to one sub-task",
+        "Per-step validator — schema or rule check that gates the handoff to the next step",
+        "Chain orchestrator — runs the fixed sequence, propagates typed outputs, owns retries",
+        "Localised retry policy — per-step retry budget and abort rule on persistent failure",
+        "Step-level telemetry — latency, error, and quality metrics tagged per step"
+      ],
+      "tools": [
+        "Prompt orchestration framework — LangChain, DSPy, LlamaIndex Workflows, or hand-rolled sequence",
+        "Structured-output validator — JSON Schema, Pydantic, or Instructor at each step boundary",
+        "LLM API — possibly different models per step depending on the step's profile"
+      ],
+      "evaluation_metrics": [
+        "Per-step success rate — share of inputs that pass validation at each step",
+        "Per-step retry cost — average retries to clear each step and the token bill that implies",
+        "End-to-end success rate vs mega-prompt baseline — the quality the decomposition is meant to buy",
+        "Localisation rate — share of failures cleanly attributable to a single step on incident review",
+        "Cumulative latency — sum of step latencies vs the mega-prompt single call"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "provider-fallback",
@@ -1325,7 +1555,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant C as Client\n  participant GW as Gateway\n  participant P1 as Provider A\n  participant P2 as Provider B\n  C->>GW: request (stream)\n  GW->>P1: forward\n  P1-->>GW: partial stream\n  P1--xGW: stream error\n  GW->>P2: continue (translated msgs)\n  P2-->>GW: rest of stream\n  GW-->>C: one continuous stream"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Gateway proxy — owns the conversation state and the client-facing stream",
+        "Provider adapters — per-provider implementations of the unified chat and tool-call shape",
+        "Schema translator — normalises tool-call formats and message roles across providers",
+        "Stream-error detector — recognises mid-stream disconnects and triggers failover",
+        "Continuation builder — reconstructs the prompt with partial output for the fallback provider"
+      ],
+      "tools": [
+        "Model gateway — OpenRouter, Portkey, Helicone, LiteLLM proxy, or a custom service",
+        "Multiple provider APIs — at least two with compatible enough capability surfaces",
+        "Stream-aware HTTP client — server-sent events or chunked transfer with reconnection support"
+      ],
+      "evaluation_metrics": [
+        "Mid-stream failover success rate — share of stream errors recovered into one continuous response",
+        "Schema-translation error rate — per-provider mismatches in tool-call or message shape",
+        "Combined-provider uptime vs single-provider SLA — the resilience headline of the pattern",
+        "User-visible discontinuity rate — recovered streams where the seam was noticeable in output",
+        "Per-provider traffic share — confirms the fallback path actually carries production load when needed"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "provider-string-routing",
@@ -1446,7 +1695,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  CS[Call site] -->|provider/model string| REG[Provider registry]\n  REG --> A[OpenAI adapter]\n  REG --> B[Anthropic adapter]\n  REG --> C[Google adapter]\n  REG --> D[xAI adapter]\n  REG --> E[OpenRouter ...]\n  A --> API1[(OpenAI API)]\n  B --> API2[(Anthropic API)]\n  C --> API3[(Google API)]\n  D --> API4[(xAI API)]\n  E --> APIn[(...)]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Provider registry — keyed by short prefix (`openai/`, `anthropic/`, `google/`, `xai/`, `openrouter/`)",
+        "Provider adapter — per-provider class that translates the unified call into the upstream API",
+        "Credential resolver — reads provider-specific env vars at adapter instantiation time",
+        "Capability flags — runtime descriptor (tool calls, structured output, vision, context window) per model",
+        "Unified call site — single `generate(model='provider/model', ...)` entry point all code must use"
+      ],
+      "tools": [
+        "Mastra, Vercel AI SDK, or LiteLLM — existing implementations of the unified model interface",
+        "Environment configuration store — dotenv, AWS Secrets Manager, or HashiCorp Vault holding provider keys",
+        "Capability catalog — JSON or YAML file mapping model strings to supported features"
+      ],
+      "evaluation_metrics": [
+        "Provider-switch effort — lines changed to move a workload from one provider to another (target: a string)",
+        "Call-site SDK-import count — direct imports of provider SDKs that bypass the registry (target zero)",
+        "Misspelled-identifier failure rate at runtime — gap left by losing compile-time checking",
+        "Capability-mismatch incidents — production errors where a model was called for a feature it does not support",
+        "Provider mix in production — share of traffic per provider as evidence the abstraction is exercised"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "routing",
@@ -1561,7 +1829,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Req[Request] --> CL[Cheap classifier]\n  CL -->|command| L1[Deterministic action lane]\n  CL -->|agent| L2[Multi-step agent lane]\n  CL -->|chat| L3[Chat lane, no tools]\n  L1 --> Out[Response]\n  L2 --> Out\n  L3 --> Out"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Intent classifier — cheap model that returns a lane label for each request",
+        "Lane catalogue — declared set of specialists (command, agent, chat, research, human) with capability descriptors",
+        "Dispatcher — invokes the matching specialist and refuses cross-lane work",
+        "Lane specialists — per-lane prompt, tool palette, and possibly model tuned to the lane's traffic",
+        "Disambiguation fallback — explicit handler for requests the classifier cannot label confidently"
+      ],
+      "tools": [
+        "Lightweight classifier model — the cheapest LLM tier or a fine-tuned small model",
+        "Routing telemetry — per-lane counters and a confusion matrix from sampled audits",
+        "Lane-specific runtimes — separate prompts, agent frameworks, or deterministic action handlers"
+      ],
+      "evaluation_metrics": [
+        "Classifier accuracy on a labelled audit set — share of requests sent to the correct lane",
+        "Per-lane traffic share — distribution that confirms the routing assumption matches reality",
+        "Per-lane cost and latency — confirms cheap lanes are actually cheap end-to-end",
+        "Misroute recovery rate — share of misrouted requests salvaged by disambiguation or re-classification",
+        "Lane-saturation drift — how often a specialist hits capabilities outside its declared lane"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

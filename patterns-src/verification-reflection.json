@@ -116,7 +116,26 @@
         "mermaid": "flowchart TD\n  RUN[Run] --> TO[Trajectory + outcome]\n  TO --> G[Generator<br/>proposes item deltas]\n  G --> R[Reflector<br/>scores items vs outcomes]\n  R --> CU[Curator<br/>applies add / edit / remove<br/>against item ids, dedup]\n  CU --> PB[(Item-addressable playbook)]\n  PB --> RUN\n  CU -.no wholesale rewrites.-> PB",
         "caption": "Three role-separated stages turn each run into small delta updates against an item-addressable playbook."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Generator — proposes new item deltas from the latest trajectory and outcome",
+        "Reflector — scores existing and proposed items against outcomes, never writes",
+        "Curator — applies add/edit/remove patches against item ids with dedup; sole writer",
+        "Item-addressable playbook — ordered list of stable-id items with tactic, example, provenance",
+        "Trajectory + outcome record — per-run input that all three roles read from"
+      ],
+      "tools": [
+        "LLM API — three separate prompted calls for Generator, Reflector, Curator (may be different tiers)",
+        "Versioned item store — append-only storage keyed by stable item id with lineage",
+        "Outcome signal source — task-level pass/fail or score that the Reflector grounds against"
+      ],
+      "evaluation_metrics": [
+        "Item retention half-life — how many runs a specific tactic survives before being paraphrased away",
+        "Curator delta mix — ratio of add/edit/remove operations per run, surfacing pruning vs growth",
+        "Outcome lift over monolithic-rewrite baseline — does the three-role loop actually beat a single reflection pass",
+        "Dedup false-drop rate — fraction of Curator removals later judged wrong on audit",
+        "Cost per accepted delta — Generator+Reflector+Curator tokens divided by items that landed"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "best-of-n",
@@ -249,7 +268,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  P[Prompt] --> G[Sample N candidates<br/>temp > 0]\n  G --> C1[c1]\n  G --> C2[c2]\n  G --> CN[...cN]\n  C1 --> R[Reward model / scorer]\n  C2 --> R\n  CN --> R\n  R --> T[Top-1]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Generator — base LLM sampling N candidates at non-zero temperature",
+        "Reward model or scorer — ranks candidates against each other to pick the winner",
+        "Selector — top-1 (or top-K) extractor that returns the chosen candidate",
+        "Diversity controller — temperature and sampling parameters that keep candidates from collapsing"
+      ],
+      "tools": [
+        "LLM API — N parallel inference calls with non-zero temperature",
+        "Reward-model endpoint — trained ranker or rule-based scorer over the candidate set",
+        "Fine-tuning pipeline — only for the BoNBoN variant that amortises BoN into the weights"
+      ],
+      "evaluation_metrics": [
+        "Win-rate over single-sample baseline — does best-of-N pick beat the greedy decode",
+        "Candidate diversity — pairwise dissimilarity across the N samples (collapse warning if low)",
+        "Reward-model agreement with held-out human preference — bound on achievable lift",
+        "Quality lift per extra inference call — slope of quality versus N, finds the elbow",
+        "Reward-hacking incidence — fraction of selected candidates that score high but fail downstream"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "blind-grader-with-isolated-context",
@@ -364,7 +401,26 @@
         "mermaid": "sequenceDiagram\n  participant PROD as Producer (context A)\n  participant ORCH as Orchestrator\n  participant GRAD as Grader (context B, freshly allocated)\n  participant LOG as Audit log\n  PROD->>PROD: think, scratch, build artefact\n  PROD->>ORCH: artefact\n  ORCH->>GRAD: NEW context: {artefact, rubric, grader instructions only}\n  Note over GRAD: producer trace, scratchpad,<br/>prior turns deliberately excluded\n  GRAD-->>ORCH: verdict + structured findings\n  ORCH->>LOG: verdict logged against trace A (post hoc)",
         "caption": "The grader runs in a freshly allocated context with only the artefact and rubric; the producer's framing cannot leak in."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Producer agent — runs in context A with full reasoning trace and scratchpad",
+        "Orchestrator — copies the artefact across the context boundary and dispatches the grader",
+        "Blind grader — runs in freshly allocated context B with only the artefact, rubric, and instructions",
+        "Rubric — hand-authored criteria the grader must judge against without trace context",
+        "Audit log — joins producer trace A and grader verdict B post hoc, never inside grader context"
+      ],
+      "tools": [
+        "LLM API — at least two distinct invocations with strictly separated context windows",
+        "Context-isolation primitive — new conversation, subprocess, or fresh agent invocation that excludes prior turns",
+        "Rubric store — versioned criteria document loaded by the grader call"
+      ],
+      "evaluation_metrics": [
+        "Catch-rate uplift over trace-aware critic — failures only the blind grader surfaces",
+        "Grader-producer agreement gap — divergence between same-context self-critique and blind verdict",
+        "Rubric coverage — fraction of known failure classes the rubric actually scopes",
+        "Context-leak audit pass rate — sample inspections confirming no producer trace reached the grader",
+        "Token overhead per graded artefact — extra cost the isolated context adds versus inline review"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "commitment-tracking",
@@ -466,6 +522,25 @@
         "mermaid": "sequenceDiagram\n  participant U as User\n  participant A as Agent (main)\n  participant E as Extractor (cheap tier)\n  participant L as Commitment Ledger\n  U->>A: question\n  A->>U: answer, plus 'I will fetch X in 1h'\n  A->>E: pass turn for extraction\n  E->>L: write Commitment(open, deadline=+1h)\n  Note over A,L: ... 1 hour later ...\n  A->>L: list open\n  A->>A: actually fetch X\n  A->>L: mark_followed_through(id, evidence)",
         "caption": "Extractor lifts stated-intents into the ledger; agent reads and closes them later with evidence."
       },
+      "components": [
+        "Main agent — produces conversational turns that may contain stated-intents",
+        "Extractor — cheap-tier model that scans each turn for explicit promises and writes ledger records",
+        "Commitment ledger — append-only store of records with status open/followed-through/expired",
+        "Expiration sweeper — scheduled job that auto-expires open commitments past their deadline",
+        "Evidence-linker — mechanism that ties a follow-through action back to the original commitment id"
+      ],
+      "tools": [
+        "Cheap-tier LLM API — small model running the per-turn extraction pass",
+        "Append-only datastore — ledger with stable ids, status field, deadline, and provenance turn",
+        "Cron or scheduler — periodic trigger for the expiration sweep"
+      ],
+      "evaluation_metrics": [
+        "Extraction precision — fraction of logged commitments that were genuine promises, not rhetorical",
+        "Extraction recall — fraction of real promises that the extractor captured at all",
+        "Follow-through rate — closed-with-evidence over total non-expired commitments",
+        "Expiration backlog — count of open commitments past deadline at any sweep tick",
+        "User-perceived honesty delta — qualitative trust shift after the ledger is enabled"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -557,6 +632,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Answer] --> S[Compute confidence<br/>variance / score / recall]\n  S --> L{Threshold?}\n  L -- high --> UI[Render: high]\n  L -- medium --> UI2[Render: medium]\n  L -- low --> ESC[Escalate / human review]"
       },
+      "components": [
+        "Generator — LLM producing the answer alongside an uncertainty signal source",
+        "Confidence estimator — derives a calibrated label from logprobs, sample variance, or rubric score",
+        "Threshold router — branches outputs into high/medium/low handling paths",
+        "Fallback or human-review channel — destination for low-confidence cases",
+        "Calibration audit — ongoing check that reported confidence matches observed accuracy"
+      ],
+      "tools": [
+        "LLM API exposing logprobs — token-level probabilities feeding the estimator",
+        "Self-consistency sampler — N samples whose variance becomes the confidence signal",
+        "Calibration dataset — held-out pairs of (confidence, correctness) for periodic recalibration"
+      ],
+      "evaluation_metrics": [
+        "Expected calibration error (ECE) — gap between reported confidence and empirical accuracy",
+        "Brier score — mean squared error of probabilistic confidence against outcomes",
+        "Selective accuracy at coverage — accuracy on the fraction the system chose to answer",
+        "Escalation precision — share of low-confidence routes that were genuinely wrong",
+        "Calibration drift over time — ECE trend that triggers recalibration"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -644,7 +738,27 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Model\n  participant Tools\n  Model->>Model: draft answer\n  loop until clean or budget\n    Model->>Model: critique (name suspected errors)\n    Model->>Tools: search / exec / calc to verify\n    Tools-->>Model: evidence\n    Model->>Model: revise\n  end\n  Model-->>Model: final"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Drafter — LLM producing the initial answer to be challenged",
+        "Tool-augmented critic — same or different LLM that names suspected errors and queries tools to verify",
+        "External tool set — search, code execution, calculator that supply ground-truth signals",
+        "Reviser — pass that incorporates corroborated tool evidence into a new draft",
+        "Iteration controller — stops the loop on no-issues or budget exhaustion"
+      ],
+      "tools": [
+        "Web search API — verifies factual claims against external sources",
+        "Code-execution sandbox — runs generated code to check for runtime or correctness errors",
+        "Calculator or symbolic-math engine — checks arithmetic and algebraic claims",
+        "LLM API — drives critique and revision turns"
+      ],
+      "evaluation_metrics": [
+        "Tool-corroborated correction rate — edits driven by an actual tool result, not ungrounded change",
+        "Hallucination reduction over no-critic baseline — drop in confidently-wrong outputs",
+        "Tool-call efficiency — useful evidence returned per critic-issued query",
+        "Loop convergence rate — fraction of runs terminating on no-issues before budget cap",
+        "Latency and cost overhead per resolved defect — per-issue cost of the tool-grounded loop"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "darwin-godel-self-rewrite",
@@ -756,7 +870,27 @@
         "mermaid": "flowchart TD\n  ARCH[(Archive: variants + score + lineage)] --> SEL[Sample parent<br/>diversity-weighted, not strictly best]\n  SEL --> MUT[Propose code / prompt mutation]\n  MUT --> GATE{Viability gate:<br/>compiles? safe? smoke test passes?}\n  GATE -->|fail| DROP[Discard]\n  GATE -->|pass| SCORE[Score on objective]\n  SCORE --> ADD[Add to archive with score + lineage]\n  ADD --> ARCH\n  ARCH -.bounded; eviction keeps diverse stepping-stones.-> ARCH",
         "caption": "Mutation parents are sampled for diversity, not best score, so low-scoring novel variants can seed future high-scoring ones."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Variant archive — bounded store of variants with score, lineage, and diversity tags",
+        "Diversity-weighted sampler — picks the parent variant for the next mutation",
+        "Mutation proposer — generates code or prompt edits against the sampled parent",
+        "Viability gate — compile/safety/smoke-test check that admits a variant to the archive",
+        "Objective scorer — evaluates each viable variant on the benchmark or task suite"
+      ],
+      "tools": [
+        "Code-execution sandbox — runs each variant for the viability gate and the smoke test",
+        "Benchmark or task-suite harness — produces the objective score per variant",
+        "Versioned archive store — persists variants with score, lineage, and eviction metadata",
+        "LLM API — proposes the code or prompt mutations on each generation"
+      ],
+      "evaluation_metrics": [
+        "Generations to escape plateau — how many archive samples it takes to beat the prior best",
+        "Stepping-stone payoff rate — fraction of high-scoring variants descended from below-best parents",
+        "Archive diversity index — coverage of the variant space, not just top-N score",
+        "Viability-gate false-pass rate — broken variants that slip through and pollute the archive",
+        "Objective score lift over greedy self-rewrite baseline — net gain from archive sampling"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "deterministic-llm-sandwich",
@@ -847,7 +981,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[Input] --> Pre[Pre: deterministic check<br/>e.g. AST parse]\n  Pre -- pass --> LLM[LLM call<br/>structured output + rubric]\n  Pre -- fail --> Reject1[Reject]\n  LLM --> Post[Post: deterministic check<br/>schema / rules]\n  Post -- pass --> Out[Output]\n  Post -- fail --> Reject2[Reject / retry]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Pre-check — deterministic gate that decides whether the LLM should run at all",
+        "LLM call — generator constrained by structured-output schema and a frozen rubric",
+        "Post-check — deterministic re-validation (parse, type-check, run tests) against rules",
+        "Fallback handler — returns the original input unchanged when the post-check fails",
+        "Schema and rule library — codified constraints both checks read from"
+      ],
+      "tools": [
+        "Parser or AST library — runs the deterministic shape check on input and output",
+        "Type-checker or schema validator — enforces the structured-output contract",
+        "Test runner or rule engine — executes the post-check against domain rules",
+        "LLM API with structured output — generator step bracketed by the gates"
+      ],
+      "evaluation_metrics": [
+        "Post-check rejection rate — fraction of LLM outputs blocked before they land",
+        "Bracket-caught defect rate — wrong outputs caught by the post-check that the LLM did not flag",
+        "Pre-check skip ratio — share of inputs that never reach the LLM and the latency saved",
+        "Over-strict rejection rate — valid outputs wrongly blocked by the post-check",
+        "End-to-end pass-through latency overhead — added time the two gates cost per call"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "echo-recognition",
@@ -958,7 +1112,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  M[New user message] --> R[Compare to ring of recent inputs]\n  R --> S{Similarity hit?}\n  S -- no --> N[Treat as fresh turn]\n  S -- yes --> E[Treat as echo / emphasis]\n  E --> Q[Surface prior reply]\n  Q --> A[\"Ask: what did I miss?\"]\n  A --> W[Weight pair as one reinforced turn]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Input ring — bounded buffer of the user's recent messages with timestamps",
+        "Similarity comparator — lexical or semantic check against the ring on each new input",
+        "Echo classifier — decides whether a hit counts as emphasis, re-ask, or duplicate",
+        "Acknowledgement responder — surfaces the prior reply and asks what was missed",
+        "Reinforcement weighter — promotes the matched pair as a single higher-weight turn"
+      ],
+      "tools": [
+        "String-similarity library — normalised exact-match and token-overlap scoring",
+        "Embedding model — semantic comparison for paraphrase-style echoes",
+        "Short-term conversation store — holds the ring with per-message timestamps"
+      ],
+      "evaluation_metrics": [
+        "Near-duplicate reply rate — share of replies that the user judged a paraphrase of the prior",
+        "Echo-detection precision — fraction of detected echoes that were truly emphatic repeats",
+        "Echo-detection recall — fraction of genuine repeats the comparator actually flagged",
+        "User-rephrase frequency post-rollout — does explicit acknowledgement reduce the need to repeat",
+        "False-positive friction — cases where the user repeated for distinct referents and felt dismissed"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "evaluator-optimizer",
@@ -1103,7 +1276,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Task] --> Gen[Generator: produce candidate]\n  Gen --> Eval[Evaluator: score + feedback]\n  Eval --> P{Passes criteria?}\n  P -- yes --> Out[Return answer]\n  P -- no --> Cap{Max iterations hit?}\n  Cap -- yes --> Out\n  Cap -- no --> Gen"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Generator — LLM that produces a candidate output each turn",
+        "Evaluator — separate prompt or model that scores against criteria and emits actionable feedback",
+        "Feedback channel — structured critique passed back into the next generation turn",
+        "Iteration controller — caps the loop on pass-threshold or max-iterations",
+        "Criteria specification — explicit pass conditions both roles read from"
+      ],
+      "tools": [
+        "LLM API — at least two calls per iteration, often two different prompts or model tiers",
+        "Test runner or rubric checker — deterministic evaluators for code-like or rule-bound tasks",
+        "Iteration logger — records candidate, feedback, and verdict per loop for offline regression use"
+      ],
+      "evaluation_metrics": [
+        "Pass rate at iteration N — quality curve as a function of the loop budget",
+        "Generator-evaluator collusion rate — share of passes the evaluator approved that an independent judge rejects",
+        "Average iterations to pass — efficiency of convergence on the criteria",
+        "Cost-per-resolved-task — (generator + evaluator) tokens divided by passing outputs",
+        "Non-convergence rate — share of tasks that hit the iteration cap without passing"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "frozen-rubric-reflection",
@@ -1223,7 +1415,26 @@
           "when_to_use": "The rubric will evolve and historical comparisons matter."
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "Reviewer — LLM constrained to score only against the fixed criteria",
+        "Rubric file — hand-authored, version-stable list of allowed finding categories",
+        "Schema validator — rejects any output containing out-of-rubric finding categories",
+        "Author or upstream producer — supplies the draft the reviewer judges",
+        "Audit trail — per-run record of which rubric version and which findings fired"
+      ],
+      "tools": [
+        "LLM API — temperature-zero call configured with the rubric in the prompt",
+        "JSON Schema validator — enforces the closed set of finding categories",
+        "Versioned rubric store — keeps prior rubric revisions for trend analysis"
+      ],
+      "evaluation_metrics": [
+        "Across-run consistency — agreement on findings when the same draft is re-reviewed",
+        "Out-of-rubric attempt rate — share of reviewer outputs blocked by the schema",
+        "Defect-class coverage — fraction of real defects the current rubric is capable of catching",
+        "Rubric ceiling escapes — defects that bypassed because they fell outside every criterion",
+        "Author-reviewer cycle time — time from draft to structured feedback per criterion"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "inner-critic",
@@ -1314,7 +1525,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Edit[Proposed self-edit / diff] --> Cr[Critic persona on frozen checkpoint]\n  Cr --> Crit{Safety + charter + tests?}\n  Crit -- approve --> Land[Edit lands]\n  Crit -- reject --> Log[Log for human review]\n  Cr -.separate process / sandbox.-> Iso[Isolated from candidate edit]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Self-modifier — agent proposing edits to its own code, prompts, or rules",
+        "Critic persona — separate prompt or model running on a frozen checkpoint that reviews the diff",
+        "Safety charter and test suite — criteria the critic scores each diff against",
+        "Merge gate — only writes self-modifiable files on critic approval",
+        "Rejection log — queue of denied edits for later human review and learning signal"
+      ],
+      "tools": [
+        "Sandbox or separate process — runs the critic isolated from the candidate edit",
+        "Frozen base-model checkpoint — critic substrate that the edit cannot reach in this turn",
+        "Diff and version-control tooling — represents the proposed self-edit for review",
+        "Test runner — exercises the safety and charter checks the critic cites"
+      ],
+      "evaluation_metrics": [
+        "Self-edit acceptance rate — fraction of proposals the critic approves",
+        "Caught bad-edit rate — proposals the critic blocked that would have regressed the agent",
+        "Critic miss rate — approved edits later found by humans to violate the charter",
+        "Per-edit latency overhead — added time the diff-gate adds versus direct writes",
+        "Recursive self-improvement survivability — generations of self-edit the agent runs without manual rollback"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "process-reward-model",
@@ -1401,7 +1632,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  CoT[Reasoning trace] --> S1[Step 1] --> S2[Step 2] --> S3[Step 3] --> Ans[Final answer]\n  S1 --> PRM[Process reward model]\n  S2 --> PRM\n  S3 --> PRM\n  PRM -->|low score| Reject[Reject candidate]\n  PRM -->|all high| Accept[Accept]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Generator — model emitting chain-of-thought traces with step boundaries",
+        "Step segmenter — splits the trace into discrete steps the verifier can score",
+        "Process reward model — classifier predicting correct/neutral/incorrect/hallucination per step",
+        "Step-level annotation pipeline — human labellers producing the training data for the PRM",
+        "Inference-time selector — rejects candidates with low intermediate-step scores"
+      ],
+      "tools": [
+        "Step-label annotation interface — human raters tag each reasoning step",
+        "Classifier training pipeline — fine-tunes the PRM on labelled step-level data",
+        "LLM API — generator and inference-time scoring calls",
+        "Tree-search or best-of-N harness — consumes per-step scores at inference time"
+      ],
+      "evaluation_metrics": [
+        "Step-level accuracy of the PRM — agreement with held-out human labels per step",
+        "Wrong-reasoning-right-answer catch rate — share of lucky-shortcut traces the PRM rejects",
+        "Final-answer accuracy lift over outcome-only reward — net gain from step-level scoring",
+        "Annotation cost per percentage point of lift — economic shape of the PRM investment",
+        "PRM calibration drift across model versions — when the PRM stops matching the new generator"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "reflection",
@@ -1559,6 +1810,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Task] --> P[Producer pass]\n  P --> O1[Output v1]\n  O1 --> Cr[Critic pass]\n  Cr -->|issues| Rev[Revise pass]\n  Rev --> O2[Output v2]\n  O2 -->|loop until clean<br/>or max iters| Cr\n  O2 --> Final[Final output]"
       },
+      "components": [
+        "Producer — LLM that drafts the initial output",
+        "Critic persona — same or different model invoked to list concrete issues",
+        "Reviser — pass that rewrites the draft against the critic's findings",
+        "Stop-condition controller — terminates on no-new-issues or max-iteration cap",
+        "Named-criteria spec — explicit list the critic must score against to avoid drift"
+      ],
+      "tools": [
+        "LLM API — at least two calls per pass (critic and revise), optionally a third for the draft",
+        "Diff or structured-feedback channel — carries issue list from critic into reviser"
+      ],
+      "evaluation_metrics": [
+        "Surface-defect catch rate — share of obvious errors the critic surfaces on pass 2",
+        "Quality lift per iteration — slope of quality vs pass number, identifying the elbow",
+        "Self-reinforced confidence rate — share of wrong outputs the critic wrongly endorses",
+        "Termination distribution — how often the loop stops on clean vs hits the iteration cap",
+        "Cost overhead per shipped output — extra tokens the critic and revise passes add"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1654,7 +1923,26 @@
           "url": "https://github.com/langchain-ai/langgraph"
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "Episode runner — agent executing one task and producing a trajectory with success/failure outcome",
+        "Reflector — pass that writes a short verbal lesson from the trajectory",
+        "Long-term memory store — lessons keyed by task type or feature",
+        "Retriever — selects relevant lessons to prepend at the start of a new episode",
+        "Curator — retires stale or contradicted lessons rather than silently deleting them"
+      ],
+      "tools": [
+        "LLM API — runs both the agent and the reflection turn",
+        "Long-term memory backend — keyed lesson storage with retrieval",
+        "Embedding model and vector index — semantic retrieval of relevant lessons per new task"
+      ],
+      "evaluation_metrics": [
+        "Cross-episode error reduction — repeat-failure rate on the same error class after a lesson is stored",
+        "Lesson recall hit-rate — fraction of new episodes that retrieve a useful lesson",
+        "Lesson rot rate — share of lessons later judged outdated or wrong",
+        "Memory size vs benefit curve — quality lift versus number of stored lessons",
+        "Same-model blind-spot persistence — error classes the agent never writes a lesson about"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "self-consistency",
@@ -1774,7 +2062,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Same prompt] --> S1[Sample 1<br/>temp > 0]\n  Q --> S2[Sample 2]\n  Q --> S3[Sample N]\n  S1 --> Ex[Extract answer]\n  S2 --> Ex\n  S3 --> Ex\n  Ex --> Agg{Aggregate}\n  Agg -->|discrete| Vote[Majority vote]\n  Agg -->|numeric| Med[Median]\n  Agg -->|free-form| Judge[Judge model]\n  Vote --> Out[Final answer + variance signal]\n  Med --> Out\n  Judge --> Out"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Sampler — runs the same prompt N times at non-zero temperature",
+        "Answer extractor — pulls a comparable answer (class, number, free text) from each sample",
+        "Aggregator — majority vote, median, or judge that produces the final answer",
+        "Variance reporter — surfaces sample spread as a confidence signal",
+        "Judge model — only present in the free-form aggregation variant"
+      ],
+      "tools": [
+        "LLM API — N parallel inference calls per question",
+        "Parsing utility — extracts the comparable answer from each generation",
+        "Judge LLM API — separate call used only when aggregation requires free-form ranking"
+      ],
+      "evaluation_metrics": [
+        "Accuracy lift over single-sample baseline — gain from voting across N",
+        "Inter-sample agreement — modal-share that doubles as a confidence signal",
+        "Variance vs correctness correlation — validates whether spread tracks uncertainty",
+        "Quality-per-extra-call slope — accuracy gain per additional sample, finds the elbow",
+        "Judge-vs-vote divergence — gap between free-form aggregator and discrete vote on shared cases"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "self-refine",
@@ -1872,7 +2179,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]\n  FB --> Stop{No more issues?}\n  Stop -- no --> Ref[Refine: same model rewrites]\n  Ref --> FB\n  Stop -- yes --> Out[Final output]\n  FB -.cap.-> MaxIt[Max iterations]\n  MaxIt --> Out"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Single LLM — plays three roles in sequence: generator, feedback-giver, reviser",
+        "Generate role-prompt — produces the initial output",
+        "Feedback role-prompt — emits concrete improvement points against a fixed target",
+        "Refine role-prompt — rewrites the previous output using the feedback",
+        "Stop-condition controller — terminates on no-more-issues signal or max-iteration cap"
+      ],
+      "tools": [
+        "LLM API — three prompted calls per refinement turn against the same model",
+        "Target or checklist file — fixed improvement criteria the feedback role references"
+      ],
+      "evaluation_metrics": [
+        "Quality lift at iteration 2 vs iteration 1 — primary same-model self-correction signal",
+        "Diminishing-returns elbow — iteration count beyond which no further lift accrues",
+        "Same-model blind-spot persistence — defect classes the self-feedback never surfaces",
+        "No-op feedback rate — share of feedback passes that say the draft is fine on first look",
+        "Per-task cost in iterations — average refine turns to reach the stop condition"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "world-model-as-tool",
@@ -1988,7 +2313,28 @@
         "mermaid": "sequenceDiagram\n  participant PL as Planner\n  participant WM as World-model tool (generative simulator)\n  participant ENV as Real environment\n  participant LOG as Action trace\n  PL->>PL: generate candidate action sequences\n  loop for each candidate\n    PL->>WM: (state, candidate action sequence)\n    WM-->>PL: rollout (frames / trajectory / observations) + uncertainty\n  end\n  PL->>PL: aggregate rollouts + text reasoning\n  PL->>ENV: selected action\n  ENV-->>PL: observation\n  PL->>LOG: store rollouts alongside committed action",
         "caption": "The planner calls the world model as a tool to roll out hypothetical futures before any irreversible action."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Planner agent — generates candidate action sequences and weighs evidence across them",
+        "Generative world model — callable simulator returning predicted rollouts and optional uncertainty",
+        "Tool interface — structured (state, candidate-action) input and rollout output schema",
+        "Evidence aggregator — combines simulator rollouts with text-level reasoning to pick an action",
+        "Irreversibility gate — blocks expensive or one-way actions without simulator agreement",
+        "Action trace logger — stores rollouts alongside the committed action for replay"
+      ],
+      "tools": [
+        "Generative world model — video diffusion, learned dynamics model, or external physics simulator",
+        "LLM API — drives the planner and evidence aggregation steps",
+        "State encoder — turns the current scene into the simulator's input format",
+        "Logging and replay store — persists rollout frames or trajectories with the action that ran"
+      ],
+      "evaluation_metrics": [
+        "Foresight catch rate — failures the simulator surfaced that text reasoning had missed",
+        "Simulator-to-real divergence — gap between predicted rollout and observed environment outcome",
+        "Irreversible-action regret rate — share of committed irreversible actions later judged wrong",
+        "Latency overhead per action — added wall-clock for the rollouts that informed the decision",
+        "Tool-as-truth misuse rate — actions taken on simulator output where it should have been weighed as evidence"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

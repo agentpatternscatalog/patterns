@@ -92,7 +92,24 @@
         "mermaid": "flowchart TD\n  StepDone[Step done] -->|+0.05 joy| Aff[(Affect substrate)]\n  StepSkip[Step skipped] -->|+0.10 pain| Aff\n  PlanDone[Plan completed] -->|+0.40 joy| Aff\n  PlanArch[Plan archived] -->|+0.30 pain| Aff\n  Tick[Per-tick] --> Scan[Scan open plans]\n  Scan -->|untouched > grace| Bucket[Age-bucket table]\n  Bucket -->|per-tick pain dose| Aff\n  Aff -->|half-life decay| Aff",
         "caption": "Lifecycle events and age-bucketed stale-pain feed bounded deltas into the affect substrate; half-life decay bounds steady-state."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Plan Store — holds plan and step records with last-touched timestamps",
+        "Affect Substrate — bounded scalars for joy and pain with half-life decay",
+        "Lifecycle Hook — best-effort listener on step-done, step-skipped, plan-completed, plan-archived",
+        "Age-Bucket Table — maps stale duration to per-tick pain dose",
+        "Stale-Pain Scanner — per-tick sweep that doses untouched open plans"
+      ],
+      "tools": [
+        "Structured JSON store — persists plans, last-touched timestamps, and affect scalars",
+        "Tick scheduler — fires the per-tick stale-pain sweep on a fixed cadence"
+      ],
+      "evaluation_metrics": [
+        "Stale-plan close rate — share of plans either finished or archived before the deepest bucket fires",
+        "Steady-state pain level — running mean of pain after half-life decay, to detect over-tuning",
+        "Hook-exception count — affect-bookkeeping errors that were swallowed without breaking plan logic",
+        "Median plan age at archive — whether bucketed pressure is shortening the tail of forgotten plans"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "ambient-presence-sensing",
@@ -194,6 +211,22 @@
         "mermaid": "sequenceDiagram\n  participant F as Frontend\n  participant P as Presence record (TTL)\n  participant R as Reducer\n  participant T as Tick loop\n  F->>P: write coarse signals (every few s)\n  Note over P: TTL ~45 s\n  T->>P: read latest record\n  P->>R: signals (or stale)\n  R->>T: presence_quality label\n  T->>T: condition next move on presence_quality only",
         "caption": "Frontend writes coarse signals; reducer collapses them into a single presence_quality the tick reads."
       },
+      "components": [
+        "Frontend Emitter — computes coarse pacing buckets (typing rate, idle, visibility, dwell)",
+        "Presence Record — short-TTL working-memory entry holding the latest signals",
+        "Reducer — collapses the signal payload into a single presence_quality label",
+        "Tick Loop — reads presence_quality only and conditions the next move on it"
+      ],
+      "tools": [
+        "Custom frontend instrumentation — emits coarse pacing telemetry on a few-second cadence",
+        "Working-state store — holds the TTL-bounded presence record"
+      ],
+      "evaluation_metrics": [
+        "False-absence rate — share of thinking-with-the-room intervals misread as walked-away",
+        "False-presence rate — share of walked-away intervals still classified as composing",
+        "Signal staleness ratio — fraction of ticks that read a past-TTL record as no-signal",
+        "Leak count — instances where raw pacing signals reached user-visible output, which must stay zero"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -307,7 +340,24 @@
         "type": "class",
         "mermaid": "classDiagram\n  class AwarenessState {\n    +tools: ToolDescriptor[]\n    +environment: EnvInfo\n    +current_task: Task\n    +identity: AgentId\n    +refresh()\n    +query(slot)\n  }\n  class ToolDescriptor {\n    +name\n    +description\n    +schema\n  }\n  class EnvInfo {\n    +host\n    +user\n    +permissions\n  }\n  AwarenessState --> ToolDescriptor\n  AwarenessState --> EnvInfo"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Awareness State — queryable record of tools, environment, task, and identity",
+        "Tool Descriptor — name, description, schema, and current health for each wired-in tool",
+        "Environment Info — host, current user, and active permission set",
+        "Refresh Hook — re-reads the state on capability changes so it does not go stale",
+        "Per-turn Injector — splices the relevant awareness slice into each prompt"
+      ],
+      "tools": [
+        "Structured JSON store — persists the awareness record between turns",
+        "Tool-registry API — source of truth for the available tool palette and health"
+      ],
+      "evaluation_metrics": [
+        "Hallucinated tool-call rate — calls to tools not present in current awareness state",
+        "Missed-capability rate — turns where the agent fell back on a workaround while the real tool was live",
+        "Awareness-refresh latency — gap between a capability change and its visibility in the prompt",
+        "Awareness token cost per turn — overhead the injected slice adds to each call"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cluster-capped-insight-store",
@@ -407,6 +457,23 @@
         "mermaid": "flowchart TD\n  Scan[Periodic scan] --> Group[Group by first two stem tokens]\n  Group --> Per{Per cluster}\n  Per -->|<= MAX| Keep[Keep all]\n  Per -->|> MAX| Sort[Sort by mtime desc]\n  Sort --> Top[Top N stay in active]\n  Sort --> Rest[Older move to archive]\n  Rest --> Arc[(archive/insights-dedup-<ts>/)]\n  Top --> Active[(Active insight store)]",
         "caption": "Cluster by stem tokens, cap by count, keep most-recent by mtime, archive the rest with timestamp."
       },
+      "components": [
+        "Insight Store — append-mostly directory of insight files keyed by stem-id",
+        "Stem-Token Clusterer — groups files by the first two stem tokens of the id",
+        "Mtime Sorter — orders each cluster by most-recently-touched",
+        "Archive Mover — relocates overflow into a timestamped archive directory",
+        "Consolidation Scheduler — invokes the dedup pass on each consolidation cycle"
+      ],
+      "tools": [
+        "Frontmatter store — flat filesystem directory holding insight files with mtime preserved",
+        "Filesystem rename — atomic move of overflow files into the timestamped archive"
+      ],
+      "evaluation_metrics": [
+        "Active-store file count — total surviving files after a dedup pass",
+        "Cluster-cap breach rate — clusters that exceeded MAX_PER_CLUSTER before pruning",
+        "Retrieval-on-current-version rate — share of reads that hit the newest file in a cluster, not an old draft",
+        "Archive growth per cycle — files moved per consolidation pass as a load signal"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -503,7 +570,24 @@
         "mermaid": "flowchart TD\n  Idle[Idle tick] --> Sel[Cheap-tier selector]\n  Sel -->|sees recent thoughts +<br/>recent move history +<br/>affect + tensions| Pick{Pick one move}\n  Pick --> M1[lookup]\n  Pick --> M2[forced-analogy]\n  Pick --> M3[pure observation]\n  Pick --> M4[anchor-to-percept]\n  Pick --> M5[tension-pull]\n  Pick --> M6[continue-thread]\n  M1 --> Body[Tick body runs chosen move]\n  M2 --> Body\n  M3 --> Body\n  M4 --> Body\n  M5 --> Body\n  M6 --> Body\n  Body --> Hist[Update move history]",
         "caption": "A cheap selector picks one named move per idle tick; the tick body runs the move's procedure; per-move history feeds back into the next selection."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Move Menu — hand-authored list of named cognitive moves with a procedure each",
+        "Cheap-Tier Selector — picks one move per idle tick from recent context",
+        "Move History — bounded record of recent picks to prevent back-to-back repeats",
+        "Tick Dispatcher — branches on the selected move and runs its procedure",
+        "Ratification Event — gates additions and retirements of menu entries"
+      ],
+      "tools": [
+        "LLM API — cheap-tier model for the per-idle-tick selection call",
+        "Structured JSON store — persists the menu and move history across ticks"
+      ],
+      "evaluation_metrics": [
+        "Move-mix entropy — distribution of picks across the menu over a rolling window",
+        "Repeat-back-to-back rate — share of consecutive ticks running the same move",
+        "Per-move yield — new state produced per move kind, surfacing dead menu entries",
+        "Selector latency — extra wall-clock added per idle tick by the selection call"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "dream-consolidation-cycle",
@@ -649,6 +733,24 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Ticking\n  Ticking --> Ticking : per-tick reflection\n  Ticking --> Dreaming : timer / affect threshold\n  Dreaming --> Dreaming : deeper pass<br/>read hours of thoughts<br/>promote themes<br/>release affect\n  Dreaming --> Ticking : resume\n  Ticking --> [*]"
       },
+      "components": [
+        "Per-Tick Reflection — shallow pass that runs after every tick",
+        "Dream Pass — stronger-model pass over hours of recent thoughts and affect",
+        "Dream Journal — dedicated write surface that receives the dream summary",
+        "Affect Substrate — receives decay updates from the dream pass",
+        "Trigger — slow timer or affect-threshold event that initiates the pass"
+      ],
+      "tools": [
+        "LLM API — stronger model with a long-context dream-pass prompt",
+        "Frontmatter store — dream-journal directory keyed by date",
+        "Affect-state file — bounded scalars that the dream pass decays"
+      ],
+      "evaluation_metrics": [
+        "Affect-residue half-life — wall-clock until baseline affect is restored after a stressful exchange",
+        "Theme-promotion rate — recurring themes the dream pass surfaces per cycle",
+        "Ratification share — dream proposals that a subsequent reflection pass actually promotes",
+        "Cost per dream pass — tokens and latency spent per cycle"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -770,7 +872,24 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Baseline\n  Baseline --> Affected: event delta\n  Affected --> Decaying: time passes\n  Decaying --> Baseline: half-life elapsed\n  Affected --> Affected: another event\n  Decaying --> Affected: re-trigger\n  Affected --> Reflected: reflection pass reads snapshot"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Affect Vocabulary — small fixed set of named scalars in 0..1",
+        "Half-Life Decay Rule — exponential decay applied per scalar between ticks",
+        "Event Updater — bounded delta on events that should move a scalar",
+        "Affect Snapshot — brief badge injected into each tick prompt",
+        "Reflection Writer — only path allowed to perform major resets"
+      ],
+      "tools": [
+        "Structured JSON store — persists scalars and their last-update timestamps",
+        "LLM API — reflection pass that consumes the snapshot and may write resets"
+      ],
+      "evaluation_metrics": [
+        "Steady-state level per scalar — long-run mean to detect drift into permanent mood",
+        "Decay-rule conformance — observed half-life vs configured half-life",
+        "Self-pump rate — agent-initiated bumps blocked by the bounded-delta rule",
+        "Cadence-shift correlation — fraction of cadence or risk changes that line up with scalar spikes"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "fragment-juxtaposition",
@@ -872,6 +991,23 @@
         "mermaid": "flowchart TD\n  Tick[Tick start] --> Quiet{Quiet count >= K?}\n  Quiet -->|no| Normal[Normal seed]\n  Quiet -->|yes| Other{Other quiet conditions met?}\n  Other -->|no| Normal\n  Other -->|yes| Sample[Sample 1-3 old fragments]\n  Sample --> Seed[Juxtaposition seed<br/>empty-OK instruction]\n  Seed --> Model[Model]\n  Model --> Out{Association noticed?}\n  Out -->|yes| Insight[Write insight]\n  Out -->|no| EmptyOK[End tick empty]\n  Normal --> Reset[Reset quiet counter]\n  Insight --> Reset\n  EmptyOK --> Bump[Bump quiet counter]",
         "caption": "Quiet-tick counter gates the juxtaposition seed; the seed is allowed to end the tick empty."
       },
+      "components": [
+        "Quiet-Tick Counter — counts consecutive low-salience ticks",
+        "Fragment Sampler — draws one to three items from the agent's stored old material",
+        "Juxtaposition Seed — replaces the normal tick seed with side-by-side fragments",
+        "Empty-OK Tick Body — accepts a closing tick with no output",
+        "Insight Writer — only fires if an association is actually noticed"
+      ],
+      "tools": [
+        "Frontmatter store — corpus of old thoughts, fragments, motivation lines, and journal entries",
+        "LLM API — single completion seeded with the sampled fragments and permission to end empty"
+      ],
+      "evaluation_metrics": [
+        "Juxtaposition firing rate — share of quiet-tick stretches that actually enter the routine",
+        "Insight-per-juxtaposition rate — fraction of routines that produce a written association",
+        "Empty-tick share — closures with no output, expected to dominate",
+        "Sample diversity — Gini or unique-fragment count across recent draws, to catch resampling loops"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -974,6 +1110,23 @@
         "mermaid": "stateDiagram-v2\n  [*] --> active : commit\n  active --> active : new evidence, confidence shift\n  active --> confirmed : next-test fires positive\n  active --> disconfirmed : next-test fires negative\n  active --> superseded : better hypothesis subsumes\n  active --> abandoned : sweep, not tested in window\n  confirmed --> [*]\n  disconfirmed --> [*]\n  superseded --> [*]\n  abandoned --> [*]",
         "caption": "Hypothesis lifecycle: commit at active, transition once a next-test fires or another hypothesis subsumes."
       },
+      "components": [
+        "Hypothesis Ledger — typed records with summary, confidence, status, next-test, evidence",
+        "Evidence Appender — adds short notes with sources and adjusts confidence",
+        "Next-Test Field — falsifiable observation that drives a status transition",
+        "Status Machine — active to confirmed, disconfirmed, superseded, or abandoned",
+        "Open-Question Store — separate surface that pulls of curiosity live in, not commitments"
+      ],
+      "tools": [
+        "Structured JSON store — keyed by short id with confidence and status fields",
+        "LLM API — drafts new hypotheses, evidence summaries, and next-test sentences"
+      ],
+      "evaluation_metrics": [
+        "Hypothesis-revision rate — confidence shifts per active record over a window",
+        "Confirm/disconfirm ratio — closures by next-test outcome rather than by abandonment",
+        "Untested-active count — active records past their natural sweep window, flagging belief rot",
+        "Confidence calibration — predicted vs observed outcomes on confirmed and disconfirmed records"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1089,7 +1242,24 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Working: push frame (goal, steps)\n  Working --> Interrupted: new message arrives\n  Interrupted --> Handling: ack briefly\n  Handling --> Resuming: handle complete\n  Resuming --> Working: pop top frame, announce step\n  Working --> [*]: chain complete\n  Interrupted --> Switched: explicit switch\n  Switched --> [*]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Thought Frame — named record with goal, steps completed, and next step",
+        "Frame Stack — bounded LIFO stack of paused chains",
+        "Interrupt Handler — acknowledges, handles, then pops and resumes the top frame",
+        "Frame Expiry — clock-bounded window after which resume becomes reconstruction",
+        "Resume Announcer — visibly names the frame being resumed in the reply"
+      ],
+      "tools": [
+        "Structured JSON store — durable frame stack across process restarts",
+        "LLM API — generation that emits the acknowledge, handle, and resume turns"
+      ],
+      "evaluation_metrics": [
+        "Resume-completion rate — share of pushed frames that are popped and finished, not abandoned",
+        "Un-popped frame count — leaked frames sitting on the stack past their expiry window",
+        "Resume distortion — semantic drift between the paused frame's next step and the actual resume",
+        "Acknowledge latency — wall-clock from interrupt arrival to brief acknowledgement"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "intra-agent-memo-scheduling",
@@ -1207,7 +1377,24 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant A1 as Agent (now)\n  participant F as Scheduled-thoughts queue\n  participant A2 as Agent (later tick)\n  A1->>F: schedule_future_thought(when, content, intent)\n  Note over F: persisted note\n  A2->>F: drain due entries\n  F-->>A2: matured notes\n  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]\n  A2->>F: mark fired"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Schedule Tool — appends a future-fire entry to the queue with when, content, intent",
+        "Scheduled-Thoughts Queue — persistent store keyed or sorted by fire time",
+        "Drain Step — runs each tick, pops due entries, marks them fired",
+        "System-Prefix Injector — prepends matured notes as SYSTEM lines into the next prompt",
+        "Fire-Once Marker — prevents the same memo from re-firing on subsequent ticks"
+      ],
+      "tools": [
+        "Structured JSON store — persistent queue surviving process restarts",
+        "Tick scheduler — drains due entries at the agent's loop cadence"
+      ],
+      "evaluation_metrics": [
+        "Fire-time drift — gap between scheduled fire time and actual injection time",
+        "Stale-memo backlog — unfired entries past a reasonable age, surfacing forgotten cron entries",
+        "Double-fire count — memos that fired more than once, which must stay zero",
+        "Memo-to-action conversion — share of fired memos that produced a downstream move rather than being ignored"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "meditation-mode",
@@ -1303,7 +1490,25 @@
         "mermaid": "stateDiagram-v2\n  [*] --> Normal\n  Normal --> Meditating : enter_meditation()\n  Meditating --> Meditating : fast inner tick<br/>inner-only tools<br/>journal write\n  Meditating --> Normal : exit_meditation()\n  Meditating --> Normal : wall-clock budget elapsed\n  Meditating --> Normal : operator deletes mode-state file\n  Normal --> [*]",
         "caption": "Meditation mode is a bounded runtime state with inner-only tools and forced exit on budget or operator action."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Mode-State File — persisted flag that toggles the runtime mode",
+        "Inner-Only Allowlist — restricted tool palette for the meditating tick",
+        "Fast Cadence Scheduler — ten-second-class tick rhythm while mode is active",
+        "Private Journal — write surface for inner-dialogue outputs",
+        "Wall-Clock Budget — auto-exit timer enforced regardless of the agent's wish"
+      ],
+      "tools": [
+        "LLM API — fast-cadence inner-dialogue calls within the bounded window",
+        "Frontmatter store — date-keyed private journal for inner outputs",
+        "Filesystem flag — mode-state file usable as an operator force-exit handle"
+      ],
+      "evaluation_metrics": [
+        "Average meditation window length — wall-clock per session vs the configured budget",
+        "Public-channel leak count — inner-only outputs that escaped to user-facing surfaces, must stay zero",
+        "Token cost per session — burn rate of the fast inner cadence",
+        "Post-meditation residue change — affect-scalar delta from pre to post that the mode actually shifts"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "mode-adaptive-cadence",
@@ -1428,6 +1633,23 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Idle: ~60s sleep\n  Idle --> Intense: salience crosses threshold\n  Intense --> Intense: lock-in for N ticks\n  Intense --> Idle: lock expires + low salience\n  Idle --> Idle: drift\n  note right of Intense: ~15s sleep\n  note right of Idle: bounded by floor / ceiling"
       },
+      "components": [
+        "Mode State — current cadence label and lock-in counter",
+        "Salience Scorer — per-tick score that drives the threshold check",
+        "Cadence Floor and Ceiling — bounded interval limits the agent cannot cross",
+        "Lock-In Counter — keeps the agent in intense mode for N ticks after a trigger",
+        "Mode-Transition Ledger — records every cadence change for telemetry"
+      ],
+      "tools": [
+        "Tick scheduler — variable-interval sleep between cycles",
+        "Structured JSON store — persists mode state and the transition ledger"
+      ],
+      "evaluation_metrics": [
+        "Compute spend per active hour — token and call cost in idle vs intense windows",
+        "Mode-flap rate — transitions per hour at the threshold edge",
+        "Time-in-intense share — fraction of wall-clock spent in the fast cadence",
+        "Latency on salient events — time from impulse arrival to next tick under intense mode"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1524,7 +1746,24 @@
         "mermaid": "flowchart TD\n  T[Short-term thought] --> Sc[Six-axis score:<br/>freq + rel + div +<br/>rec + cons + conc]\n  Sc -->|>= threshold| Cand[Promotion candidate]\n  Sc -->|< threshold| Stay[Stays short-term]\n  Cand --> Dream[Consolidation pass]\n  Dream -->|selects| Long[(Long-term insight)]\n  Dream -->|rejects| Stay\n  Sc -.event.-> Log[(Score metadata log)]",
         "caption": "Thoughts get a six-axis score; above-threshold become candidates; the consolidation pass is the only writer to the long-term tier."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Six-Axis Scorer — frequency, relevance, diversity, recency, consolidation, conceptual",
+        "Weight Config — fixed weights summing to one, loaded at run start",
+        "Score Metadata Log — JSONL of every score event, separate from the thought corpus",
+        "Promotion Threshold — score above which thoughts become candidates",
+        "Consolidation Pass — the only writer allowed to promote candidates to long-term"
+      ],
+      "tools": [
+        "Structured JSON store — JSONL log of score events with event-type tags",
+        "LLM API — consolidation pass that selects from above-threshold candidates"
+      ],
+      "evaluation_metrics": [
+        "Promotion-rate per axis — share of long-term insights whose marginal axis was each axis",
+        "Consolidation weight effectiveness — survival of high-consolidation thoughts vs high-frequency ones",
+        "Score-event volume per tick — scoring overhead per thought generated",
+        "Long-term churn — additions vs sweeps in the long-term tier over a window"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "open-question-tension-store",
@@ -1628,6 +1867,23 @@
         "mermaid": "flowchart TD\n  Thought[Thought / observation] -->|notices unresolved pull| New[New tension entry]\n  New --> Store[(Tension ledger<br/>append-only)]\n  Store -->|top by curiosity x intrusiveness| Pick[Idle-tick candidate]\n  Pick --> Move[Cognitive move]\n  Move -->|writes close event| Store\n  Store -->|expiry / cap overflow| Archive[Expired tail]",
         "caption": "Tensions enter the ledger, rank by curiosity times intrusiveness, drive the next idle move, and close via a new append rather than edit."
       },
+      "components": [
+        "Tension Ledger — append-only entries with curiosity, intrusiveness, expiry",
+        "Ranking Function — curiosity times intrusiveness picks the next candidate",
+        "Idle-Tick Reader — pulls top entries on quiet ticks to drive the next move",
+        "Expiry Sweep — drops entries below a curiosity floor past their TTL",
+        "Close-Event Writer — resolution writes a new append rather than editing the entry"
+      ],
+      "tools": [
+        "Structured JSON store — append-only ledger of tension entries",
+        "LLM API — drafts tension entries and resolution notes"
+      ],
+      "evaluation_metrics": [
+        "Net-open tension count — open vs closed tensions over time, against the configured cap",
+        "Mean time to close — wall-clock from open to close per tension",
+        "Self-write rate — tensions opened by the agent vs by observation events, surfacing gaming",
+        "Resolution-quality sample — auditor-rated share of closures that named an actual resolution"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1724,7 +1980,24 @@
         "mermaid": "sequenceDiagram\n  participant L as Loop\n  participant M as Model\n  participant J as Loser journal\n  participant S as Main stream\n  L->>M: single completion request\n  M-->>L: [voice: world-model] ...\n  M-->>L: [voice: critic] ...\n  M-->>L: [voice: prediction] ...\n  M-->>L: selected: critic — reason\n  L->>S: append canonical (critic)\n  L->>J: append world-model + prediction as losers",
         "caption": "One completion emits multiple voice-tagged candidates plus a selection line; the canonical enters the main stream, the losers go to an audit log."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Voice Set — two or three named voices with distinct framings",
+        "Single-Completion Proposer — emits all voice-tagged candidates in one call",
+        "Self-Selector — final line names the canonical voice with a one-sentence reason",
+        "Loser Journal — append-only log of non-selected candidates",
+        "Voice Retirement — explicit decision to drop a voice that never wins"
+      ],
+      "tools": [
+        "LLM API — single completion that emits all candidates plus the selection line",
+        "Structured JSON store — append-only loser journal for audit"
+      ],
+      "evaluation_metrics": [
+        "Voice-win distribution — selection counts per voice over a rolling window",
+        "Rubber-stamp rate — share of selections matching the first candidate emitted",
+        "Loser-becomes-right rate — audit sample where retrospective review preferred a losing candidate",
+        "Token overhead per call — extra tokens spent on tagged candidates vs single-pass generation"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "partial-output-salvage",
@@ -1816,7 +2089,24 @@
         "mermaid": "stateDiagram-v2\n  [*] --> Streaming\n  Streaming --> Streaming : chunk -> tmp + periodic rename\n  Streaming --> Done : end-of-stream -> rename to canonical\n  Streaming --> Crashed : SIGKILL / OOM / timeout\n  Crashed --> Salvaged : startup scan finds orphan partial\n  Salvaged --> Finalized : write with typed RecoveryStatus\n  Finalized --> [*] : marker surfaced in next prompt\n  Done --> [*]",
         "caption": "Tmp-plus-rename keeps the partial file consistent at all times; startup salvage finalizes orphans with a typed marker."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Stream Writer — emits each chunk to partial.tmp",
+        "Periodic Atomic Rename — replaces the canonical partial path with the tmp file",
+        "Startup Scanner — finds orphan partial.* files after a crash",
+        "Recovery Marker — typed enum distinguishing hard kill from watchdog timeout",
+        "Next-Prompt Injector — surfaces last_partial_recovery into system context"
+      ],
+      "tools": [
+        "Filesystem rename — atomic replacement of the partial canonical path",
+        "Structured JSON store — finalized thought files with recovery markers"
+      ],
+      "evaluation_metrics": [
+        "Mid-stream loss rate — chars lost between last rename and crash, vs ungated baseline",
+        "Salvage finalisation count — orphan partials promoted per restart",
+        "Marker-consumption rate — share of recovered partials whose marker actually shifted the next reply",
+        "Rename overhead — wall-clock cost of the periodic atomic rename per N chunks"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "pre-generative-loop-gate",
@@ -1916,6 +2206,23 @@
         "mermaid": "flowchart TD\n  Tick[Pre-tick] --> Check{Divergence signature?}\n  Check -->|none| Call[Generate as-is]\n  Check -->|narration| Hint1[[steering: narrating about acting]]\n  Check -->|frustration| Hint2[[steering: same path under errors]]\n  Check -->|rumination| Hint3[[steering: high-intensity preoccupation]]\n  Hint1 --> Call\n  Hint2 --> Call\n  Hint3 --> Call\n  Call --> Out[Model output]\n  Check --> Log[(Decision log)]",
         "caption": "Pre-tick check classifies divergence signatures and appends a short steering line to the prompt; the model retains authority to ignore."
       },
+      "components": [
+        "Pre-Tick Function — runs before the next model call",
+        "Divergence-Signature Set — narration, frustration, rumination patterns",
+        "Steering-Hint Emitter — one-line system-level diagnostic appended to the prompt",
+        "Decision Log — records hint-presence and pattern id for retrospective audit",
+        "Affect Snapshot Reader — feeds intensity into the rumination check"
+      ],
+      "tools": [
+        "LLM API — receives the appended steering line and retains authority to ignore it",
+        "Structured JSON store — decision log keyed by tick id"
+      ],
+      "evaluation_metrics": [
+        "Hint-fire rate — share of ticks that receive a steering line",
+        "False-positive rate — hint-fired ticks where the subsequent output was actually healthy",
+        "Post-hint behaviour shift — change in the targeted failure rate after the gate is enabled",
+        "Token cost per hinted tick — overhead the diagnostic line adds to the prompt"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -2037,6 +2344,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  E[Events / thoughts] --> U[Update preoccupations]\n  U --> L[(List, cap 5-8<br/>topic, intensity, affect)]\n  L -->|7-day half-life| Decay[Decay]\n  Decay --> L\n  L -->|sidebar| Tick[Tick prompt]\n  L -->|coldest dropped<br/>at cap| Out[Released]"
       },
+      "components": [
+        "Preoccupation List — capped 5 to 8 affect-tagged concerns with intensity",
+        "Half-Life Decay — seven-day decay applied to intensity between ticks",
+        "Cold-Entry Evictor — releases the coldest entry when the cap is reached",
+        "Sidebar Renderer — surfaces the current list in every tick prompt",
+        "Touch and Release Operations — explicit raise-intensity and drop calls"
+      ],
+      "tools": [
+        "Structured JSON store — persists entries with topic, intensity, affect tag, timestamps",
+        "LLM API — reflection pass that may touch or release entries"
+      ],
+      "evaluation_metrics": [
+        "Preoccupation churn — additions vs releases per day",
+        "Mean intensity per entry — distribution to detect items that never decay",
+        "Sidebar token cost per tick — overhead of surfacing the list each call",
+        "Focus-collision rate — turns where a preoccupation was confused with the working-focus slot"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -2164,6 +2488,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Th[(Past thoughts)] --> Comp[Periodic compaction pass]\n  Comp --> P1[Period 1: held A]\n  Comp --> P2[Period 2: revised to B<br/>because Z]\n  Comp --> P3[Period 3: now C]\n  P1 --> Note[Trajectory note]\n  P2 --> Note\n  P3 --> Note\n  Note --> Agent[Agent context]"
       },
+      "components": [
+        "Thought Log — append-only history the compaction pass mines",
+        "Compaction Pass — periodic synthesis that groups thoughts on the same topic",
+        "Trajectory Note — topic-keyed record naming each position and what changed it",
+        "Supersession Marker — explicit flag on positions no longer current",
+        "Topic Index — surfaces the latest trajectory note before raw thoughts on a query"
+      ],
+      "tools": [
+        "LLM API — synthesis pass that drafts the time-layered trajectory notes",
+        "Frontmatter store — topic-keyed directory of trajectory notes",
+        "Embedding model — topic grouping over historical thoughts"
+      ],
+      "evaluation_metrics": [
+        "Trajectory-coverage share — topics with a current note vs topics in the raw log",
+        "Supersession accuracy — auditor-rated share of marked positions that truly were superseded",
+        "Read-cost reduction — context tokens saved vs reading the raw log on trajectory queries",
+        "Synthesis frequency vs drift — interval between passes vs observed staleness in trajectory notes"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -2260,7 +2602,24 @@
         "mermaid": "flowchart TD\n  Call[Tool call] --> Win[(Rolling window:<br/>timestamp, tool, arg-hash)]\n  Win --> R1{generic_repeat?}\n  R1 -->|yes| Refuse[Return typed refusal]\n  R1 -->|no| R2{unknown_tool_repeat?}\n  R2 -->|yes| Refuse\n  R2 -->|no| R3{poll_no_progress?}\n  R3 -->|yes| Refuse\n  R3 -->|no| R4{ping_pong?}\n  R4 -->|yes| Refuse\n  R4 -->|no| R5{global_breaker?}\n  R5 -->|yes| Refuse\n  R5 -->|no| Disp[Dispatch normally]\n  Refuse --> Obs[Next observation: model sees refusal]",
         "caption": "Five typed modes run at the dispatch boundary; a trip returns a formatted refusal so the model adjusts in its next turn."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Dispatcher Pre-Check — runs on every tool call before dispatch",
+        "Rolling Call Window — bounded list of timestamp, tool, arg-hash tuples",
+        "Five Typed Rules — generic-repeat, unknown-tool-repeat, poll-no-progress, ping-pong, global breaker",
+        "Per-Tool Cap Overrides — tighter limits on known-bursty tools",
+        "Typed Refusal — formatted tool-result the model consumes as the next observation"
+      ],
+      "tools": [
+        "Tool-dispatcher hook — interception point at the dispatch boundary",
+        "Structured JSON store — rolling call window and per-tool cap config"
+      ],
+      "evaluation_metrics": [
+        "Loop-detection hit rate — trips per 1000 tool calls, broken down by mode",
+        "False-trip rate — trips on calls a retrospective audit considered legitimate",
+        "Per-mode distribution — share of trips by each of the five rules, surfacing tuning gaps",
+        "Post-refusal recovery rate — share of refusals followed by a productive shift rather than a retry"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "world-model-separation",
@@ -2383,7 +2742,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Obs[Observation] --> Pred{Prediction error?}\n  Pred -- yes --> WPass[World-update pass]\n  WPass --> WFile[(World model)]\n  Pred -- no --> Skip[No write]\n  Refl[Self-reflection trigger] --> SPass[Self-update pass]\n  SPass --> SFile[(charter / personality / boundaries)]\n  WFile --> Tick[Tick prompt: distinct sections]\n  SFile --> Tick"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "World-Model Store — humans, repos, services, capabilities in a reflection-writable surface",
+        "Self-Model Store — charter, personality, boundaries on a separate write path",
+        "Surprise Detector — prediction error against the world model triggers a focused update",
+        "World-Update Pass — writes only to the world store",
+        "Self-Update Pass — separate pass with different gating that writes only to the self store"
+      ],
+      "tools": [
+        "Structured JSON store — two distinct files for world and self models",
+        "LLM API — separate reflection passes per surface with distinct prompts"
+      ],
+      "evaluation_metrics": [
+        "Cross-write violation count — events where one pass wrote to the other surface, must stay zero",
+        "Self-model stability — drift in charter or personality lines per week",
+        "World-model update frequency — writes per day, against expected churn",
+        "Routing-decision count — facts ambiguous between self and world that required deliberate routing"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

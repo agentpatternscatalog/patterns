@@ -150,7 +150,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> A{Agent: retrieve?}\n  A -- no --> ANS[Answer]\n  A -- yes --> P[Pick retriever<br/>vector / graph / web]\n  P --> R[Retrieve evidence]\n  R --> E{Sufficient?}\n  E -- no, reformulate --> P\n  E -- yes --> ANS"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Planning agent — decides whether to retrieve, picks a retriever, reformulates the query, and judges sufficiency",
+        "Retriever pool — multiple backends (vector, graph, keyword, web) exposed as tools the agent can select between",
+        "Evidence evaluator — scores accumulated chunks against the open question and signals continue-or-stop",
+        "Step-budget controller — caps loop iterations so retrieval cannot run away",
+        "Generator LLM — produces the final answer once evidence is judged sufficient"
+      ],
+      "tools": [
+        "Vector index — semantic retrieval backend invoked by the agent",
+        "Web search API — fallback retriever for queries the local corpus cannot answer",
+        "LLM API — drives planning, query reformulation, and final generation"
+      ],
+      "evaluation_metrics": [
+        "Multi-hop answer accuracy — fraction of cross-document questions resolved correctly compared with single-shot RAG",
+        "Average retrieval rounds per query — how often the loop actually fires, sanity check on budget controller",
+        "Re-query rate after evaluator rejection — share of retrievals graded insufficient, signalling retriever quality",
+        "p95 end-to-end latency — cost of the loop relative to one-shot retrieval",
+        "Tool-call cost per resolved query — combined LLM and retriever spend per answered question"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "citation-attribution",
@@ -277,7 +296,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> R[Retriever]\n  R --> Reg[(Source registry<br/>chunk_id -> chunk)]\n  Reg --> Gen[Generator<br/>emits claims with chunk_ids]\n  Gen --> V{Validator}\n  V -->|all ids known| Ans[Answer with bound citations]\n  V -->|unknown id| Drop[Drop claim / refuse]\n  Ans --> UI[UI renders span-to-source links]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Retriever — assigns each returned chunk a stable source-id for this turn",
+        "Source registry — per-turn map from chunk-id to chunk content used by both generator and validator",
+        "Generator — emits claims tagged with supporting chunk-ids via citation markers or a structured schema",
+        "Citation validator — rejects any claim that cites an id not in the current registry",
+        "Delivery layer — attaches resolved source records to the answer so the UI can render span-to-source links"
+      ],
+      "tools": [
+        "LLM with structured-output or citation-marker support — Anthropic Citations API, OpenAI Responses annotations, or schema-constrained decoding",
+        "Document store — holds the source records referenced by chunk-id at render time"
+      ],
+      "evaluation_metrics": [
+        "Citation precision — fraction of emitted citations that point to a chunk genuinely supporting the claim, audited on a sample",
+        "Citation recall — fraction of claims in the answer that received at least one bound citation",
+        "Unknown-id rejection rate — share of citations the validator drops, signalling hallucinated source ids",
+        "Span-alignment accuracy — for span-level binding, how often the cited span actually contains the cited text",
+        "Empty-answer rate after validation — share of turns where validator rejections leave no citable claims, a fallback-design signal"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "contextual-retrieval",
@@ -387,7 +424,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Doc[Parent document] --> P[LLM: situate chunk]\n  Chunk[Chunk] --> P\n  P --> Pre[Short description]\n  Pre --> J[Prepend to chunk]\n  Chunk --> J\n  J --> E[Embed]\n  J --> BM[Index BM25]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Chunker — splits the parent document into retrieval-sized chunks",
+        "Contextualiser LLM — reads the parent document and a chunk, emits a short situating description",
+        "Prepender — joins the situating description to the chunk before indexing",
+        "Dense embedder — embeds the prepended chunk for vector retrieval (Contextual Embeddings)",
+        "BM25 indexer — indexes the prepended chunk text for lexical retrieval (Contextual BM25)"
+      ],
+      "tools": [
+        "LLM API with prompt caching — situates each chunk while amortising parent-document tokens across many calls",
+        "Embedding model — produces dense vectors for the prepended chunks",
+        "BM25 index — lexical retrieval over the prepended chunk text"
+      ],
+      "evaluation_metrics": [
+        "Retrieval-failure reduction vs naive chunking — Anthropic's headline metric (reported 35% embeddings, 49% with BM25, 67% with reranking)",
+        "Recall@k uplift on entity-by-pronoun queries — targeted measurement of the context-loss problem this pattern fixes",
+        "Index-time LLM cost per chunk — capex needed before any query is served, governs the corpus-stability decision",
+        "Reindex cost when the contextualiser model changes — operational tax that bounds how often the contextualiser is updated"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "crag",
@@ -483,7 +538,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> R[Retrieve docs]\n  R --> E[Evaluator grades each doc]\n  E --> C{Grade}\n  C -- Correct --> G[Generate]\n  C -- Ambiguous --> W[Web search<br/>augment]\n  C -- Incorrect --> W\n  W --> G\n  G --> A[Answer]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Primary retriever — pulls candidate documents from the local index",
+        "Lightweight evaluator — T5-class grader that labels each retrieved doc Correct, Ambiguous, or Incorrect",
+        "Corrective web searcher — fires on Ambiguous or Incorrect grades to fetch fresh evidence",
+        "Knowledge refiner — optionally decomposes Correct docs into strips and recomposes only the relevant strips",
+        "Generator LLM — answers from the graded and possibly augmented document set"
+      ],
+      "tools": [
+        "T5-based retrieval evaluator — small classifier that produces the three-way grade",
+        "Web search API — corrective fallback when the local index returns weak evidence",
+        "Vector or BM25 index — first-stage retriever feeding the evaluator"
+      ],
+      "evaluation_metrics": [
+        "Grader precision/recall against human relevance labels — bounds correction quality",
+        "Web-fallback fire rate — share of queries that escalate to external search, signalling local-index health",
+        "Answer-faithfulness lift vs naive RAG — does the corrective step reduce hallucination on weak retrievals",
+        "Added latency from evaluator plus fallback — two-stage cost over single-shot retrieval",
+        "False-incorrect rate — how often the grader rejects documents that were actually fine"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cross-encoder-reranking",
@@ -604,7 +678,25 @@
           "when_to_use": "Relative ordering matters more than absolute scores; available only with newer rerankers."
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "First-stage retriever — fast bi-encoder or BM25 returns a top-N candidate shortlist",
+        "Cross-encoder reranker — scores each (query, candidate) pair jointly with full attention",
+        "Top-K selector — keeps only the highest-scored K candidates to feed downstream",
+        "Generator LLM — receives the trimmed top-K and produces the answer"
+      ],
+      "tools": [
+        "Cross-encoder model — Cohere Rerank, BGE-reranker, or a fine-tuned BERT cross-encoder",
+        "Vector or BM25 index — first-stage retriever the reranker sits on top of",
+        "LLM API — consumes the reranked top-K"
+      ],
+      "evaluation_metrics": [
+        "nDCG@K and MRR uplift over the bi-encoder baseline — direct measurement of rerank quality",
+        "Precision@K after rerank — does the loudest distractor still survive into the top-K",
+        "Added latency per query — one model call per candidate, capped by the N chosen",
+        "Out-of-domain calibration error — how reranker scores degrade on content unlike its training distribution",
+        "Cost per reranked query — inference spend on top of first-stage retrieval"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "graphrag",
@@ -702,7 +794,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  C[Chunks] --> Ext[Extract entities + relations]\n  Ext --> KG[Knowledge graph]\n  KG --> Cl[Cluster into hierarchical communities]\n  Cl --> Sum[Summarise each community]\n  Q[Query] --> Cls{Local or global?}\n  Cls -- local --> Anc[Entity-anchored retrieval]\n  Cls -- global --> MR[Map-reduce over community summaries]\n  Anc --> Ans[Answer]\n  MR --> Ans"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Entity-and-relation extractor — LLM-driven pass over chunks that builds the typed graph",
+        "Community detector — clusters the knowledge graph into hierarchical communities",
+        "Community summariser — emits a natural-language summary per community",
+        "Query router — classifies a query as local or global and dispatches accordingly",
+        "Map-reduce answerer — for global queries, maps the question over community summaries and reduces to a single answer"
+      ],
+      "tools": [
+        "LLM API — heavy index-time use for extraction and community summarisation, plus inference-time generation",
+        "Knowledge graph store — persists entities, relations, and community hierarchy (Neo4j, in-memory, or columnar)",
+        "Graph clustering library — Leiden or similar for hierarchical community detection"
+      ],
+      "evaluation_metrics": [
+        "Win rate on global sensemaking benchmarks — head-to-head against naive RAG on corpus-wide questions",
+        "Entity-extraction F1 — quality of the graph the rest of the pipeline rests on",
+        "Local-vs-global router accuracy — share of queries dispatched to the right mode",
+        "Index-time LLM cost per million corpus tokens — the high capex this pattern incurs",
+        "Community-summary groundedness — fraction of summary claims traceable to the chunks they cover"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "hybrid-search",
@@ -810,7 +921,25 @@
           "when_to_use": "Latency budget cannot afford two retrievers and the query mix is bimodal."
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "Sparse retriever — BM25 or similar lexical index returns a ranked list on exact-term matches",
+        "Dense retriever — bi-encoder plus vector index returns a ranked list on semantic similarity",
+        "Fusion stage — Reciprocal Rank Fusion or score-normalised aggregation combines the two rankings",
+        "Top-N selector — emits the fused top-N for downstream reranking or generation"
+      ],
+      "tools": [
+        "BM25 engine — Elasticsearch, OpenSearch, or Tantivy-class lexical index",
+        "Vector index — Pinecone, Weaviate, or pgvector-class dense retrieval backend",
+        "Embedding model — produces query and document vectors for the dense leg"
+      ],
+      "evaluation_metrics": [
+        "Recall@k against dense-only and sparse-only baselines — quantifies the fusion lift",
+        "Exact-token query recall — does fusion recover the queries dense alone misses (codes, IDs, proper nouns)",
+        "Paraphrase-query recall — does fusion preserve the queries BM25 alone misses",
+        "Fusion-weight sensitivity — how much quality depends on the tuned weights or the RRF constant k",
+        "Index-sync drift — how often the two indexes fall out of sync on writes"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "hyde",
@@ -902,7 +1031,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[User query] --> Hyp[LLM drafts hypothetical answer]\n  Hyp --> Emb[Embed hypothetical answer]\n  Emb --> Ret[Retrieve top-k by similarity]\n  Ret --> RAG[Pass chunks into normal RAG]\n  RAG --> Ans[Final answer]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Hypothetical-answer drafter — LLM that turns the short query into an answer-shaped paragraph",
+        "Embedding model — produces the dense vector for the hypothetical answer used as the retrieval query",
+        "Vector index — receives the hypothetical-answer embedding rather than the user-query embedding",
+        "Downstream RAG pipeline — consumes the retrieved chunks as in any naive RAG flow"
+      ],
+      "tools": [
+        "LLM API — one extra call per query to draft the hypothetical answer",
+        "Embedding model — same encoder that indexed the corpus, applied to the drafted answer",
+        "Vector index — dense retrieval backend over the corpus"
+      ],
+      "evaluation_metrics": [
+        "Recall@k uplift on short queries vs query-embedding baseline — the metric this pattern targets",
+        "Off-topic drift rate — share of hypothetical drafts that pull retrieval away from the gold neighbourhood",
+        "Added latency per query — cost of the extra LLM call relative to direct query embedding",
+        "Hybrid-HyDE win rate — does averaging the draft and query embeddings beat single-draft on this corpus"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "naive-rag",
@@ -1061,7 +1207,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  C[Corpus] -->|chunk + embed| I[(Vector index)]\n  Q[Query] -->|embed| E[Query vector]\n  E -->|top-k| I\n  I -->|chunks| P[Prompt]\n  Q --> P\n  P --> G[Generator LLM]\n  G --> A[Answer]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Chunker — splits the corpus into retrieval-sized passages at index time",
+        "Embedding encoder — dense model that vectorises both chunks and queries",
+        "Vector index — stores chunk vectors and serves top-k nearest-neighbour lookups",
+        "Prompt assembler — prepends retrieved chunks to the user query before generation",
+        "Generator LLM — answers conditioned on the retrieved chunks plus its parametric memory"
+      ],
+      "tools": [
+        "Embedding model — dense encoder for chunks and queries",
+        "Vector index — approximate nearest-neighbour store such as FAISS, Pinecone, or pgvector",
+        "LLM API — generator that consumes the chunk-augmented prompt"
+      ],
+      "evaluation_metrics": [
+        "Answer faithfulness against retrieved chunks — share of claims supported by the prepended evidence",
+        "Recall@k of the gold chunk — does the retriever surface the document that contains the answer",
+        "Hallucination rate when retrieval misses — fallback-to-parametric failure mode this pattern is supposed to reduce",
+        "p95 retrieval latency — single-shot retrieval budget that downstream patterns build on",
+        "Cost per answered query — combined embedding, index, and generator spend"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "raft",
@@ -1154,7 +1319,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]\n  Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]\n  FT --> RAG[RAG inference]\n  Q[Query] --> RAG\n  RAG --> A[Answer with<br/>citation discipline]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Training-data builder — assembles each example as one query plus oracle documents plus plausible distractors",
+        "Distractor sampler — selects topically similar but non-supporting documents from the domain corpus",
+        "Fine-tuning loop — trains the generator to cite oracle docs and ignore distractors, often with CoT rationales",
+        "Inference-time retriever — supplies the mixed oracle-and-distractor context the fine-tuned model now handles",
+        "Citation checker — verifies that emitted citations land on oracle-style passages at evaluation time"
+      ],
+      "tools": [
+        "Fine-tuning infrastructure — supervised fine-tuning or LoRA pipeline for the domain generator",
+        "Domain corpus and labelled oracle sets — source of training examples",
+        "Retriever for inference — same vector or BM25 backend the production RAG uses"
+      ],
+      "evaluation_metrics": [
+        "Accuracy on the held-out domain set with distractors present — the core RAFT result vs an off-the-shelf RAG baseline",
+        "Distractor-citation rate — share of answers whose citations point at distractor rather than oracle documents",
+        "Oracle-citation precision — fraction of cited spans that actually come from oracle passages",
+        "Cross-domain transfer accuracy — how the fine-tuned model holds up when distractor structure shifts",
+        "Training-data construction cost per example — capex driver of the pattern"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "self-rag",
@@ -1246,7 +1430,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> Gen[Generator emits inline tokens]\n  Gen --> R{\"[Retrieve]?\"}\n  R -- yes --> Ret[Retrieve evidence]\n  R -- no --> Skip[Skip retrieval]\n  Ret --> Rel{\"[IsRel]?\"}\n  Rel -- relevant --> Use[Use evidence]\n  Rel -- not --> Drop[Drop chunk]\n  Use --> Sup{\"[IsSup]?\"}\n  Skip --> Sup\n  Sup -- supported --> UseT{\"[IsUse]?\"}\n  UseT --> Ans[Answer]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Critic model — labels training data with reflection tokens that the generator learns to emit",
+        "Fine-tuned generator — emits [Retrieve], [IsRel], [IsSup], [IsUse] reflection tokens inline with text",
+        "Reflection-grammar enforcer — host-side controller that gates flow on the emitted tokens (retrieve, drop, accept, reject)",
+        "Retriever — fires only when [Retrieve] is yes, returning chunks for [IsRel] judgement",
+        "Decoder strategy — greedy or tree-decoding policy that scores branches by [IsSup] and [IsUse]"
+      ],
+      "tools": [
+        "Fine-tuning infrastructure — produces the critic and the reflection-token generator",
+        "LLM with extended vocabulary — generator that includes the four reflection tokens",
+        "Vector index — retrieval backend invoked when [Retrieve] fires"
+      ],
+      "evaluation_metrics": [
+        "Adaptive-retrieval rate — share of queries on which [Retrieve] correctly skips retrieval",
+        "[IsRel] precision/recall against human relevance labels — quality of the model's own relevance judgements",
+        "[IsSup] groundedness audit — fraction of [IsSup]=yes outputs whose claims actually appear in the cited chunks",
+        "Tree-decoding lift over greedy — does branch selection by reflection tokens improve final answer quality",
+        "Per-query inference cost — extra tokens and retrieval calls reflection adds vs static RAG"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

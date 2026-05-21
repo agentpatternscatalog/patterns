@@ -103,7 +103,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Candidate as Candidate Agent\n  participant Trace as Trajectory\n  participant Judge as Judge Agent\n  participant Rubric\n  Candidate->>Trace: thoughts, tool calls, observations, answer\n  Trace-->>Judge: full trajectory\n  Judge->>Rubric: load criteria\n  Rubric-->>Judge: correctness, efficiency, safety\n  Judge-->>Candidate: score + per-step critique"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Candidate Agent — emits the trajectory under evaluation (thoughts, tool calls, observations, final answer)",
+        "Trajectory Store — captures the full per-step record the judge will read",
+        "Judge Agent — reads the trajectory end-to-end and applies the rubric",
+        "Rubric — explicit criteria covering correctness, efficiency, and process safety",
+        "Verdict Record — structured score plus per-step critique returned for review"
+      ],
+      "tools": [
+        "Trajectory capture (Langfuse, LangSmith) — persists per-step inputs, outputs, and tool calls so the judge has a complete record",
+        "Judge LLM API — runs the rubric pass over each trajectory",
+        "Agent-as-a-Judge reference framework (MetaGPT) — published rubric and judge implementation"
+      ],
+      "evaluation_metrics": [
+        "Process-failure catch rate — fraction of bad-trajectory runs the judge flags that answer-only grading missed",
+        "Redundant-step detection rate — share of inefficient runs identified as such by the judge",
+        "Unsafe-action recall — fraction of out-of-workspace writes or other unsafe steps the judge surfaces",
+        "Judge-vs-human agreement on trajectory rubrics — calibration signal on the judge itself",
+        "Cost per trajectory verdict — overhead of trajectory evaluation vs answer-only grading"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "agent-resumption",
@@ -234,7 +253,27 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Running\n  Running --> Checkpointed : log effect / persist state\n  Checkpointed --> Running : continue\n  Running --> Suspended : crash / deploy / disconnect\n  Suspended --> Replaying : restart\n  Replaying --> Running : skip recorded effects, resume\n  Running --> Done\n  Done --> [*]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Workflow Engine — drives the agent code and decides when to checkpoint or replay",
+        "Effect Log — append-only record of completed side-effects keyed by step id",
+        "Snapshot Store — durable storage holding serialised plan, working memory, and pending tool calls",
+        "Idempotency Layer — passes deterministic keys to side-effect targets so replays do not duplicate writes",
+        "Resumer — reloads the log or snapshot after a restart and continues from the next step"
+      ],
+      "tools": [
+        "Temporal — durable workflow engine using deterministic replay of recorded effects",
+        "Inngest — durable execution platform for resumable agent workflows",
+        "LangGraph Cloud checkpointing — periodic serialised snapshots of agent state",
+        "OpenAI Agents SDK durable execution — runtime hooks for pause and resume"
+      ],
+      "evaluation_metrics": [
+        "Resume success rate after restart — fraction of in-flight runs that continue cleanly instead of restarting from zero",
+        "Duplicate side-effect rate — share of resumed runs that double-fired a tool call (target zero)",
+        "Mean work-loss on host failure — seconds of progress lost between checkpoint and crash",
+        "Snapshot storage cost per run — bytes persisted across the lifetime of a workflow",
+        "Determinism-violation count — non-deterministic code paths detected during replay"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "attention-manipulation-explainability",
@@ -333,7 +372,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  IN[Input tokens] --> M[Run model]\n  M --> P0[Baseline output probs]\n  IN --> S[For each token:<br/>suppress its attention]\n  S --> M2[Re-run model]\n  M2 --> P1[Perturbed probs]\n  P0 --> D[Delta = importance]\n  P1 --> D\n  D --> R[Rank tokens by influence]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Transformer Model — open-weights or attention-exposing inference target",
+        "Attention Perturber — suppresses one token's attention contribution per pass across all layers",
+        "Baseline Probability Capture — records output probabilities of the unperturbed run",
+        "Delta Aggregator — measures shift in output probability caused by each token suppression",
+        "Relevance Map — ranked per-token influence surface rendered alongside the answer"
+      ],
+      "tools": [
+        "Aleph Alpha PhariaAI — production inference stack exposing the AtMan perturbation method",
+        "Open-weights transformer runtime — required for layer-level attention access"
+      ],
+      "evaluation_metrics": [
+        "Attribution faithfulness — agreement between AtMan-ranked tokens and counterfactual ablation tests",
+        "Confabulation gap — divergence between AtMan attributions and the model's free-text self-explanation on the same output",
+        "Per-token attribution latency — forward-pass overhead added per output",
+        "Auditor-acceptance rate — share of explanations the auditor accepts as input-grounded evidence",
+        "Top-k stability — variance of the top-k ranked input tokens across paraphrases of the same input"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cost-observability",
@@ -427,7 +484,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]\n  T[Tool call] -->|tag| TS\n  TS --> D[Dashboards<br/>by feature / model / hour]\n  TS --> A[Alerts on anomalies]\n  D --> Op[Operators]\n  A --> Op"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Tagging Middleware — attaches feature, route, model id, and anonymised user to every model and tool call",
+        "Telemetry Store — receives the streamed tagged-cost events",
+        "Per-Dimension Dashboards — slice spend by feature, model, tier, and hour",
+        "Anomaly Alerter — fires when per-feature spend deviates from baseline",
+        "Tag-or-Reject Gateway — refuses untagged calls so spend stays attributable"
+      ],
+      "tools": [
+        "Langfuse — captures and aggregates per-feature token and cost telemetry",
+        "Helicone — proxy-style cost and usage telemetry for LLM calls",
+        "OpenAI usage dashboard — provider-side per-key spend visibility",
+        "Anthropic Console usage — provider-side per-key spend visibility"
+      ],
+      "evaluation_metrics": [
+        "Attribution coverage — share of model and tool calls that carry the required tags",
+        "Time-to-detect cost regression — minutes from spend spike to operator alert",
+        "Per-feature cost variance week-over-week — surfaces chatty prompts and bad routing",
+        "Unattributed-bucket spend share — fraction of cost the gateway could not assign",
+        "Alert precision on cost anomalies — true-positive rate against confirmed regressions"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "decision-log",
@@ -574,6 +651,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Agent action] --> P[(Provenance ledger)]\n  A --> R[Reasoning trace]\n  R --> L[(Decision log<br/>indexed by request id + time)]\n  P -->|link| L\n  Rev[Post-hoc reviewer] -->|query| L"
       },
+      "components": [
+        "Reasoning Capture — extracts the chain of thought or key decisions at the chosen granularity",
+        "Append-Only Decision Log — immutable store indexed by request id and timestamp",
+        "Provenance Ledger Link — ties each action record to the reasoning entry that produced it",
+        "Redaction Filter — strips sensitive content from reasoning before persistence",
+        "Post-Hoc Reviewer Interface — query layer used by auditors and on-call engineers"
+      ],
+      "tools": [
+        "Langfuse / LangSmith trace store — captures reasoning, tool calls, and actions per request id",
+        "OpenTelemetry GenAI spans — emits decisions as spans next to LLM and tool calls",
+        "Append-only store (object lock, WORM) — guarantees the agent cannot rewrite past entries"
+      ],
+      "evaluation_metrics": [
+        "Action-to-reasoning link rate — share of action-log entries that resolve to a decision-log entry",
+        "Reasoning-trace coverage — fraction of agent steps that emit a captured rationale",
+        "Mean time to explain a past action — debug latency after the log lands",
+        "Tamper-attempt count — append-only rejections of edits to historical entries",
+        "Redaction false-negative rate — sensitive payloads that escaped the redaction filter"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -690,7 +786,27 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant W as Workflow Engine\n  participant S as Storage Provider\n  W->>W: run step 1\n  W->>S: snapshot(state_1)\n  W->>W: run step 2\n  W->>S: snapshot(state_2)\n  Note over W: host crashes / deploy\n  W->>S: load(run_id)\n  S-->>W: state_2\n  W->>W: resume from step 3"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Workflow Engine — drives the state machine and decides when to checkpoint",
+        "Snapshot Serializer — encodes step index, local state, awaited signals, and history",
+        "Pluggable Storage Provider — Postgres, S3, Redis, or vendor-managed snapshot store",
+        "Schema Versioner — refuses to resume snapshots written by incompatible code versions",
+        "Resumer — loads the latest snapshot and continues from the next step on a new host"
+      ],
+      "tools": [
+        "Mastra workflows — suspend-and-resume with configurable storage providers",
+        "Temporal — persists workflow execution history for resumption across years",
+        "Inngest / Restate / DBOS — durable-execution runtimes with pluggable snapshot storage",
+        "Postgres / S3 / Redis — concrete storage backends for snapshot persistence"
+      ],
+      "evaluation_metrics": [
+        "Resume-success rate across deploys — share of in-flight runs that continue cleanly after a release",
+        "Mean step-loss per host failure — number of steps re-executed after the last snapshot",
+        "Snapshot write latency p95 — checkpoint overhead added per step",
+        "Schema-incompatibility rejections — count of refused resumes vs silent corruption (target zero corruption)",
+        "Storage cost per workflow run — bytes written across the workflow lifetime"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "eval-as-contract",
@@ -779,7 +895,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  PR[Pull request] --> CI[Run tiered eval suite]\n  CI --> B{Blocking evals pass?}\n  B -- no --> X[Block release]\n  B -- yes --> Adv{Advisory evals}\n  Adv --> Track[Track regressions]\n  Adv --> R[Release proceeds]\n  EvChange[Eval change] --> Review[Architectural review + signoff]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Tiered Eval Suite — blocking evals that must pass and advisory evals that are tracked",
+        "CI Release Gate — refuses to merge or deploy when blocking evals regress",
+        "Eval-Change Reviewer — treats changes to the suite itself as architectural changes requiring signoff",
+        "Override Path — explicit operator-recorded bypass when a blocking eval is wrong",
+        "Advisory Tracker — surfaces non-blocking regressions for follow-up without halting release"
+      ],
+      "tools": [
+        "CI runner (GitHub Actions, Buildkite) — executes the blocking tier on every PR and release",
+        "Eval framework (Ragas, DeepEval, Langfuse Evals, Inspect AI) — scores the suite",
+        "Prompt and code registry — pins the version under test to the eval result"
+      ],
+      "evaluation_metrics": [
+        "Blocking-eval pass rate at release — share of releases that cleared the gate without override",
+        "Override-bypass count — explicit operator overrides per quarter (signals miscalibration)",
+        "Regressions caught pre-release — issues blocked by the contract that would have shipped otherwise",
+        "Advisory-to-blocking promotion rate — how often an advisory eval is promoted after proving itself",
+        "Mean time to fix a failing blocking eval — release-gate latency cost"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "eval-harness",
@@ -896,7 +1031,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Golden dataset] --> Champ[Run champion]\n  G --> Chal[Run challenger]\n  Champ --> Sc1[Score]\n  Chal --> Sc2[Score]\n  Sc1 --> Cmp{Lift vs regression?}\n  Sc2 --> Cmp\n  Cmp -- lift --> Promote[Promote challenger]\n  Cmp -- regression --> Block[Block]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Golden Dataset — curated (input, expected output) pairs representative of the task",
+        "Champion Runner — runs the current production version against the dataset",
+        "Challenger Runner — runs the proposed version against the same dataset",
+        "Scorer — applies exact-match, similarity, or LLM-as-judge scoring per item",
+        "Promotion Gate — compares champion and challenger scores against tolerance and decides"
+      ],
+      "tools": [
+        "Ragas — RAG-focused eval harness with reference and reference-free metrics",
+        "DeepEval — Python eval harness with golden datasets and assertions",
+        "Langfuse Evals — managed harness tied to trace data",
+        "Inspect AI — eval framework for agent tasks"
+      ],
+      "evaluation_metrics": [
+        "Score lift of challenger over champion — primary promotion signal on the golden dataset",
+        "Per-slice regression rate — items where the challenger scored worse than the champion",
+        "Dataset coverage of production distribution — share of real-traffic categories represented in the golden set",
+        "Dataset staleness age — time since the golden set was last refreshed",
+        "Inter-judge agreement on scoring — calibration when LLM-as-judge is used inside the harness"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "incident-response-runbook",
@@ -997,6 +1152,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Alert[Alert: kill-switch / sandbox-escape / cost spike] --> Sev{Severity}\n  Sev --> OnCall[Page on-call]\n  OnCall --> Cont[Containment: kill-switch / reroute]\n  Cont --> Pres[Pin traces beyond retention]\n  Pres --> Comp[Compensating actions]\n  Comp --> Comm[Customer + regulator comms]\n  Comm --> PM[Post-mortem]"
       },
+      "components": [
+        "Severity Classifier — pre-agreed tiers that route the alert to the right response path",
+        "On-Call Pager — wakes the human owner tied to the affected service",
+        "Containment Step — kill-switch invocation or traffic rerouting that stops the bleed",
+        "Forensic Preserver — pins traces and ledger entries beyond normal retention",
+        "Comms Templates — customer notifications and regulator filings within statutory clocks"
+      ],
+      "tools": [
+        "PagerDuty / Opsgenie — on-call routing and severity escalation",
+        "Kill-switch control plane — operator-invokable halt for the agent fleet",
+        "Trace store with retention override (Langfuse, Datadog) — pins forensic evidence"
+      ],
+      "evaluation_metrics": [
+        "Mean time to containment after detection — minutes from alert to kill-switch or reroute",
+        "Regulator-clock adherence — share of incidents notified within the 72-hour GDPR or AI Act window",
+        "Forensic-trace preservation rate — share of incidents with full trace pinned before retention cutoff",
+        "Runbook-step coverage in post-mortem — fraction of incident actions that mapped to a documented step",
+        "Runbook drift — number of scenarios that fired without a matching runbook entry"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1103,7 +1277,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Output { +id +text }\n  class Lineage {\n    +prompt_template_hash\n    +model_id_version\n    +tool_versions\n    +retrieved_doc_ids\n    +decision_log_id\n  }\n  class LineageStore { +queryable }\n  Output --> Lineage : tagged_with\n  Lineage --> LineageStore : stored_in\n  LineageStore ..> Output : joinable"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Lineage Stamper — attaches prompt-template hash, model id and version, tool versions, retrieved-doc ids, and decision-log id to each output",
+        "Queryable Lineage Store — indexed table joinable to the output store on output id",
+        "Output Store — production-side store that only accepts tagged outputs",
+        "Schema Evolver — versions the lineage schema across the agent's lifetime without breaking old records",
+        "Lookup Interface — resolves any past output back to the exact ingredients that produced it"
+      ],
+      "tools": [
+        "Langfuse — captures prompt, model, and retrieval metadata per trace",
+        "LangSmith — joins per-run lineage with eval and trace data",
+        "Weights & Biases Prompts — versioned prompt and model lineage store"
+      ],
+      "evaluation_metrics": [
+        "Lineage coverage — share of production outputs that carry the required tags",
+        "Reconstruction success rate — fraction of disputed outputs fully resolved from the lineage store",
+        "Mean time to reconstruct a past output — query latency for a six-week-old answer",
+        "Targeted-rollback hit rate — share of rolled-back ingredients identified precisely instead of blanket reverts",
+        "Lineage-schema migration count — schema changes accommodated without breaking historical queries"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "llm-as-judge",
@@ -1202,7 +1395,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant C as Candidate model\n  participant J as Judge model (different family)\n  participant H as Human calibration set\n  C->>J: input + candidate output + rubric\n  J-->>C: structured score + rationale\n  H->>J: periodically calibrate\n  J-->>H: calibration drift report"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Rubric — written criteria covering the qualities that matter (faithfulness, completeness, tone)",
+        "Judge Model — different model family from the candidate, prompted with input and output",
+        "Structured Score Schema — numeric or categorical verdict plus free-text rationale",
+        "Human Calibration Set — periodically graded samples used to detect judge drift",
+        "Drift Report — divergence between judge scores and human scores over time"
+      ],
+      "tools": [
+        "Judge LLM API from a different family than the candidate — primary scoring engine",
+        "MT-Bench / AlpacaEval — published rubrics and judge protocols",
+        "Ragas / DeepEval / Langfuse — eval frameworks with built-in LLM-as-judge scorers"
+      ],
+      "evaluation_metrics": [
+        "Judge-vs-human agreement — Pearson or Cohen's kappa between automated and human scores on the calibration set",
+        "Calibration drift over time — change in agreement since the last calibration pass",
+        "Position-bias delta — score change when candidate-A and candidate-B order is swapped",
+        "Length-bias delta — score change as output length varies with content held roughly constant",
+        "Per-eval judge cost — added spend per evaluated item from the judge calls"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "model-card",
@@ -1303,7 +1515,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Agent / Model release] --> C[Model Card document]\n  C --> S1[Intended use]\n  C --> S2[Out-of-scope use]\n  C --> S3[Training & data lineage]\n  C --> S4[Evaluation results]\n  C --> S5[Limitations & risks]\n  C --> S6[Contact / owner]\n  C -->|versioned with| A"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Card Document — versioned markdown at a known location with intended-use, out-of-scope, training lineage, eval results, limitations, risks, and contact owner",
+        "Section Owners — named humans responsible for keeping each section current",
+        "Eval Results Block — periodically refreshed numbers tied to the release",
+        "Card-Release Gate — refuses production deploys when the card is missing or stale",
+        "Stakeholder Audience View — rendered surface for legal, compliance, customers, and new engineers"
+      ],
+      "tools": [
+        "Git repository — versions the card alongside the agent code",
+        "Static-site renderer (MkDocs, Docusaurus) — publishes the card for non-engineer stakeholders",
+        "CI staleness check — fails the build when the card was not updated for the release"
+      ],
+      "evaluation_metrics": [
+        "Card-currency lag — days between an agent change and the corresponding card update",
+        "Stakeholder-question deflection rate — share of audit and customer questions answerable from the card alone",
+        "Section completeness — fraction of required sections populated for the active release",
+        "Marketing-vs-card divergence count — public claims that contradict the card (target zero)",
+        "Card-blocked release count — deploys halted because the card was missing or stale"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "prompt-versioning",
@@ -1419,7 +1650,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Ed[Author edits prompt] --> H[Hash + semver tag]\n  H --> Reg[(Prompt registry<br/>immutable, signed)]\n  Code[Application code] -->|name + version| Reg\n  Reg --> Dep[Deployment]\n  Dep --> Eval[Eval harness]\n  Eval -.ties metrics to.-> Reg"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Prompt Author Workflow — edits flow into the registry rather than into application strings",
+        "Hash and Semver Tagger — produces an immutable identity for each prompt version",
+        "Prompt Registry — immutable, optionally signed store of versioned prompt artefacts",
+        "Application Reference — code references prompts by name plus pinned version, not inline text",
+        "Eval-Harness Binding — ties metric outcomes back to specific prompt versions"
+      ],
+      "tools": [
+        "LangSmith Prompts — hosted prompt registry with versioned artefacts",
+        "PromptLayer — versioned prompt store with deployment pinning",
+        "Humanloop — managed prompt registry tied to evals",
+        "Helicone Prompts / Vellum — alternative prompt-as-artefact registries"
+      ],
+      "evaluation_metrics": [
+        "Pinned-reference rate — share of production calls that resolve to a registry version vs inline string",
+        "Mean time to roll back a bad prompt — minutes from detection to a pinned older version",
+        "Eval-to-prompt linkage rate — share of eval results that resolve to a specific prompt version",
+        "Inline-prompt-leak count — production calls using ad-hoc inline prompts (target zero)",
+        "Prompt-version churn — edits per prompt per week, surfaces unstable areas"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "provenance-ledger",
@@ -1549,7 +1800,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Act[Agent action / state change] --> V[Validator: required fields?]\n  V -->|reject| Err[Error]\n  V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]\n  L --> Audit[Audit / explain]\n  L --> RB[Rollback by id]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Event Recorder — emits a record for every decision and state change",
+        "Required-Fields Validator — rejects events lacking timestamp, actor, action, target, justification, or diff hash",
+        "Append-Only Ledger Store — immutable storage preserving order and integrity",
+        "Justification Link — pointer from each event to the decision-log or thought entry that produced it",
+        "Rollback Resolver — uses event id and diff hash to reverse a specific past action"
+      ],
+      "tools": [
+        "Langfuse traces — captures action events with justification links",
+        "OpenTelemetry GenAI semantic conventions — standardised span schema for agent actions",
+        "Datadog LLM Observability — managed ingestion and query for action events",
+        "Append-only store (object lock, WORM, EventStore) — guarantees immutability"
+      ],
+      "evaluation_metrics": [
+        "Justification-link coverage — share of action events with a resolvable justification reference",
+        "Rollback success rate by event id — share of attempted reverses that completed cleanly",
+        "Validator-rejection rate — events refused because they missed required fields",
+        "Audit-answer turnaround — time to produce a full reconstruction for a regulator or customer query",
+        "Ledger storage growth — bytes per day, signals when retention policy needs revisiting"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "replay-time-travel",
@@ -1648,7 +1919,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]\n  Tr --> Sel[Pick step N]\n  Sel --> Mod[Modify prompt /<br/>model / tool result]\n  Mod --> Rep[Replay forward]\n  Rep --> Br[(Branch trace)]\n  Br --> Cmp[Compare branches]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Per-Step Trace Capture — records inputs, outputs, prompts, model id, and tool calls for each step of every run",
+        "Trace Store — durable storage of full historical traces",
+        "Step Selector — UI or API for picking step N of a past run as the branch point",
+        "Substitution Layer — applies prompt, model, or tool-result overrides for the replay",
+        "Branch Trace — separate stored run that holds the replay output for comparison"
+      ],
+      "tools": [
+        "LangSmith replay — UI for branching past runs at any step",
+        "Langfuse playground replay — trace-driven re-execution against modified prompts or models",
+        "Inspect AI — agent eval framework with run replay",
+        "Braintrust playground — branch-and-compare interface tied to trace storage"
+      ],
+      "evaluation_metrics": [
+        "Trace-completeness rate — share of past runs that can actually be replayed end-to-end",
+        "Replay fidelity gap — divergence between an unmodified replay and the original output (signals non-determinism leakage)",
+        "Mean time to reproduce a reported bug — debug latency from report to deterministic repro",
+        "Branch-vs-original lift — number of replays that demonstrably improve on the original after a fix",
+        "Trace storage cost per run — bytes per run retained for replay"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "sandbox-escape-monitoring",
@@ -1734,7 +2025,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]\n  S -->|net egress not on allowlist| Tel\n  S -->|fs write outside workdir| Tel\n  Tel --> Det[Threshold detector]\n  Det -->|alert| Op[Operators]\n  Det -->|confirmed escape| KS[Kill-switch]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Instrumented Sandbox — container, microVM, or syscall-filter that emits boundary events",
+        "Allowed-Set Definitions — explicit lists of permitted syscalls, egress destinations, and filesystem paths",
+        "Safety Telemetry Stream — receives every boundary-violation event in near real time",
+        "Threshold Detector — fires alerts on burst patterns and confirmed escape signatures",
+        "Kill-Switch Bridge — auto-halts the agent fleet when escape is confirmed"
+      ],
+      "tools": [
+        "E2B / Modal sandbox monitoring — production code-execution platforms with boundary telemetry",
+        "Linux seccomp / eBPF — syscall-level instrumentation for sandboxed workloads",
+        "Egress firewall with logging (Cilium, iptables) — captures network egress outside allowlist"
+      ],
+      "evaluation_metrics": [
+        "Boundary-violation detection rate — share of injected red-team violations that surface as alerts",
+        "False-positive rate on legitimate operations — alerts on benign boundary-pushing actions",
+        "Mean time from violation to alert — telemetry pipeline latency",
+        "Kill-switch trigger precision — share of auto-halts that turned out to be real escapes",
+        "Forensic-trail completeness on incidents — share of confirmed escapes with full event chain captured"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "scorer-live-monitoring",
@@ -1841,7 +2151,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Req[User request] --> Ag[Agent]\n  Ag --> Reply[Reply to user]\n  Ag --> Pub[(Scoring stream)]\n  Pub --> S1[LLM-judge scorer]\n  Pub --> S2[Programmatic checks]\n  Pub --> S3[Embedding similarity]\n  S1 --> Store[(Score store)]\n  S2 --> Store\n  S3 --> Store\n  Store --> Dash[Dashboards / alerts]\n  Store --> Q[Low-score review queue]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Scoring-Stream Publisher — emits {request_id, input, output, context} after the agent replies to the user",
+        "Async Scorer Workers — independent consumers (LLM judge, programmatic check, embedding similarity, rubric) running off the user path",
+        "Score Store — persists {request_id, scorer, score, evidence} records",
+        "Dashboard and Alert Layer — rolling p50/p95 per scorer with thresholds",
+        "Low-Score Review Queue — routes failing outputs to humans without re-prompting the user path"
+      ],
+      "tools": [
+        "Mastra Scorers — async live evaluators that run alongside agents and workflows",
+        "Langfuse / LangSmith / Helicone live evals — production scoring on traced outputs",
+        "Stream broker (Kafka, NATS, Redis Streams) — back-pressure-aware scoring fan-out"
+      ],
+      "evaluation_metrics": [
+        "Scorer lag p95 — seconds between user reply and the score landing in the store",
+        "User-path latency impact — confirmation that scoring adds no latency to the response (target zero)",
+        "Per-scorer sampling rate — share of traffic each scorer consumed",
+        "Low-score review-queue depth — backlog of outputs awaiting human review",
+        "Cross-scorer disagreement rate — divergence between LLM-judge, programmatic, and embedding scorers on the same output"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "shadow-canary",
@@ -1936,7 +2265,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  U[User request] --> Split[Traffic split]\n  Split --> Champ[Champion agent]\n  Split --> Chall[Challenger agent]\n  Champ --> Resp[User response]\n  Chall --> Log[Shadow log]\n  Champ --> Diff[Diff metrics:<br/>judge / exact-match / latency / cost]\n  Log --> Diff\n  Diff --> Gate{Lift?}\n  Gate -- yes --> Promote[Promote challenger]\n  Gate -- regression --> Revert[Revert]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Traffic Splitter — dual-routes a fraction of real requests through both versions",
+        "Champion Agent — the trusted production version whose output reaches the user",
+        "Challenger Agent — the candidate version running in shadow, output logged only",
+        "Shadow Log — captures challenger outputs without exposing them to users",
+        "Diff Evaluator — compares champion and challenger on judge score, exact-match tool calls, latency, and cost",
+        "Promotion Gate — promotes the challenger on lift, reverts on regression"
+      ],
+      "tools": [
+        "Traffic mirroring layer (gateway, service mesh) — duplicates requests onto the shadow path",
+        "Judge model — scores free-form output diffs between champion and challenger",
+        "Trace store (Langfuse, LangSmith) — captures both responses keyed by request id for diffing"
+      ],
+      "evaluation_metrics": [
+        "Field-regression catch rate — share of real-traffic regressions the shadow detected pre-promotion",
+        "Diff agreement on free-form outputs — share of comparisons where judge and exact-match agree",
+        "Shadow-path cost overhead — extra spend incurred during the shadow window",
+        "Promotion success rate — share of shadow-validated challengers that held up after promotion",
+        "Long-tail coverage — share of low-frequency query categories exercised by the shadow run"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

@@ -124,7 +124,26 @@
         "mermaid": "flowchart TD\n  ROOT[Search tree root] --> PICK[Pick a node]\n  PICK --> POST[Per-node posterior over actions:<br/>deepen / branch / choose-model]\n  POST --> TS[Thompson sample]\n  TS --> ACT{Sampled action}\n  ACT -->|deepen| DEEP[Refine current candidate]\n  ACT -->|branch| BR[Generate fresh sibling]\n  ACT -->|choose-model| MOD[Select LLM M]\n  DEEP --> RO[Rollout via chosen LLM]\n  BR --> RO\n  MOD --> RO\n  RO --> SC[Score: verifier / tests / oracle]\n  SC --> UPD[Update posterior at node]\n  UPD --> BUD{Budget hit?}\n  BUD -->|no| PICK\n  BUD -->|yes| OUT[Return best candidate]",
         "caption": "Each node samples width vs depth (and optionally LLM) from a Thompson posterior, updated by rollout scores."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Search tree — nodes hold partial candidates and per-action posteriors",
+        "Thompson sampler — draws an action (deepen, branch, choose-model) per visit",
+        "Rollout LLM(s) — generates the candidate refinement or fresh sibling",
+        "Score function — verifier, test suite, or oracle that returns a reward",
+        "Posterior updater — folds the score back into the node's per-action belief"
+      ],
+      "tools": [
+        "LLM API (potentially several) — rollout policy invoked per chosen model per node",
+        "Verifier or test harness — produces the scalar reward that drives posteriors",
+        "Search-tree state store — persists nodes, posteriors, and visit counts across rollouts"
+      ],
+      "evaluation_metrics": [
+        "Pass rate at fixed compute budget — quality lift over flat best-of-N at the same cost",
+        "Compute concentration on payoff-rich branches — fraction of rollouts spent on the eventual best subtree",
+        "Per-model contribution share — how often each LLM wins the Thompson draw on hard nodes",
+        "Posterior collapse rate — fraction of runs where the score function is too noisy to discriminate actions",
+        "Wall-clock to first passing candidate — how quickly the tree finds a winner versus flat sampling"
+      ]
     },
     {
       "id": "clone-fan-out-research",
@@ -260,7 +279,27 @@
         "mermaid": "flowchart TD\n  IN[Input] --> DR[Driver]\n  DR --> PART[Partition into N input slices]\n  PART --> C1[Clone 1<br/>isolated sandbox]\n  PART --> C2[Clone 2<br/>isolated sandbox]\n  PART --> CDOT[...]\n  PART --> CN[Clone N<br/>isolated sandbox]\n  C1 --> BUCKET[(Structured result bucket)]\n  C2 --> BUCKET\n  CDOT --> BUCKET\n  CN --> BUCKET\n  BUCKET --> AGG[Aggregator<br/>vote / rank / dedup / synthesise]\n  AGG --> OUT[Single answer]\n  C1 -.no inter-clone communication.-> C2",
         "caption": "N identical full-capability agents run in isolation; aggregation is a single one-shot pass at the end."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Driver — partitions the input and declares the fan-out bound N",
+        "Identical agent clones — N full-capability instances seeded with the same system prompt",
+        "Isolated sandboxes — one per clone, preventing shared mutable state",
+        "Structured result bucket — collects per-clone outputs in a canonical schema",
+        "Aggregator — single one-shot vote, rank, dedup, or synthesis pass over the bucket"
+      ],
+      "tools": [
+        "Sandbox provisioner — VMs or worktrees that give each clone an isolated runtime",
+        "LLM API — invoked independently by every clone for its slice",
+        "Job scheduler — bounds concurrency and enforces the declared N",
+        "Result store — shared collection bucket the aggregator reads from"
+      ],
+      "evaluation_metrics": [
+        "Coverage of the input partition — fraction of slices that produced a usable structured result",
+        "Per-clone failure rate — fraction of sandboxes whose run errored or timed out",
+        "Aggregator quality vs single-agent baseline — quality lift from the fan-out after consolidation",
+        "Cost per useful result — total spend divided by accepted aggregated outputs",
+        "Spawn discipline — observed N versus declared N, catches unbounded recursion"
+      ]
     },
     {
       "id": "disambiguation",
@@ -370,7 +409,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[User request] --> D{Ambiguous?<br/>low intent confidence}\n  D -- no --> Act[Act on request]\n  D -- yes --> Q[Ask one focused<br/>clarifying question]\n  Q --> W[Wait for answer]\n  W --> Act"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Ambiguity detector — low-confidence intent classifier or explicit rubric",
+        "Clarification prompter — emits one focused question with a default interpretation",
+        "Wait state — pauses action until the user replies",
+        "Resolver — applies the user's answer and resumes the original action"
+      ],
+      "tools": [
+        "LLM API — runs both the intent classifier and the clarification phrasing",
+        "Conversation channel — chat or dialogue surface that can receive the follow-up answer"
+      ],
+      "evaluation_metrics": [
+        "Wrong-action rate on ambiguous inputs — confidently wrong actions prevented by asking",
+        "Clarification precision — fraction of asked questions that the user actually needed asked",
+        "Question fatigue rate — how often users ignore or dismiss the clarifying prompt",
+        "Latency penalty per resolved turn — extra wall-clock from the ask-wait round-trip",
+        "Default-acceptance rate — share of clarifications where the proposed default was right"
+      ]
     },
     {
       "id": "event-driven-agent",
@@ -475,7 +531,27 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Src as Event source\n  participant H as Handler\n  participant A as Agent\n  Src->>H: event (webhook / queue / file change)\n  H->>H: validate + dedupe\n  H->>H: rate limit check\n  H->>A: invoke with payload\n  A-->>H: result\n  H->>Src: ack"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Event source — webhook, message queue, or file watcher that fires triggers",
+        "Validator — rejects malformed or unauthenticated events",
+        "Deduplicator — drops replayed or duplicate deliveries by event id",
+        "Rate limiter — bounds invocation frequency under event storms",
+        "Agent invoker — runs the agent with the event payload and acknowledges on success"
+      ],
+      "tools": [
+        "Event bus or queue — pub/sub, webhook receiver, or file watcher",
+        "Idempotency store — records processed event ids for dedup",
+        "LLM API — invoked per validated event for the agent's reasoning",
+        "Acknowledgement channel — return path back to the event source"
+      ],
+      "evaluation_metrics": [
+        "Event-to-action latency — wall-clock from event arrival to agent completion",
+        "Duplicate-suppression rate — fraction of replayed events caught by the dedup store",
+        "Idle cost reduction vs polling baseline — tokens saved by not polling an empty endpoint",
+        "Event-source liveness — silent-failure detection when no events arrive for a stale window",
+        "Burst-handling survival — fraction of events processed during a declared storm test"
+      ]
     },
     {
       "id": "exploration-exploitation",
@@ -558,7 +634,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  D[Decision point] --> Strat{Strategy}\n  Strat -- epsilon-greedy --> Eg{rand < epsilon?}\n  Eg -- no --> Exploit[Pick best-known]\n  Eg -- yes --> Explore[Try alternative]\n  Strat -- UCB --> UCB[Pick by UCB bonus]\n  Strat -- Thompson --> TS[Sample posterior]\n  Exploit --> Track[Record outcome]\n  Explore --> Track\n  UCB --> Track\n  TS --> Track"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Choice set — the tools, prompts, or strategies among which the agent picks",
+        "Exploration policy — epsilon-greedy, UCB, or Thompson sampling rule",
+        "Outcome tracker — records reward per option per pull",
+        "Belief updater — adjusts the per-option posterior or value estimate after each outcome"
+      ],
+      "tools": [
+        "LLM API — invokes whichever option the policy picks for this turn",
+        "Outcome store — persists per-option reward history across runs",
+        "Reward signal source — user feedback, automated check, or downstream success flag"
+      ],
+      "evaluation_metrics": [
+        "Cumulative regret vs always-exploit baseline — how much reward the policy gives up to explore",
+        "Best-arm discovery time — turns until the eventual best option dominates the policy",
+        "Local-optimum escape rate — fraction of runs that find a better option than the initial favourite",
+        "Exploration fraction over time — share of pulls spent on non-best options, should taper",
+        "Reward-signal noise — variance of the per-option outcome that drives the posterior"
+      ]
     },
     {
       "id": "goal-decomposition",
@@ -645,7 +739,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Root goal] --> S1[Sub-goal A]\n  G --> S2[Sub-goal B]\n  G --> S3[Sub-goal C]\n  S1 --> L1[Leaf: actionable step]\n  S1 --> L2[Leaf: actionable step]\n  S2 --> S2a[Sub-goal B.1]\n  S2a --> L3[Leaf]\n  S3 --> L4[Leaf]\n  L4 -.stuck.-> Surface[Surface stuck branch]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Goal tree — root holds the user goal, leaves are directly actionable",
+        "Decomposer — splits a non-leaf goal into sibling sub-goals",
+        "Leaf executor — runs the action for any leaf goal",
+        "Progress monitor — reports status at each level and surfaces stuck branches"
+      ],
+      "tools": [
+        "LLM API — performs the decomposition step and the leaf action",
+        "Tree state store — persists the goal tree across decomposition rounds",
+        "Status dashboard or log — surfaces per-level progress and stuck branches"
+      ],
+      "evaluation_metrics": [
+        "Tree depth at completion — how many levels the decomposition needed versus expected",
+        "Stuck-branch surfacing rate — fraction of stalled deep leaves caught versus lost in summary",
+        "Leaf-action success rate — fraction of leaves that completed on first attempt",
+        "End-to-end goal completion — long-horizon task success vs single-shot baseline",
+        "Decomposition overhead — tokens spent on non-leaf splitting versus leaf execution"
+      ]
     },
     {
       "id": "iteration-node",
@@ -761,7 +873,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[(Input array)] --> Iter[Iteration node]\n  subgraph Sub[Subgraph per element]\n    S1[Step 1] --> S2[Step 2] --> S3[Step 3]\n  end\n  Iter -->|element 0| Sub\n  Iter -->|element 1| Sub\n  Iter -->|element 2| Sub\n  Iter -->|element ...| Sub\n  Sub --> Out[(Output array)]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Input array — bounded list whose length sets the iteration count",
+        "Iteration node — structural construct binding each element to a subgraph parameter",
+        "Inner subgraph — workflow steps that run once per element with element-scoped state",
+        "Output array — per-element results preserved in order",
+        "Concurrency controller — runs the subgraph sequentially or up to a configured parallelism"
+      ],
+      "tools": [
+        "Workflow engine — Dify, Coze, n8n, or similar canvas runtime that hosts the node",
+        "LLM API — invoked inside the subgraph as needed per element",
+        "Per-iteration log store — records index, timing, and failure per element"
+      ],
+      "evaluation_metrics": [
+        "Per-element success rate — fraction of array elements whose subgraph completed cleanly",
+        "Failed-index visibility — whether errored elements surface with their index for inspection",
+        "Wall-clock at concurrency N versus sequential — parallelism speedup",
+        "Variable-leak incidents — subgraph state escaping its iteration scope",
+        "Iteration-count bound respected — actual iterations equal input array length, no model decisions"
+      ]
     },
     {
       "id": "lats",
@@ -903,7 +1034,27 @@
           "url": "https://github.com/langchain-ai/langgraph"
         }
       ],
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Trajectory tree — nodes are partial agent traces (thought/action/observation prefixes)",
+        "UCT selector — picks the next node to expand by upper-confidence bound",
+        "Expansion policy — samples next thoughts and actions from the LLM",
+        "Value function — scores partial trajectories, learned or heuristic",
+        "Backpropagator — updates ancestor value estimates after a rollout"
+      ],
+      "tools": [
+        "LLM API — used both as expansion policy and (optionally) as self-evaluator",
+        "Tool catalogue — actions the agent can take inside a rollout",
+        "Test harness or external verifier — provides reward signal when available",
+        "Tree state store — persists nodes, visit counts, and value estimates"
+      ],
+      "evaluation_metrics": [
+        "Pass rate vs single-chain ReAct — quality lift from search",
+        "Token cost multiple over ReAct — overhead the tree expansion pays",
+        "Backtrack rate — fraction of runs that abandon a failing branch versus committing",
+        "Value-function calibration — correlation between predicted value and final reward",
+        "Branch-memory bleed — incidents of failed-branch context leaking into successful ones"
+      ]
     },
     {
       "id": "llm-compiler",
@@ -1002,7 +1153,26 @@
           "url": "https://github.com/langchain-ai/langgraph"
         }
       ],
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Planner — emits a dependency DAG of tool calls before any tool fires",
+        "Task-fetching unit — dispatches steps as soon as their inputs resolve",
+        "Concurrency-bounded executor — runs independent steps in parallel within rate limits",
+        "Joiner — assembles the final answer from the resolved DAG",
+        "Variable resolver — substitutes upstream outputs into downstream step inputs"
+      ],
+      "tools": [
+        "LLM API — strong model for the planner; cheaper one acceptable for individual steps",
+        "Tool catalogue — registered functions the planner can reference in the DAG",
+        "Concurrency primitive — async runtime or worker pool bounded by provider rate limits"
+      ],
+      "evaluation_metrics": [
+        "End-to-end latency vs sequential executor — speedup from parallel dispatch",
+        "Critical-path length versus call count — how many calls actually had to be serial",
+        "Rate-limit-induced retries — concurrency hitting provider caps",
+        "Planner DAG correctness — fraction of plans whose dependencies execute without rework",
+        "Failure isolation rate — branch failures that did not cascade to siblings"
+      ]
     },
     {
       "id": "map-reduce",
@@ -1094,7 +1264,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[Oversize input] --> Sp[Split into chunks]\n  Sp --> M1[Map: per-chunk LLM call]\n  Sp --> M2[Map: per-chunk LLM call]\n  Sp --> M3[Map: per-chunk LLM call]\n  M1 --> Red[Reduce: structured aggregation]\n  M2 --> Red\n  M3 --> Red\n  Red --> Cal[Confidence calibration]\n  Cal --> Out[Final answer]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Chunker — splits the oversize input into independent pieces",
+        "Mapper — per-chunk LLM call with no cross-chunk visibility",
+        "Reducer — structured aggregator over per-chunk outputs",
+        "Conflict resolver — confidence-calibration step that reconciles contradictory chunk answers",
+        "Result assembler — emits the final answer in the requested schema"
+      ],
+      "tools": [
+        "LLM API — invoked once per chunk in the map stage and again in reduce",
+        "Job runner — fans the map calls out in parallel up to a concurrency cap",
+        "Intermediate store — holds per-chunk outputs between map and reduce"
+      ],
+      "evaluation_metrics": [
+        "Coverage versus single-pass long-context baseline — items recovered that the long call missed",
+        "Cross-chunk dependency loss — fraction of joins or aggregates the reducer fails to recover",
+        "Reduce-stage bottleneck share — wall-clock spent in reduce versus map",
+        "Conflict resolution accuracy — sample-audited correctness of reconciled contradictory chunks",
+        "Cost per resolved item — total spend divided by accepted aggregated outputs"
+      ]
     },
     {
       "id": "outer-inner-agent-loop",
@@ -1198,7 +1387,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Goal] --> OP[Outer: Planner/Dispatcher]\n  OP -->|subtask k| IA[Inner: ReAct executor]\n  IA -->|status + evidence| OP\n  OP -->|milestone missed| OP\n  OP -->|all done| Done[Final result]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Outer planner-dispatcher — decomposes the goal into subtasks with milestones",
+        "Inner executor — runs a ReAct-style loop on a single subtask",
+        "Interrupt channel — the only path by which inner evidence reaches the outer",
+        "Structured result — schema by which the inner returns status and findings",
+        "Replanner — outer-side step that revises the plan on milestone miss or new evidence"
+      ],
+      "tools": [
+        "LLM API — invoked separately for outer planning and inner action, possibly different models",
+        "Tool catalogue — what the inner executor can call inside its subtask",
+        "Subtask state store — global state held by the outer; local state held by the inner"
+      ],
+      "evaluation_metrics": [
+        "Mid-run replan rate — how often inner evidence forces an outer plan revision",
+        "Scope-creep incidents — inner expanding its subtask without raising to the outer",
+        "Milestone-miss detection latency — turns between miss and outer noticing",
+        "Subtask success rate — fraction of dispatched subtasks the inner completed",
+        "Coordination overhead — outer-loop tokens as fraction of total run cost"
+      ]
     },
     {
       "id": "passive-goal-creator",
@@ -1290,7 +1498,25 @@
         "mermaid": "flowchart TD\n  U[User] -->|prompt| D[Dialogue interface]\n  D --> P[Passive goal creator]\n  P <-->|retrieve context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
         "caption": "Passive Goal Creator refines a dialogue prompt into a planner-ready goal."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Dialogue interface — receives the user's free-form prompt",
+        "Memory retriever — pulls recent conversation, prior tasks, and stored preferences",
+        "Goal creator — synthesises prompt plus retrieved context into a structured goal",
+        "Refined goal artefact — schema-typed handoff to the planner"
+      ],
+      "tools": [
+        "LLM API — drives the goal-synthesis step",
+        "Memory store — recent conversation, task history, and user preferences",
+        "Structured-output schema — defines the refined-goal contract for downstream planning"
+      ],
+      "evaluation_metrics": [
+        "Goal-precision lift over raw-prompt baseline — downstream planning success rate",
+        "Missing-field rate in the refined goal — fields the synthesis could not fill",
+        "Goal-misinterpretation rate — refined goals the user later corrects",
+        "Latency cost of the refinement step — extra turn-time before planning begins",
+        "Memory-retrieval hit rate — fraction of refinements that pulled relevant context"
+      ]
     },
     {
       "id": "plan-and-execute",
@@ -1445,7 +1671,27 @@
           "see_also": "rewoo"
         }
       ],
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Planner — strong model that emits the ordered step list once",
+        "Plan artefact — inspectable list of steps with dependencies",
+        "Executor — cheaper model that walks each step under the plan",
+        "Replan trigger — path back to the planner on failure or surprise",
+        "Result accumulator — collects per-step outputs into the final answer"
+      ],
+      "tools": [
+        "Strong LLM API — used once for the plan, where judgement matters",
+        "Cheaper LLM API — used per step for routine execution",
+        "Tool catalogue — what the executor calls per step",
+        "Plan store — persists the plan so reviewers can inspect before execution starts"
+      ],
+      "evaluation_metrics": [
+        "Cost shift to cheap model — fraction of run tokens executed below the strong model",
+        "Replan frequency — how often plans had to be revised mid-run",
+        "Plan-step success rate — fraction of planned steps that executed without failure",
+        "Plan inspectability lag — time between plan emission and first tool firing",
+        "Brittleness rate — runs that completed the plan but produced wrong output"
+      ]
     },
     {
       "id": "planner-executor-observer",
@@ -1539,7 +1785,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Goal] --> P[Planner]\n  P -->|plan| E[Executor]\n  E -->|step result| O[Observer]\n  O -->|loop| E\n  O -->|replan| P\n  O -->|respond| R[Final answer]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Planner — emits an ordered plan once from the goal",
+        "Executor — walks plan steps and accumulates results",
+        "Observer — reads cumulative output against the plan and decides next action",
+        "Decision channel — loop, respond, or replan signal emitted by the observer",
+        "Replan path — return to the planner when the observer triggers it"
+      ],
+      "tools": [
+        "LLM API — usually three roles, each potentially backed by a different model",
+        "Tool catalogue — what the executor calls per step",
+        "Plan-and-result store — observer reads cumulative state from here"
+      ],
+      "evaluation_metrics": [
+        "Drift-catch latency — turns between off-plan execution and observer signalling replan",
+        "Observer overhead — observer tokens as fraction of total run cost",
+        "Replan-trigger precision — fraction of observer replans that were actually warranted",
+        "False respond rate — observer declaring done when the plan was not satisfied",
+        "End-to-end success vs unsupervised plan-and-execute — quality lift from the third role"
+      ]
     },
     {
       "id": "planner-generator-evaluator-harness",
@@ -1667,7 +1932,27 @@
         "mermaid": "flowchart TD\n  U[User prompt] --> PL[Planner<br/>runs once]\n  PL --> FL[(feature-list.json:<br/>ordered chunks + acceptance criteria)]\n  DR[Driver loop] --> GEN[Generator<br/>fresh context per chunk]\n  FL --> GEN\n  ART[(Artefact state)] --> GEN\n  GEN --> ART2[Artefact']\n  ART2 --> EV[Evaluator<br/>fresh context, rubric only]\n  RUB[(Rubric)] --> EV\n  EV --> FIND[(findings.json)]\n  FIND --> DR\n  DR -->|pass| DONE[Done]\n  DR -->|fail| GEN",
         "caption": "Three role-isolated agents talk only through structured artefacts on disk; the evaluator never sees the generator's trace."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Planner — runs once and emits a structured feature-list artefact",
+        "Generator — fresh-context worker invoked per chunk, edits the artefact",
+        "Evaluator — fresh-context grader that sees artefact plus rubric only",
+        "Driver loop — routes between the three roles based on evaluator findings",
+        "Fixed rubric — durable acceptance criteria the evaluator scores against"
+      ],
+      "tools": [
+        "LLM API — three role-isolated invocations, contexts never overlap",
+        "Artefact store on disk — feature-list, current artefact, and findings files",
+        "Rubric file — version-controlled, fixed across runs",
+        "Test harness or compiler — verifies the artefact for the evaluator"
+      ],
+      "evaluation_metrics": [
+        "Context-window pressure per role — peak tokens any single role uses",
+        "Evaluator gaming rate — incidents of generator influencing evaluator outcomes",
+        "Chunk-acceptance rate — fraction of generator chunks that pass evaluation first try",
+        "Cross-run rubric stability — variance in evaluator scores on the same artefact",
+        "Total wall-clock per accepted chunk — including evaluator retries"
+      ]
     },
     {
       "id": "proactive-goal-creator",
@@ -1769,7 +2054,27 @@
         "mermaid": "flowchart TD\n  U[User] -->|prompt| D[Dialogue interface]\n  E[Environment] -->|capture| Det[Detector / sensors]\n  D --> P[Proactive goal creator]\n  Det --> P\n  P <-->|context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
         "caption": "Proactive Goal Creator fuses captured multimodal context with the user's prompt."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Dialogue interface — receives the user's articulated prompt",
+        "Multimodal detectors — camera, screen capture, microphone, or environment sensors",
+        "Context engineer — synthesises sensor signal into structured features",
+        "Goal creator — fuses captured context with the user's prompt into a refined goal",
+        "Disclosure surface — notifies the user when capture is active"
+      ],
+      "tools": [
+        "LLM API (often multimodal) — drives goal synthesis from text plus sensor features",
+        "Sensor stack — camera, screen recorder, microphone, or environment sensors",
+        "Memory store — recent conversation and stored preferences",
+        "Privacy and consent ledger — records what was captured and when"
+      ],
+      "evaluation_metrics": [
+        "Intent-anticipation accuracy — fraction of refined goals the user accepts without correction",
+        "False-positive activation rate — interruptions when no intent was actually present",
+        "Multimodal capture cost — bandwidth and compute overhead per refined goal",
+        "Accessibility task completion lift — success rate for users who cannot articulate fully",
+        "Disclosure compliance — fraction of captures with active user notification"
+      ]
     },
     {
       "id": "react",
@@ -1939,7 +2244,26 @@
           "see_also": "rest-em"
         }
       ],
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Thought slot — private reasoning emitted by the model per step",
+        "Action slot — exactly one tool call per step",
+        "Observation slot — the tool's result fed back to the model",
+        "Step-budget guard — bounds the loop so it terminates",
+        "Termination check — model decides when to emit the final answer"
+      ],
+      "tools": [
+        "LLM API — invoked once per Thought-Action step",
+        "Tool catalogue — the actions available per step (search, code exec, retrieval, etc.)",
+        "Step-budget counter — enforces the loop bound"
+      ],
+      "evaluation_metrics": [
+        "Steps to answer — average loop length on representative tasks",
+        "Tool-call necessity rate — fraction of actions that genuinely advanced the answer",
+        "Step-budget exhaustion rate — runs that hit the bound without answering",
+        "Hallucinated-fact rate — answers asserting facts no observation supplied",
+        "Per-step round-trip latency — wall-clock cost of one Thought-Action-Observation cycle"
+      ]
     },
     {
       "id": "replan-on-failure",
@@ -2027,7 +2351,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Plan[Plan v1] --> Exec[Executor]\n  Exec -->|tool error| Trig[Replan trigger]\n  Exec -->|unexpected obs| Trig\n  Exec -->|observer dissent| Trig\n  Trig --> P2[Planner with failure context]\n  P2 --> Plan2[Plan v2]\n  Plan2 --> Exec\n  Plan2 -.preserve compatible<br/>partial progress.-> Exec"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Replan triggers — tool error, unexpected observation, or observer dissent",
+        "Failure-context capture — partial state and error packaged for the planner",
+        "Planner — invoked again with the failure context to produce a revised plan",
+        "Progress preserver — keeps compatible partial work across the replan boundary",
+        "Plan replacer — swaps the new plan in for the failed one"
+      ],
+      "tools": [
+        "LLM API — invokes the planner for the revision step",
+        "Plan store — holds current and prior plans so replacements are auditable",
+        "Failure ledger — records trigger events and their downstream effect"
+      ],
+      "evaluation_metrics": [
+        "Recovery rate after first replan — runs that succeed without thrashing",
+        "Replan thrash incidents — multiple replans on the same root cause",
+        "Trigger-precision — fraction of replans that were warranted",
+        "Partial-progress preservation — fraction of pre-failure work carried into the new plan",
+        "End-to-end success vs no-replan baseline — quality lift from the recovery path"
+      ]
     },
     {
       "id": "rewoo",
@@ -2108,7 +2451,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  G[Goal] --> Pl[Planner]\n  Pl -->|DAG with #t1, #t2 vars| Plan[Plan]\n  Plan --> W[Worker]\n  W -->|exec ToolA| O1[obs t1]\n  W -->|exec ToolB t1| O2[obs t2]\n  O1 --> Tr[Resolved trace]\n  O2 --> Tr\n  Tr --> S[Solver]\n  S --> Ans[Answer]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Planner — emits the full DAG with placeholder variables, no observations seen",
+        "Worker — executes each step in dependency order, substituting upstream outputs",
+        "Solver — reads the resolved trace once and produces the final answer",
+        "Variable convention — typed placeholder references (e.g. #t1) across the DAG",
+        "Resolved-trace artefact — handoff between worker and solver"
+      ],
+      "tools": [
+        "Strong LLM API — drives planner and solver, where judgement matters",
+        "Cheaper LLM or function caller — runs worker steps that just dispatch tool calls",
+        "Tool catalogue — registered functions with stable signatures the planner references",
+        "DAG state store — persists steps, references, and resolved values"
+      ],
+      "evaluation_metrics": [
+        "Token cost ratio versus ReAct — savings from not re-injecting observations",
+        "Plan correctness — fraction of DAGs whose worker resolves them without rework",
+        "Observation-dependent failure — runs where the static plan needed mid-run reshaping",
+        "Solver context size — total tokens at the final synthesis call",
+        "End-to-end accuracy versus ReAct — quality at lower cost"
+      ]
     },
     {
       "id": "rumination-agent",
@@ -2242,7 +2605,27 @@
         "mermaid": "stateDiagram-v2\n  [*] --> Think\n  Think --> Search: working hypothesis\n  Search --> Verify: new evidence\n  Verify --> Revise: pass / fail notes\n  Revise --> Act: narrowed / replaced hypothesis\n  Act --> Think: next cycle (context compacted)\n  Verify --> Done: confidence threshold reached\n  Act --> Done: answer-ready signal\n  Think --> Done: budget exhausted\n  Done --> [*]",
         "caption": "Each outer iteration cycles five named phases; the loop exits on confidence, budget, or an answer-ready signal."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Single long-running agent — carries the investigation across all cycles",
+        "Working hypothesis state — named, persistent across cycles",
+        "Five-phase cycle — think, search, verify, revise, act",
+        "Evidence ledger — per-cycle verified evidence summary",
+        "Termination guard — confidence threshold, budget, or explicit answer-ready signal"
+      ],
+      "tools": [
+        "LLM API — invoked many times for the same agent across cycles",
+        "Retrieval and browsing tools — external evidence gathering during search",
+        "Code-execution sandbox — small reproductions during verify",
+        "Context compactor — replaces raw search dumps with verified summaries between cycles"
+      ],
+      "evaluation_metrics": [
+        "Cycle count to answer-ready — depth of investigation needed",
+        "Hypothesis-revision frequency — how often the agent narrows, broadens, or replaces",
+        "Context-bloat resistance — token growth per cycle versus per tool call",
+        "Verify-phase skip rate — incidents where revision happened without verification",
+        "Budget-bound respect — fraction of runs terminating cleanly versus unbounded-loop drift"
+      ]
     },
     {
       "id": "scheduled-agent",
@@ -2341,7 +2724,27 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Sch as Scheduler (cron)\n  participant A as Agent\n  participant St as Durable state\n  loop every cadence\n    Sch->>A: trigger run\n    A->>St: read current state\n    A->>A: execute task\n    A->>St: write results\n    A-->>Sch: exit\n  end"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Schedule trigger — cron expression or scheduler entry that fires runs",
+        "Agent runtime — invoked on each tick to do the work",
+        "Durable state store — persists context across runs so continuity is preserved",
+        "Result writer — emits the run's output to the chosen sink (email, dashboard, store)",
+        "Idempotency guard — keeps retries safe when a tick fires twice"
+      ],
+      "tools": [
+        "Scheduler — cron, queue with delayed delivery, or managed scheduler service",
+        "LLM API — invoked per run for the actual task",
+        "Durable state store — database, object store, or file system carrying state between runs",
+        "Notification or output channel — email, webhook, or dashboard for results"
+      ],
+      "evaluation_metrics": [
+        "Missed-tick rate — scheduled runs that failed to fire",
+        "Per-run cost on empty days — spend when no work was actually pending",
+        "State-continuity correctness — runs that correctly picked up from prior state",
+        "Schedule-skew drift — variance between expected and actual cadence",
+        "Idempotency-failure incidents — duplicate side effects from double-fired ticks"
+      ]
     },
     {
       "id": "spec-driven-loop",
@@ -2427,7 +2830,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Outer shell loop] --> Read[Read PROMPT.md + fix_plan.md]\n  Read --> Run[Run agent on one task]\n  Run --> Edit[Agent updates fix_plan.md]\n  Edit --> Test[Run test suite]\n  Test --> Gate{Spec satisfied?}\n  Gate -- no --> Start\n  Gate -- yes --> Done[Exit loop]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Outer shell loop — deterministic while-loop that re-runs the agent",
+        "Fixed prompt file — single pinned PROMPT.md referenced every iteration",
+        "Agent-updated fix_plan — file the agent edits to record progress and next tasks",
+        "Test gate — runs at the end of each iteration to decide whether to continue",
+        "Convergence check — exits the loop when the spec is satisfied"
+      ],
+      "tools": [
+        "Shell or process runner — re-invokes the agent each iteration",
+        "LLM API — runs the agent on the pinned prompt per iteration",
+        "Test suite or check command — provides the per-iteration gate",
+        "Version-controlled file system — holds PROMPT.md and fix_plan.md across iterations"
+      ],
+      "evaluation_metrics": [
+        "Iterations to convergence — loop count before the spec is satisfied",
+        "Per-iteration cost — tokens and wall-clock spent per loop pass",
+        "Test-gate pass rate — fraction of iterations that pass the gate",
+        "fix_plan drift — incidents where the agent rewrote the plan in unexpected ways",
+        "Resumption fidelity — ability to resume mid-loop after interruption with no rework"
+      ]
     },
     {
       "id": "spec-first-agent",
@@ -2529,7 +2952,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Author[Human author] -->|writes| Spec[(PROMPT.md / fix_plan.md)]\n  Spec --> Agent[Agent loop]\n  Agent -->|reads each iter| Spec\n  Agent -->|controlled writes| Spec\n  Spec --> Done{Spec defines 'done'?}\n  Done -->|yes| Stop[Stop loop]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Human-authored spec — markdown file describing what done means",
+        "Spec reader — agent step that loads the spec at each iteration",
+        "Spec-bound executor — performs work only against goals named in the spec",
+        "Controlled spec mutator — narrow path by which the agent edits the spec",
+        "Reviewer surface — diff-based view of spec changes over time"
+      ],
+      "tools": [
+        "Markdown file — single source of truth for intent (PROMPT.md, fix_plan.md, etc.)",
+        "LLM API — agent that reads the spec and acts against it",
+        "Version-control system — tracks spec edits as reviewable diffs",
+        "Tool catalogue — actions the agent can take while honouring the spec"
+      ],
+      "evaluation_metrics": [
+        "Out-of-spec action rate — agent steps that did work not named in the spec",
+        "Spec mutation frequency — how often the agent edits the spec versus reading it",
+        "Reviewer round-trip time — turnaround on spec-change PRs",
+        "Drift visibility — fraction of behaviour changes that surfaced as spec diffs",
+        "Spec-quality gap — outcomes the spec failed to constrain that needed re-authoring"
+      ]
     },
     {
       "id": "todo-list-driven-agent",
@@ -2652,7 +3095,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Run starts] --> Plan[Agent authors todo.md]\n  Plan --> Loop[Each turn]\n  Loop --> R[Read todo.md]\n  R --> Pick[Select next unticked item]\n  Pick --> Act[Act + tool calls]\n  Act --> Upd[Tick item / add follow-ups / drop dead-ends]\n  Upd --> Inject[Re-inject unticked tail into prompt]\n  Inject --> Loop\n  Upd --> Done{All ticked?}\n  Done -- yes --> End[Finish run]"
       },
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Sandbox VM — provides persistent file system and basic tools",
+        "Agent-authored todo.md — checklist plan written early in the run",
+        "Read-pick-act-update loop — turn-by-turn cycle over the file",
+        "Re-injector — packs the unticked tail of the plan into each next prompt",
+        "Resume handler — restores state from todo.md after pause, truncation, or restart"
+      ],
+      "tools": [
+        "Sandboxed VM — durable file system plus shell, browser, and editor",
+        "LLM API — runs the agent each turn over the re-injected unticked tail",
+        "File-editor tool — agent uses it to tick items and add follow-ups",
+        "Browser and shell — execution surface for the actual work"
+      ],
+      "evaluation_metrics": [
+        "Plan survival across truncation — whether todo.md correctly drove resumption",
+        "Re-injection token overhead — tokens spent re-loading the unticked tail per turn",
+        "Plan-mutation discipline — incidents of capricious rewrites unrelated to progress",
+        "Tick-action correspondence — fraction of ticks that match an actual completed action",
+        "End-to-end completion on long-horizon tasks — success rate versus an in-context-only baseline"
+      ]
     },
     {
       "id": "visual-workflow-graph",
@@ -2793,7 +3256,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Start([Start]) --> QC[Question Classifier]\n  QC -->|billing| KB1[Retrieval: billing]\n  QC -->|tech| KB2[Retrieval: tech]\n  QC -->|other| KB3[Retrieval: general]\n  KB1 --> LLM[LLM: draft reply]\n  KB2 --> LLM\n  KB3 --> LLM\n  LLM --> Cond{confidence >= 0.85?}\n  Cond -- yes --> Send[Tool: send]\n  Cond -- no --> Hum[Human review queue]\n  Send --> End1([End])\n  Hum --> End2([End])"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21",
+      "components": [
+        "Typed-node vocabulary — Start, End, LLM, Retrieval, Tool, Conditional, Iteration, Code, Agent",
+        "Drag-and-drop canvas — UI editor for connecting nodes",
+        "Graph artefact — serialisable JSON or YAML representation of the workflow",
+        "Type validator — checks node-to-node connection contracts statically",
+        "Workflow runtime — executes the graph artefact directly"
+      ],
+      "tools": [
+        "Low-code platform — Dify, Coze, n8n, Flowise, Langflow, FastGPT, or Bisheng",
+        "LLM API — invoked inside LLM and Agent nodes",
+        "Tool catalogue — registered functions exposed to Tool nodes",
+        "Version-control system — tracks graph-artefact diffs for review"
+      ],
+      "evaluation_metrics": [
+        "Non-developer edit rate — share of changes contributed without code edits",
+        "Type-validation catch rate — wiring errors caught before execution",
+        "Artefact-diff review quality — reviewer ability to read the diff versus reconstructing intent",
+        "Code escape-hatch share — fraction of nodes that bypass the typed vocabulary via Code nodes",
+        "Subflow modularisation depth — at what graph size readability collapses without it"
+      ]
     }
   ]
 }

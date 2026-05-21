@@ -115,7 +115,23 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Agent\n  participant Queue as Approval Queue\n  participant Human\n  participant Runner\n  Agent->>Queue: proposed action + context\n  Agent->>Agent: continue other work (async)\n  Human->>Queue: review & approve/reject\n  Queue-->>Runner: approved actions\n  Runner-->>Agent: execution result"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Agent — emits proposed actions with surrounding context to the queue",
+        "Approval Queue — holding store that pins each proposal until a verdict arrives",
+        "Human Reviewer — asynchronous decider who approves or rejects queued items",
+        "Runner — executor that runs approved actions and returns results to the agent"
+      ],
+      "tools": [
+        "Queue store — durable inbox keyed by proposal id with approve/reject endpoints",
+        "Audit log — append-only record of who decided what and when"
+      ],
+      "evaluation_metrics": [
+        "Approval queue depth and age — backlog signal that flags reviewer under-capacity",
+        "Approve / reject ratio — calibration check on what the agent surfaces for review",
+        "Time-to-decision p50 / p95 — how long proposals sit before a reviewer acts",
+        "World-drift incident rate — fraction of approved actions invalidated by state change before execution"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "compensating-action",
@@ -206,7 +222,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  P[Plan: A1, A2, A3] --> A1[Action A1<br/>+ compensator C1]\n  A1 --> A2[Action A2<br/>+ compensator C2]\n  A2 --> A3[Action A3<br/>+ compensator C3]\n  A2 -.fails.-> RB[Run compensators<br/>in reverse]\n  RB --> C2[C2]\n  C2 --> C1[C1]\n  C1 --> S[Prior state restored]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Forward action — the original step that mutates external state",
+        "Compensator registry — pairing of each forward action with its idempotent undo",
+        "Compensation stack — ordered record of landed actions used to walk back on failure",
+        "Saga coordinator — orchestrator that detects mid-plan failure and runs compensators in reverse"
+      ],
+      "tools": [
+        "Idempotency-key store — ensures repeated compensator calls converge to a single effect",
+        "Provenance ledger — records which forward actions landed so the reverse walk has truth"
+      ],
+      "evaluation_metrics": [
+        "Compensator coverage — fraction of forward actions with a registered, tested undo",
+        "Rollback success rate — fraction of mid-plan failures that restored prior state cleanly",
+        "Uncompensable-action escape count — landed actions with no available undo path",
+        "Compensator idempotency violations — repeat-invocation effects that diverged from a single-call result"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "constitutional-charter",
@@ -311,6 +343,22 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  C[(Charter file<br/>read-only)] -->|every turn| Ctx[Context]\n  Ctx --> A[Agent]\n  A -.no write tool can touch.-> C\n  Op[Operator] -->|explicit path| C"
       },
+      "components": [
+        "Charter file — read-only document holding inviolable negative-form rules",
+        "Tool layer — enforces read-only on the charter so no agent write tool can reach it",
+        "Context injector — re-reads the charter into context on every turn or tick",
+        "Operator update path — out-of-loop channel through which humans amend the charter"
+      ],
+      "tools": [
+        "Read-only filesystem mount — host-level enforcement that the agent cannot bypass",
+        "Charter signing key — cryptographic proof that an update came from the operator path"
+      ],
+      "evaluation_metrics": [
+        "Charter-violating output rate — refusals or completions that contradict a charter rule",
+        "Charter integrity check — hash of the charter file at start and end of run matches",
+        "Jailbreak-attempt rejection rate — share of attempted self-edits the tool layer blocked",
+        "Charter token overhead — extra prompt tokens charged per turn for charter inclusion"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -411,7 +459,23 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant User\n  participant Agent\n  participant Op as Human Operator\n  Note over Agent: low confidence / policy / explicit ask\n  Agent->>Op: handoff envelope (summary, ticket, queue)\n  User->>Op: continues conversation\n  Op-->>Agent: return primitive\n  Agent-->>User: resumes"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Agent — runs the conversation until an escalation trigger fires",
+        "Handoff envelope — structured summary plus ticket id transferred to the operator",
+        "Human Operator queue — routing destination where live agents pick up threads",
+        "Return primitive — protocol step that re-grounds the agent when the operator hands back"
+      ],
+      "tools": [
+        "Ticketing system — owns thread state across the agent-to-human boundary",
+        "Confidence classifier — signals low-confidence turns that warrant escalation"
+      ],
+      "evaluation_metrics": [
+        "Escalation precision — fraction of handoffs operators agreed were warranted",
+        "Context-fidelity score — operator-rated completeness of the handoff envelope",
+        "Time-to-operator-pickup — wait between escalation emission and operator first reply",
+        "Return-to-agent rate — share of handed-off threads the operator hands back versus closes"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cost-gating",
@@ -514,7 +578,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Action proposed] --> E[Estimate cost]\n  E --> C{Cost > threshold?}\n  C -- no --> X[Execute]\n  C -- yes --> AP[Surface to user/operator]\n  AP --> AR{Approved?}\n  AR -- yes --> X\n  AR -- no --> B[Block]\n  X --> T[Track running totals]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Cost estimator — pre-flight forecaster of tokens, API charges, and retrieval spend",
+        "Budget thresholds — per-call, per-session, and per-period limits with their own caps",
+        "Approval surface — explicit acknowledgement channel shown to user or operator",
+        "Running-total tracker — accumulator that compares spend against the active budget"
+      ],
+      "tools": [
+        "Token-counter library — sizes prompts before dispatch to bound the forecast",
+        "Pricing table — per-model and per-tool rates the estimator multiplies into euros"
+      ],
+      "evaluation_metrics": [
+        "Estimate-vs-actual cost delta — calibration error of the forecaster",
+        "Gate-trip rate by budget horizon — how often per-call, per-session, per-period caps fired",
+        "Approval-fatigue indicator — fraction of gated prompts users accepted without reading",
+        "Surprise-bill incidents — runs that exceeded budget without hitting the gate"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "degenerate-output-detection",
@@ -644,7 +724,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  R[Reply candidate] --> N[Normalize]\n  N --> RB[(Ring buffer<br/>last 8 outputs)]\n  RB --> C{Match?}\n  C -- exact / high Jaccard --> A[Drop / replace / escalate]\n  C -- novel --> P[Publish]\n  P --> RB"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Ring buffer — small fixed-size store of recent outgoing replies for comparison",
+        "Normaliser — lowercase, punctuation-strip step that stabilises lexical comparison",
+        "Similarity scorer — Jaccard or embedding comparator that decides duplicate-or-novel",
+        "Escalation router — provider-swap path triggered on detected loop",
+        "Self-correction note — SYSTEM message appended to history to break the model out"
+      ],
+      "tools": [
+        "Token-set hash — cheap fingerprint for exact and near-exact match",
+        "Multi-provider client — second LLM endpoint used as the escalation target",
+        "Embedding model — semantic-similarity backup for paraphrased loops"
+      ],
+      "evaluation_metrics": [
+        "Loop-detection precision — fraction of triggers that were actually repeats",
+        "Loop-detection recall — fraction of human-spotted loops the detector caught",
+        "Escalation cost per trigger — added spend when a loop forces a stronger provider",
+        "Post-escalation self-correction rate — share of follow-up turns that broke the loop"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "dual-llm-pattern",
@@ -767,7 +865,25 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Untrusted as Untrusted Source\n  participant Q as Quarantined LLM\n  participant Host\n  participant P as Privileged LLM\n  participant Tool\n  Untrusted->>Q: raw text\n  Q->>Host: typed extraction / handles\n  Host->>P: plan request (handles only)\n  P->>Host: tool call referencing handles\n  Host->>Tool: invoke with substituted values\n  Tool-->>Host: result\n  Host-->>P: result"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Privileged LLM — planner with tool access that never sees raw untrusted text",
+        "Quarantined LLM — reader of untrusted content with no tools and no free-form action surface",
+        "Host orchestrator — trust boundary that substitutes handles to raw values only at tool-call time",
+        "Symbolic handle store — typed references (or opaque IDs) mapping to real extracted values",
+        "Tool runtime — invocation layer that receives substituted values from the host"
+      ],
+      "tools": [
+        "Typed schema validator — enforces the structured extraction shape the quarantined model returns",
+        "Two distinct model endpoints — disjoint inference paths for privileged and quarantined roles"
+      ],
+      "evaluation_metrics": [
+        "Injection-success rate — share of crafted payloads that drove a privileged tool call",
+        "Handle-leakage incidents — cases where a raw untrusted string slipped into the privileged context",
+        "Extraction-schema conformance — fraction of quarantined outputs that parsed cleanly",
+        "Added latency per untrusted payload — round-trip cost of the extra model hop",
+        "Cost overhead vs single-model baseline — token spend for the quarantined call"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "exception-recovery",
@@ -857,7 +973,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Step[Agent step] --> E{Error?}\n  E -- no --> Next[Continue]\n  E -- typed error --> R{Recovery branch}\n  R -- transient --> Retry[Retry with backoff]\n  R -- rate limit --> Wait[Wait + retry]\n  R -- validation --> Fall[Fall back / replan]\n  R -- unknown --> Surface[Surface to user]\n  Retry --> Step\n  Wait --> Step\n  Fall --> Next\n  Surface --> L[Log structured error]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Failure-mode catalogue — enumerated typed errors the system knows how to react to",
+        "Tool wrapper — translator from raw tool exceptions into typed error envelopes",
+        "Recovery branch table — mapping from error type to retry, fallback, replan, or surface",
+        "Structured error log — record of typed events for later debugging and trend analysis"
+      ],
+      "tools": [
+        "Exponential-backoff utility — paces retries on transient and rate-limit errors",
+        "Structured logging library — emits typed error events to the central log"
+      ],
+      "evaluation_metrics": [
+        "Recovery-success rate by error type — share of typed errors the right branch resolved",
+        "Untyped-error escape rate — failures that bypassed the catalogue and surfaced raw",
+        "Retry-storm incidents — back-off violations that overran a downstream quota",
+        "Mean steps to recovery — loop iterations between first failure and stable progress"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "human-in-the-loop",
@@ -975,7 +1107,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Loop[Agent loop] --> Bnd{At approval boundary?}\n  Bnd -- no --> Loop\n  Bnd -- yes --> Pause[Pause + surface proposed action]\n  Pause --> H{Human decides}\n  H -- approve --> Resume[Resume action]\n  H -- reject --> Replan[Abort or replan]\n  Resume --> Log[Log decision]\n  Replan --> Log"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Approval boundary — defined risk gate where the loop pauses for human review",
+        "Action proposal surface — UI that renders the pending action with enough context to decide",
+        "Human Reviewer — explicit approver who returns an approve or reject signal",
+        "Decision log — record of action, reviewer id, and verdict for audit and future automation"
+      ],
+      "tools": [
+        "Pause-and-resume primitive — loop control that suspends execution awaiting a signal",
+        "Audit log — append-only store of decisions and reviewer identity"
+      ],
+      "evaluation_metrics": [
+        "Approval-fatigue rate — share of approvals granted faster than reading time",
+        "Override correctness — fraction of human rejections where the agent's proposal was wrong",
+        "Latency added by the gate — wall-clock delay between proposal and execution",
+        "Gated-action incident rate — production incidents traced to actions that passed the gate"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "input-output-guardrails",
@@ -1121,6 +1269,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  U[User input] --> InG[Input validators: regex / classifier / allowlist]\n  InG --> Pass1{Pass?}\n  Pass1 -- no --> Block1[Reject or fall back]\n  Pass1 -- yes --> M[Model]\n  M --> OutG[Output validators: schema / toxicity / secret-redaction]\n  OutG --> Pass2{Pass?}\n  Pass2 -- no --> Block2[Fallback response]\n  Pass2 -- yes --> Resp[Response to user]"
       },
+      "components": [
+        "Input validator stack — regex, allowlist, and classifier checks composed on the inbound path",
+        "Output validator stack — schema check, toxicity classifier, and secret redactor on the outbound path",
+        "Fallback response surface — safe default returned when a validator blocks",
+        "Centralised audit trail — log of blocked content across both directions"
+      ],
+      "tools": [
+        "Moderation classifier — model that scores inputs and outputs for policy categories",
+        "Schema validator — JSON-schema or Pydantic check on structured outputs",
+        "Secret redactor — pattern-based detector for card numbers, SSNs, and known credential shapes"
+      ],
+      "evaluation_metrics": [
+        "False-positive block rate — legitimate traffic the validators rejected",
+        "Escape rate past guardrails — unsafe content that reached the user despite checks",
+        "Per-validator latency — added milliseconds each stack stage costs on the hot path",
+        "Validator-drift indicator — share of new threat samples the current stack misses"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1225,7 +1390,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Op[Operator] --> Rev[Set revocation token / flag]\n  Rev --> Store[(Shared store)]\n  Loop[Agent step] --> Chk[Check store]\n  Chk --> Rk{Revoked?}\n  Rk -- no --> Cont[Continue]\n  Rk -- yes --> Halt[Halt: no model + no tool calls]\n  Halt --> Comp[Compensate in-flight effects]\n  Comp -.fallback.-> Kill[Kill OS process loses provenance]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Revocation token — signed marker in a shared store the runtime checks each step",
+        "Shared revocation store — out-of-band store the agent cannot bypass",
+        "Runtime guard — pre-call check that aborts model and tool invocations when the token flips",
+        "Compensation hook — invokes Compensating Action on in-flight effects at halt time",
+        "OS-kill fallback — brutal stop primitive used only when the guard cannot fire"
+      ],
+      "tools": [
+        "Feature-flag service — store backing the revocation token with low-latency reads",
+        "Signing key — proves the revocation came from the operator path",
+        "Process supervisor — owns the OS-kill fallback for wedged runtimes"
+      ],
+      "evaluation_metrics": [
+        "Halt propagation latency — time from operator flip to last model or tool call",
+        "False-trip rate — kill-switch firings later judged unwarranted",
+        "Compensation success at halt — fraction of in-flight effects cleanly walked back",
+        "Provenance loss incidents — runs where the OS-kill fallback erased the audit trail"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "lethal-trifecta-threat-model",
@@ -1342,7 +1525,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Private data access] --> X((Trifecta))\n  B[Untrusted content ingest] --> X\n  C[Outbound channel] --> X\n  X -->|all three present| D[Exfiltration risk]\n  X -.->|remove any one leg| E[Risk eliminated]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Capability tag — label on every tool and data source for private-read, untrusted-ingest, or outbound-comm",
+        "Trifecta checker — orchestration-time enforcement that no execution path holds all three legs",
+        "Tool catalogue — registry where capability tags are authored and reviewed",
+        "Path splitter — mechanism that runs untrusted and private legs in separate sessions when needed"
+      ],
+      "tools": [
+        "Static capability analyser — compile-time scan that flags untagged tools as carrying all three legs",
+        "Egress firewall — network-level enforcement of outbound-channel restrictions",
+        "Session isolator — host primitive that strips capabilities for the untrusted leg"
+      ],
+      "evaluation_metrics": [
+        "Untagged-tool count — tools missing capability labels and therefore treated as all-three",
+        "Trifecta-violation incidents — execution paths that combined all three legs at runtime",
+        "Path-split coverage — share of untrusted-content reads done in a tokenless subagent",
+        "Exfiltration-test pass rate — red-team payloads the model neither obeyed nor leaked from"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "pii-redaction",
@@ -1433,7 +1633,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[User input] --> D[Detect: regex + NER + classifier]\n  D -->|placeholders| LLM[LLM]\n  LLM --> Out1[Raw output]\n  Out1 --> S[Re-substitute or refuse]\n  S --> Out2[User-visible output]\n  D --> A[(Audit log)]\n  S --> A"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "PII detector — composite of regex, named-entity recogniser, and classifier on the inbound path",
+        "Placeholder substituter — replaces detected PII with typed tokens before the model sees the prompt",
+        "Re-substitution gate — restores original values on the outbound path only when explicitly authorised",
+        "Redaction audit log — record of detections, substitutions, and re-substitutions"
+      ],
+      "tools": [
+        "NER model — entity recogniser tuned for names, addresses, identifiers",
+        "Regex library — patterns for SSNs, card numbers, IBANs, phone formats",
+        "PII classifier — supervised model that catches entities the regex misses"
+      ],
+      "evaluation_metrics": [
+        "Detection recall — share of policy-defined PII categories the detector caught",
+        "False-positive redaction rate — non-PII tokens the detector wrapped as placeholders",
+        "Plaintext-PII leakage incidents — logs or outputs found with unredacted personal data",
+        "Re-identification risk score — residual identifiability after redaction plus side channels"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "policy-as-code-gate",
@@ -1581,6 +1798,25 @@
         "mermaid": "sequenceDiagram\n  participant CR as Compliance repo (policies as code)\n  participant PDP as Policy Decision Point (OPA / Cedar)\n  participant A as Agent\n  participant T as Tool\n  participant L as Decision log\n  CR->>PDP: compile / sign / deploy policy bundle\n  A->>PDP: action proposal {tool, args, caller, data fingerprints}\n  PDP-->>A: allow | deny | allow-with-obligations<br/>+ policy_hash + rule_id\n  alt allow\n    A->>T: dispatch tool (with obligations applied)\n    T-->>A: result\n  else deny\n    A->>A: surface rule_id to user / escalate\n  end\n  A->>L: {action, policy_hash, rule_id, verdict}",
         "caption": "Every action is gated by an external policy engine; compliance authorship lives outside the agent and outside the prompt."
       },
+      "components": [
+        "Policy repository — compliance-owned store of versioned, signed Rego or Cedar rules",
+        "Policy Decision Point — external engine returning allow, deny, or allow-with-obligations",
+        "Action proposal — structured envelope the agent sends carrying tool, args, caller, and data fingerprints",
+        "Obligation handler — applies allow-conditions like masking or dual-approval before dispatch",
+        "Decision log — record of action, policy hash, rule id, and verdict for replay"
+      ],
+      "tools": [
+        "OPA or Cedar runtime — deterministic engine evaluating compiled policy bundles",
+        "Policy compiler — translator from prose policy documents into rule language",
+        "Bundle signer — cryptographic provenance for each deployed policy version"
+      ],
+      "evaluation_metrics": [
+        "Policy-decision latency p95 — added milliseconds on the tool-call hot path",
+        "Deny-with-rule-id rate — fraction of denials that carried an authoritative rule reference",
+        "Policy-engine availability — uptime of the decision point on the synchronous path",
+        "Audit-replay reproducibility — share of past actions that re-evaluate to the same verdict",
+        "Translation-drift findings — diffs between prose policy and compiled rule output flagged by review"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1685,7 +1921,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Sys[System prompt<br/>trusted] --> M[LLM]\n  Usr[User prompt<br/>partially trusted] --> M\n  Tool[Tool/document content<br/>UNTRUSTED] -->|wrapped in markers| M\n  M -->|refuse instructions<br/>inside untrusted markers| Out[Response]\n  Out --> G[Output guardrails]\n  G --> User"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Instruction hierarchy — ordered trust levels for system, user, and tool or document content",
+        "Untrusted-content markers — XML-style tags wrapping retrieved or user-supplied text",
+        "System prompt directive — explicit rule that instructions inside untrusted markers are read-only",
+        "Output guardrail — egress check for known exfiltration shapes such as mass-forwards or external links"
+      ],
+      "tools": [
+        "Marker-wrapping pipeline — automatic tagger that envelopes retrieved documents and tool output",
+        "Exfiltration-pattern matcher — regex or classifier hunting for known leak shapes in outputs",
+        "Instruction-hierarchy-trained model — base model fine-tuned to honour the marker contract"
+      ],
+      "evaluation_metrics": [
+        "Injection-success rate on benchmark payloads — share of attacks that hijacked behaviour",
+        "Marker-respect rate — share of attempts where instructions inside markers were ignored",
+        "Output-guardrail catch rate — known exfil shapes blocked before leaving the system",
+        "False-refusal rate on instruction-shaped legitimate content — over-blocking signal",
+        "Multi-turn injection escape rate — payloads that split across turns and slipped past per-turn tagging"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "quorum-on-mutation",
@@ -1768,7 +2022,24 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Proposed: propose mutation\n  Proposed --> Confirmed1: tick confirms\n  Confirmed1 --> ConfirmedK: K-1 more confirms\n  ConfirmedK --> Landed: write to durable state\n  Proposed --> Dropped: any tick disagrees\n  Confirmed1 --> Dropped: any tick disagrees\n  Proposed --> Landed: explicit user approval\n  Landed --> [*]\n  Dropped --> [*]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Mutation proposer — agent path that drafts a change to durable state",
+        "Holding area — escrow store for proposals awaiting subsequent-tick endorsement",
+        "Quorum state machine — tracker that advances proposals through K confirmation states",
+        "Endorsement check — re-reads each proposal against fresh context on later ticks",
+        "User-override path — explicit fast-path bypassing the wait for urgent edits"
+      ],
+      "tools": [
+        "Durable proposal store — keyed by proposal id with confirmation counter and expiry",
+        "Tick scheduler — runs the re-endorsement step at defined cadence"
+      ],
+      "evaluation_metrics": [
+        "Transient-mutation rejection rate — share of single-tick proposals dropped before landing",
+        "Quorum-induced latency on legitimate changes — extra ticks before landing an improvement",
+        "Hesitation signal frequency — K-1 confirms followed by a withdrawal, useful as its own data",
+        "Durable-state-degradation incidents avoided — rules that would have landed under single-tick"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "rate-limiting",
@@ -1854,7 +2125,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Req[Request] --> ID[Identify caller]\n  ID --> B[Token bucket /<br/>sliding window]\n  B -->|under limit| Allow[Allow]\n  B -->|over limit| Deny[429 + clear message]\n  Allow --> Agent[Agent loop]\n  Agent --> B2[Inner limit:<br/>tool calls / tokens]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Identity resolver — extracts the caller id used to key per-tenant counters",
+        "Token-bucket counter — per-identity bucket refilled at the configured rate",
+        "Multi-horizon limit table — per-minute, per-hour, per-day caps applied in parallel",
+        "Gateway enforcer — outer limiter at the API boundary",
+        "Inner loop enforcer — secondary limit on tool calls and tokens inside the agent loop"
+      ],
+      "tools": [
+        "Distributed counter store — Redis or equivalent backing the buckets across instances",
+        "Sliding-window timer — reference clock for window resets and bucket refills"
+      ],
+      "evaluation_metrics": [
+        "429 response rate by tenant — distribution of limit hits across the user base",
+        "Token-budget burn-rate per tenant — early warning of runaway accounts",
+        "False-limit denials — legitimate burst traffic blocked by an over-tight cap",
+        "Gateway-vs-loop-limit hit ratio — which layer fired and how often"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "refusal",
@@ -1956,6 +2244,22 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Req[Request] --> T{Refusal trigger?}\n  T -->|policy violation| Ref[Clear, kind refusal]\n  T -->|out of scope| Ref\n  T -->|capability gap| Ref\n  T -->|regulatory| Ref\n  T -->|none| Run[Handle normally]\n  Ref --> Alt[Suggest alternative]\n  Ref --> Log[(Refusal log)]"
       },
+      "components": [
+        "Refusal-trigger detector — checks for policy, scope, capability, and regulatory hits",
+        "Refusal surface — clear, kind message that names the boundary back to the user",
+        "Alternative-suggester — optional pointer to a human team or other resource",
+        "Refusal log — record of trigger, request shape, and surfaced message for later review"
+      ],
+      "tools": [
+        "Scope classifier — categoriser that labels requests against the agent's defined domain",
+        "Refusal-template library — vetted phrasings per trigger to avoid templated-feeling rejections"
+      ],
+      "evaluation_metrics": [
+        "Refusal precision — share of refusals reviewers agreed were warranted",
+        "Refusal recall — share of out-of-scope requests the trigger detector caught",
+        "Over-refusal rate — legitimate in-scope requests that triggered a refusal",
+        "User-satisfaction post-refusal — survey or thumbs-rating on refusal interactions"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -2057,7 +2361,24 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant M as Model\n  participant H as Tool runtime\n  participant V as Secret store\n  participant API as External API\n  M->>H: call({auth: 'github_token_for_user_42'})\n  H->>V: resolve reference\n  V-->>H: secret value\n  H->>API: request with secret\n  API-->>H: response\n  H-->>M: result (scrubbed)"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Credential reference — typed handle the model emits in place of a plaintext secret",
+        "Tool runtime — resolver that fetches the secret outside the model context",
+        "Secret vault — out-of-context store keyed by reference id",
+        "Egress scrubber — strips secret-shaped tokens from tool results before they return to the model",
+        "Credential-signature guard — input/output validator that rejects payloads matching known secret shapes"
+      ],
+      "tools": [
+        "HashiCorp Vault or equivalent — secret store with per-reference access policies",
+        "Pattern-matching scrubber — regex for API keys, PATs, JWT shapes, signed URLs"
+      ],
+      "evaluation_metrics": [
+        "Plaintext-secret occurrences in prompts or logs — leak count over time",
+        "Reference-resolution latency — added milliseconds on every authenticated tool call",
+        "Egress-scrubber catch rate — secrets removed from results before returning to context",
+        "Credential rotation effectiveness — share of leaked secrets that were already rotated when discovered"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "sovereign-inference-stack",
@@ -2178,7 +2499,25 @@
         "type": "flow",
         "mermaid": "flowchart TB\n  subgraph Boundary[Operator-controlled boundary]\n    Inf[On-prem inference]\n    Tools[Tool gateway]\n    Vec[(Vector store)]\n    Logs[(Audit log)]\n    Eval[Eval harness]\n  end\n  U[User UI] --> Inf\n  Inf --> Tools\n  Tools --> Vec\n  Inf --> Logs\n  Inf -.never crosses.-x Ext[Third-party API]\n  Inf --> U"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "On-prem inference server — model runtime inside the jurisdictional boundary",
+        "Operator-held weights — permissively licensed or sovereign-licensed model files",
+        "In-boundary tool gateway — proxy for any external call so egress is reviewable",
+        "In-boundary vector store and audit log — auxiliary services hosted under operator keys",
+        "Boundary-impact review — pre-merge gate ensuring new tools or models do not break sovereignty"
+      ],
+      "tools": [
+        "GPU fleet — capex hardware running the inference workload locally",
+        "Key management service — operator-owned KMS holding all encryption keys",
+        "Data-flow diagram — compliance artefact documenting the boundary for auditors"
+      ],
+      "evaluation_metrics": [
+        "Cross-boundary egress incidents — requests or outputs detected leaving the controlled zone",
+        "Capability gap versus frontier hosted models — task-level quality delta on reference evals",
+        "On-prem inference cost per token — operator economics versus hosted API pricing",
+        "Audit-readiness score — completeness of data-flow documentation against regulator checklist"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "step-budget",
@@ -2346,7 +2685,24 @@
           "see_also": "approval-queue"
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "Loop counter — integer incremented on every tool call or iteration",
+        "Numeric cap N — configured ceiling chosen empirically per workload",
+        "Termination handler — produces the best partial answer with a cap-hit note when N is reached",
+        "Cap-hit logger — records halted runs so N can be tuned against real traffic"
+      ],
+      "tools": [
+        "Counter primitive in the agent loop — increments and checks against the cap each step",
+        "Token-usage meter — backing the alternative token-budget variant",
+        "Wall-clock timer — backing the alternative real-time-deadline variant"
+      ],
+      "evaluation_metrics": [
+        "Cap-hit rate by task class — fraction of runs that reached N rather than finishing",
+        "Worst-case cost per request — bounded ceiling the cap actually delivered",
+        "Partial-answer quality at cap — usefulness of returned state when N forced termination",
+        "Cap-hit-to-deeper-bug ratio — share of cap hits later traced to a real underlying agent bug"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "stop-hook",
@@ -2439,7 +2795,23 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Step[Agent step] --> Hook[Stop hook]\n  Hook --> R{Predicate}\n  R -->|target reached| OK[stop-success]\n  R -->|step budget hit| Halt[stop-failure]\n  R -->|error encountered| Halt\n  R -->|stagnation detected| Halt\n  R -->|none of the above| Cont[continue]\n  Cont --> Step"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Stop-hook predicate — function returning continue, stop-success, or stop-failure each step",
+        "Target detector — checks whether the goal has been met against an explicit criterion",
+        "Stagnation detector — flags no-progress windows over the last N steps",
+        "Error classifier — categorises step errors as transient or terminal for stop purposes"
+      ],
+      "tools": [
+        "Loop-state tracker — records per-step outputs and progress signals the predicate consumes",
+        "Goal-completion checker — task-specific oracle or rule comparing state against target"
+      ],
+      "evaluation_metrics": [
+        "Predicate accuracy — how often the predicate's verdict matched a reference human judgement",
+        "Premature-stop rate — runs halted before the task was actually complete",
+        "Late-stop rate — runs that continued past the point useful work stopped",
+        "Hang incidents — runs where the predicate never returned a terminating verdict"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "tool-output-poisoning",
@@ -2539,7 +2911,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Tool returns] --> Env[Wrap in ToolResult envelope<br/>trust + content-type]\n  Env --> Lvl{trust level?}\n  Lvl -- low --> Strip[Instruction-stripping]\n  Lvl -- medium --> Soft[Sanitise + validate]\n  Lvl -- high --> Pass[Pass through]\n  Strip --> Reval[Block follow-up tool calls<br/>without re-validation]\n  Soft --> Reval\n  Pass --> Agent[Agent context]\n  Reval --> Agent"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "ToolResult envelope — typed container carrying trust label and content-type discriminator",
+        "Per-tool trust label — low, medium, or high tag assigned per tool source",
+        "Instruction-stripper — sanitiser that removes instruction-shaped tokens from low-trust output",
+        "Re-validation gate — blocks tool-output-driven follow-up tool calls until intent is re-checked",
+        "User-intent anchor — the original prompt against which re-validation compares"
+      ],
+      "tools": [
+        "Instruction-pattern detector — regex or classifier identifying directive-shaped content",
+        "Content-type sniffer — labels HTML, PDF text, JSON, and free-form for downstream handling"
+      ],
+      "evaluation_metrics": [
+        "Indirect-injection-success rate — payloads in tool output that drove a tool call",
+        "Trust-label coverage — share of tools in the catalogue carrying an explicit trust tag",
+        "Instruction-stripper false-positive rate — legitimate instruction-shaped content removed",
+        "Re-validation block rate — follow-up tool calls blocked because intent did not align with low-trust content"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "typed-refusal-codes",
@@ -2644,6 +3033,24 @@
         "mermaid": "flowchart LR\n  G1[Tool-loop guard] -->|format_refusal| API[refusal_codes module]\n  G2[Skill scanner] -->|format_refusal| API\n  G3[Compaction guard] -->|format_refusal| API\n  G4[RCE backstop] -->|format_refusal| API\n  G5[I/O guardrail] -->|format_refusal| API\n  API --> Wire[REFUSED: CODE: detail]\n  Wire --> Parse[parse_refusal]\n  Parse --> Audit[Audit log / dashboards / alerts]\n  Wire --> Legacy[Legacy alias matcher]\n  Legacy --> Parse",
         "caption": "All guards format through one helper; downstream parses once and triages mechanically by code."
       },
+      "components": [
+        "ReasonCode enum — single source of truth for refusal categories across guards",
+        "format_refusal helper — formatter that every guard surface uses to emit refusals",
+        "parse_refusal helper — reverse parser returning (code, detail) or None",
+        "Legacy-alias matcher — recogniser for old refusal substrings as code aliases",
+        "Guard surfaces — tool-loop, skill-scanner, compaction, RCE, I/O guards that emit through the formatter"
+      ],
+      "tools": [
+        "Shared module containing enum and helpers — imported by every guard surface in the stack",
+        "Linter rule — forbids hand-rolled refusal strings outside the helper",
+        "Audit dashboard — consumes parse_refusal output to count and group refusals by code"
+      ],
+      "evaluation_metrics": [
+        "Refusal-code coverage — share of refusal events that parsed cleanly into a known code",
+        "Hand-rolled-refusal occurrence rate — guards still emitting strings without the helper",
+        "Legacy-alias parse hits — old phrasings preserved by the alias matcher over time",
+        "Enum-churn rate — frequency of code renames and the breakage they caused downstream"
+      ],
       "last_updated": "2026-05-21"
     }
   ]
