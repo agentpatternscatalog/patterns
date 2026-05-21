@@ -100,7 +100,7 @@ The agent cannot expose raw frontend pacing signals back to the user, must not i
 
 ## References
 
-- (paper) *A Descriptive Framework of Workspace Awareness for Real-Time Groupware*, 2002, <https://doi.org/10.1023/A:1015908203413>
 - (paper) *Awareness and Coordination in Shared Workspaces*, 1992, <https://dl.acm.org/doi/10.1145/143457.143468>
+- (paper) *Designing Calm Technology*, 1996, <https://calmtech.com/papers/designing-calm-technology.html>
 
 **Tags:** cognition, presence, ux, telemetry, privacy
