@@ -96,7 +96,25 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant User\n  participant Channel as CLI / Chat\n  participant Mem as Memory\n  participant Agent\n  User->>Channel: !<verb> ... (sigil-prefixed command)\n  Channel->>Mem: write directly (bypass model)\n  Agent->>Mem: read salient context\n  Agent->>Channel: push message on salience spike\n  Channel-->>User: notification"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Shared channel — single CLI or chat surface carrying both user impulses and agent pushes",
+        "Sigil parser — recognises commands beginning with the prefix (e.g. `!`) and routes them around the model",
+        "Memory store — direct write target for sigil commands and read source for salience-gated pushes",
+        "Salience gate — scores agent-side candidate messages and blocks pushes below threshold",
+        "Push hygiene limiter — caps unsolicited agent messages to at most one per window"
+      ],
+      "tools": [
+        "REPL or chat transport — terminal or chat surface that stays open between turns",
+        "Persistent memory file — durable store the sigil parser writes to without invoking the model"
+      ],
+      "evaluation_metrics": [
+        "Unsolicited-message rate per window — checks the hygiene cap actually holds in production",
+        "Sigil-command share of user turns — how often users bypass the model versus prompt it",
+        "Mute or close-channel rate — proxy for whether agent pushes are landing as signal or noise",
+        "Impulse-to-effect latency — gap between a sigil write and the next agent tick that reads it",
+        "Reversal rate on direct memory edits — fraction of `!`-writes the user later undoes"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "citation-streaming",
@@ -225,7 +243,26 @@
           "when_to_use": "Reader is verifying claims as they read; richer UI affords it."
         }
       ],
-      "last_updated": "2026-05-20"
+      "components": [
+        "LLM — emits prose tokens and citation markers anchored to source spans",
+        "Stream multiplexer — separates text deltas from citation events into a typed channel",
+        "Citation tracker — resolves marker ids to stable source records and maintains the final citation map",
+        "UI renderer — paints tokens and linkifies cited spans progressively as events arrive",
+        "Source index — document store the citation ids point back to for verification"
+      ],
+      "tools": [
+        "Streaming LLM API — token-by-token output with structured citation emission",
+        "Server-Sent Events transport — typed event channel carrying text and citation events in order",
+        "Vector or document store — backs the source ids referenced by citation events"
+      ],
+      "evaluation_metrics": [
+        "Citation-attach rate — fraction of claim-bearing sentences that arrived with a resolved source",
+        "Span-alignment error — distance between cited span and the sentence it should anchor",
+        "Source-id validity rate — share of citation events whose id resolves in the source index",
+        "Time-to-first-citation — latency from stream start to the first verifiable source link",
+        "User click-through on citations — proxy for whether inline sources are trusted and used"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "delayed-streams-modeling",
@@ -351,7 +388,26 @@
         "mermaid": "flowchart TD\n  subgraph PRE[Preprocessing]\n    SRC[Source stream] --> IL[Interleave on shared time axis]\n    TGT[Target stream] --> OFF[Offset by fixed delay D]\n    OFF --> IL\n  end\n  IL --> TR[Decoder-only transformer<br/>next-token over interleaved sequence]\n  subgraph INF[Inference]\n    LSRC[Live source tokens] --> M[Same decoder]\n    M --> LTGT[Target tokens emitted at lag D]\n  end\n  TR -.shared weights.-> M",
         "caption": "Fixed-offset interleaving turns streaming speech into a single next-token problem with no learned read/write policy."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Source stream — live input tokens (audio frames, source-language text) arriving on a shared time axis",
+        "Target stream — output tokens offset by a fixed delay D and interleaved with the source",
+        "Preprocessing aligner — produces the interleaved time-aligned training sequence from paired data",
+        "Decoder-only transformer — single autoregressive model trained on the interleaved sequence",
+        "Offset emitter — reads off target tokens at the configured lag D during inference"
+      ],
+      "tools": [
+        "Decoder-only transformer framework — trains and serves next-token prediction over interleaved streams",
+        "Audio codec or tokenizer — discretises speech into the token stream the model consumes",
+        "Time-aligned paired corpus — source/target data alignable on a shared time axis"
+      ],
+      "evaluation_metrics": [
+        "End-to-end first-output latency — wall-clock from source onset to first emitted target token",
+        "Effective offset D versus configured D — drift between intended and observed lag",
+        "Task quality at offset (BLEU, WER, MOS) — does the fixed-lag constraint hold output quality",
+        "Full-duplex overlap handling — fraction of overlapping-speech windows the model emits cleanly",
+        "Parameter and compute cost versus cascade baseline — savings from collapsing STT+LLM+TTS into one model"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "embodied-proxy-handoff",
@@ -462,7 +518,25 @@
         "type": "class",
         "mermaid": "classDiagram\n  class EmbodiedProxy {\n    +int energy_0_10\n    +int fatigue_0_10\n    +string environment\n    +string emoji\n    +timestamp updated_at\n  }\n  class Human {\n    +update_proxy()\n  }\n  class Agent {\n    +read_proxy_on_prompt()\n    +shape_response()\n  }\n  Human --> EmbodiedProxy : writes\n  Agent --> EmbodiedProxy : reads"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Embodied proxy record — minimal schema holding energy, fatigue, environment, emoji, and update timestamp",
+        "Human updater — writes the proxy at session start, after a long gap, or on a meaningful state shift",
+        "Prompt assembler — reads the proxy and injects it into the agent's context on every turn",
+        "Response shaper — pacing rules that map proxy state to reply length, density, and tone",
+        "Freshness check — flags or discards a proxy older than a configured staleness window"
+      ],
+      "tools": [
+        "Persistent proxy file — small durable store the human writes and the agent reads each turn",
+        "Optional wearable or quantified-self feed — third-party sensor source for the proxy when consented"
+      ],
+      "evaluation_metrics": [
+        "Shape-divergence across states — measurable difference in reply length and density between high-energy and fatigued proxies",
+        "Proxy freshness at read time — age of the proxy record relative to the staleness window",
+        "Update frequency per session — how often the human refreshes the proxy in practice",
+        "User-reported pacing fit — survey or thumbs signal on whether replies matched actual state",
+        "Override or correction rate — how often the human contradicts the agent's pacing after a read"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "liminal-state-detection",
@@ -581,6 +655,24 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Present\n  Present --> JustWoke: long gap + early hour\n  Present --> Focused: dense + punctuated\n  Present --> WindingDown: late hour + short\n  Present --> Distracted: fragmentary tone\n  JustWoke --> Present: re-engage\n  Focused --> WindingDown: time passes\n  WindingDown --> [*]\n  Distracted --> Focused: regains focus"
       },
+      "components": [
+        "Feature extractor — pulls time-of-day, gap since last message, length, punctuation density, and emoji cues from the incoming turn",
+        "Mode classifier — maps the feature vector to one of {just-woke, focused, winding-down, distracted, present}",
+        "Response shaper — keys reply length, density, and tone off the detected mode",
+        "Telemetry surface — exposes the detected mode in agent logs so it can be tuned per human",
+        "Per-human calibration store — longitudinal baseline of timing and tone signatures for the same user"
+      ],
+      "tools": [
+        "Lightweight classifier or rules engine — runs in-process on each turn without slowing the reply",
+        "Per-user telemetry log — records detected mode and signals for offline calibration"
+      ],
+      "evaluation_metrics": [
+        "Mode-classification agreement with self-report — sampled turns where the user labels their own state",
+        "Shape variance across modes — measurable difference in reply length and density between just-woke and focused",
+        "Misread cost — frequency of user pushback after a wrong attentional read",
+        "Detection overhead per turn — added latency from feature extraction and classification",
+        "Calibration convergence time — turns required before per-human signatures stabilise"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -698,6 +790,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Ev[Internal event] --> Sc[Score salience]\n  Sc --> Th{> threshold?}\n  Th -->|no| Log[Log only]\n  Th -->|yes| RL[Rate limiter]\n  RL -->|under window| Em[Emit message]\n  RL -->|over window| Log"
       },
+      "components": [
+        "Internal event source — the agent loop or monitoring tick that produces candidate outputs each cycle",
+        "Salience scorer — combines novelty, goal-relevance, recency, prediction-error, and fatigue into a single score",
+        "Threshold gate — blocks emission for candidates below the configured cutoff",
+        "Rate limiter — caps emissions per window so a high-salience burst cannot spam the user",
+        "Salience trace log — records score, decision, and reason for every candidate for later inspection"
+      ],
+      "tools": [
+        "Salience scoring function — in-process scorer that runs on every internal event",
+        "Token-bucket or sliding-window rate limiter — enforces the per-window emission cap"
+      ],
+      "evaluation_metrics": [
+        "Emit rate versus event rate — ratio that should track underlying signal density",
+        "Read-through rate on emitted messages — proxy for whether emissions are actually signal",
+        "False-silence rate — share of post-hoc-important events that scored below threshold",
+        "False-emit rate — share of emissions users mute, dismiss, or rate as noise",
+        "Threshold drift — how often the threshold has to move to track context shifts"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -794,7 +904,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant U as User\n  participant UI as UI\n  participant L as Agent loop\n  participant T as Tool / provider\n  U->>UI: click Stop\n  UI->>L: cancellation token\n  L->>T: propagate cancel\n  T-->>L: aborted\n  L->>L: clean up partial state\n  L-->>UI: done(partial, cancelled)\n  UI-->>U: show what was done"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Stop control — visible UI affordance (button, keybinding) that initiates cancellation",
+        "Cancellation token — first-class signal threaded through the agent loop, tools, and provider streams",
+        "Agent loop interceptor — checks the token between steps and halts further model or tool calls",
+        "Tool and provider adapter — propagates cancel to in-flight HTTP and streaming calls",
+        "Partial-state reconciler — cleans up half-written state and surfaces what was done"
+      ],
+      "tools": [
+        "HTTP client with abort support — cancels in-flight provider and tool requests",
+        "Streaming LLM API with cancellation — provider stream that honours mid-response abort",
+        "Checkpoint store — optional persistence target for resumable cancel variants"
+      ],
+      "evaluation_metrics": [
+        "Cancellation latency — wall-clock from stop click to last billable model or tool call",
+        "Post-cancel call leakage — count of model or tool calls issued after the cancel signal",
+        "Token and tool-call cost saved per cancel — bounded resource spend relative to letting the run finish",
+        "Partial-state usefulness — fraction of cancelled runs whose surfaced partial output the user keeps or resumes",
+        "Cancel completion rate — share of stop clicks that resolve cleanly versus leaving orphan calls"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "streaming-typed-events",
@@ -919,7 +1048,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant Srv as Agent server\n  participant Cli as Client UI\n  Srv-->>Cli: tool_start\n  Srv-->>Cli: text_delta (token)\n  Srv-->>Cli: text_delta (token)\n  Srv-->>Cli: card (structured)\n  Srv-->>Cli: tool_end\n  Srv-->>Cli: suggestions\n  Srv-->>Cli: done\n  Note over Cli: route each typed event<br/>to the right component\n  Note over Cli,Srv: reconnect with last-event-id"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Agent server stream producer — emits typed events (text_delta, card, tool_start, tool_end, suggestions, done, error) as work progresses",
+        "Event type tagger — labels each payload with a vocabulary type before it leaves the server",
+        "Transport — Server-Sent Events or WebSocket connection carrying ordered events with last-event-id",
+        "Client event router — dispatches each typed event to the matching UI component",
+        "Reconnection handler — resumes the stream from last-event-id after a transport drop"
+      ],
+      "tools": [
+        "Server-Sent Events — long-lived one-way HTTP transport with built-in last-event-id resume",
+        "WebSocket — bidirectional transport when the client must also push events mid-stream",
+        "HTTP chunked transfer with length-prefixed JSON frames — fallback where SSE or WebSocket are blocked"
+      ],
+      "evaluation_metrics": [
+        "Time-to-first-token — latency from request to the first text_delta event reaching the client",
+        "Event-vocabulary coverage — share of payloads that match the declared typed-event schema",
+        "Reconnection success rate — fraction of dropped streams that resume cleanly via last-event-id",
+        "Out-of-order or duplicate event rate — ordering and idempotency violations on the client",
+        "Backpressure drop rate — events discarded or queued when the client cannot keep up"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "unified-voice-interface",
@@ -1038,7 +1186,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  L[Agent loop] --> V[Voice interface]\n  V --> Cap[Capability flags<br/>tts / stt / sts]\n  V --> A1[OpenAI realtime adapter]\n  V --> A2[ElevenLabs TTS adapter]\n  V --> A3[Deepgram STT adapter]\n  V --> A4[Azure / AWS / on-device ...]\n  A1 --> P1[(Realtime API)]\n  A2 --> P2[(TTS API)]\n  A3 --> P3[(STT API)]\n  A4 --> Pn[(...)]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Voice interface — unified contract exposing speak, listen, and converse plus capability flags",
+        "Capability registry — declares per-provider support for TTS, STT, and realtime STS modes and voices",
+        "Provider adapter — translates the unified interface into one vendor's SDK and audio framing",
+        "Voice-event normaliser — maps each provider's events to the uniform vocabulary (turn_start, partial_transcript, final_transcript, barge_in, voice_activity_start/stop)",
+        "Audio I/O pipeline — microphone capture and speaker playback feeding the unified streams"
+      ],
+      "tools": [
+        "TTS service — text-to-audio streaming engine bound through a `speak` adapter",
+        "ASR service — audio-to-transcript streaming engine bound through a `listen` adapter",
+        "Realtime speech-to-speech API — bidirectional audio engine bound through a `converse` adapter",
+        "Voice-pipeline framework — host (e.g. LiveKit, Pipecat) that runs the adapters and audio plumbing"
+      ],
+      "evaluation_metrics": [
+        "Voice-pipeline end-to-end latency — wall-clock from user speech end to agent audio start, per mode",
+        "Provider-swap effort — code diff size required to change the active TTS, STT, or STS provider",
+        "Capability-flag accuracy — agreement between declared capabilities and runtime behaviour",
+        "Event-vocabulary parity across providers — share of voice events that map cleanly to the unified set",
+        "Barge-in handling rate — fraction of mid-speech interruptions the pipeline detects and honours"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }

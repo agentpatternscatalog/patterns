@@ -115,7 +115,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Agent] -->|append| L[(Thought log<br/>append-only)]\n  L -->|read| A\n  C[Compaction] -->|new summary tier| S[(Summary tier)]\n  L -.read-only.-> C\n  R[Redaction] -->|forward redaction| L"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Append-only thought log — the immutable journal the agent writes to but cannot mutate or delete",
+        "Append API — the only write path the agent has; rejects updates and deletes by design",
+        "Compaction worker — reads originals and emits new summary tiers without touching the source log",
+        "Summary tier store — higher-level compacted view written alongside, not replacing, the journal",
+        "Operator redaction path — out-of-band channel that can forward-redact entries when policy demands it"
+      ],
+      "tools": [
+        "Append-only object store — S3/GCS with object-lock or a hash-chained file log enforces immutability at the storage layer",
+        "Hash-chain or cryptographic signer — links entries so later tampering is detectable on audit"
+      ],
+      "evaluation_metrics": [
+        "Mutation-attempt rejection rate — how often the agent tries to rewrite history and is blocked at the API",
+        "Audit-trail continuity — fraction of episodes whose journal chain verifies end-to-end without gaps",
+        "Storage growth per active day — bytes added per day under realistic workloads, used to plan retention",
+        "Redaction turnaround — wall-clock time from operator redaction request to forward-redaction applied",
+        "Compaction-source divergence — sampled cases where summary tier contradicts the underlying originals"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "co-located-memory-surfacing",
@@ -225,7 +243,26 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant User\n  participant Agent\n  participant Mem as Persistent Memory\n  User->>Agent: message mentioning <entity>\n  Agent->>Agent: extract proper nouns\n  Agent->>Mem: grep / embedding match\n  Mem-->>Agent: prior notes / insights\n  Agent-->>User: response with surfaced memory"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Entity extractor — pulls proper nouns and significant named phrases from each incoming user message",
+        "Persistent memory store — keyed by entity, holds prior notes, insights, transcripts, and project artefacts",
+        "Match layer — runs grep or embedding lookup against the store and ranks candidate fragments",
+        "Surface gate — caps inclusions to one or two time-stamped fragments and suppresses lectures or incidental hits",
+        "Reply composer — weaves the surfaced fragment inline with the agent's normal response"
+      ],
+      "tools": [
+        "Named-entity recogniser — spaCy, GLiNER, or a small LLM call to extract proper nouns cheaply per turn",
+        "Vector index — Chroma, Weaviate, or FAISS for semantic recall when surface-form match is too brittle",
+        "Keyword index — inverted index or grep over a flat note store for the lexical-trigger variant"
+      ],
+      "evaluation_metrics": [
+        "Surface precision — fraction of surfaced fragments the user finds relevant rather than noise",
+        "Missed-recall rate — turns where a relevant prior memory existed but was never surfaced",
+        "Lecture suppression — fraction of suppressed surfaces that human review confirms would have felt intrusive",
+        "Per-turn surface latency — milliseconds added to the user-visible turn by entity extract + match",
+        "Continuity lift — user-reported sense of being remembered, measured against a no-surfacing baseline"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "context-window-packing",
@@ -339,7 +376,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  B[Token budget T] --> R[Reserve N for system + tools + reply]\n  R --> P[Packing policy]\n  P --> H[History compressed]\n  P --> K[Top-k retrieved chunks<br/>after rerank]\n  P --> S[Current state]\n  H --> CW[Context window]\n  K --> CW\n  S --> CW"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Token budgeter — pre-call accountant that reserves slots for system, tools, response, and remaining slack",
+        "Packing policy — declares allocation across history, retrieved chunks, current state, and pins",
+        "Eviction or summarisation step — applies the policy by dropping, compressing, or relevance-ranking content",
+        "Pre-call auditor — counts tokens against the model's window and fails loudly when the policy overshoots",
+        "Reranker — orders retrieved chunks so the top-k that survive the budget cut are the most useful ones"
+      ],
+      "tools": [
+        "Tokeniser — tiktoken, Anthropic token counting endpoint, or model-native counter used before every call",
+        "Summarisation LLM — secondary model call that compresses older turns into a few sentences",
+        "Reranker — bge-reranker or Cohere Rerank to score retrieved chunks before the budget cut"
+      ],
+      "evaluation_metrics": [
+        "Overflow rate — fraction of calls that would have exceeded the window before pre-call audit",
+        "Critical-fact retention — task-level checks that load-bearing facts (original goal, key constraints) stayed in the window",
+        "Compression cost per turn — tokens and money spent on summarisation per packed call",
+        "Behaviour drift across packing strategies — answer-quality delta when policies change, held against a fixed eval set",
+        "Reserved-response saturation — how often the reply fills the reserved budget and gets truncated"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cross-session-memory",
@@ -470,7 +526,27 @@
         "type": "class",
         "mermaid": "classDiagram\n  class UserMemoryStore {\n    +user_id\n    +preferences\n    +prior_context\n    +projects\n    +add(fact)\n    +forget(fact)\n    +load_relevant(session)\n  }\n  class Session {\n    +id\n    +device\n    +context\n  }\n  UserMemoryStore --> Session : load_relevant\n  Session --> UserMemoryStore : add / forget"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Per-user memory store — durable store keyed by user identity, holding distilled facts across sessions and devices",
+        "Distillation step — turns finished sessions into stable key-value facts, narrative summaries, or embedded chunks",
+        "Add/forget tool — declared interface the model uses to mutate the store; silent writes are forbidden",
+        "Session loader — selects the relevant slice for each new session and injects it into the prompt",
+        "User-visible memory inspector — surface where the user can view, delete, disable, or export stored entries"
+      ],
+      "tools": [
+        "Document or key-value store — Postgres, DynamoDB, or Letta-style memory blocks for distilled facts",
+        "Embedding model + vector index — used by the embedded-session-retrieval variant for similarity recall",
+        "Summarisation LLM — runs at session close to produce the narrative or fact-extraction summary",
+        "Deletion/export tooling — GDPR-shaped endpoints that satisfy forget-me and data-portability requirements"
+      ],
+      "evaluation_metrics": [
+        "Repeat-question rate — how often users restate facts the system was supposed to remember",
+        "Memory precision — fraction of stored facts that human review confirms as correct and worth keeping",
+        "Forget compliance latency — time from user delete request to verified removal from all retrieval paths",
+        "Memory hallucination rate — sampled cases where the agent acts on a fact never said by the user",
+        "Per-session memory load cost — tokens added to each session prompt by injected memory slices"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "episodic-summaries",
@@ -582,7 +658,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Recent thoughts / messages] --> Th{Threshold reached?}\n  Th -- no --> T\n  Th -- yes --> S[Summarise block into compact form]\n  S --> H[Store in higher tier]\n  S --> A[Archive originals]\n  Q[Read query] --> H\n  H -- need detail --> A"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Threshold trigger — token-count, turn-count, or time-based rule that decides when a block is ready for compaction",
+        "Summariser — LLM call that compresses a block of raw history into a compact representation",
+        "Higher-tier summary store — holds the compact representation that reads consult first",
+        "Originals archive — keeps verbatim source material available for on-demand reads when detail is needed",
+        "Read router — looks at the summary tier first and falls back to the archive only on demand"
+      ],
+      "tools": [
+        "Summarisation LLM — typically a smaller model than the agent's main one to keep compaction cost down",
+        "Object or document store — durable archive for originals (S3, GCS, Postgres JSONB)",
+        "Summary store — separate index or table for the compacted tier so it can be queried independently"
+      ],
+      "evaluation_metrics": [
+        "Token-saving ratio — verbatim tokens replaced per summary token; targets the 5-10x range typical in published work",
+        "Summary-fidelity audit — sampled diff between summary and originals on load-bearing facts",
+        "Sticky-error rate — frequency of downstream mistakes traced to a wrong summary that hid the truth",
+        "Fallback-to-original rate — how often reads have to drop down to the archive, signalling weak summaries",
+        "Compaction cost per episode — money and latency spent on the summariser per closed block"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "five-tier-memory-cascade",
@@ -697,7 +792,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Sensory { +raw_input_per_tick }\n  class Working { +top_N_items }\n  class ShortTerm { +recent_verbatim_1_7d }\n  class Episodic { +compressed_summaries_5_10x }\n  class LongTerm { +distilled_rules }\n  Sensory --> Working : promote\n  Working --> ShortTerm : promote\n  ShortTerm --> Episodic : compact\n  Episodic --> LongTerm : distill\n  LongTerm ..> Working : rehearsal lifts back"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Five tiered stores — sensory buffer, working memory (≤7 slots, Global Workspace Theory), short-term verbatim, episodic summaries at 5-10x, and long-term distilled rules",
+        "Promotion/decay scheduler — moves items upward when salience or repetition justifies it and archives downward when access falls off",
+        "Summariser — compresses short-term blocks into episodic entries and episodic clusters into distilled long-term rules",
+        "Salience scorer — drives promotion decisions and feeds the rehearsal path that lifts archived items back",
+        "Cross-tier reconciler — resolves conflicts between tiers when the same fact appears at different compaction levels"
+      ],
+      "tools": [
+        "Tiered storage — fast key-value for sensory/working, document store for short-term, vector + summary store for episodic, structured store for long-term",
+        "Summarisation LLM — compresses short-term blocks into episodic entries and episodic clusters into distilled rules",
+        "Salience scorer — drives promotion decisions and feeds the rehearsal path that lifts archived items back"
+      ],
+      "evaluation_metrics": [
+        "Per-tier hit rate — fraction of reads served at each tier; signals whether promotion thresholds are tuned",
+        "Promotion precision — sampled audit of items moved to long-term that genuinely belong there",
+        "Cross-tier conflict rate — frequency of contradictions between tiers requiring rehearsal or reconciliation",
+        "Working-set overflow — how often working memory tries to exceed its cap, indicating noise above the salience floor",
+        "Tier-storage cost ratio — relative spend across tiers, used to justify the architectural weight"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "hippocampal-rehearsal",
@@ -784,7 +898,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[New input / cue] --> Sc[Salience scoring]\n  Sc --> Match{Embedding / keyword match in archive?}\n  Match -- no --> End[No-op]\n  Match -- yes --> React[Reactivate item to short-term]\n  React --> Use[Available for next cycles]\n  React -.original stays.-> Arch[Archive untouched]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Re-attention trigger — cheap salience check on every cue that decides whether to query the archive at all",
+        "Archive matcher — runs embedding similarity or keyword match against cold storage to find candidate items",
+        "Reactivator — copies the matched item into short-term memory for a bounded number of cycles",
+        "Cycle-budget controller — caps how many items can be lifted at once so the working tier does not flood",
+        "Cold archive — content-addressable store where the original copy stays untouched after rehearsal"
+      ],
+      "tools": [
+        "Content-addressable cold store — S3/GCS or a file-backed archive with stable IDs the rehearser can resolve",
+        "Vector index over archived items — Chroma/FAISS that lets cheap similarity match drive the rehearsal trigger",
+        "Embedding model — used to score current context against archived items"
+      ],
+      "evaluation_metrics": [
+        "Rehearsal precision — fraction of reactivated items the agent actually used in the next few cycles",
+        "False-rehearsal rate — how often reactivation displaced more relevant working-set content",
+        "Cue-to-lift latency — milliseconds from new input arriving to the matched item being available in short-term",
+        "Long-tail recall lift — answer-quality delta on questions about content older than the short-term horizon",
+        "Working-tier flood incidents — counts of cycles where the rehearsal cap was breached"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "knowledge-graph-memory",
@@ -876,7 +1009,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Entity { +id +type +attrs }\n  class Relation { +subject +predicate +object }\n  class GraphStore { +neo4j_or_rdf_or_json }\n  class VectorIndex { +entry_points }\n  Entity --> Relation : participates_in\n  Relation --> GraphStore : persisted_in\n  VectorIndex ..> Entity : finds entry points\n  GraphStore ..> Relation : Cypher / SPARQL traversal"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Entity-and-relation extractor — LLM or NER pipeline that turns observations into typed nodes and edges",
+        "Graph schema — typed catalogue of entity classes, edge types, and integrity rules the extractor must respect",
+        "Graph store — persistence layer (Neo4j, RDF triple store, or JSON file) holding the typed graph",
+        "Traversal engine — runs Cypher, SPARQL, or programmatic path/neighbour queries against the graph",
+        "Hybrid retrieval bridge — pairs vector lookup for entry points with graph traversal for relational answers"
+      ],
+      "tools": [
+        "Graph database — Neo4j, Memgraph, or an RDF triple store with Cypher/SPARQL",
+        "Entity-extraction LLM — extracts subject-predicate-object triples and resolves to canonical entity IDs",
+        "Vector index — Pinecone, Weaviate, or Chroma for the hybrid entry-point step"
+      ],
+      "evaluation_metrics": [
+        "Triple-extraction precision/recall — quality of entities and relations recovered from source observations",
+        "Relational-query accuracy — correctness on path, neighbour, and type questions held out as an eval set",
+        "Schema-violation rate — extracted facts that fail the graph's typed integrity rules",
+        "Hybrid lift over pure vector — accuracy gain on relational benchmarks vs a vector-only baseline",
+        "Stale-edge rate — sampled audit of edges that no longer reflect the source-of-truth system"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "memgpt-paging",
@@ -970,7 +1122,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class MainContext {\n    +system_prompt\n    +working_set\n    +recent_messages\n  }\n  class Recall { +raw_history }\n  class Archival { +vector_store }\n  class Model {\n    +read_recall()\n    +write_archival()\n    +search_archival()\n  }\n  Model --> MainContext : RAM\n  Model --> Recall : disk read\n  Model --> Archival : disk read/write"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Main context — the in-window working set: system prompt, recent messages, and pinned state",
+        "Recall tier — out-of-window raw conversation history paged in via read_recall",
+        "Archival tier — vector store of distilled memories paged in via search_archival and written via write_archival",
+        "Paging tool surface — read_recall / write_archival / search_archival function definitions exposed to the model",
+        "Eviction policy — LRU, LFU, or salience-based rule that decides what leaves main context on each page-in"
+      ],
+      "tools": [
+        "Vector store — Chroma, Pinecone, or Letta's archival store for similarity search over distilled memory",
+        "Document store — Postgres or SQLite for raw recall (full chronological history)",
+        "Embedding model — produces vectors for both archival writes and search queries"
+      ],
+      "evaluation_metrics": [
+        "Page-fault rate — paging tool calls per user turn; signals whether main context is sized well",
+        "Page-fault latency added per turn — wall-clock penalty when the model has to swap memory in",
+        "Eviction-error rate — turns where the evicted slot turned out to be needed within the next few turns",
+        "Cross-window continuity — task completion on dialogues whose total tokens exceed the window many times over",
+        "Archival recall@k — how often the right historical item appears in the top-k of search_archival"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "now-anchoring",
@@ -1089,6 +1260,24 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  C[Clock] --> N[NOW block builder]\n  N -->|ISO local, UTC,<br/>weekday, week,<br/>season, moon| H[## NOW header]\n  H --> SP[System prompt]\n  SP --> M[LLM]\n  M --> R[Time-aware reply]"
       },
+      "components": [
+        "System clock — host wall clock the prompt assembler reads at every call",
+        "NOW block builder — computes ISO local + UTC, weekday, day-of-year, ISO week, season, and moon phase",
+        "Prompt assembler — injects the rendered NOW block at the top of the system prompt before each call",
+        "Hemisphere/locale config — keeps season and time-zone logic configurable so southern-hemisphere or non-Gregorian deployments stay correct",
+        "Cache-aware placement rule — decides whether the NOW block sits inside or outside the cached prefix"
+      ],
+      "tools": [
+        "datetime / zoneinfo library — host-side timezone-aware time formatting",
+        "Astronomical helpers — astral or skyfield for sunrise/sunset and lunar phase when the rich variant is enabled"
+      ],
+      "evaluation_metrics": [
+        "Temporal-awareness audit — fraction of replies that correctly use time-of-day and weekday context against a labelled set",
+        "Saved 'what time is it' tool calls — count eliminated per session vs a no-anchor baseline",
+        "Prompt-cache hit rate — measured under both inline and cache-friendly-stub placements",
+        "Per-prompt token overhead — additional tokens added by the NOW block",
+        "Stale-time incident rate — replies that reasoned from an out-of-date anchor (signals an assembly bug)"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1189,7 +1378,25 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> UserTurn\n  UserTurn --> Reasoning: assistant emits reasoning_content\n  Reasoning --> ToolCall\n  ToolCall --> ToolResult\n  ToolResult --> Reasoning: same episode, keep prior reasoning\n  Reasoning --> Reply: final assistant text\n  Reply --> NextUserTurn: drop all reasoning_content\n  NextUserTurn --> [*]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Reasoning-capable model — emits user-visible content and a separable reasoning_content field per assistant turn",
+        "Episode boundary detector — agent-loop rule that marks each user turn as the start of a new episode",
+        "Context concatenator — assembles the next call's history, including or excluding reasoning_content per the episode rule",
+        "Reasoning store (in-memory) — holds episode-local reasoning_content until the next user-turn boundary drops it",
+        "Provider adapter — translates the rule to the specific API (DeepSeek reasoning_content, Anthropic thinking blocks, o-series)"
+      ],
+      "tools": [
+        "Reasoning-model API — DeepSeek thinking mode, Anthropic extended thinking, or OpenAI o-series with reasoning surfaces",
+        "Tokeniser — used to budget the additional cost of carrying reasoning across tool turns"
+      ],
+      "evaluation_metrics": [
+        "Tool-result interpretation accuracy — correctness of the post-tool reasoning step with vs without carry-forward",
+        "Cross-episode contamination rate — sampled cases where prior-episode reasoning leaked into a new user task",
+        "Reasoning-token cost per episode — additional tokens consumed by carrying reasoning across tool turns",
+        "Boundary-detection precision — fraction of user-turn boundaries the loop correctly identifies for the drop step",
+        "Provider portability — pass rate of the same agent loop across reasoning APIs from different vendors"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "salience-attention-mechanism",
@@ -1325,6 +1532,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Mem[(Candidate memory items)] --> Sc[Salience score:<br/>α·novelty + β·goal +<br/>γ·recency + δ·prederr − ε·fatigue]\n  Sc --> Top[Top-k]\n  Top --> WS[Working set]\n  WS --> Tick[Next tick]\n  Tick -.reflection.-> Cfg[Tunable weights]\n  Cfg --> Sc"
       },
+      "components": [
+        "Candidate memory store — every item that could be considered for the next tick",
+        "Salience scorer — weighted sum over novelty, goal-relevance, recency, prediction error, and a fatigue penalty",
+        "Top-k selector — keeps only the highest-scoring items and enforces the bound at the retrieval layer, feeding the next-tick working set",
+        "Fatigue tracker — counts recent attends per item so loops cannot reward the same memory forever",
+        "Tunable weight config — persisted alpha/beta/gamma/delta/epsilon values a reflection pass can update"
+      ],
+      "tools": [
+        "Embedding model — produces vectors used by goal-relevance and novelty terms",
+        "Vector index — Chroma/FAISS over candidate memories for fast top-k lookup",
+        "Importance-rating LLM call — assigns the importance term at write time per the Generative-Agents recipe"
+      ],
+      "evaluation_metrics": [
+        "Top-k precision — fraction of selected items the agent actually used downstream",
+        "Recall@k of golden memories — proportion of held-out important items that surface in the top-k for matching cues",
+        "Per-tick scoring cost — milliseconds and tokens spent scoring candidates",
+        "Rumination-suppression effect — drop in repeat attention to the same item once the fatigue term is enabled",
+        "Weight-tuning stability — variance in answer quality as alpha/beta/gamma/delta/epsilon shift within plausible ranges"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1421,7 +1647,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Turn n] --> A[Agent]\n  A -->|write notes| SP[(Scratchpad)]\n  SP -->|read on| T2[Turn n+1]\n  T2 --> A\n  A --> Resp[User-visible response]\n  Resp -.does not include.-> SP\n  Done[Task done] -->|purge| SP"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Scratchpad surface — a private buffer (prompt section, tool-backed file, or hidden block) the agent reads and writes",
+        "Write interface — convention or tool call that places intermediate notes onto the scratchpad without emitting them to the user",
+        "Read injector — adds scratchpad contents into subsequent turns' prompts so notes inform later reasoning",
+        "Response separator — keeps user-visible output disjoint from the scratchpad slot",
+        "Purge policy — clears the scratchpad at task completion or session end so it does not become shadow state"
+      ],
+      "tools": [
+        "Hidden thinking surface — Anthropic <thinking> blocks, OpenAI reasoning channels, or an explicit scratchpad tool",
+        "File or KV scratch store — when notes need to span more turns than fit in a prompt section"
+      ],
+      "evaluation_metrics": [
+        "Response cleanliness — user-facing output free of intermediate notes, measured against a rubric",
+        "Carry-forward usefulness — fraction of scratchpad notes the agent meaningfully consults on a later turn",
+        "Scratchpad token overhead — tokens added per turn by reading the scratchpad back",
+        "Shadow-state incidents — cases where an unpurged scratchpad polluted a fresh task",
+        "Leak rate — scratchpad content that escaped into traces, logs, or the user-visible response"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "self-corpus-vocabulary",
@@ -1522,6 +1766,25 @@
         "mermaid": "flowchart LR\n  Corpus[(Own corpus<br/>thoughts + insights)]\n  Miner[Mining pass<br/>tags + content frequency]\n  Cache[(Top-N vocabulary<br/>cache)]\n  Thought[New thought]\n  Scorer[Salience scorer]\n  Corpus -->|periodic| Miner\n  Miner --> Cache\n  Thought --> Scorer\n  Cache --> Scorer\n  Scorer --> Score[Own-frame score]",
         "caption": "Periodic mining derives a self-vocabulary; downstream scoring uses it as an additional axis alongside generic similarity."
       },
+      "components": [
+        "Own-writing corpus — the agent's accumulated thoughts, insights, and journal entries, possibly with frontmatter tags",
+        "Mining pass — periodic job that aggregates tag frequency and content tokens to produce a top-N concept list with weights",
+        "Vocabulary cache — small JSON file holding the current top-N concepts plus their weights",
+        "Refresh scheduler — runs the mining pass on a cadence tied to corpus volatility (weekly, post-consolidation, etc.)",
+        "Own-frame scorer — downstream component that blends generic embedding similarity with overlap against the cached vocabulary"
+      ],
+      "tools": [
+        "TF-IDF or BM25 implementation — provides the term-specificity backbone of the frequency aggregation",
+        "Optional topic modeller — BERTopic or similar when frontmatter tags are too sparse to anchor the vocabulary",
+        "JSON file or small KV store — persists the cached vocabulary across sessions"
+      ],
+      "evaluation_metrics": [
+        "Own-frame lift over generic similarity — labelled-set quality gain when the cached vocabulary is added as an axis",
+        "Vocabulary churn — fraction of tokens that change between refreshes; high churn flags an unstable frame, low churn flags lock-in",
+        "Coverage on recent thoughts — fraction of new entries that overlap with at least one cached concept",
+        "Mining cost per refresh — wall-clock and compute spent generating the vocabulary",
+        "Operator-audit signal — sampled human judgement on whether the cached vocabulary captures what the agent is currently 'about'"
+      ],
       "last_updated": "2026-05-21"
     },
     {
@@ -1630,7 +1893,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  U1[User A request] -->|sub=A| Auth[Identity carrier]\n  U2[User B request] -->|sub=B| Auth\n  Auth --> Key[Scope by user identity]\n  Key --> StateA[(State / cache for A)]\n  Key --> StateB[(State / cache for B)]\n  StateA -.never crosses.- StateB\n  StateA --> Agent[Agent loop]\n  StateB --> Agent"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Identity carrier — OAuth/JWT subject that travels with every request from edge to backend",
+        "Cache key scoper — wraps every cache and store key with the per-user identity so collisions across users are impossible",
+        "Per-user state store — session state, scratchpads, and memory partitioned strictly by user ID",
+        "Retrieval partitioner — vector and document queries are filtered by user-scope before any similarity ranking",
+        "Prompt assembler — refuses to include another user's content in any prompt, including cache prefixes"
+      ],
+      "tools": [
+        "OAuth/JWT identity provider — Auth0, Cognito, or the host platform's IdP supplying the subject claim",
+        "Partitioned vector store — namespaces in Pinecone/Weaviate or row-level security on a Postgres pgvector table",
+        "Scoped cache — Redis with per-user prefixes or a cache layer that rejects unscoped reads"
+      ],
+      "evaluation_metrics": [
+        "Cross-tenant leak count — confirmed incidents where one user's content surfaced inside another's session",
+        "Identity-propagation coverage — fraction of read/write paths that carry the subject claim end-to-end (CI gate)",
+        "Cache-scope audit — sampled cache keys checked for the per-user prefix; any unscoped key is a bug",
+        "Prompt-cache hit rate impact — measured cost of losing cross-user prefix reuse",
+        "Authorisation-test pass rate — multi-tenant red-team suite exercising cache, vector, and prompt boundaries"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "short-term-memory",
@@ -1745,7 +2027,26 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Empty\n  Empty --> Active: first turn\n  Active --> Active: turn N updates state\n  Active --> Active: reload typed slice\n  Active --> Expired: TTL elapsed\n  Expired --> Empty: reset\n  Active --> [*]: session end"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Typed thread-state object — schema covering recent messages, current screen, active plan, and agent step",
+        "Per-thread state store — durable backing for the typed object, keyed by thread ID",
+        "TTL controller — expires state after the configured window and resets the slot to empty",
+        "Reload step — pulls the typed slice at the start of each turn and rehydrates the agent loop",
+        "Schema-migration shim — handles in-flight live state when the typed object changes shape"
+      ],
+      "tools": [
+        "Key-value store with TTL — Redis, DynamoDB TTL, or Cloud Memorystore for the per-thread slot",
+        "Schema validation library — Pydantic or zod to enforce the typed state contract on read and write",
+        "Checkpointer — LangGraph MemorySaver or equivalent when the agent runs as a graph"
+      ],
+      "evaluation_metrics": [
+        "Per-turn token saving — tokens avoided vs full-history replay",
+        "Mid-task TTL expiry rate — sessions interrupted by state expiring before the user finished",
+        "State-rehydrate latency — milliseconds added to the turn by reading and validating the typed slice",
+        "Continuity quality — answer coherence across turns vs a stateless baseline on a labelled set",
+        "Migration breakage — incidents where a schema change broke in-flight sessions"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "sleep-time-compute",
@@ -1876,7 +2177,27 @@
         "mermaid": "flowchart TD\n  subgraph OFFLINE[Offline / idle]\n    SCH[Idle scheduler] --> DIST[Distillation pass]\n    DIST --> SUM[Per-file / per-topic summaries]\n    SCH --> SPEC[Speculative-query generator]\n    SPEC --> PA[Pre-answer pass]\n    PA --> CACHE[(Pre-answer cache<br/>embedding-indexed)]\n  end\n  subgraph LIVE[Test time]\n    Q[User query] --> LK[Embedding lookup]\n    LK -->|hit| HIT[Return / lightly adapt pre-answer]\n    LK -->|miss| INF[Live inference]\n    INF --> APP[Append query to prediction set]\n  end\n  CACHE -.-> LK\n  APP -.-> SPEC",
         "caption": "Offline distillation and speculative pre-answering populate a cache that absorbs most test-time queries."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Idle scheduler — kicks off offline passes when provider capacity is unused and no user is waiting",
+        "Distillation pass — compresses the standing corpus into per-file, per-module, or per-topic structured summaries",
+        "Speculative-query generator and pre-answer pass — predicts likely next queries from history and runs the model against them, storing Q/A pairs indexed by query embedding",
+        "Pre-answer cache — embedding-indexed store consulted at test time before live inference",
+        "Freshness invalidator — drops or marks-stale cache entries whose source documents have changed since pre-computation"
+      ],
+      "tools": [
+        "Job scheduler — Airflow, cron, or a queue worker that runs the offline passes",
+        "Vector index — Pinecone/Weaviate/Chroma over query embeddings for the cache lookup",
+        "Summarisation LLM — drives the distillation pass; usually a cheaper model than test-time inference",
+        "Change-detection layer — git hooks, file mtime diff, or content-hashing to feed the freshness invalidator"
+      ],
+      "evaluation_metrics": [
+        "Speculative hit rate — fraction of user queries served from the pre-answer cache",
+        "Test-time latency reduction — p50/p95 latency on hits vs cold queries",
+        "Stale-answer rate — sampled cases where a cache hit was wrong because the source had changed",
+        "Offline-to-test cost ratio — total offline spend per saved test-time dollar",
+        "Prediction-coverage growth — improvement in hit rate as the predictor learns from misses over time"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "vector-memory",
@@ -1985,6 +2306,25 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Mem[New memory item] --> Emb[Embed]\n  Emb --> Idx[(Vector index)]\n  Q[Query / current state] --> QEmb[Embed]\n  QEmb --> Top[Retrieve top-k similar]\n  Idx --> Top\n  Top --> Decay[Apply decay / salience weighting]\n  Decay --> Ctx[Prepend to context]"
       },
+      "components": [
+        "Embedding model — produces a vector for each memory item at write time and for the query at read time",
+        "Vector index — persistent ANN store holding (id, vector, payload) tuples for similarity search",
+        "Writer — embeds new memory items and upserts them into the index",
+        "Retriever — embeds the query or current state, fetches top-k nearest neighbours, returns payloads",
+        "Decay/salience weighter — adjusts neighbour scores with recency boost or salience to break ties on raw similarity"
+      ],
+      "tools": [
+        "Vector database — Pinecone, Weaviate, Chroma, FAISS, or pgvector for the index itself",
+        "Embedding model — OpenAI text-embedding-3, Cohere embed-v3, or a local bge model",
+        "Optional reranker — cross-encoder pass over the top-k to lift retrieval quality before context injection"
+      ],
+      "evaluation_metrics": [
+        "Recall@k of golden memories — fraction of labelled relevant items that appear in the top-k for matching queries",
+        "Retrieval latency p95 — wall-clock for embed+query+rerank on a typical store size",
+        "Embedding-drift incidents — count of breakages caused by changing the embedding model without reindexing",
+        "Temporal-query miss rate — fraction of 'what did I do yesterday' style questions where similarity alone fails",
+        "Storage and index cost per million items — the operational floor under which the pattern stops paying off"
+      ],
       "last_updated": "2026-05-21"
     }
   ]

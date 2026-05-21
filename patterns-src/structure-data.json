@@ -130,7 +130,26 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  In[Mixed-language input] --> T[Tokenise on Unicode + Latin]\n  T --> D[Clause-level<br/>language detection]\n  D --> Tag[Per-clause language tags]\n  Tag --> R[Route tools by tagged span]\n  R --> Out[Response in user's mix]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Script-agnostic tokeniser — splits on Unicode and Latin without assuming a single script per turn",
+        "Clause-level language detector — tags each clause rather than the whole utterance so mixed input is preserved",
+        "Mixed-script slot extractor — pulls entities like place names and times from either script before normalisation",
+        "Tool router — dispatches by tagged span so tools see content in the language they expect",
+        "Slot normaliser — canonicalises extracted entities after extraction, never before"
+      ],
+      "tools": [
+        "Code-switched-trained foundation model (e.g. Sarvam, IndicTrans, Krutrim) — primary inference for the relevant language pair",
+        "Clause-level language identifier — replaces utterance-level langid that flips between turns",
+        "Unicode-aware tokeniser — handles Latin and Devanagari (or other native script) indistinguishably"
+      ],
+      "evaluation_metrics": [
+        "Code-switched intent accuracy vs monolingual baseline — does treating mixed input as in-spec actually help",
+        "Per-clause language-tag F1 — quality of the clause-level detector that the rest of the pipeline depends on",
+        "Entity recall across scripts — fraction of place names / times correctly extracted whether typed in Latin or native script",
+        "Refusal rate on mixed-language turns — should approach zero; the pattern's whole point is not refusing natural input",
+        "Eval-set code-switching coverage — proportion of the held-out set that actually mixes languages, not just multilingual monolingual turns"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "dspy-signatures",
@@ -240,7 +259,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Signature {\n    +input_fields\n    +output_fields\n  }\n  class Module {\n    +signatures\n    +forward()\n  }\n  class Teleprompter {\n    +metric\n    +compile(module)\n    +few_shot_examples\n  }\n  Module --> Signature\n  Teleprompter --> Module : optimises"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Signature — typed declaration of a step's input fields and output fields",
+        "Module — composable unit that holds one or more signatures and a forward() method",
+        "Teleprompter (optimiser) — compiles modules against a metric, generating prompts and few-shot demonstrations",
+        "Metric function — held-out scorer that drives compilation; without it the compiler has nothing to optimise",
+        "Compiled prompt artefact — the build output that replaces hand-tuned prompt strings"
+      ],
+      "tools": [
+        "DSPy framework — declares signatures, runs teleprompters, and emits compiled artefacts",
+        "Labelled or auto-evaluable dataset — required input for metric-driven compilation",
+        "LLM API with deterministic settings — backend the compiler can call repeatedly during optimisation"
+      ],
+      "evaluation_metrics": [
+        "Held-out metric score before vs after compilation — does the teleprompter actually beat the hand-written baseline",
+        "Compilation cost in LLM calls — how expensive one optimisation pass is, since it dominates iteration time",
+        "Recompilation delta on model upgrade — how much score moves when the same signatures are recompiled against a new model",
+        "Assertion-violation rate at inference — for assertion-guarded signatures, how often dspy.Assert triggers backtracking",
+        "Signature coverage — fraction of pipeline steps expressed as signatures vs ad-hoc prompt strings"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "polymorphic-record",
@@ -350,7 +388,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Record {\n    +id\n    +material_type\n    +common_fields\n  }\n  class YarnExt {\n    +weight\n    +fiber\n  }\n  class FabricExt {\n    +width\n    +weave\n  }\n  Record o-- YarnExt : yarn\n  Record o-- FabricExt : fabric"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Core schema — common fields shared by every sub-type, readable by clients that do not know any sub-type",
+        "Discriminator field — names the sub-type (e.g. material_type) and drives per-sub-type validation",
+        "Namespaced extension block — holds the sub-type-specific fields under a key (e.g. yarn: {...}) so they cannot pollute the core",
+        "Per-sub-type validator — checks that the extension block matches the discriminator value",
+        "Round-trip preserver — keeps unknown extension blocks intact when a client reads and rewrites a record"
+      ],
+      "tools": [
+        "JSON Schema with oneOf + discriminator — standard mechanism for declaring polymorphic records",
+        "OpenAPI discriminator — language-neutral way to expose the pattern in an API contract",
+        "Tagged-union type (Pydantic discriminated union, TypeScript discriminated union, Rust enum) — language-level enforcement of the pattern in code"
+      ],
+      "evaluation_metrics": [
+        "Per-sub-type validation pass rate — how often records actually conform to their declared discriminator",
+        "Forward-compatibility round-trip rate — fraction of unknown-sub-type records that old clients read and write back without data loss",
+        "Discriminator mismatch rate — records whose extension block does not match the declared sub-type",
+        "Core-field pollution count — sub-type-specific fields that leaked into the core schema and need to be moved",
+        "Sub-type proliferation rate — new sub-types added per release; flags governance drift"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "prompt-response-optimiser",
@@ -466,7 +523,26 @@
         "mermaid": "flowchart TD\n  U[User input] --> PO[Prompt optimiser]\n  PO <-->|template| T[Template registry]\n  PO -->|refined prompt| FM[Foundation model]\n  FM --> RO[Response optimiser]\n  RO -->|standardised response| C[Consumer]\n",
         "caption": "Runtime templates standardise both the model's input and its output."
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Prompt optimiser — rewrites raw user input against the loaded template before it reaches the model",
+        "Response optimiser — post-processes model output into the shape the consumer expects",
+        "Template registry — versioned store of templates, format constraints, and few-shot exemplars per task",
+        "Foundation model — sees only template-conformant input, never raw user wording",
+        "Downstream consumer — agent, tool, or UI that depends on the standardised response shape"
+      ],
+      "tools": [
+        "Prompt-template runtime (LangChain PromptTemplate, Bedrock Prompt Management, Dialogflow Generators) — loads and applies templates at request time",
+        "Template versioning system — tracks template changes alongside agent code so behaviour is reproducible",
+        "Output post-processor (regex, JSON parser, schema validator) — coerces model output into the consumer's shape"
+      ],
+      "evaluation_metrics": [
+        "Template-conformance rate on inputs — fraction of optimised prompts that match the declared template structure",
+        "Response-shape conformance rate — fraction of post-processed outputs the consumer accepts without further parsing",
+        "Goal-alignment regression — sample-audited rate at which template rewriting strips context the user meant to convey",
+        "Inter-template behaviour drift — variance in agent behaviour across template versions for the same intent",
+        "Consumer-side parser complexity — lines of ad-hoc parsing each consumer still needs; should trend to zero"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "schema-extensibility",
@@ -558,7 +634,26 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Envelope {\n    +schema_version\n    +type\n    +payload\n  }\n  class Extensions {\n    +x-vendor.foo\n    +x-vendor.bar\n  }\n  Envelope o-- Extensions : extensions\n  note for Envelope \"Old clients ignore unknown extensions;\\nschema_version bump = breaking change\""
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Versioned envelope — wraps payloads with schema_version, type, and payload so breaking changes are explicit",
+        "Reserved extension namespace — declared range (e.g. x-vendor.*, extensions: {...}) where new fields can land without colliding",
+        "Forward-compatible reader — ignores unknown extension keys instead of erroring on them",
+        "Schema-version arbiter — enforces that only schema_version bumps signal breaking changes",
+        "Vendor-extension registry — optional governance layer recording which vendor owns which namespace"
+      ],
+      "tools": [
+        "Protocol Buffers with reserved field numbers — language-neutral schema with built-in forward compatibility",
+        "JSON Schema or OpenAPI with x-* extension keys — declares the reserved namespace inside the contract",
+        "Schema-evolution linter — flags additions that would require a schema_version bump"
+      ],
+      "evaluation_metrics": [
+        "Old-client read success rate after additions — fraction of pre-change clients that still parse new payloads cleanly",
+        "Breaking-change incidence per release — should approach zero between schema_version bumps",
+        "Extension-namespace collision count — distinct vendors writing to the same x-* key; flags governance gaps",
+        "Unknown-field drop rate — extensions silently lost on round-trip, which defeats the pattern",
+        "Schema-version cadence — how often genuine breaking changes ship; informs deprecation policy"
+      ],
+      "last_updated": "2026-05-21"
     },
     {
       "id": "structured-output",
@@ -733,7 +828,27 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Schema[(JSON Schema /<br/>Pydantic / Zod)] --> Mode[Provider structured-output mode]\n  Prompt[Prompt] --> Mode\n  Mode --> Out[Model output]\n  Out --> Val{Validates?}\n  Val -- yes --> OK[Typed downstream consumer]\n  Val -- no --> Retry{Retries left?}\n  Retry -- yes --> Mode\n  Retry -- no --> Err[Schema error]"
       },
-      "last_updated": "2026-05-20"
+      "components": [
+        "Schema definition — JSON Schema, Pydantic model, or Zod schema that declares the typed output shape",
+        "Constrained-decoding mode — provider-side or local grammar that prevents the model from emitting non-conforming tokens",
+        "Validator — runs after decoding and rejects outputs that do not type-check against the schema",
+        "Retry controller — re-prompts with the validator error on failure, capped at N attempts",
+        "Typed consumer — downstream code that can rely on the schema and skip ad-hoc parsing"
+      ],
+      "tools": [
+        "Provider structured-output mode (OpenAI Structured Outputs, Anthropic tool-use schemas) — constrained decoding against a supplied schema",
+        "Pydantic or Zod — defines the schema in code and produces the JSON Schema the provider consumes",
+        "Local grammar-constrained decoder (Outlines, llama.cpp grammars, Guidance) — enforces shape on open-weights stacks",
+        "Guardrails AI or similar validator — wraps generation with validate-and-retry when the provider lacks strict mode"
+      ],
+      "evaluation_metrics": [
+        "First-attempt schema-validation pass rate — fraction of outputs that type-check without any retry",
+        "Mean retries per successful output — overhead the retry loop adds; high values point at schema/model mismatch",
+        "Final failure rate at the retry cap — outputs that never validate; surfaces tasks the schema cannot fit",
+        "Task-quality delta vs free-form baseline — does constraining the shape hurt the underlying answer quality",
+        "Schema-evolution break rate — proportion of past outputs that stop validating when the schema changes"
+      ],
+      "last_updated": "2026-05-21"
     }
   ]
 }
