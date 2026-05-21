@@ -11,11 +11,11 @@ Queue agent-proposed actions for asynchronous human review while the agent conti
 
 ## Context
 
-Long-running agent products where some actions need human approval but blocking the agent's whole loop on every approval is impractical.
+A team is operating a long-running agent product that performs many actions per session — sending emails, posting messages, opening tickets, scheduling meetings — where a non-trivial fraction of those actions need a human to look at them before they ship. Stopping the entire agent loop after every proposed action while a human gets around to clicking approve would reduce throughput to a trickle and waste the parallelism the agent could otherwise exploit.
 
 ## Problem
 
-Synchronous human-in-the-loop blocks the agent; ungated execution risks unsafe actions.
+If the agent calls the human and blocks until they respond on every gated action, the system is only as fast as the slowest reviewer and the agent sits idle between clicks. If the team removes the gate to keep the agent moving, unsafe or wrong actions ship before anyone has a chance to look at them. A naive design forces a choice between slow-and-safe and fast-and-dangerous, with no middle path that preserves human authority without holding the whole loop hostage to it.
 
 ## Forces
 

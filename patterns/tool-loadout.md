@@ -11,11 +11,11 @@ Select a small task-relevant subset of available tools per request rather than e
 
 ## Context
 
-Agents with large tool registries (MCP, plugin marketplaces, internal tool catalogs) where exposing all tools degrades selection accuracy.
+A team is running an agent with access to a large tool registry: an MCP catalogue, a plugin marketplace, or an internal directory holding fifty or more tools. Only a handful of those tools are relevant to any single user request, and the team can build a quick classifier (rule-based or model-based) that runs ahead of the main loop.
 
 ## Problem
 
-Function-calling accuracy degrades past ~20 tools; a 100-tool registry is unusable without per-request filtering.
+Function-calling accuracy falls off sharply once the model is shown more than roughly twenty tool definitions at once: the model picks the wrong tool, mixes up similarly named ones, or ignores the right tool entirely. Worse, every irrelevant tool definition still consumes context tokens on every call. Exposing the full registry to the main inference is effectively unusable past a certain size, and a static loadout cannot adapt to per-request intent.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A general-purpose agent has access to a 100-tool registry and selection accuracy
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Req[Request] --> Cls[Classifier: rule or model]
   Reg[(Full tool registry: 100s)] --> Cls
   Cls --> Sub[Selected subset N tools]

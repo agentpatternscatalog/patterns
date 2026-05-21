@@ -11,11 +11,11 @@ Elicit multi-step reasoning by prompting the model to produce intermediate steps
 
 ## Context
 
-The task is compositional, arithmetic, or otherwise requires working through several inferences a human would write down.
+A team is using a large language model on a task whose answer is not a single fact lookup but the end point of a short reasoning trail: a multi-step arithmetic word problem, a logical deduction with several premises, or a question that requires combining two or three facts the model already knows in isolation. These are tasks that a person working them out on paper would normally pause to write a few intermediate lines for before stating the final answer.
 
 ## Problem
 
-LLMs given only (input, output) exemplars fail at problems whose answers depend on a sequence of intermediate inferences.
+When the prompt shows the model only example pairs of (question, final answer) and asks for the next final answer directly, the model tends to skip straight to a single output token. Because the correct answer depends on a chain of intermediate inferences that have to be carried in working memory, jumping to the answer in one step produces confidently wrong results on anything beyond the simplest case. The reasoning never becomes a token the model can attend to, so it has no opportunity to use what it actually knows one step at a time.
 
 ## Forces
 
@@ -45,7 +45,7 @@ A maths-tutoring assistant keeps blurting wrong answers to multi-step word probl
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Question] --> P[Prompt with<br/>step-by-step trigger]
   P --> S1[Step 1]
   S1 --> S2[Step 2]

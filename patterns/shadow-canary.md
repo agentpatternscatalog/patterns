@@ -11,11 +11,11 @@ Run a candidate agent version in shadow alongside the champion, comparing output
 
 ## Context
 
-Agent changes are non-deterministic and prompt-sensitive; CI tests cover correctness, not field behaviour.
+A team wants to roll out a new model, a tweaked prompt, or a reworked tool wiring to an agent already serving real users. They have an existing version (the champion) that they trust on live traffic and a candidate version (the challenger) they want to validate before promoting. The traffic distribution in production includes long-tail queries that no pre-release evaluation set fully captures.
 
 ## Problem
 
-Releases without field comparison miss regressions visible only on real traffic.
+Pre-release evaluations cover the distributions the team thought to put in the test set, not the surprising ones that show up in real usage. Releasing the challenger directly to a fraction of users exposes those users to whatever regressions it has. The team is forced to choose between launching blind and hoping nothing breaks, or building a separate evaluation set so comprehensive that it never actually matches live behaviour.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A team wants to upgrade the underlying model on an in-production agent but pre-r
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User request] --> Split[Traffic split]
   Split --> Champ[Champion agent]
   Split --> Chall[Challenger agent]

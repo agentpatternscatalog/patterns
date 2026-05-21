@@ -11,11 +11,11 @@ Maintain the agent's explicit knowledge of its own tools, capabilities, environm
 
 ## Context
 
-Agents that operate over time and across capabilities need to know what they can do and where they are; without explicit awareness, capability is implicit in prompts.
+A team is building an agent that operates across multiple sessions and whose set of available tools, permissions, and roles changes at runtime. The agent needs to reason about what it can actually do right now — which tools are wired in, which are disabled, who the current user is, which permissions apply — rather than relying on whatever the original system prompt happened to mention. Without an explicit place where this information lives, capability is buried implicitly in prompt text and stale the moment anything changes.
 
 ## Problem
 
-Agents that do not know their own capabilities either over-promise (hallucinate tools) or under-deliver (forget tools they have).
+An agent that has no reliable picture of its own current capabilities fails in two predictable directions. It promises to invoke tools it does not actually have, fabricating plausible function calls that error out at dispatch. Or it forgets that it does have a particular tool and falls back on weaker workarounds when the right capability was available all along. Both failure modes are invisible to the model because nothing in its context tells it what is really wired up at this moment.
 
 ## Forces
 

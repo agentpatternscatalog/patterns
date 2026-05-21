@@ -11,11 +11,11 @@ Evaluate every proposed agent action against externally-managed machine-readable
 
 ## Context
 
-Production agents operating in regulated or compliance-sensitive domains where the set of permitted actions is governed by policy documents authored by compliance, legal, or security teams rather than by prompt engineers. Tool/action surfaces are non-trivial and the policy surface changes on a different cadence than the agent code.
+A team runs an agent in a regulated or compliance-sensitive domain — banking, insurance, public-sector, critical infrastructure — where the set of permitted actions is determined by policy documents that compliance, legal, or security functions own and update. The agent has a non-trivial action surface (transfers, account changes, external API calls of varying risk) and the rules over that surface change more often than the agent code. The people who write the rules are not the same people who write the prompts or deploy the agent.
 
 ## Problem
 
-When governance rules are baked into the system prompt or hard-coded into the agent, every policy change requires a prompt edit and a redeploy, and the people accountable for compliance cannot read, audit, or change the rules without going through engineering. Natural-language constitutional rules in the prompt also drift: there is no machine-evaluable contract between the rule and the action that fired, no signed version, and no independent audit trail. Compliance officers need an authoring surface and an evaluation engine that is not the LLM itself.
+When the governance rules live inside the system prompt or are hard-coded in the agent, every policy change becomes a prompt edit followed by a redeploy, and the compliance officers responsible for the rules cannot read, audit, or change them without going through engineering. Natural-language rules embedded in the prompt also have no signed version, no machine-evaluable contract with the action that actually fired, and no independent audit trail an auditor can replay. Without an external, machine-readable policy surface, compliance and engineering are bound to the same release cycle and the rules become unauditable.
 
 ## Forces
 

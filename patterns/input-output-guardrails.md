@@ -11,11 +11,11 @@ Validate inputs before they reach the model and outputs before they reach the us
 
 ## Context
 
-Production agents face adversarial inputs (prompt injection, PII leakage attempts) and produce outputs that may need format, safety, or policy checks.
+A team runs a production agent exposed to real users on the input side and to real downstream consumers on the output side. The input side receives adversarial content — prompt-injection payloads, attempts to coax the model into leaking secrets or personally identifying information, requests to violate policy. The output side risks shipping payloads that fail schema, contain toxic content, echo a credit card number, or otherwise breach what the operator promised customers and regulators.
 
 ## Problem
 
-Trusting the model to police its own inputs and outputs is unsafe; the model is the surface being defended.
+Asking the model itself to police what flows in and out fails by construction: the model is the very surface being defended, and the same generation that might leak a secret is also the one being asked to refuse to leak it. A clever attacker only needs to find one phrasing that flips the model's behaviour. Without a layer outside the model that runs deterministic checks on both the input and the output path, the team is left trusting the model to be its own gatekeeper, which it provably cannot do under adversarial pressure.
 
 ## Forces
 

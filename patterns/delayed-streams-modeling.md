@@ -11,11 +11,11 @@ Convert streaming X-to-Y tasks (speech-to-text, text-to-speech, simultaneous tra
 
 ## Context
 
-Low-latency speech agents and simultaneous-translation systems. Traditional pipelines cascade STT, an LLM, and TTS, which introduces per-stage latency and brittle handoffs. Simultaneous-translation systems add a learned read/write policy to decide when to emit output given incoming input — itself an extra training problem with reward-shaping issues.
+A team is building a low-latency speech system — a real-time translator, a voice assistant that has to hold a conversation, or a full-duplex dialogue agent where the human and the agent can talk over each other. The conventional architecture is a cascade: a speech-to-text (STT) model transcribes the user's audio, a language model reasons about the text, and a text-to-speech (TTS) model produces the reply audio. Simultaneous-translation systems usually add a separate "read/write policy" that decides at each moment whether to wait for more input or emit the next chunk of output.
 
 ## Problem
 
-Cascade speech pipelines accumulate latency and break under interruption; the LLM has to wait for STT to finalize before it can think, and TTS has to wait for the LLM to finish. Simultaneous-translation systems try to solve this with a learned read/write policy, but the policy is hard to train, sensitive to delay tuning, and adds yet another model. None of these architectures naturally support full-duplex dialogue where both sides speak and listen concurrently.
+Cascading three models adds the latency of each stage to the user-perceived delay, and every handoff between them is a place where errors compound or interruptions break the pipeline. The language model cannot start reasoning until the speech-to-text stage commits to a transcription, and the text-to-speech stage cannot start speaking until the language model commits to a reply. The learned read/write policy added on top of this in simultaneous translators is itself a separate model that is hard to train, sensitive to the chosen delay budget, and has its own failure modes. None of these architectures handle full-duplex dialogue — both sides talking and listening at once — without further hacks.
 
 ## Forces
 

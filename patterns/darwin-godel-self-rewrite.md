@@ -11,11 +11,11 @@ An agent rewrites its own source code, archives every successful variant, and sa
 
 ## Context
 
-Research and long-running agents that can read and rewrite their own implementation (prompt, tool-set, scaffolding, or code) and that have an objective measure (a benchmark, a task suite, a self-eval) by which a variant is judged successful. Naive self-modification loops mutate the latest version and quickly settle into a local optimum.
+A research team builds an agent that can read and rewrite parts of its own implementation, such as its system prompt, its tool definitions, the scaffolding around its main loop, or the code that implements it. The team has a clear way to measure whether one version of the agent is better than another: a benchmark, a task suite, or an automated self-evaluation that returns a score per variant. The point of the project is to let the agent improve itself over many generations without human-in-the-loop edits.
 
 ## Problem
 
-Greedy self-rewrite gets stuck. If the agent always mutates the latest accepted version, it climbs the local hill and stops; the move that would unlock the next ridge is several mutations away from anything currently good. Throwing away non-best variants destroys the diversity that would have been the bridge. The agent needs a way to escape local optima that does not require an outside reset.
+When the agent always mutates the latest accepted version (greedy self-rewrite), it climbs whatever local hill it started on and stops. The move that would unlock a higher ridge is several mutations away from anything that currently scores well, so a strictly score-maximising selection rule will never reach it. Throwing away the variants that scored worse destroys the very diversity that would have been the bridge to a better region of the search space. The agent gets stuck in a local optimum, and without some way of preserving and revisiting worse-scoring stepping-stones it has no path out short of a manual reset.
 
 ## Forces
 

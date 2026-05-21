@@ -11,11 +11,11 @@ Let the user interrupt an in-flight agent run cleanly, releasing resources and s
 
 ## Context
 
-Long-running agents where the user notices a wrong direction mid-run and wants to redirect.
+A team is running an agent whose individual runs can take tens of seconds to minutes, with multiple tool calls and a streaming response. Halfway through such a run, the user can often see that the agent has misunderstood the request or gone down the wrong path. The team needs a way for the user to stop the run cleanly without closing the tab and without leaving half-written state behind.
 
 ## Problem
 
-Without an interrupt, users wait for completion or for the page to die; agents continue burning cost on wrong work.
+Without a real cancellation path, the user has only bad options: wait for the run to finish, abandon the page (which leaves orphaned tool calls and partial writes in flight), or kill the process and hope nothing important was mid-write. Meanwhile the agent keeps spending tokens, tool calls, and external API quota on work the user already knows is wrong. Implementing a stop button on the user-interface alone is not enough either — the cancellation has to propagate through the agent loop, through each tool call, and into the streaming connection to the model provider, or the run continues invisibly underneath a stopped-looking interface.
 
 ## Forces
 

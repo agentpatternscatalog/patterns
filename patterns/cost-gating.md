@@ -11,11 +11,11 @@ Block actions whose expected cost exceeds a threshold without explicit user (or 
 
 ## Context
 
-Some agent actions cost real money (large model calls, paid APIs); running them silently is rude or financially dangerous.
+A team runs an agent whose individual steps cost real money — large-context model calls billed by the token, paid third-party APIs, retrieval against an expensive vector store. A single user request can fan out into hundreds of such calls, and the bill arrives at the end of the month rather than at the moment of the action. Users have no way to see the cost building up while the agent works.
 
 ## Problem
 
-Agents that act first and bill later create surprise costs; users learn to distrust the agent.
+If the agent just executes whatever steps it judges useful, an over-eager research task can quietly burn through a hundred-euro budget on a question that should have cost one euro, and the user only finds out when the invoice arrives. If the agent asks for permission on every paid call, users learn to click through the prompts and the gating becomes theatre. Without a forecast of cost and a meaningful threshold, the team must choose between surprise bills and approval fatigue.
 
 ## Forces
 

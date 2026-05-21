@@ -11,11 +11,11 @@ When an instructed agent would have to invent missing context to comply, have it
 
 ## Context
 
-Two agents communicate (instructor → assistant) and the instruction is under-specified in a way that would force the assistant to fabricate (e.g. a missing class name, an unspecified API version, an ambiguous unit).
+Two agents are communicating in an instructor-and-assistant shape — an orchestrator telling a coding sub-agent what to do, a planner handing work to an executor — and the instruction arrives with a decisive detail missing. The missing piece might be a specific class name, an API version, an ambiguous unit of measure, or which of several plausible interpretations the instructor actually meant.
 
 ## Problem
 
-Without a clarification channel between agents, the assistant fabricates the missing detail; the fabrication propagates and is hard to detect at the artefact boundary.
+Without a way for the assistant to ask back, it complies by inventing a plausible value for the missing detail and proceeds as if it had been told. The fabricated choice gets baked into the next artefact and is hard to spot at the hand-off boundary, where it looks like a confident answer rather than a guess. By the time the wrong assumption surfaces — in a downstream failure or a user complaint — the trail back to the original gap is buried.
 
 ## Forces
 

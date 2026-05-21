@@ -11,11 +11,11 @@ Anti-pattern: a supervisor or orchestrator spawns sub-agents that can themselves
 
 ## Context
 
-Multi-agent systems with `supervisor` / `orchestrator-workers` / `lead-researcher` patterns where each level decomposes the task and spawns more agents.
+A team is operating a multi-agent system that uses supervisor, orchestrator-workers, or lead-researcher style decomposition. At each level a parent agent breaks the task down and spawns child agents to handle the pieces, and those children can themselves spawn further sub-agents if their slice of the task is still too large. There is no global cap on how many agents the whole tree is allowed to contain or how deep the recursion can go.
 
 ## Problem
 
-step-budget caps a single agent's loop; cost-gating caps a single action's cost. Neither caps total system spend through fan-out. A buggy decomposition can recursively explode the agent tree.
+Per-agent safety mechanisms — step-budget caps the loop of a single agent, cost-gating caps the cost of a single action — do not constrain total system spend through fan-out. A buggy decomposition that always splits a task into too many pieces can recursively explode the agent tree, with each individual agent looking well-behaved while the whole system burns budget exponentially. Killing one instance does not kill its descendants, and detecting recursive spawn requires global tree state that is rarely tracked. The result is that a single bad decomposition prompt can run up costs that no per-agent limit ever sees.
 
 ## Forces
 

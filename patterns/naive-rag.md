@@ -11,11 +11,11 @@ Condition the generator on top-k chunks retrieved from an external dense index s
 
 ## Context
 
-The agent needs information that lives in a corpus too large to fit in context, and that may change without retraining.
+A team needs a model to answer questions whose answers depend on information that lives in a corpus too large to fit into the prompt — internal documentation, a knowledge base, a product catalogue, recent news, a body of research papers. The corpus also changes regularly, faster than retraining the base model would allow, so any answers based on the model's training data alone will go stale or be missing entirely.
 
 ## Problem
 
-Parametric LMs hallucinate, cannot cite, and cannot be updated without retraining; query-time external knowledge is needed.
+A bare language model has no access to information beyond what is baked into its weights, and any attempt to answer from parametric memory alone tends to hallucinate plausible-sounding answers, cannot cite a source, and cannot be updated without retraining. The team needs the model to pull relevant external knowledge in at query time, but doing so requires deciding how to chunk the corpus, how to index it, what to retrieve per query, and how to feed it into the prompt. Without that retrieval machinery, the model is stuck with what it already knew at training time.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A startup ships a support assistant whose knowledge changes weekly — release n
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   C[Corpus] -->|chunk + embed| I[(Vector index)]
   Q[Query] -->|embed| E[Query vector]
   E -->|top-k| I

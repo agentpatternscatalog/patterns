@@ -11,11 +11,11 @@ Sample the same question multiple times at non-zero temperature and aggregate by
 
 ## Context
 
-Reasoning-heavy questions where the model is mostly right but sometimes invents a different chain.
+A team uses a large language model on reasoning-heavy tasks like math word problems, multi-step logic puzzles, or multiple-choice questions where the model is mostly right but occasionally invents a wrong intermediate chain and confidently produces the wrong answer. The team can extract a comparable answer (a number, a class, a final choice) from each generation. Inference cost permits running the same prompt several times in parallel.
 
 ## Problem
 
-A single sample at zero temperature gives the most likely chain; sampling and voting often outperforms it because the right answer is the one most chains converge on.
+A single sample at zero temperature gives the model's single most likely chain of reasoning, but that chain is sometimes the wrong one and there is no way for downstream code to tell. Trying again with a different seed can produce a different answer, and the team has no principled way to decide which sample to trust. Without a way to combine multiple samples, the team either accepts whatever the first call returned or picks among samples arbitrarily. They are also missing a free signal: the spread across samples is itself informative about how confident the model should be, but a one-shot pipeline never gets to see it.
 
 ## Forces
 

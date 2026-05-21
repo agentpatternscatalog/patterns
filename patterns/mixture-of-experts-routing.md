@@ -11,11 +11,11 @@ Route each request to one or more domain-expert agents, where each expert holds 
 
 ## Context
 
-Heterogeneous domains where one agent cannot credibly cover all expertise (legal + medical + finance + technical).
+A team is building one agent that serves users across several substantially different professional domains — for example legal questions, medical questions, financial planning, and technical support. Each of these domains has its own vocabulary, its own authoritative sources, and its own conventions for what a good answer looks like. A single shared prompt cannot credibly carry deep expertise in all of them at once because the prompt budget and the model's attention are finite.
 
 ## Problem
 
-A generalist agent's depth in any one domain is shallow; users in specialist domains feel under-served.
+A generalist agent ends up shallow in every domain: it knows enough legal language to sound competent but misses important distinctions a tax specialist would catch, and the same is true on the medical side. Users in specialist domains feel under-served and the team cannot improve any one domain without bloating the shared prompt with material that hurts the others. Adding more general examples does not fix the depth problem because the model is forced to flatten its expertise across the whole surface.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Maintain pre-written response procedures for agent failures (PII leak, tool expl
 
 ## Context
 
-Production agents at organisations with safety controls (kill-switch, sandbox-escape-monitoring, provenance-ledger) that detect events nobody knows how to respond to.
+A team runs an agent in production where things can go badly wrong: leaking personally identifiable information across tenants, exploiting a tool with side effects in the real world, or triggering a large number of incorrect actions before anyone notices. The platform already has detection mechanisms such as a kill-switch, monitoring on sandbox-boundary violations, and a provenance ledger of actions. There may also be regulatory clocks attached, for example a 72-hour breach notification window under GDPR or a serious-incident report under the EU AI Act.
 
 ## Problem
 
-Without a runbook, detection produces alerts that wake the on-call but do not lead to coordinated containment, compensation, communication, or post-mortem.
+When an alert fires at 02:14 with no pre-written procedure, the on-call engineer wakes up to arguments about whether to kill the service, no clear path to preserve forensic traces beyond normal retention, no template for telling affected customers, and no idea who notifies the regulator. The first hour of the incident vanishes into improvisation while damage continues. The team is forced to choose between writing the runbook calmly in advance or writing it under pressure during the worst possible moment.
 
 ## Forces
 

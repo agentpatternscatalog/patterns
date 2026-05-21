@@ -11,11 +11,11 @@ Treat the agent's system prompt and long-lived memory as a structured, item-addr
 
 ## Context
 
-Agents whose behaviour is shaped by a system prompt or persistent memory that accumulates tactics, heuristics, and worked examples over many runs. Teams that have tried free-form self-reflection or whole-prompt rewrites find that each rewrite tends to wipe out useful items or merge them into vague abstractions.
+A team operates an agent whose behaviour is shaped by a long-lived system prompt or a persistent memory file, and that prompt accumulates tactics, heuristics, and worked examples gathered across many runs over weeks or months. After every batch of tasks the team wants the agent to absorb what it learned, so they periodically ask the agent to reflect on its own runs and update the playbook in place. Each update needs to add new specific tactics without eroding the ones already there.
 
 ## Problem
 
-Free-form self-reflection produces a single blob of lessons that gets harder to reuse with each pass. Whole-prompt rewrites lose item-level structure — yesterday's specific tactic gets paraphrased into a generality and then dropped on the next pass. There is no addressable unit a reflection step can target, so the playbook either bloats or collapses. Without item-level addressing, three things blur together: generating the lesson, evaluating it, and deciding what to keep.
+When self-reflection is free-form and the agent is asked to rewrite the whole playbook in one pass, each rewrite tends to paraphrase yesterday's concrete tactic into a vague generality and then drop it on the next pass. There is no addressable unit a reflection step can point at, so the playbook either bloats with near-duplicates or collapses into platitudes. Three different jobs (proposing a new lesson, judging whether it is correct, and deciding whether to keep it) all happen inside the same prompt, which produces vague output because the model cannot do all three jobs well at once. The team is forced to choose between losing accumulated specifics and letting the playbook grow unbounded.
 
 ## Forces
 

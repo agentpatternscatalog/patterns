@@ -11,11 +11,11 @@ Run an evaluator or grader in a separately-allocated context window with access 
 
 ## Context
 
-Agent workflows where an artefact (a plan, a piece of code, a written answer, a tool-call sequence) is produced by a long reasoning chain and a downstream evaluator is asked to judge it. Self-reflection and same-context critique have a known failure mode: the evaluator inherits the producer's framing and signs off on work that contains errors the producer also missed.
+A team builds an agent workflow in which a producer agent runs a long chain of reasoning and tool calls to construct some artefact (a plan, a patch, a written answer, a sequence of tool calls) and then a downstream evaluator is asked to judge whether the artefact is correct. The natural implementation hands the evaluator the producer's full reasoning trace alongside the artefact, on the assumption that more context produces a better judgement. The evaluator may be a separate prompt or even a separate model.
 
 ## Problem
 
-Same-context self-critique echo-chambers. Even when the critic is a separate role or even a separate model, if it sees the full producing trace it tends to be primed by the same framing that produced the artefact, and it tends to rationalise rather than evaluate. The errors a fresh reader would catch are exactly the ones the trace-aware reader misses.
+When the evaluator can see the producer's full reasoning trace, it tends to inherit the producer's framing and rationalise the artefact rather than evaluate it on its own merits. The producer's chain of thought makes mistaken choices look deliberate, and the evaluator ends up agreeing with the very priming that caused the mistake. The errors a fresh, uninformed reader would notice immediately are exactly the ones the trace-aware evaluator misses. Routing to a different model family is expensive and does not reliably break the priming, because the framing leaks through the trace itself rather than through any shared weights.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Surface the agent's uncertainty about its answer alongside the answer itself.
 
 ## Context
 
-Decisions downstream of the agent depend on whether the answer is reliable; users and systems both benefit from a confidence signal.
+A team ships an assistant whose answers feed into a downstream decision: a user choosing whether to trust a recommendation, a coder choosing whether to route a record to a senior reviewer, a workflow engine choosing whether to auto-approve a change. The cost of acting on a wrong answer is meaningfully higher than the cost of pausing to verify. The agent already produces answers; the question is how to attach a usable signal of how sure it is.
 
 ## Problem
 
-Models output answers with uniform tone regardless of internal certainty; downstream code cannot distinguish 'I know' from 'I am guessing'.
+Large language models produce answers in the same confident tone whether they actually know the answer or are guessing, so downstream code and human readers cannot tell the two cases apart. Users either trust everything (and get burned on the cases the model fabricated) or distrust everything (and lose the value of the cases the model got right). A routing layer that should escalate uncertain cases to human review has no signal to route on, so it either escalates everything or nothing. Self-reports of confidence from the model are themselves miscalibrated, so simply asking the model whether it is sure does not solve the problem on its own.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A medical-coding assistant proposes ICD-10 codes for clinician review. Coders tr
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Answer] --> S[Compute confidence<br/>variance / score / recall]
   S --> L{Threshold?}
   L -- high --> UI[Render: high]

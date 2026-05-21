@@ -19,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SRC = ROOT / "patterns-src"
+EXAMPLES_SRC = ROOT / "examples-src"
 
 CAT_LABEL = {
     "reasoning": "Reasoning",
@@ -40,10 +41,11 @@ CAT_LABEL = {
 BASE_CSS = """
 :root { color-scheme: light dark; }
 body { font: 16px/1.55 system-ui, -apple-system, sans-serif; max-width: 52rem; margin: 2.5rem auto; padding: 0 1.25rem; color: #1a1a1a; }
-@media (prefers-color-scheme: dark) { body { background: #0d0f12; color: #e6e6e6; } a { color: #6cb6ff; } code, pre { background: #1a1d22 !important; } .meta { color: #9aa0a6 !important; } .nav { color: #9aa0a6 !important; } }
+@media (prefers-color-scheme: dark) { body { background: #0d0f12; color: #e6e6e6; } a { color: #6cb6ff; } code, pre { background: #1a1d22 !important; } .meta { color: #9aa0a6 !important; } .nav { color: #9aa0a6 !important; } .lede { color: #cfd2d6 !important; } .empty { color: #6f7479 !important; } }
 h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
 h2 { font-size: 1.15rem; margin-top: 2rem; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(128,128,128,0.25); }
-h3 { font-size: 1rem; }
+h2 .num { display: inline-block; min-width: 1.5em; color: #888; font-weight: 500; }
+h3 { font-size: 1rem; margin-top: 1.25rem; }
 a { color: #0366d6; text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { background: #f4f4f4; padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.92em; }
@@ -53,14 +55,31 @@ pre code { background: transparent; padding: 0; }
 .nav { color: #555; font-size: 0.9rem; margin: 0 0 2rem; }
 .aliases { font-style: italic; color: #555; }
 .caption { color: #555; font-size: 0.9rem; margin-top: -0.25rem; margin-bottom: 1rem; }
+.lede { font-size: 1.05rem; margin: 0.75rem 0 1.5rem; color: #2a2a2a; }
+.lede .scenario { display: block; margin-top: 0.6rem; font-size: 0.95rem; color: #555; }
 ul.bullets { padding-left: 1.4rem; }
-ul.bullets li { margin: 0.25rem 0; }
-.constrains { background: rgba(255, 215, 0, 0.12); border-left: 3px solid #d4a017; padding: 0.6rem 0.9rem; margin: 0.5rem 0 1rem; }
+ul.bullets li { margin: 0.3rem 0; }
+.constrains { background: rgba(255, 215, 0, 0.12); border-left: 3px solid #d4a017; padding: 0.6rem 0.9rem; margin: 0.6rem 0 0.6rem; font-weight: 500; }
 .tag { display: inline-block; background: rgba(0,0,0,0.06); padding: 0.1em 0.5em; border-radius: 3px; font-size: 0.85em; margin-right: 0.3em; }
 .cat-list { columns: 2; column-gap: 2rem; }
 @media (max-width: 600px) { .cat-list { columns: 1; } }
 .mermaid { background: #fff; padding: 0.5rem; border-radius: 4px; }
 @media (prefers-color-scheme: dark) { .mermaid { background: #f4f4f4; } }
+.empty { color: #888; font-style: italic; font-size: 0.92rem; }
+.appendix { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid rgba(128,128,128,0.25); }
+.appendix h2 { font-size: 1rem; border: none; padding: 0; margin-top: 1.25rem; color: #555; }
+.examples { margin: 0.6rem 0 1rem; }
+.examples .tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid rgba(128,128,128,0.25); margin-bottom: 0; }
+.examples .tab { appearance: none; background: transparent; border: 1px solid transparent; border-bottom: none; padding: 0.35rem 0.8rem; font: inherit; color: inherit; cursor: pointer; border-radius: 4px 4px 0 0; opacity: 0.7; }
+.examples .tab:hover { opacity: 1; }
+.examples .tab[aria-selected="true"] { background: #f4f4f4; border-color: rgba(128,128,128,0.25); opacity: 1; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .examples .tab[aria-selected="true"] { background: #1a1d22; } }
+.examples .panel { display: none; }
+.examples .panel[data-active="true"] { display: block; }
+.examples .panel pre { margin-top: 0; border-top-left-radius: 0; }
+.examples .panel .ex-meta { color: #666; font-size: 0.85rem; margin: 0.4rem 0 0.2rem; }
+.examples .unverified { display: inline-block; background: rgba(255,165,0,0.15); color: #b45309; padding: 0.05em 0.45em; border-radius: 3px; font-size: 0.8em; margin-left: 0.5rem; }
+@media (prefers-color-scheme: dark) { .examples .unverified { color: #fbbf24; background: rgba(255,165,0,0.18); } }
 """
 
 MERMAID_SCRIPT = """
@@ -75,8 +94,9 @@ def esc(s: str) -> str:
     return html.escape(s, quote=True)
 
 
-def page(title: str, body: str, with_mermaid: bool = False) -> str:
+def page(title: str, body: str, with_mermaid: bool = False, with_examples_tabs: bool = False) -> str:
     mermaid_block = MERMAID_SCRIPT if with_mermaid else ""
+    tabs_block = EXAMPLES_TAB_SCRIPT if with_examples_tabs else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -88,14 +108,147 @@ def page(title: str, body: str, with_mermaid: bool = False) -> str:
 <body>
 {body}
 {mermaid_block}
+{tabs_block}
 </body>
 </html>
 """
 
 
-def render_pattern(p: dict, all_ids: set[str]) -> str:
+def _section_header(num: int, title: str) -> str:
+    """Emit a numbered section header so every pattern reads the same way."""
+    return f'<h2><span class="num">{num}.</span> {esc(title)}</h2>'
+
+
+def _ul(items: list[str]) -> str:
+    parts = ["<ul class='bullets'>"]
+    for item in items:
+        parts.append(f"<li>{esc(item)}</li>")
+    parts.append("</ul>")
+    return "\n".join(parts)
+
+
+def _empty(msg: str) -> str:
+    return f'<p class="empty">{esc(msg)}</p>'
+
+
+def load_examples() -> dict[str, dict]:
+    """Return {pattern_id: pattern_entry} loaded from examples-src/<cat>.json.
+
+    Returns an empty dict if examples-src/ does not exist, so the renderer
+    works during the rollout when most patterns have no examples yet.
+    """
+    out: dict[str, dict] = {}
+    if not EXAMPLES_SRC.exists():
+        return out
+    for shard_path in sorted(EXAMPLES_SRC.glob("*.json")):
+        shard = json.loads(shard_path.read_text())
+        for entry in shard.get("patterns", []):
+            out[entry["pattern_id"]] = entry
+    return out
+
+
+_HIGHLIGHT_LANG = {
+    "pseudo": "plaintext",
+    "python": "python",
+    "typescript": "typescript",
+    "javascript": "javascript",
+    "go": "go",
+    "java": "java",
+    "csharp": "csharp",
+    "rust": "rust",
+    "ruby": "ruby",
+    "json": "json",
+    "yaml": "yaml",
+}
+
+
+def render_examples_section(pattern_id: str, examples_entry: dict | None) -> str:
+    """Render the tabbed Code Examples panel.
+
+    Falls through to a single-bullet "no examples" note when nothing is
+    declared for this pattern, so the section header stays consistent
+    across the catalog.
+    """
+    if not examples_entry or not examples_entry.get("examples"):
+        return _empty("No code examples for this pattern yet.")
+
+    examples = examples_entry["examples"]
+    safe_pid = pattern_id.replace("/", "-")
+    tab_buttons: list[str] = []
+    panels: list[str] = []
+    for i, ex in enumerate(examples):
+        tab_id = f"ex-{safe_pid}-{i}"
+        label = esc(ex.get("framework_label") or ex["framework"].title())
+        selected = "true" if i == 0 else "false"
+        active = "true" if i == 0 else "false"
+        tab_buttons.append(
+            f'<button class="tab" role="tab" aria-selected="{selected}" '
+            f'aria-controls="{tab_id}" data-tab-target="{tab_id}">{label}</button>'
+        )
+
+        lang_class = _HIGHLIGHT_LANG.get(ex.get("language", "pseudo"), "plaintext")
+        code_html = esc(ex["code"])
+        intent_line = esc(ex.get("intent", ""))
+        meta_bits = [intent_line] if intent_line else []
+        if ex.get("source_url"):
+            meta_bits.append(
+                f'source: <a href="{esc(ex["source_url"])}" rel="noopener">{esc(ex["source_url"])}</a>'
+            )
+        if ex.get("sdk_version"):
+            meta_bits.append(f"sdk: <code>{esc(ex['sdk_version'])}</code>")
+        verified_badge = (
+            '<span class="unverified" title="This example has not been verified against the linked source yet">unverified</span>'
+            if not ex.get("verified")
+            else ""
+        )
+        meta_html = (
+            f'<p class="ex-meta">{" &middot; ".join(meta_bits)}{verified_badge}</p>'
+            if meta_bits or verified_badge
+            else ""
+        )
+
+        panels.append(
+            f'<div class="panel" role="tabpanel" id="{tab_id}" data-active="{active}">'
+            f"{meta_html}"
+            f'<pre><code class="language-{lang_class}">{code_html}</code></pre>'
+            "</div>"
+        )
+
+    tabs_html = "".join(tab_buttons)
+    panels_html = "".join(panels)
+    return (
+        '<div class="examples">'
+        f'<div class="tabs" role="tablist">{tabs_html}</div>'
+        f"{panels_html}"
+        "</div>"
+    )
+
+
+EXAMPLES_TAB_SCRIPT = """
+<script>
+  document.querySelectorAll('.examples').forEach(function (root) {
+    var tabs = root.querySelectorAll('.tab');
+    var panels = root.querySelectorAll('.panel');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var target = tab.getAttribute('data-tab-target');
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', t === tab ? 'true' : 'false'); });
+        panels.forEach(function (p) { p.setAttribute('data-active', p.id === target ? 'true' : 'false'); });
+      });
+    });
+  });
+</script>
+"""
+
+
+def render_pattern(p: dict, all_ids: set[str], examples_by_id: dict[str, dict] | None = None) -> str:
+    """Render a pattern using the 10-section reader template.
+
+    Section order is fixed; every section header is always present so readers
+    can scan patterns the same way every time. Sections without data show a
+    short italicised note rather than disappearing.
+    """
     name = p["name"]
-    pid = p["id"]
     cat = p["category"]
     aliases = p.get("aliases") or []
     diagram = p.get("diagram")
@@ -103,41 +256,127 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
     consequences = p.get("consequences") or {}
 
     parts: list[str] = []
-    parts.append(f'<p class="nav"><a href="../">&larr; All artifacts</a> &middot; <a href="./">All patterns</a> &middot; <a href="./#{esc(cat)}">{esc(CAT_LABEL.get(cat, cat))}</a></p>')
+
+    # Section 1 — Pattern Name (H1 + lede + metadata, no "Pattern Name" header label).
+    parts.append(
+        f'<p class="nav"><a href="../">&larr; All artifacts</a> &middot; '
+        f'<a href="./">All patterns</a> &middot; '
+        f'<a href="./#{esc(cat)}">{esc(CAT_LABEL.get(cat, cat))}</a></p>'
+    )
     parts.append(f"<h1>{esc(name)}</h1>")
     if aliases:
         parts.append(f'<p class="aliases">aka {esc(", ".join(aliases))}</p>')
 
-    meta_bits = [f"category: <code>{esc(cat)}</code>", f"status: <code>{esc(p.get('status_in_practice','—'))}</code>"]
+    meta_bits = [
+        f"category: <code>{esc(cat)}</code>",
+        f"status: <code>{esc(p.get('status_in_practice','—'))}</code>",
+    ]
     if p.get("author"):
         meta_bits.append(f"author: <code>{esc(p['author'])}</code>")
     parts.append(f'<p class="meta">{" &middot; ".join(meta_bits)}</p>')
 
-    parts.append(f"<h2>Intent</h2><p>{esc(p['intent'])}</p>")
+    parts.append(f'<p class="lede">{esc(p["intent"])}')
     if p.get("example_scenario"):
-        parts.append(f"<h2>Example scenario</h2><p class='example-scenario'>{esc(p['example_scenario'])}</p>")
-    parts.append(f"<h2>Context</h2><p>{esc(p['context'])}</p>")
-    parts.append(f"<h2>Problem</h2><p>{esc(p['problem'])}</p>")
+        parts.append(f'<span class="scenario">{esc(p["example_scenario"])}</span>')
+    parts.append("</p>")
 
+    # Section 2 — Problem (context + problem, with forces folded in if present).
+    parts.append(_section_header(2, "Problem"))
+    parts.append(f"<p>{esc(p['context'])}</p>")
+    parts.append(f"<p>{esc(p['problem'])}</p>")
     forces = p.get("forces") or []
     if forces:
-        parts.append("<h2>Forces</h2><ul class='bullets'>")
-        for f in forces:
-            parts.append(f"<li>{esc(f)}</li>")
-        parts.append("</ul>")
+        parts.append("<p><strong>Competing forces:</strong></p>")
+        parts.append(_ul(forces))
 
-    if p.get("therefore"):
-        parts.append(f"<h2>Therefore</h2><p>{esc(p['therefore'])}</p>")
+    # Section 3 — When to Use.
+    parts.append(_section_header(3, "When to Use"))
+    if applicability.get("use_when"):
+        parts.append(_ul(applicability["use_when"]))
+    else:
+        parts.append(_empty("Not yet specified."))
 
-    parts.append(f"<h2>Solution</h2><p>{esc(p['solution'])}</p>")
+    # Section 4 — When Not to Use.
+    parts.append(_section_header(4, "When Not to Use"))
+    if applicability.get("do_not_use_when"):
+        parts.append(_ul(applicability["do_not_use_when"]))
+    else:
+        parts.append(_empty("Not yet specified."))
 
-    if diagram:
-        parts.append("<h2>Diagram</h2>")
+    # Section 5 — Architecture Diagram.
+    parts.append(_section_header(5, "Architecture Diagram"))
+    if diagram and diagram.get("mermaid"):
         parts.append(f'<pre class="mermaid">{esc(diagram["mermaid"])}</pre>')
         if diagram.get("caption"):
             parts.append(f'<p class="caption">{esc(diagram["caption"])}</p>')
     elif p.get("structure"):
-        parts.append(f"<h2>Structure</h2><pre><code>{esc(p['structure'])}</code></pre>")
+        parts.append(f"<pre><code>{esc(p['structure'])}</code></pre>")
+    else:
+        parts.append(_empty("No diagram for this pattern."))
+
+    # Section 6 — Components. Falls back to the solution prose, which usually
+    # names the participants when an explicit components[] list is missing.
+    parts.append(_section_header(6, "Components"))
+    components = p.get("components") or []
+    if components:
+        parts.append(_ul(components))
+    elif p.get("solution"):
+        parts.append(f"<p>{esc(p['solution'])}</p>")
+    else:
+        parts.append(_empty("Components not yet enumerated."))
+
+    # Section 7 — Tools.
+    parts.append(_section_header(7, "Tools"))
+    tools = p.get("tools") or []
+    if tools:
+        parts.append(_ul(tools))
+    else:
+        parts.append(_empty("No tool dependencies declared for this pattern."))
+
+    # Section 8 — Guardrails (constrains as the headline + therefore as the design
+    # move + any secondary guardrails[]).
+    parts.append(_section_header(8, "Guardrails"))
+    if p.get("constrains"):
+        parts.append(f'<div class="constrains">{esc(p["constrains"])}</div>')
+    if p.get("therefore"):
+        parts.append(f"<p>{esc(p['therefore'])}</p>")
+    if p.get("guardrails"):
+        parts.append(_ul(p["guardrails"]))
+    if not (p.get("constrains") or p.get("therefore") or p.get("guardrails")):
+        parts.append(_empty("No guardrails declared."))
+
+    # Section 9 — Failure Modes (consequences.liabilities + explicit failure_modes[]).
+    parts.append(_section_header(9, "Failure Modes"))
+    fm = list(p.get("failure_modes") or [])
+    fm.extend(consequences.get("liabilities") or [])
+    if fm:
+        parts.append(_ul(fm))
+    else:
+        parts.append(_empty("Failure modes not yet catalogued."))
+
+    # Section 10 — Evaluation Metrics.
+    parts.append(_section_header(10, "Evaluation Metrics"))
+    metrics = p.get("evaluation_metrics") or []
+    if metrics:
+        parts.append(_ul(metrics))
+    else:
+        parts.append(_empty("Evaluation metrics not yet defined."))
+
+    # Section 11 — Code Examples (tabbed: pseudo + one tab per framework).
+    parts.append(_section_header(11, "Code Examples"))
+    examples_entry = (examples_by_id or {}).get(p["id"])
+    parts.append(render_examples_section(p["id"], examples_entry))
+    examples_present = bool(examples_entry and examples_entry.get("examples"))
+
+    # Appendix — kept for completeness but visually de-emphasised. These are
+    # canonical-data slots (benefits, variants, known uses, related, refs) that
+    # don't belong in the 10-section reader view but matter for cross-linking.
+    parts.append('<div class="appendix">')
+
+    benefits = consequences.get("benefits") or []
+    if benefits:
+        parts.append("<h2>Expected benefits</h2>")
+        parts.append(_ul(benefits))
 
     variants = p.get("variants") or []
     if variants:
@@ -156,53 +395,20 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
                 else:
                     parts.append(f'<p class="meta">See also: <code>{esc(sa)}</code></p>')
 
-    if applicability.get("use_when") or applicability.get("do_not_use_when"):
-        parts.append("<h2>Applicability</h2>")
-        if applicability.get("use_when"):
-            parts.append("<h3>Use when</h3><ul class='bullets'>")
-            for b in applicability["use_when"]:
-                parts.append(f"<li>{esc(b)}</li>")
-            parts.append("</ul>")
-        if applicability.get("do_not_use_when"):
-            parts.append("<h3>Do not use when</h3><ul class='bullets'>")
-            for b in applicability["do_not_use_when"]:
-                parts.append(f"<li>{esc(b)}</li>")
-            parts.append("</ul>")
-
-    if p.get("constrains"):
-        parts.append("<h2>Constrains</h2>")
-        parts.append(f'<div class="constrains">{esc(p["constrains"])}</div>')
-
-    if consequences.get("benefits") or consequences.get("liabilities"):
-        parts.append("<h2>Consequences</h2>")
-        if consequences.get("benefits"):
-            parts.append("<h3>Benefits</h3><ul class='bullets'>")
-            for b in consequences["benefits"]:
-                parts.append(f"<li>{esc(b)}</li>")
-            parts.append("</ul>")
-        if consequences.get("liabilities"):
-            parts.append("<h3>Liabilities</h3><ul class='bullets'>")
-            for b in consequences["liabilities"]:
-                parts.append(f"<li>{esc(b)}</li>")
-            parts.append("</ul>")
-
     known = p.get("known_uses") or []
     if known:
-        parts.append("<h2>Known Uses</h2><ul class='bullets'>")
+        parts.append("<h2>Known uses</h2><ul class='bullets'>")
         for k in known:
             sys_name = esc(k.get("system", ""))
             note = f" — {esc(k['note'])}" if k.get("note") else ""
             url = k.get("url")
-            if url:
-                sys_html = f'<a href="{esc(url)}" rel="noopener">{sys_name}</a>'
-            else:
-                sys_html = sys_name
+            sys_html = f'<a href="{esc(url)}" rel="noopener">{sys_name}</a>' if url else sys_name
             parts.append(f"<li>{sys_html}{note}</li>")
         parts.append("</ul>")
 
     related = p.get("related") or []
     if related:
-        parts.append("<h2>Related Patterns</h2><ul class='bullets'>")
+        parts.append("<h2>Related patterns</h2><ul class='bullets'>")
         for r in related:
             tgt = r.get("pattern", "")
             rel = r.get("relation", "")
@@ -223,15 +429,19 @@ def render_pattern(p: dict, all_ids: set[str]) -> str:
             authors = f" — {esc(r['authors'])}" if r.get("authors") else ""
             year = f" ({r['year']})" if r.get("year") else ""
             type_tag = f' <span class="tag">{esc(r.get("type",""))}</span>'
-            if url:
-                title_html = f'<a href="{esc(url)}" rel="noopener">{title}</a>'
-            else:
-                title_html = title
+            title_html = f'<a href="{esc(url)}" rel="noopener">{title}</a>' if url else title
             parts.append(f"<li>{title_html}{authors}{year}{type_tag}</li>")
         parts.append("</ul>")
 
+    parts.append("</div>")  # /appendix
+
     body = "\n".join(parts)
-    return page(name, body, with_mermaid=bool(diagram))
+    return page(
+        name,
+        body,
+        with_mermaid=bool(diagram),
+        with_examples_tabs=examples_present,
+    )
 
 
 def render_pattern_index(patterns: list[dict]) -> str:
@@ -321,14 +531,21 @@ def main(out_dir: Path) -> None:
     patterns.sort(key=lambda p: (p["category"], p["id"]))
     all_ids = {p["id"] for p in patterns}
 
+    examples_by_id = load_examples()
+
     pat_dir = out_dir / "patterns"
     pat_dir.mkdir(parents=True, exist_ok=True)
 
     n_diagrams = 0
+    n_with_examples = 0
     for p in patterns:
         if p.get("diagram"):
             n_diagrams += 1
-        (pat_dir / f"{p['id']}.html").write_text(render_pattern(p, all_ids))
+        if p["id"] in examples_by_id:
+            n_with_examples += 1
+        (pat_dir / f"{p['id']}.html").write_text(
+            render_pattern(p, all_ids, examples_by_id)
+        )
 
     (pat_dir / "index.html").write_text(render_pattern_index(patterns))
 
@@ -346,7 +563,11 @@ def main(out_dir: Path) -> None:
         fw_dir.mkdir(parents=True, exist_ok=True)
         (fw_dir / "index.html").write_text(render_framework_index(cov, all_ids))
 
-    print(f"rendered {len(patterns)} pattern pages ({n_diagrams} with diagrams), recipe index, framework index")
+    print(
+        f"rendered {len(patterns)} pattern pages "
+        f"({n_diagrams} with diagrams, {n_with_examples} with code examples), "
+        "recipe index, framework index"
+    )
 
 
 if __name__ == "__main__":

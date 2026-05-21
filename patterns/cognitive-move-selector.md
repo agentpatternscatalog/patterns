@@ -11,11 +11,11 @@ Restrict idle-tick cognition to a small agent-vetted menu of named cognitive mov
 
 ## Context
 
-Long-running agents with frequent idle ticks where no user prompt is incoming. Without structure, idle thinking either repeats yesterday's reasoning, lapses into performance, or wanders into the training-distribution prior.
+A team is running an agent that ticks continuously, including during long stretches with no user prompt to respond to. On those idle ticks the agent is supposed to be doing something useful — noticing things, following up on open questions, integrating recent material — rather than waiting passively. The free-form prompt 'keep thinking' is the easy default, but it gives the model no structure for what kind of thinking is wanted right now.
 
 ## Problem
 
-Free-form idle cognition tends to repetition, performance, or randomness. The model has no menu to choose from, so it defaults to whatever the prior favours — usually narration about thinking rather than actual thought.
+When idle-tick cognition has no shape imposed on it, the model falls back on whatever its training prior favours, which is usually narration about thinking rather than actual new thought. The agent ends up repeating yesterday's observations, performing thoughtfulness for an imagined reader, or drifting into mid-distance commentary that produces no new state. Without a small set of named cognitive moves to pick from, every idle tick collapses toward the same generic completion.
 
 ## Forces
 

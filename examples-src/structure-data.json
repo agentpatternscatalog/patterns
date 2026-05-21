@@ -1,0 +1,175 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "structure-data",
+  "label": "Structure & Data",
+  "patterns": [
+    {
+      "pattern_id": "code-switching-aware-agent",
+      "intent": "Show the three-part discipline — script-agnostic tokenisation, per-clause language tagging, and tag-driven slot extraction — that lets a single pipeline handle mixed-language input without forcing the user to pick one language.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: tokenise script-agnostically, tag language per clause, extract slots without forcing a single language.",
+          "code": "function handle(utterance):\n    # 1. Script-agnostic tokenisation: do NOT assume one script per turn.\n    tokens = unicode_tokenise(utterance)        # Latin + Devanagari + ...\n\n    # 2. Clause-level language detection (NOT utterance-level).\n    clauses = split_into_clauses(tokens)\n    tagged  = []\n    for clause in clauses:\n        lang = detect_language(clause)          # e.g. \"en\", \"hi-Latn\", \"hi\"\n        tagged.append({clause: clause, lang: lang})\n\n    # 3. Mixed-script aware slot extraction over tagged spans.\n    slots = []\n    for span in tagged:\n        slots.extend(extract_entities(span.clause, lang=span.lang))\n\n    # 4. Normalise AFTER extraction, not before — preserve original script\n    #    so we don't lose place names, names, idioms.\n    normalised = [normalise(s) for s in slots]\n\n    # 5. Route to the tool using the normalised slots; reply in the user's mix.\n    return tool_call(intent=infer_intent(tagged), slots=normalised)\n\n# Invariant: never reject or downgrade input because it mixes languages\n# or scripts. Mixed-language input is the expected shape, not an error.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dspy-signatures",
+      "intent": "Show declarative typed signatures compiled into prompts: pseudo skeleton plus the canonical DSPy class-and-string forms with a metric-driven optimiser.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: declare typed signature, wrap in a module, compile against a metric.",
+          "code": "# 1. Declare each step as a typed input/output signature.\nsignature Summarise:\n    inputs:  { article: str }\n    outputs: { summary: str }\n    docstring: \"Summarise an article in two sentences.\"\n\n# 2. Compose signatures into a module (forward = call the LM).\nmodule SummariseModule(signature=Summarise):\n    def forward(article):\n        return predict(self.signature, article=article)\n\n# 3. Drive compilation with a metric over a labelled trainset.\nmetric    = rouge_or_human_score\ntrainset  = load_labelled_examples()\n\n# 4. Teleprompter generates few-shot demos + tunes instructions.\ncompiled  = teleprompter.compile(\n    module=SummariseModule,\n    trainset=trainset,\n    metric=metric,                  # drives the search\n    max_demos=8,\n)\n\n# 5. Compiled artefact replaces the hand-tuned prompt.\nresult = compiled(article=\"...\")    # prompts are now a build output.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "Class-based dspy.Signature with typed InputField / OutputField, wrapped in dspy.ChainOfThought; the typed signature is what the optimiser compiles against.",
+          "source_url": "https://dspy.ai/learn/programming/signatures/",
+          "sdk_version": "dspy>=2.5",
+          "code": "import dspy\nfrom typing import Literal\n\n\n# 1. Declare the typed signature. The docstring is part of the contract;\n#    InputField / OutputField carry typed semantics the compiler reads.\nclass ClassifyEmotion(dspy.Signature):\n    \"\"\"Classify the emotion expressed in a sentence.\"\"\"\n\n    sentence: str = dspy.InputField()\n    sentiment: Literal[\n        \"sadness\", \"joy\", \"love\", \"anger\", \"fear\", \"surprise\"\n    ] = dspy.OutputField()\n\n\n# 2. Wrap in a module. ChainOfThought adds a `reasoning` output field\n#    automatically; Predict would be the plain form.\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\nclassify = dspy.ChainOfThought(ClassifyEmotion)\n\n# 3. Call it. No hand-tuned prompt string anywhere; DSPy renders the\n#    prompt from the signature + any compiled few-shot demos.\nresult = classify(sentence=\"i started feeling vulnerable\")\nprint(result.sentiment)   # 'fear'\nprint(result.reasoning)   # extra CoT field\n\n# 4. To compile against a metric, you would build a trainset of\n#    dspy.Example(sentence=..., sentiment=...) and pass it through\n#    a teleprompter such as dspy.BootstrapFewShot(metric=acc).compile(\n#        student=classify, trainset=trainset).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "polymorphic-record",
+      "intent": "Show core schema + discriminator + namespaced extension blocks: forward-compatible representation of a family of related entities where old clients still read shared fields and round-trip unknown sub-types.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: discriminator chooses sub-type validator; sub-type fields live under a namespaced extension block.",
+          "code": "# Core schema: shared fields + discriminator. Sub-type fields are NOT\n# at the top level — they live under a namespaced extension block.\nschema Record:\n    id:            string\n    supplier:      string\n    lead_time_days: int\n    material_type: enum { yarn, fabric, trim }   # discriminator\n    yarn:    optional YarnExt        # only populated when type=yarn\n    fabric:  optional FabricExt      # only populated when type=fabric\n    trim:    optional TrimExt        # only populated when type=trim\n\nschema YarnExt:   { weight: float, fibre: string }\nschema FabricExt: { width_cm: float, weave: string }\nschema TrimExt:   { attachment: string }\n\nfunction validate(record):\n    require(record.material_type in {yarn, fabric, trim})\n    ext_block = record[record.material_type]              # by discriminator\n    require(ext_block != null, \"missing extension for sub-type\")\n    require_only_one_extension(record)                    # no cross-pollution\n    return validators[record.material_type](ext_block)    # per-sub-type rules\n\nfunction read_by_old_client(record):\n    # Old client knows yarn + fabric, not trim. It still reads shared\n    # fields and round-trips unknown extensions losslessly.\n    if record.material_type not in known_types:\n        return CoreView(record)         # core fields + opaque extension\n    return validators[record.material_type](record)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-response-optimiser",
+      "intent": "Show the runtime template loop: pull a template from a registry, refine the user's prompt on the way in, post-process the model's response on the way out — so the model and downstream consumers see template-conformant shapes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: template registry, prompt refinement on input, response shaping on output.",
+          "code": "# Registry of templates keyed by task. Each template carries the\n# few-shot frame, format constraints, and the goal restatement.\ntemplate_registry = {\n    \"onboarding-qa\": {\n        frame:        \"Answer using ONLY the company policy below.\",\n        few_shot:     [...],\n        output_shape: { answer: str, citation: str },\n    },\n    ...\n}\n\nfunction handle(user_input, task_id):\n    template = template_registry[task_id]\n\n    # 1. Prompt optimiser: refine user input against the template.\n    refined_prompt = template.frame\n                   + restate_goal(user_input)\n                   + render_few_shot(template.few_shot)\n                   + \"User: \" + user_input\n\n    # 2. Model sees only the template-conformant shape.\n    raw_response = llm.generate(refined_prompt)\n\n    # 3. Response optimiser: coerce model output into the consumer shape.\n    shaped = coerce_to(raw_response, template.output_shape)\n    validate(shaped, template.output_shape)\n\n    return shaped                       # downstream consumer sees predictable shape\n\n# Invariants:\n#   - raw user wording does NOT propagate to the model unaltered.\n#   - raw model output does NOT propagate to consumers unaltered.\n#   - templates are versioned independently of agent logic.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "schema-extensibility",
+      "intent": "Show the versioned envelope + namespaced extensions discipline: pseudo skeleton plus the canonical Pydantic BaseIOSchema subclassing form that lets new fields ship without breaking old readers.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: versioned envelope, reserved extension namespace, schema_version is the only breaking-change signal.",
+          "code": "# Wrap every payload in a versioned envelope. The envelope is the\n# contract; the payload may evolve. Reserved namespaces hold extensions\n# that older readers don't know about.\nschema Envelope:\n    schema_version: string         # e.g. \"1.3\"   — the only break signal\n    type:           string         # e.g. \"order\", \"event\"\n    payload:        object         # the typed body for this version\n    extensions:     map<string, any>?   # namespaced: \"x-vendor.foo\", ...\n\nfunction write(payload, type, extensions={}):\n    return {\n        schema_version: CURRENT_VERSION,\n        type:           type,\n        payload:        payload,\n        extensions:     namespaced_only(extensions, prefix=\"x-\"),\n    }\n\nfunction read(envelope):\n    # Old client rule: if schema_version's MAJOR matches what we know,\n    # treat unknown fields and extensions as opaque and round-trip them.\n    if major(envelope.schema_version) > MAX_KNOWN_MAJOR:\n        raise IncompatibleSchemaError\n    known   = pick_known_fields(envelope.payload)\n    unknown = envelope.payload \\ known          # round-trip on write-back\n    return View(known, opaque=unknown, extensions=envelope.extensions)\n\n# Discipline:\n#   - Adding a field inside payload is non-breaking; old readers ignore it.\n#   - Adding a new x-vendor.* extension is non-breaking by construction.\n#   - Changing field semantics or removing fields => schema_version bump.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "atomic-agents",
+          "framework_label": "Atomic Agents",
+          "language": "python",
+          "intent": "BaseIOSchema subclassing: old clients keep using the base schema; new clients add fields via subclasses without breaking the contract.",
+          "source_url": "https://github.com/BrainBlend-AI/atomic-agents",
+          "sdk_version": "atomic-agents>=1.0",
+          "code": "from pydantic import Field\nfrom atomic_agents import BaseIOSchema\n\n\n# v1 contract. Old agents and old clients are pinned to this shape.\nclass AnswerSchema(BaseIOSchema):\n    \"\"\"Agent answer payload, v1.\"\"\"\n\n    answer: str = Field(\n        ..., description=\"The answer text returned to the user.\"\n    )\n    citations: list[str] = Field(\n        default_factory=list,\n        description=\"URLs or doc ids supporting the answer.\",\n    )\n\n\n# v1.1 extension. Inherits every field of AnswerSchema, ADDS new ones.\n# Readers wired to AnswerSchema keep working: Pydantic ignores unknown\n# inputs by default, and the extra fields round-trip when an\n# AnswerSchemaV11-aware reader reconstructs the object.\nclass AnswerSchemaV11(AnswerSchema):\n    \"\"\"Agent answer payload, v1.1 — adds confidence + provenance.\"\"\"\n\n    confidence: float = Field(\n        default=0.0,\n        ge=0.0,\n        le=1.0,\n        description=\"Model-reported confidence in [0, 1].\",\n    )\n    provenance: dict[str, str] = Field(\n        default_factory=dict,\n        description=\"Free-form provenance map; vendor-namespaced keys only.\",\n    )\n\n\n# A new agent emits v1.1; an old downstream parser pinned to v1 still\n# reads `answer` and `citations` and ignores the rest. Removing or\n# retyping `answer` would be the breaking change — bump major then.\npayload = AnswerSchemaV11(\n    answer=\"Yes, the office is closed on Friday.\",\n    citations=[\"hr-policy#holidays\"],\n    confidence=0.92,\n    provenance={\"x-vendor.source\": \"hr-policy-v3\"},\n)\nprint(payload.model_dump())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "structured-output",
+      "intent": "Show schema-constrained generation in pseudo-code and in four Python frameworks that pass the schema to the provider's constrained-decoding mode and validate-and-retry on failure.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: hand schema to provider, validate, retry with bounded cap.",
+          "code": "function generate_typed(prompt, schema, max_retries=2):\n    last_error = null\n    for attempt in 1..max_retries+1:\n        raw = llm.generate(\n            prompt=prompt,\n            response_format=schema,        # provider constrained-decoding\n            repair_hint=last_error,        # null on first attempt\n        )\n        try:\n            return schema.validate(raw)    # typed object\n        except ValidationError as e:\n            last_error = e.message         # feed back to next attempt\n\n    raise SchemaError(\"output did not validate after retries\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "create_agent with a Pydantic response_format; structured result lands in result['structured_response'].",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/structured-output",
+          "sdk_version": "langchain>=1.0",
+          "code": "from pydantic import BaseModel, Field\nfrom langchain.agents import create_agent\n\n\nclass ContactInfo(BaseModel):\n    \"\"\"Contact information for a person.\"\"\"\n\n    name: str = Field(description=\"Full name of the person\")\n    email: str = Field(description=\"Email address\")\n    phone: str = Field(description=\"Phone number, any format\")\n\n\nagent = create_agent(\n    model=\"gpt-4o-mini\",\n    response_format=ContactInfo,\n)\n\nresult = agent.invoke(\n    {\n        \"messages\": [\n            {\n                \"role\": \"user\",\n                \"content\": \"Extract: John Doe, john@example.com, (555) 123-4567\",\n            }\n        ]\n    }\n)\n\ncontact: ContactInfo = result[\"structured_response\"]\nprint(contact.name, contact.email, contact.phone)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "Wrap the LLM with as_structured_llm(Pydantic) so every completion is coerced to the typed shape.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/understanding/extraction/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from datetime import datetime\nfrom pydantic import BaseModel, Field\nfrom llama_index.core.llms import ChatMessage\nfrom llama_index.llms.openai import OpenAI\n\n\nclass LineItem(BaseModel):\n    item_name: str = Field(description=\"Name of this item\")\n    price: float = Field(description=\"Price of this item\")\n\n\nclass Invoice(BaseModel):\n    invoice_id: str = Field(description=\"Unique invoice identifier\")\n    date: datetime = Field(description=\"Date the invoice was issued\")\n    line_items: list[LineItem] = Field(description=\"All items on the invoice\")\n\n\nllm = OpenAI(model=\"gpt-4o-mini\")\nstructured_llm = llm.as_structured_llm(Invoice)\n\nresponse = structured_llm.chat(\n    [ChatMessage(role=\"user\", content=\"Extract the invoice from this email...\")]\n)\ninvoice: Invoice = response.raw  # typed Pydantic instance\nprint(invoice.invoice_id, len(invoice.line_items))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Agent declares output_type=Pydantic; Runner.run returns a typed final_output, no parsing.",
+          "source_url": "https://openai.github.io/openai-agents-python/agents/",
+          "sdk_version": "openai-agents>=0.1",
+          "code": "import asyncio\nfrom pydantic import BaseModel\nfrom agents import Agent, Runner\n\n\nclass CalendarEvent(BaseModel):\n    name: str\n    date: str\n    participants: list[str]\n\n\nagent = Agent(\n    name=\"Calendar extractor\",\n    instructions=\"Extract a single calendar event from the user's text.\",\n    output_type=CalendarEvent,\n)\n\n\nasync def main():\n    result = await Runner.run(\n        agent,\n        \"Lunch with Sam and Priya on Friday at 12:30.\",\n    )\n    event: CalendarEvent = result.final_output\n    print(event.name, event.date, event.participants)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "instructor",
+          "framework_label": "Instructor",
+          "language": "python",
+          "intent": "Wrap the provider client with instructor.from_provider; response_model drives validate-and-retry under the hood.",
+          "source_url": "https://python.useinstructor.com/",
+          "sdk_version": "instructor>=1.0",
+          "code": "import instructor\nfrom pydantic import BaseModel\n\n\nclass Person(BaseModel):\n    name: str\n    age: int\n    occupation: str\n\n\nclient = instructor.from_provider(\"openai/gpt-4o-mini\")\n\nperson: Person = client.create(\n    response_model=Person,\n    max_retries=2,  # Instructor re-prompts on validation failure\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"Extract: John is a 30-year-old software engineer.\",\n        }\n    ],\n)\nprint(person.name, person.age, person.occupation)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

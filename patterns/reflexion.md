@@ -11,11 +11,11 @@ Have the agent write linguistic lessons from past failures and consult them in f
 
 ## Context
 
-The same agent attempts similar tasks repeatedly; without memory across attempts, mistakes recur.
+A team operates an agent that attempts many similar tasks over time, such as a coding agent solving one programming problem after another or a research assistant answering successive user queries on related topics. Each task is a separate episode and the agent forgets everything between them. The team would like the agent to get better at the kinds of mistakes it has made before, but they cannot afford to fine-tune model weights with reinforcement learning every time a new failure mode shows up.
 
 ## Problem
 
-Stateless agents repeat the same errors; full RL fine-tuning is too expensive for most settings.
+A stateless agent repeats the same mistakes across episodes because it has no memory of having made them before. The information about what went wrong last time exists, briefly, at the end of the last episode and is then thrown away with the conversation. Full reinforcement learning would in principle close the loop but is too expensive to run per failure for most teams, and changing weights is irreversible in ways that small everyday corrections do not warrant. The team needs a way to carry lessons from one episode to the next without touching model weights, but a naive 'remember everything' store quickly accumulates noise that misguides future runs more than it helps.
 
 ## Forces
 
@@ -52,7 +52,7 @@ An agent solving programming-contest problems repeatedly trips over off-by-one i
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Ep[Episode] --> R[Reflect:<br/>verbal lesson]
   R --> M[(Long-term memory<br/>keyed by task type)]
   Q[New episode] --> Ret[Retrieve lessons]

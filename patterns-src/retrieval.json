@@ -10,8 +10,8 @@
       ],
       "category": "retrieval",
       "intent": "Replace static retrieve-then-generate with autonomous agents that plan, choose sources, retrieve iteratively, reflect, and re-query.",
-      "context": "Multi-hop, ambiguous, or evolving information needs where single-shot retrieval is insufficient.",
-      "problem": "Naive RAG cannot decide whether to retrieve, which source to use, when to stop retrieving, or how to recover from poor retrievals.",
+      "context": "A team is building a retrieval-augmented system to answer user questions over a corpus, but the questions are not all of one kind. Some are multi-hop, where the answer depends on facts from two or three different documents combined. Some are ambiguous, where the question itself does not pin down what is being asked. And the corpus or the user's information need is evolving over time. A single retrieve-once, generate-once pipeline cannot serve all of these reliably.",
+      "problem": "Naive retrieval-augmented generation runs one retrieval per question and feeds the top chunks straight into the generator. It cannot decide whether retrieval is even needed for a given question, cannot choose between several available sources, cannot tell when it has gathered enough evidence to stop, and has no path to recover when the retrieval comes back with poor or irrelevant chunks. Easy questions get pointless retrieval calls, multi-hop questions get partial answers, and bad retrievals quietly corrupt the output.",
       "forces": [
         "Agentic loops cost more than single-shot retrieval.",
         "Source selection requires capability descriptions.",
@@ -162,8 +162,8 @@
       ],
       "category": "retrieval",
       "intent": "Track and surface, alongside a RAG-grounded answer, which retrieved chunks supported which claims, so the binding between answer span and source survives all the way to the user.",
-      "context": "RAG systems where the user must be able to trace any claim back to the retrieved evidence that supports it; compliance, research, and customer-support settings where unsupported claims are not acceptable.",
-      "problem": "Generating citations is not enough — they must be bound to the spans of the answer they support. Free-text citations the model writes are ungrounded (see hallucinated-citations); the binding has to be created by the retrieval pipeline and preserved through generation and delivery.",
+      "context": "A team is shipping a retrieval-augmented system in a compliance, research, or customer-support setting where the user must be able to trace any claim in the answer back to the specific evidence that supports it. Unsupported claims are not an acceptable failure mode; the user needs to click from a sentence in the answer to the exact passage in a source document, and the team needs to be able to defend that link to an auditor.",
+      "problem": "Just asking the model to 'include citations' is not enough. Citations that the model writes freely are ungrounded — they look real but may point to documents that were never retrieved or quote text that does not appear in the source. The binding from a span of the answer to a span of evidence has to be created by the retrieval pipeline and carried through generation and delivery; otherwise the citations cannot be trusted, and the whole audit story collapses.",
       "forces": [
         "The chunk-to-claim binding can be at document, chunk, or span level; finer granularity is more useful but harder.",
         "Models given retrieved context may still fabricate citations to documents that were not retrieved.",
@@ -275,7 +275,7 @@
       "example_scenario": "A legal-research assistant retrieves case excerpts and must produce an analysis where every claim cites the source case. The team assigns each retrieved chunk a stable `chunk_id` and prompts the model to emit a structured output: a list of claims, each with `text` and `supporting_chunk_ids`. A validator rejects any `chunk_id` not in this turn's retrieval registry. The UI renders each claim with footnote-style links to the cited cases. When the model is uncertain it returns fewer claims rather than fabricating citations; the citation-attribution binding is what the auditor checks.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Q[Query] --> R[Retriever]\n  R --> Reg[(Source registry<br/>chunk_id -> chunk)]\n  Reg --> Gen[Generator<br/>emits claims with chunk_ids]\n  Gen --> V{Validator}\n  V -->|all ids known| Ans[Answer with bound citations]\n  V -->|unknown id| Drop[Drop claim / refuse]\n  Ans --> UI[UI renders span-to-source links]"
+        "mermaid": "flowchart TD\n  Q[Query] --> R[Retriever]\n  R --> Reg[(Source registry<br/>chunk_id -> chunk)]\n  Reg --> Gen[Generator<br/>emits claims with chunk_ids]\n  Gen --> V{Validator}\n  V -->|all ids known| Ans[Answer with bound citations]\n  V -->|unknown id| Drop[Drop claim / refuse]\n  Ans --> UI[UI renders span-to-source links]"
       },
       "last_updated": "2026-05-20"
     },
@@ -288,8 +288,8 @@
       ],
       "category": "retrieval",
       "intent": "Prepend a short LLM-generated description to each chunk before embedding so the chunk carries its situating context.",
-      "context": "Chunks that lose context at split boundaries (pronouns, 'the company', time references) embed far from queries that name the entity explicitly.",
-      "problem": "Naive chunking destroys context; queries that name entities by full name miss chunks that refer to them by pronoun.",
+      "context": "A team is using a retrieval-augmented system over a corpus that has been split into small chunks for embedding and indexing. Many of those chunks lose surrounding context at the split boundary: pronouns like 'they' or 'it' no longer have an antecedent in the chunk, references like 'the company' or 'that quarter' drop their referent, and time references become ambiguous. The embeddings of these decontextualised chunks land far from queries that name the entity or time period explicitly.",
+      "problem": "When a user query names an entity by its full name and the corpus chunk that contains the answer only refers to that entity by pronoun, vector search finds the chunk distant and misses it. A naive chunk-and-embed pipeline therefore destroys exactly the context it most needs to preserve, and recall on otherwise-easy queries collapses. The chunks need to carry enough surrounding context that their embeddings stay close to the queries that should retrieve them, without inflating the corpus so much that indexing and retrieval cost become unaffordable.",
       "forces": [
         "An LLM call per chunk is expensive.",
         "Prompt caching of the parent document amortises the cost.",
@@ -385,7 +385,7 @@
       ],
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Doc[Parent document] --> P[LLM: situate chunk]\n  Chunk[Chunk] --> P\n  P --> Pre[Short description]\n  Pre --> J[Prepend to chunk]\n  Chunk --> J\n  J --> E[Embed]\n  J --> BM[Index BM25]"
+        "mermaid": "flowchart TD\n  Doc[Parent document] --> P[LLM: situate chunk]\n  Chunk[Chunk] --> P\n  P --> Pre[Short description]\n  Pre --> J[Prepend to chunk]\n  Chunk --> J\n  J --> E[Embed]\n  J --> BM[Index BM25]"
       },
       "last_updated": "2026-05-20"
     },
@@ -397,8 +397,8 @@
       ],
       "category": "retrieval",
       "intent": "Add a lightweight retrieval evaluator that grades each retrieved document and triggers corrective web search on poor retrievals.",
-      "context": "Production RAG where retrieval quality varies and the system must recover gracefully from low-quality retrievals.",
-      "problem": "Naive RAG passes every retrieval into the generator; bad retrievals corrupt outputs without any correction step.",
+      "context": "A team is running a retrieval-augmented system in production over a corpus where retrieval quality varies request by request. Sometimes the top chunks are exactly right; sometimes they are tangentially related; sometimes they miss the answer entirely. The team cannot guarantee that every query gets a clean retrieval, and the cost of a hallucinated or confidently wrong answer is high enough that they need an explicit recovery path.",
+      "problem": "A naive retrieve-then-generate pipeline passes every retrieval — good or bad — straight into the generator without judging it. When the retrieval is poor, the generator either ignores it and falls back to parametric knowledge that may itself be wrong, or it incorporates it and produces an answer corrupted by irrelevant chunks. Either way, the user sees no signal that the retrieval was weak, and the system has no correction step that could fall back to a web search, refine the query, or refuse to answer when the evidence is insufficient.",
       "forces": [
         "Evaluator quality bounds correction accuracy.",
         "Web fallback adds latency and external dependency.",
@@ -495,8 +495,8 @@
       ],
       "category": "retrieval",
       "intent": "After cheap bi-encoder or BM25 retrieval, rescore top-N candidates with a cross-encoder that jointly attends over (query, candidate).",
-      "context": "Bi-encoders compress query and document independently and lose fine-grained interaction; ANN-search top-k is recall-oriented.",
-      "problem": "Top-k from cheap retrieval contains both relevant and irrelevant candidates; the generator wastes context on the latter.",
+      "context": "A team is using a two-stage retrieval pipeline. The first stage is a fast bi-encoder that embeds the query and each document independently and compares their vectors; an approximate nearest-neighbour index returns a top-k candidate set from a large corpus. Because the encoder sees query and document separately, it cannot model fine-grained interactions between them, and because the index is tuned for recall, the top-k list mixes truly relevant candidates with topically similar but unhelpful ones.",
+      "problem": "Feeding the entire top-k list into the downstream generator wastes its context window on irrelevant candidates and lets the loudest distractor mislead the answer. The team needs a way to re-order or filter the candidate set so that the most relevant items rise to the top, but they cannot afford to run a heavy joint scoring model over the whole corpus on every query. They need a small but expensive scorer that runs only over the cheap retriever's shortlist and resorts it by genuine query-document relevance.",
       "forces": [
         "Cross-encoder cost is one model call per candidate.",
         "Latency budget caps N (typically 20-100).",
@@ -580,7 +580,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Q[Query] --> Retr[Bi-encoder retrieval, top-100]\n  Retr --> CE[Cross-encoder scores query against each candidate]\n  CE --> Rank[Rerank by score]\n  Rank --> Top[Top-5 to LLM]",
+        "mermaid": "flowchart TD\n  Q[Query] --> Retr[Bi-encoder retrieval, top-100]\n  Retr --> CE[Cross-encoder scores query against each candidate]\n  CE --> Rank[Rerank by score]\n  Rank --> Top[Top-5 to LLM]",
         "caption": "Cross-Encoder Reranking trades inference cost for sharper top-k by scoring each candidate against the query directly."
       },
       "example_scenario": "A legal-research agent retrieves 100 candidate paragraphs from a corpus of contracts that mention 'force majeure'. Many are off-topic. Before showing them to the LLM, a small cross-encoder model scores each candidate against the user's exact question, picks the top 5, and discards the rest. The LLM only ever reads the sharpest results.",
@@ -615,8 +615,8 @@
       ],
       "category": "retrieval",
       "intent": "Build an LLM-extracted entity-and-relation knowledge graph plus hierarchical community summaries, then answer global queries via map-reduce over those summaries.",
-      "context": "Sensemaking and corpus-level questions ('what are the main themes?') that naive top-k retrieval cannot answer because they require seeing the whole.",
-      "problem": "Naive RAG retrieves local chunks and cannot answer global queries; chunk-level retrieval is mismatched to corpus-level questions.",
+      "context": "A team is using a retrieval-augmented system over a large corpus and starts receiving questions about the corpus as a whole rather than individual facts in it: 'what are the main themes in these reports?', 'how does this position evolve across the documents?', 'which entities are central to the discussion?' These are corpus-level sensemaking queries, not local lookup queries, and they arrive alongside the easier fact-style questions.",
+      "problem": "Naive retrieval pulls the top-k chunks for each query, which is fine for local lookup but cannot answer questions about the whole corpus. The answer to 'what are the main themes?' does not live in any single chunk; it requires seeing how chunks connect, what entities recur across them, and how communities of related content cluster. Without a representation that captures corpus-level structure — entities, relations, communities — chunk-level retrieval is mismatched to corpus-level questions, and the system returns confidently wrong, partial summaries that the user has no easy way to spot.",
       "forces": [
         "Indexing cost is high (LLM calls per entity, relation, community).",
         "Graph quality depends on extraction prompts.",
@@ -713,8 +713,8 @@
       ],
       "category": "retrieval",
       "intent": "Combine sparse lexical retrieval (BM25) with dense vector retrieval and fuse the results.",
-      "context": "Queries vary: some are keyword-matchable (exact identifiers, names), others are semantic; pure dense or pure sparse retrieval misses one or the other.",
-      "problem": "Dense retrieval misses exact matches; sparse retrieval misses paraphrase. Each alone leaves recall on the table.",
+      "context": "A team is running a retrieval pipeline over a corpus where the user queries fall into two very different shapes. Some queries are short and exact, hinging on matching specific identifiers, product codes, person names, or technical terms verbatim. Other queries are longer and rely on semantic similarity between paraphrased ideas, where the surface vocabulary may differ between query and source. A single retrieval method serves only one of these well.",
+      "problem": "Dense vector retrieval handles paraphrase and semantic similarity but misses queries that hinge on an exact identifier the embedding has flattened away. Sparse keyword retrieval — BM25 and similar lexical methods — handles exact terms but misses paraphrased queries whose vocabulary does not overlap with the source text. Picking either method alone means leaving recall on the table for whichever query shape was not chosen, and no downstream re-ranking stage can rescue a chunk that was never retrieved in the first place.",
       "forces": [
         "Score fusion (RRF, weighted sum, learned) is a design choice.",
         "Two indexes mean two pipelines to maintain.",
@@ -786,7 +786,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Q[Query] --> S[Sparse retrieval BM25]\n  Q --> D[Dense retrieval embeddings]\n  S --> F[Fusion / Reciprocal Rank Fusion]\n  D --> F\n  F --> R[Top-k results]",
+        "mermaid": "flowchart TD\n  Q[Query] --> S[Sparse retrieval BM25]\n  Q --> D[Dense retrieval embeddings]\n  S --> F[Fusion / Reciprocal Rank Fusion]\n  D --> F\n  F --> R[Top-k results]",
         "caption": "Hybrid Search runs sparse and dense retrievers in parallel and fuses their rankings before downstream stages."
       },
       "example_scenario": "A coding-assistant searches its codebase for 'how do we authenticate with Stripe?' Pure semantic search misses files that mention 'stripe-api-key' verbatim; pure keyword search misses files that talk about 'payment processor authentication'. Hybrid search runs both at once: a keyword scorer catches the exact tokens, an embedding scorer catches the conceptual matches, and a fusion step blends the two ranked lists.",
@@ -820,8 +820,8 @@
       ],
       "category": "retrieval",
       "intent": "Have the LLM write a hypothetical answer document, embed it, and use it as the retrieval query.",
-      "context": "Short or underspecified queries embed far from long-form passages in dense vector space; supervised relevance data is absent.",
-      "problem": "Query-document length and style asymmetry hurts dense retrieval recall on short queries.",
+      "context": "A team is using dense vector retrieval to find documents that match user queries, but the queries are short and underspecified — often a few words — while the passages in the corpus are long, well-formed, and written in a different style. The team also does not have labelled query-document relevance pairs that would let them train a query encoder to bridge the asymmetry.",
+      "problem": "Short queries embed far from long-form passages in the dense vector space because their length and style differ so much from the source text. Without supervised relevance pairs, the team cannot fine-tune a query encoder to close this gap, and zero-shot dense retrieval recall on short queries stays poor. They need a way to translate the user's short query into something that lives in the same neighbourhood of the embedding space as the target passages, using only the resources they already have on hand.",
       "forces": [
         "Hallucinated documents that miss the topic redirect retrieval badly.",
         "Adds an LLM call per query.",
@@ -913,8 +913,8 @@
       ],
       "category": "retrieval",
       "intent": "Condition the generator on top-k chunks retrieved from an external dense index so knowledge lives outside parameters.",
-      "context": "The agent needs information that lives in a corpus too large to fit in context, and that may change without retraining.",
-      "problem": "Parametric LMs hallucinate, cannot cite, and cannot be updated without retraining; query-time external knowledge is needed.",
+      "context": "A team needs a model to answer questions whose answers depend on information that lives in a corpus too large to fit into the prompt — internal documentation, a knowledge base, a product catalogue, recent news, a body of research papers. The corpus also changes regularly, faster than retraining the base model would allow, so any answers based on the model's training data alone will go stale or be missing entirely.",
+      "problem": "A bare language model has no access to information beyond what is baked into its weights, and any attempt to answer from parametric memory alone tends to hallucinate plausible-sounding answers, cannot cite a source, and cannot be updated without retraining. The team needs the model to pull relevant external knowledge in at query time, but doing so requires deciding how to chunk the corpus, how to index it, what to retrieve per query, and how to feed it into the prompt. Without that retrieval machinery, the model is stuck with what it already knew at training time.",
       "forces": [
         "Chunk size trades context loss for retrieval recall.",
         "Embedding choice constrains retrieval quality.",
@@ -1059,7 +1059,7 @@
       "example_scenario": "A startup ships a support assistant whose knowledge changes weekly — release notes, pricing, integration guides. Bake-it-into-the-prompt does not scale and fine-tuning on every release is impractical. They adopt naive-rag: chunk the docs, embed with a dense encoder, index, and at query time retrieve top-k and prepend to the prompt. The pipeline is the simplest possible and ships in a week. Knowledge updates now flow by re-indexing the docs, not by retraining or redeploying the model.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  C[Corpus] -->|chunk + embed| I[(Vector index)]\n  Q[Query] -->|embed| E[Query vector]\n  E -->|top-k| I\n  I -->|chunks| P[Prompt]\n  Q --> P\n  P --> G[Generator LLM]\n  G --> A[Answer]"
+        "mermaid": "flowchart TD\n  C[Corpus] -->|chunk + embed| I[(Vector index)]\n  Q[Query] -->|embed| E[Query vector]\n  E -->|top-k| I\n  I -->|chunks| P[Prompt]\n  Q --> P\n  P --> G[Generator LLM]\n  G --> A[Answer]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1072,8 +1072,8 @@
       ],
       "category": "retrieval",
       "intent": "Train the model to ignore irrelevant retrieved documents (distractors) in a domain-specific RAG setting.",
-      "context": "Domain-specific RAG where retrieval inevitably mixes relevant and irrelevant documents; the off-the-shelf model is over-confident on distractors.",
-      "problem": "Generic RAG models are fooled by topically-similar distractors; the answer drifts to the loudest irrelevant source.",
+      "context": "A team is using retrieval-augmented generation in a specific domain and has observed that retrieval almost always returns a mix of documents. Some of the retrieved chunks are genuinely relevant to the user's query; others are topically similar distractors that share keywords or themes but do not actually answer the question. An off-the-shelf retrieval-augmented model attends to all of these chunks and is over-confident on the distractors that look plausible at a glance.",
+      "problem": "Generic models trained on broadly relevant retrievals have not been taught to be sceptical of plausible-looking distractors in their context. When the retrieval mixes one relevant document with two or three convincing distractors, the model's answer drifts towards the loudest irrelevant source, often quoting it directly back at the user. The team needs the model to learn, during fine-tuning, how to ignore distractors in its context window and rely only on the truly relevant documents when those exist — and the team needs to do this with a training procedure that simulates the real retrieval mix rather than assuming clean inputs.",
       "forces": [
         "Training data construction (oracle docs + distractors) is its own pipeline.",
         "Domain shift between training and serving distractors.",
@@ -1152,7 +1152,7 @@
       ],
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]\n  Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]\n  FT --> RAG[RAG inference]\n  Q[Query] --> RAG\n  RAG --> A[Answer with<br/>citation discipline]"
+        "mermaid": "flowchart TD\n  D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]\n  Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]\n  FT --> RAG[RAG inference]\n  Q[Query] --> RAG\n  RAG --> A[Answer with<br/>citation discipline]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1164,8 +1164,8 @@
       ],
       "category": "retrieval",
       "intent": "Fine-tune the model to emit reflection tokens that decide when to retrieve, evaluate retrieved relevance, and assess generated support.",
-      "context": "Retrieval-augmented generation where the model needs to reason about whether to retrieve, whether retrieved evidence is relevant, and whether the generation is supported.",
-      "problem": "Static retrieve-then-generate retrieves regardless of need and generates regardless of evidence quality; both wastes calls and admits hallucination.",
+      "context": "A team is building a retrieval-augmented system where retrieval is not always the right thing to do. Some queries are easy and can be answered from the model's parametric knowledge; others genuinely require fresh evidence from the corpus. Even when retrieval happens, the chunks returned may not be relevant, and even when they are relevant, the final generation may not actually be supported by them. The team needs the model itself to reason about each of these decisions per request, instead of forcing every query through the same fixed pipeline.",
+      "problem": "Static retrieve-then-generate pipelines retrieve regardless of whether retrieval is needed, and they generate regardless of whether the retrieved evidence is actually relevant or whether the generation is grounded in it. Cheap queries that did not need retrieval still pay for it. Bad retrievals still feed the generator. Ungrounded generations still ship to the user. Without explicit reflective steps where the model decides whether to retrieve, judges the relevance of what it retrieved, and checks whether its own draft is supported by the evidence, the system both wastes calls and quietly admits hallucinations into production.",
       "forces": [
         "Token vocabulary expansion adds training complexity.",
         "Reflection tokens must be enforced at inference, not just trained.",

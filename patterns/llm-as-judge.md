@@ -11,11 +11,11 @@ Use an LLM to score open-ended outputs against rubric criteria when no exact-mat
 
 ## Context
 
-Free-form outputs (summaries, code, prose) defy exact-match scoring; human grading is too slow for CI.
+A team is evaluating an agent whose outputs are free-form text — summaries, generated code, long-form prose, support replies — where no single reference answer is uniquely correct. They want regression detection automated enough to run on every release or pull request, not paced by how many summaries a human can grade in a week. They are willing to write down what good looks like in the form of a rubric.
 
 ## Problem
 
-Without an automated grader, regression detection on free-form outputs requires human eyes on every run.
+Exact-match scoring fails on free-form outputs because there are many acceptable answers, and similarity metrics on raw text miss the qualities the team actually cares about such as faithfulness, completeness, or tone. Pure human grading is too slow to gate a CI pipeline that runs many times per day. The team is forced to choose between cheap-but-blind metrics that miss real regressions and expensive human review that does not scale.
 
 ## Forces
 

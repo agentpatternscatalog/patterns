@@ -11,11 +11,11 @@ During idle or downtime, run the model offline against the user's standing conte
 
 ## Context
 
-Agents with persistent user context — codebases, documents, prior sessions — that the user queries repeatedly. Test-time compute is paid for every query, even when the underlying corpus has not changed and many queries are predictable variants of past ones. Provider infrastructure has idle capacity between user sessions.
+A team is running an agent over persistent user context — a codebase, a set of documents, transcripts of prior sessions — that the user queries repeatedly. Many of the queries are predictable variants of previous ones, and the underlying corpus does not change between most of those queries. The provider infrastructure also has idle capacity between user sessions when nobody is actively waiting for an answer.
 
 ## Problem
 
-Conventional inference does all the work at test time: parse the corpus, find what matters, reason, answer. Each query repays this from scratch. Caching helps only when prefixes match. The user pays for latency on every question even though many questions about a static corpus could have been pre-answered overnight when nobody was waiting.
+Conventional inference does all the work at test time, when the user is waiting. For every query the system parses the corpus, finds what matters, reasons about it, and produces an answer; the next query repays this work from scratch even if it is asking something very similar. Prompt caching helps only when the prefix matches exactly. The user therefore pays latency on every question even though many questions about a stable corpus could have been pre-processed during idle periods — yielding indices, summaries, or partial answers that would have made the eventual user-visible step nearly instantaneous.
 
 ## Forces
 

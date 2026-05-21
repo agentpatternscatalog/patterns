@@ -11,11 +11,11 @@ Combine sparse lexical retrieval (BM25) with dense vector retrieval and fuse the
 
 ## Context
 
-Queries vary: some are keyword-matchable (exact identifiers, names), others are semantic; pure dense or pure sparse retrieval misses one or the other.
+A team is running a retrieval pipeline over a corpus where the user queries fall into two very different shapes. Some queries are short and exact, hinging on matching specific identifiers, product codes, person names, or technical terms verbatim. Other queries are longer and rely on semantic similarity between paraphrased ideas, where the surface vocabulary may differ between query and source. A single retrieval method serves only one of these well.
 
 ## Problem
 
-Dense retrieval misses exact matches; sparse retrieval misses paraphrase. Each alone leaves recall on the table.
+Dense vector retrieval handles paraphrase and semantic similarity but misses queries that hinge on an exact identifier the embedding has flattened away. Sparse keyword retrieval — BM25 and similar lexical methods — handles exact terms but misses paraphrased queries whose vocabulary does not overlap with the source text. Picking either method alone means leaving recall on the table for whichever query shape was not chosen, and no downstream re-ranking stage can rescue a chunk that was never retrieved in the first place.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A coding-assistant searches its codebase for 'how do we authenticate with Stripe
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Query] --> S[Sparse retrieval BM25]
   Q --> D[Dense retrieval embeddings]
   S --> F[Fusion / Reciprocal Rank Fusion]

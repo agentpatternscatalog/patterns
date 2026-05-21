@@ -11,11 +11,11 @@ Split a GUI or browser agent into three specialist models — a Policy LLM that 
 
 ## Context
 
-Web and desktop agents that drive a real browser by reading screenshots and emitting clicks, types, and scrolls. A single multimodal model doing all three roles is expensive, slow, and confounds failure modes — was the click wrong because the plan was wrong, the coordinates were wrong, or the task was already done?
+A team is operating a browser or desktop agent that reads screenshots and emits clicks, types, and scrolls. Trajectories are long, costs compound at each step, and per-step latency matters for real-time web use. The team wants to attribute failures cleanly and to size each capability with the smallest sufficient model.
 
 ## Problem
 
-Monolithic GUI agents conflate three distinct skills: reasoning about what to do next, mapping a textual description to a pixel target, and deciding when to stop. Failures are hard to attribute, and the largest model is paid for tasks that smaller specialists handle better. Two-model splits (planner+vision, per Dual-System GUI Agent) improve cost but still leave commit decisions implicit in the planner's last token — there is no separate check on "did we actually finish".
+One large multimodal model that plans, grounds clicks to pixels, and decides when to stop pays the largest-model price on every step, including the steps where it is really just doing perception. Failures cannot be attributed cleanly: a wrong click could be a bad plan, bad pixel grounding, or a premature stop. A two-model split that separates planning from grounding (the Dual-System approach) helps with the first two but still leaves the commit decision implicit in whatever the planner happened to say last, with no independent check that the task actually finished.
 
 ## Forces
 

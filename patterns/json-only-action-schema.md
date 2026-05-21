@@ -11,11 +11,11 @@ Anti-pattern: restrict the agent's action language to JSON tool-call dictionarie
 
 ## Context
 
-Agent frameworks that standardised on the function-calling JSON contract and never reconsidered when tasks grew to need step nesting, intermediate variables, or local reductions over tool outputs.
+A team is building an agent on a framework that standardised early on the provider's function-calling contract: the model emits one tool call per turn as a JSON dictionary with flat arguments, the host executes it, and the result comes back as another turn. As tasks grow more sophisticated — data wrangling, multi-step reductions, conditional branching on intermediate results — the team keeps the JSON-only action language and expresses composition by issuing more turns. The option of letting the agent write a short code snippet that calls tools as functions inside a sandbox is dismissed as too risky or out of scope.
 
 ## Problem
 
-JSON tool calls express one action per turn with flat arguments; expressing a loop, a conditional over an intermediate result, or a reuse of one tool's output as another tool's argument requires unrolling into many turns and re-shipping intermediate state through the model. Composability, object handling, and generality suffer.
+A JSON tool call cannot directly express a loop, a conditional over an intermediate value, or the reuse of one tool's output as another tool's argument. To compose three tools the agent must take three or more turns, ship each intermediate result back through the model as a string, and reconstruct any structured object on each side. Token cost is dominated by these round-tripped intermediates, latency is dominated by the turn count, and the action language drifts further from the code-shaped composition the model actually saw most of in training.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A data-investigation agent has tools for query, transform, and chart. Under JSON
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Composition-heavy task] --> J{Action language?}
   J -- JSON only --> T1[Turn 1: call A]
   T1 --> T2[Round-trip result]

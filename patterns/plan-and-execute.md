@@ -11,11 +11,11 @@ Plan all the steps once with a strong model, then execute each step with a cheap
 
 ## Context
 
-The task is multi-step, the steps are mostly known up front, and the cost of tokens varies widely between models.
+A team runs an agent on a task that decomposes into several mostly-known steps — book a venue, then a restaurant, then send invitations — and a strong, expensive model is available alongside a cheaper, faster one. The team would like to use the strong model where its judgment matters (deciding the steps and their order) and the cheaper model where it does not (typing each step's tool call). The world is stable enough that a plan written once is still good a few minutes later.
 
 ## Problem
 
-ReAct pays the strong model's price on every step including trivial executions.
+A ReAct loop (reason-act-observe) runs the strong model on every single step, including trivial ones where the next action is obvious, so it pays full price for routine execution. Hand-coding the workflow gives up the agent's ability to handle small surprises. Without an inspectable plan emitted before any tool fires, reviewers cannot see what the agent intends to do until it has already partially done it, and a wrong assumption near the start cannot be caught until the run produces a bad result.
 
 ## Forces
 

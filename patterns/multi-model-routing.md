@@ -11,11 +11,11 @@ Send each request to the cheapest model that can handle it well.
 
 ## Context
 
-Model prices and capabilities vary by an order of magnitude; using the strongest model for every call is wasteful.
+A team is building a production agent and has access to several language models from one or more providers — typically a small cheap model, a mid-tier model, and a frontier model whose per-token price is an order of magnitude higher. The traffic mix is realistic: a lot of the requests are simple extractions, classifications, or rephrasings, while a smaller share genuinely needs the frontier model's depth. The team has to decide which model handles each kind of request.
 
 ## Problem
 
-Static model choice either pays too much or misses quality on hard cases.
+If every request is routed to the frontier model, the bill is wildly larger than it needs to be because the cheap model would have handled most of the traffic at the same quality. If every request is routed to the cheap model, the hard cases come back wrong with no signal that a better model was available. A static single-model choice forces a bad compromise, and naive escalation that always tries the cheap model first and falls back to the strong one on failure can cost more than starting with the strong model.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A SaaS company is paying frontier-model prices for every request, including 'wha
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   R[Request] --> CL[Cheap classifier model]
   CL -->|easy class| WC[Cheap model]
   CL -->|hard class| WS[Strong model]

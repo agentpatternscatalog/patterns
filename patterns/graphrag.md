@@ -11,11 +11,11 @@ Build an LLM-extracted entity-and-relation knowledge graph plus hierarchical com
 
 ## Context
 
-Sensemaking and corpus-level questions ('what are the main themes?') that naive top-k retrieval cannot answer because they require seeing the whole.
+A team is using a retrieval-augmented system over a large corpus and starts receiving questions about the corpus as a whole rather than individual facts in it: 'what are the main themes in these reports?', 'how does this position evolve across the documents?', 'which entities are central to the discussion?' These are corpus-level sensemaking queries, not local lookup queries, and they arrive alongside the easier fact-style questions.
 
 ## Problem
 
-Naive RAG retrieves local chunks and cannot answer global queries; chunk-level retrieval is mismatched to corpus-level questions.
+Naive retrieval pulls the top-k chunks for each query, which is fine for local lookup but cannot answer questions about the whole corpus. The answer to 'what are the main themes?' does not live in any single chunk; it requires seeing how chunks connect, what entities recur across them, and how communities of related content cluster. Without a representation that captures corpus-level structure — entities, relations, communities — chunk-level retrieval is mismatched to corpus-level questions, and the system returns confidently wrong, partial summaries that the user has no easy way to spot.
 
 ## Forces
 

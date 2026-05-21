@@ -11,11 +11,11 @@ Have the agent ask a clarifying question before acting on an ambiguous request.
 
 ## Context
 
-User requests are often underspecified; acting on the wrong interpretation costs more than asking.
+A team is building an agent that takes free-form user requests and acts on them — moving a calendar event, editing a file, sending a message. Real user requests are often underspecified or refer to entities the agent cannot uniquely resolve from context. The deployment is interactive enough that the agent can ask a follow-up question before doing anything irreversible.
 
 ## Problem
 
-Agents that always act produce confidently wrong results on ambiguous inputs.
+An agent that always acts will silently pick one interpretation when several are plausible, and confidently do the wrong thing — moving the wrong meeting, editing the wrong file, replying to the wrong thread. Rolling back the wrong action is usually more expensive than asking a single clarifying question would have been. But asking on every request quickly becomes annoying and trains the user to ignore prompts, so the agent has to detect when it is actually uncertain instead of asking by default.
 
 ## Forces
 

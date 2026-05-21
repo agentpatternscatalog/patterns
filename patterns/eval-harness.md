@@ -11,11 +11,11 @@ Run a held-out dataset against agent versions to detect regressions and measure 
 
 ## Context
 
-Agents are non-deterministic and prompt-sensitive; without an eval harness, every change is a guess.
+A team is iterating on an agent whose outputs depend on a prompt, a model version, retrieval choices, and tool wiring — none of which is deterministic in the way a normal function is. Small changes anywhere in that stack can shift behaviour in ways that are not obvious from a few hand-tested examples. The team needs a way to compare a proposed version against the current one on a fixed, representative set of inputs.
 
 ## Problem
 
-A change that 'feels better' often isn't; without measurement, the system regresses silently.
+When the team relies on intuition or a handful of spot checks, a change that 'feels better' on three examples can quietly regress on the dozens of cases nobody re-ran. Open-ended outputs cannot be checked with simple exact-match assertions, so without a deliberate scoring approach there is no shared yardstick. The team is forced to choose between shipping by feel and reading user complaints, or running ad-hoc one-off comparisons that never accumulate into a baseline.
 
 ## Forces
 

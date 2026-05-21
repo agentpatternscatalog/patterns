@@ -11,11 +11,11 @@ Anti-pattern: ship the agent in 'beta' indefinitely so that quality regressions 
 
 ## Context
 
-An agent is launched without an eval harness and stays in beta because removing the label would create accountability for quality.
+A team launches an agent product to real users under a 'beta' label, without building an evaluation harness that can measure quality regressions across releases. Months later, the product is still labelled beta, partly because the team genuinely has not measured quality, partly because removing the label would commit them to a quality bar they have no way to defend. The label has quietly shifted from a signal of active iteration to a shield against accountability.
 
 ## Problem
 
-Beta becomes a permanent excuse. Without an eval harness, quality is a guess and regressions are invisible.
+Without an evaluation harness, every release is a guess: regressions land invisibly, model upgrades are accepted or rejected on vibe, and customer-facing quality drifts without anyone noticing until churn reveals it. Beta becomes a permanent excuse that costs nothing to keep and absorbs all accountability for unmeasured quality. Eventually a competitor ships a graduated version of a similar product and the beta team discovers, too late, that they never had a measurement story.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A startup launches its agent product as 'beta' and uses the label as a blanket e
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   V0[v0 ship in 'beta'] --> V1[v1 still 'beta']
   V1 --> V2[v2 still 'beta']
   V2 -.no eval gate.-> Reg[Quality regressions]

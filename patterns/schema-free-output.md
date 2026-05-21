@@ -11,11 +11,11 @@ Anti-pattern: parse free-form model output for downstream code instead of using 
 
 ## Context
 
-An agent emits text that downstream code parses with regex, string splits, or 'is the word yes in there?'.
+A team uses an LLM to produce values that downstream code consumes — a JSON-looking blob, a yes/no decision, a list of records — but the model is asked for free-form text and the consumer parses it with regular expressions, string splits, or substring checks like 'does the word yes appear here'. The provider offers structured output (a JSON Schema or function-calling contract that constrains the model's output), but the team has not adopted it, often because the integration looked like extra setup at the time. The model's text is treated as essentially typed even though nothing enforces that.
 
 ## Problem
 
-The model invents punctuation, formatting, and field names. Parsers fail in non-obvious ways. Errors are mis-attributed to the model when they are parser bugs.
+The model varies its punctuation, capitalisation, field names, and ordering in ways the parser was not written for: smart quotes instead of straight quotes, a missing comma, a 'sure, here is the answer' preamble the parser tried to skip but did not. The downstream code fails in non-obvious ways, corrupts state, or silently misinterprets the result. Post-mortems then blame the model for being flaky when the real bug is in the parser, and the team chases evals that were never going to fix a parsing problem.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A team ships an agent whose downstream consumes free-form model output by regex-
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   M[LLM] -->|free-form text| Pr[Ad-hoc parser]
   Pr -.brittle.-> Fail[Downstream breakage]
   Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]

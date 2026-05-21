@@ -11,11 +11,11 @@ Log every agent decision and state change with enough metadata to explain or rev
 
 ## Context
 
-Long-running or regulated agents need to answer 'why did the agent do X on day Y?' months later.
+A team runs an agent that takes consequential actions in the real world: approving or rejecting insurance claims, modifying production records, sending money. Sometimes weeks or months later, a regulator, a customer, or an internal auditor asks why the agent did what it did on a specific date. Answering that question requires both the action and the chain of reasoning, retrieved evidence, and model version that surrounded it.
 
 ## Problem
 
-Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback become impossible.
+Without an immutable, append-only record of every decision and state change tied to a justification, agent behaviour becomes inscrutable after the fact. Rolling back a specific bad action is impossible because there is no event identifier to reverse, and patterns of failure across time are invisible because the trail is not queryable. The team is forced to choose between trusting that nothing will ever be questioned or attempting to reconstruct months-old behaviour from logs that were never designed for audit.
 
 ## Forces
 
@@ -52,7 +52,7 @@ A regulator asks an insurance-claims agent why it rejected a specific claim thre
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Act[Agent action / state change] --> V[Validator: required fields?]
   V -->|reject| Err[Error]
   V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]

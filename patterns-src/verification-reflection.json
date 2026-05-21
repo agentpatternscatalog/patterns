@@ -13,8 +13,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Treat the agent's system prompt and long-lived memory as a structured, item-addressable playbook that evolves through small delta updates from a Generator/Reflector/Curator loop, so accumulated tactics resist the context collapse that monolithic rewrites cause.",
-      "context": "Agents whose behaviour is shaped by a system prompt or persistent memory that accumulates tactics, heuristics, and worked examples over many runs. Teams that have tried free-form self-reflection or whole-prompt rewrites find that each rewrite tends to wipe out useful items or merge them into vague abstractions.",
-      "problem": "Free-form self-reflection produces a single blob of lessons that gets harder to reuse with each pass. Whole-prompt rewrites lose item-level structure — yesterday's specific tactic gets paraphrased into a generality and then dropped on the next pass. There is no addressable unit a reflection step can target, so the playbook either bloats or collapses. Without item-level addressing, three things blur together: generating the lesson, evaluating it, and deciding what to keep.",
+      "context": "A team operates an agent whose behaviour is shaped by a long-lived system prompt or a persistent memory file, and that prompt accumulates tactics, heuristics, and worked examples gathered across many runs over weeks or months. After every batch of tasks the team wants the agent to absorb what it learned, so they periodically ask the agent to reflect on its own runs and update the playbook in place. Each update needs to add new specific tactics without eroding the ones already there.",
+      "problem": "When self-reflection is free-form and the agent is asked to rewrite the whole playbook in one pass, each rewrite tends to paraphrase yesterday's concrete tactic into a vague generality and then drop it on the next pass. There is no addressable unit a reflection step can point at, so the playbook either bloats with near-duplicates or collapses into platitudes. Three different jobs (proposing a new lesson, judging whether it is correct, and deciding whether to keep it) all happen inside the same prompt, which produces vague output because the model cannot do all three jobs well at once. The team is forced to choose between losing accumulated specifics and letting the playbook grow unbounded.",
       "forces": [
         "Playbooks must accumulate specific tactics, not just abstract principles, to remain useful.",
         "Monolithic rewrites lose item-level structure and tend toward generic phrasing each pass (context collapse).",
@@ -128,8 +128,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Sample N candidate outputs and select the highest-ranked by a reward model or scorer.",
-      "context": "Output quality matters and a reward model exists (or can be approximated) to score candidates.",
-      "problem": "A single sample may be acceptable; the best of N is often markedly better at modest cost increase.",
+      "context": "A team runs a large language model on a task where the quality of any single output varies noticeably from sample to sample, such as a code-review summary, a translation, or a customer reply. They have a way to rank candidate outputs against each other, either a trained reward model that scores responses or a rule-based scorer that approximates one. Inference cost is high enough to matter but not so high that running the model a few extra times for the same prompt is prohibitive.",
+      "problem": "A single sample drawn from the model at low temperature is often acceptable but rarely the best the model can produce, and on any given prompt the team has no way to tell whether they got a good draw or a mediocre one. Increasing temperature on a single sample raises variance without raising the floor: sometimes the result is better and sometimes worse, and the team ships whichever one happens to come out. Without a selection step that compares several candidates, the model's own decoding choice is the only filter on quality.",
       "forces": [
         "N candidates cost N inferences.",
         "Reward-model quality bounds achievable improvement.",
@@ -247,7 +247,7 @@
       "example_scenario": "A code-review assistant generates a one-paragraph summary for each pull request, and roughly one in five reads awkwardly. The team enables Best-of-N: for each PR, the model samples five candidate summaries with temperature 0.7, and a small reward model trained on past human-edited summaries picks the highest-rated one to display. Token cost goes up about five times for that step, but the rate of summaries that reviewers feel compelled to rewrite drops sharply.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  P[Prompt] --> G[Sample N candidates<br/>temp > 0]\n  G --> C1[c1]\n  G --> C2[c2]\n  G --> CN[...cN]\n  C1 --> R[Reward model / scorer]\n  C2 --> R\n  CN --> R\n  R --> T[Top-1]"
+        "mermaid": "flowchart TD\n  P[Prompt] --> G[Sample N candidates<br/>temp > 0]\n  G --> C1[c1]\n  G --> C2[c2]\n  G --> CN[...cN]\n  C1 --> R[Reward model / scorer]\n  C2 --> R\n  CN --> R\n  R --> T[Top-1]"
       },
       "last_updated": "2026-05-20"
     },
@@ -262,8 +262,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Run an evaluator in a separately-allocated context window with access only to the artifact and the rubric, never the producing agent's reasoning trace, so the grader cannot be primed by the producer's framing.",
-      "context": "Agent workflows where an artefact (a plan, a piece of code, a written answer, a tool-call sequence) is produced by a long reasoning chain and a downstream evaluator is asked to judge it. Self-reflection and same-context critique have a known failure mode: the evaluator inherits the producer's framing and signs off on work that contains errors the producer also missed.",
-      "problem": "Same-context self-critique echo-chambers. Even when the critic is a separate role or even a separate model, if it sees the full producing trace it tends to be primed by the same framing that produced the artefact, and it tends to rationalise rather than evaluate. The errors a fresh reader would catch are exactly the ones the trace-aware reader misses.",
+      "context": "A team builds an agent workflow in which a producer agent runs a long chain of reasoning and tool calls to construct some artefact (a plan, a patch, a written answer, a sequence of tool calls) and then a downstream evaluator is asked to judge whether the artefact is correct. The natural implementation hands the evaluator the producer's full reasoning trace alongside the artefact, on the assumption that more context produces a better judgement. The evaluator may be a separate prompt or even a separate model.",
+      "problem": "When the evaluator can see the producer's full reasoning trace, it tends to inherit the producer's framing and rationalise the artefact rather than evaluate it on its own merits. The producer's chain of thought makes mistaken choices look deliberate, and the evaluator ends up agreeing with the very priming that caused the mistake. The errors a fresh, uninformed reader would notice immediately are exactly the ones the trace-aware evaluator misses. Routing to a different model family is expensive and does not reliably break the priming, because the framing leaks through the trace itself rather than through any shared weights.",
       "forces": [
         "Reasoning traces carry useful context but also carry priming that biases evaluation.",
         "Some failures are only visible from outside the producer's framing.",
@@ -375,8 +375,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Surface the agent's uncertainty about its answer alongside the answer itself.",
-      "context": "Decisions downstream of the agent depend on whether the answer is reliable; users and systems both benefit from a confidence signal.",
-      "problem": "Models output answers with uniform tone regardless of internal certainty; downstream code cannot distinguish 'I know' from 'I am guessing'.",
+      "context": "A team ships an assistant whose answers feed into a downstream decision: a user choosing whether to trust a recommendation, a coder choosing whether to route a record to a senior reviewer, a workflow engine choosing whether to auto-approve a change. The cost of acting on a wrong answer is meaningfully higher than the cost of pausing to verify. The agent already produces answers; the question is how to attach a usable signal of how sure it is.",
+      "problem": "Large language models produce answers in the same confident tone whether they actually know the answer or are guessing, so downstream code and human readers cannot tell the two cases apart. Users either trust everything (and get burned on the cases the model fabricated) or distrust everything (and lose the value of the cases the model got right). A routing layer that should escalate uncertain cases to human review has no signal to route on, so it either escalates everything or nothing. Self-reports of confidence from the model are themselves miscalibrated, so simply asking the model whether it is sure does not solve the problem on its own.",
       "forces": [
         "Confidence signals are themselves miscalibrated by the model.",
         "Surfacing uncertainty erodes user trust if overdone.",
@@ -449,7 +449,7 @@
       "example_scenario": "A medical-coding assistant proposes ICD-10 codes for clinician review. Coders trust every suggestion equally because the tone is uniform, and miss the cases where the model was actually guessing. The team adds Confidence Reporting: each suggested code carries an explicit calibrated probability and a 'low / medium / high' band, surfaced beside the code. Coders now spend their attention on the low-confidence rows and rubber-stamp the high-confidence ones, and the workflow tool can auto-defer low-confidence cases to a senior coder.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  A[Answer] --> S[Compute confidence<br/>variance / score / recall]\n  S --> L{Threshold?}\n  L -- high --> UI[Render: high]\n  L -- medium --> UI2[Render: medium]\n  L -- low --> ESC[Escalate / human review]"
+        "mermaid": "flowchart TD\n  A[Answer] --> S[Compute confidence<br/>variance / score / recall]\n  S --> L{Threshold?}\n  L -- high --> UI[Render: high]\n  L -- medium --> UI2[Render: medium]\n  L -- low --> ESC[Escalate / human review]"
       },
       "last_updated": "2026-05-20"
     },
@@ -462,8 +462,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Self-correct LLM outputs by interactively critiquing them with external tools (search, code execution, calculator).",
-      "context": "Generation tasks where errors can be detected and corrected by grounded checks (factual claims by search, code by execution, math by calculator).",
-      "problem": "Self-critique without external tools recycles the model's blind spots; tools provide grounded ground-truth signals.",
+      "context": "A team runs a large language model on a generation task where mistakes can in principle be caught by an external check: factual claims could be verified by a web search, generated code could be verified by actually running it, and arithmetic could be verified with a calculator. The agent has access to those tools but currently uses them only during drafting, not during review. After producing a draft the model is asked to self-critique, but the critique is itself a model call with no grounding outside the model's own beliefs.",
+      "problem": "When self-critique is done by the same model that produced the draft and is not allowed to consult any external tool, the critique recycles the same blind spots that produced the original error. The model that confidently asserted a wrong fact will confidently agree with itself when asked to review the assertion. Without a way to compare the draft against an outside source of truth, the iterative loop is a model talking to itself and slowly converging on whatever it believed at the start. The team needs the critic to be able to actually test claims, not just re-read them.",
       "forces": [
         "Tool selection per critique step.",
         "Critique cost adds to generation cost.",
@@ -551,8 +551,8 @@
       ],
       "category": "verification-reflection",
       "intent": "An agent rewrites its own source code, archives every successful variant, and samples mutation parents from the archive rather than the latest version, using archive diversity as stepping-stones to escape local optima.",
-      "context": "Research and long-running agents that can read and rewrite their own implementation (prompt, tool-set, scaffolding, or code) and that have an objective measure (a benchmark, a task suite, a self-eval) by which a variant is judged successful. Naive self-modification loops mutate the latest version and quickly settle into a local optimum.",
-      "problem": "Greedy self-rewrite gets stuck. If the agent always mutates the latest accepted version, it climbs the local hill and stops; the move that would unlock the next ridge is several mutations away from anything currently good. Throwing away non-best variants destroys the diversity that would have been the bridge. The agent needs a way to escape local optima that does not require an outside reset.",
+      "context": "A research team builds an agent that can read and rewrite parts of its own implementation, such as its system prompt, its tool definitions, the scaffolding around its main loop, or the code that implements it. The team has a clear way to measure whether one version of the agent is better than another: a benchmark, a task suite, or an automated self-evaluation that returns a score per variant. The point of the project is to let the agent improve itself over many generations without human-in-the-loop edits.",
+      "problem": "When the agent always mutates the latest accepted version (greedy self-rewrite), it climbs whatever local hill it started on and stops. The move that would unlock a higher ridge is several mutations away from anything that currently scores well, so a strictly score-maximising selection rule will never reach it. Throwing away the variants that scored worse destroys the very diversity that would have been the bridge to a better region of the search space. The agent gets stuck in a local optimum, and without some way of preserving and revisiting worse-scoring stepping-stones it has no path out short of a manual reset.",
       "forces": [
         "Greedy ascent from the latest variant converges to local optima quickly.",
         "Useful stepping-stone variants often score worse short-term than the current best.",
@@ -663,8 +663,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Bracket every LLM call with deterministic checks on both sides.",
-      "context": "A correctness boundary where wrong outputs cause real damage (a wrong stitch count, a malformed migration, a mis-priced order).",
-      "problem": "Trusting the LLM's output unconditionally accepts hallucination at the most expensive moment; banning the LLM entirely loses its strengths.",
+      "context": "A team uses a large language model at a point in the system where wrong output causes real damage: a knitting pattern with a wrong stitch count that wastes a customer's yarn, a database migration that breaks production, an insurance quote that omits a required coverage line. The model is genuinely useful at this step (it talks to the user fluently, or it transforms messy input into a tidy form) so removing it entirely is not the right answer. But every output is one hallucination away from causing harm.",
+      "problem": "Trusting the model's output unconditionally accepts hallucination at exactly the moment where mistakes are most expensive, and there is no signal at the boundary distinguishing a correct generation from a confidently wrong one. Banning the model entirely loses everything it was good at and forces the team back to brittle templated text. Simple downstream validation (a try/catch on the database call, for example) catches some failures but only after side effects have begun or only by failing loudly to the user. The team needs a way to keep the model in the loop while bounding what kinds of output it can land.",
       "forces": [
         "Bracketing adds latency per call.",
         "Pre-checks must be cheap to be worth running.",
@@ -739,7 +739,7 @@
       "example_scenario": "A regulated insurance assistant generates policy quotes that occasionally include a coverage line the customer never asked for. Trusting the LLM blindly is unacceptable; banning it loses the conversational explanation users like. The team adopts a Deterministic LLM Sandwich: a deterministic step parses the user's request into a typed schema, the LLM operates only within that schema, and a deterministic post-step validates the quote against rule-engine-checked coverage limits before it's shown. The LLM still talks like an LLM, but cannot smuggle a coverage line past the brackets.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  In[Input] --> Pre[Pre: deterministic check<br/>e.g. AST parse]\n  Pre -- pass --> LLM[LLM call<br/>structured output + rubric]\n  Pre -- fail --> Reject1[Reject]\n  LLM --> Post[Post: deterministic check<br/>schema / rules]\n  Post -- pass --> Out[Output]\n  Post -- fail --> Reject2[Reject / retry]"
+        "mermaid": "flowchart TD\n  In[Input] --> Pre[Pre: deterministic check<br/>e.g. AST parse]\n  Pre -- pass --> LLM[LLM call<br/>structured output + rubric]\n  Pre -- fail --> Reject1[Reject]\n  LLM --> Post[Post: deterministic check<br/>schema / rules]\n  Post -- pass --> Out[Output]\n  Post -- fail --> Reject2[Reject / retry]"
       },
       "last_updated": "2026-05-20"
     },
@@ -753,8 +753,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Recognize human message repetition as emphasis or a re-ask rather than as an independent input, so the agent does not produce a near-duplicate reply when the human repeats themselves.",
-      "context": "Conversational agents where the human might intentionally repeat themselves (because the previous reply missed the point, because the channel might be unreliable, or because they want to underline urgency). Without echo recognition, the agent generates a fresh response per repeat — often slight variations of the same earlier mistake.",
-      "problem": "A duplicated incoming message reads to the agent as a new, equal-weight turn. The agent re-runs the same reasoning, often producing a near-duplicate reply or a slight rewording. The human's emphasis-by-repetition becomes invisible and the conversation either spins or amplifies misalignment.",
+      "context": "A team builds a conversational agent that talks with humans over many turns. Real users sometimes repeat themselves on purpose: the previous reply missed the point and they are restating with emphasis, they are worried the message did not go through, or they want to underline urgency by saying the same thing twice. The agent has access to its recent conversation history and could in principle detect when a new incoming message is a near-duplicate of a recent one.",
+      "problem": "When the agent treats every incoming message as an independent new turn, a repeated message reads as a fresh prompt of equal weight to any other. The agent re-runs the same reasoning over slightly rearranged context and produces a near-duplicate of its previous reply, perhaps with one word changed. The user's emphasis-by-repetition becomes invisible: instead of being heard louder, they are answered again with the same answer they already rejected. The conversation either spins in place or drifts further from what the user actually wants, and the agent never registers that the repetition itself was a signal.",
       "forces": [
         "Detecting near-duplicates on incoming messages mirrors the agent's own anti-parrot guard but on the input side.",
         "The human's intent in repeating is itself ambiguous (emphasis? bug? clarification?).",
@@ -863,8 +863,8 @@
       ],
       "category": "verification-reflection",
       "intent": "One LLM generates; another evaluates and feeds back; loop until criteria are met.",
-      "context": "Tasks with measurable evaluation criteria where iterative refinement beats single-pass generation.",
-      "problem": "Single-shot generation tops out below what an evaluator-corrected loop achieves.",
+      "context": "A team runs a generation task where the quality of a candidate can be scored against explicit criteria: unit tests pass or fail, a rubric is satisfied or not, a translation matches a glossary or it doesn't. Single-shot generation gets most cases right but plateaus below the quality bar the team needs. The team can afford to spend several model calls per output and is willing to trade latency for quality.",
+      "problem": "When generation and evaluation happen in one prompt the model has no incentive to disagree with itself: it produces a draft and then signs off on it. Single-shot generation tops out below what a loop with an explicit evaluator achieves, but a naive loop where the same prompt does both jobs collapses into self-approval and adds cost without quality. The team needs separate roles for proposing and judging, and a bounded loop between them, otherwise the system either fails to improve past one pass or runs forever chasing diminishing critique.",
       "forces": [
         "The evaluator must be calibrated; a bad judge teaches bad lessons.",
         "Loop budget caps cost.",
@@ -1008,8 +1008,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Constrain reflection to a fixed, hand-authored rubric of criteria so the reviewer cannot invent new ones each run.",
-      "context": "Open-ended reflection drifts pattern over pattern; the reviewer's criteria change with the wind, making outputs hard to compare across runs or users.",
-      "problem": "Free-form 'review the prior output' prompts produce inconsistent reviews because the model invents categories on each call.",
+      "context": "A team uses a model to review the output of another model (or its own previous draft) as a quality gate before shipping. The review needs to be consistent across runs and across users so that two outputs from the same kind of task get judged against the same criteria. Auditors or downstream consumers want to know which checks were performed on each output.",
+      "problem": "When the reviewer is given a free-form instruction like 'review this output and flag any issues', it invents fresh criteria on every call: today it notices tone, tomorrow it notices grammar, the day after it notices factual claims. Reviews stop being comparable across runs because they were not measuring the same thing. The reviewer also tends to drift over time, gradually narrowing its attention onto whatever issue it last saw and forgetting categories it used to check. The team has no stable answer to the question 'what did the reviewer actually look for on this run?', which makes the reviewer useless for audit and unreliable as a gate.",
       "forces": [
         "Authoring a good rubric is non-trivial up-front work.",
         "Rubric drift over time is a separate problem from per-call drift.",
@@ -1129,8 +1129,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Gate the agent's edits to its own code or rules through a separate critic persona that reviews the diff before it lands.",
-      "context": "A self-modifying agent can edit its own source, prompts, or rules; without a gate, recursive self-editing can drift into incoherence or unsafe behaviour.",
-      "problem": "Self-edits applied directly bypass review; the agent can corrupt its own future behaviour irreversibly.",
+      "context": "A team runs an agent that can edit its own source code, its own system prompt, or its own rule files as part of its normal operation, with the goal of letting the agent improve itself over time. The edits are non-trivial: a bad one can leave the agent broken in production or, worse, leave it superficially working but with safety constraints silently removed. The team needs a way to let useful self-edits through while catching the harmful ones.",
+      "problem": "When self-edits are applied directly without a review step, the agent can silently rewrite its own future behaviour in irreversible ways, including past the very safety preamble that was supposed to constrain it. A bad edit is not noticed until the next time the agent runs and behaves strangely, by which time the previous version is gone. Asking the same model to review its own diff inside the same context tends to rationalise the change rather than evaluate it, because the model that just argued itself into making the edit will argue itself into approving it. The team needs an independent review step that runs before any self-edit lands.",
       "forces": [
         "Critic and modifier may share blind spots if they share a model.",
         "Strict critics block legitimate improvements.",
@@ -1219,8 +1219,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Train a verifier that scores each reasoning step rather than only the final answer.",
-      "context": "Multi-step reasoning tasks where final-answer scoring conflates good reasoning with lucky right answers.",
-      "problem": "Outcome reward models reinforce shortcut reasoning that lands on the right answer through wrong steps; step-level supervision gives finer-grained signal.",
+      "context": "A team trains or evaluates a model on multi-step reasoning tasks such as mathematics word problems, multi-hop question answering, or chains of logical deduction. The model produces a chain of intermediate steps and a final answer, and the team has been training or selecting candidates using an outcome reward model (a verifier that only scores whether the final answer is right). They also have, or could collect, human labels at the level of individual reasoning steps.",
+      "problem": "Outcome-only scoring cannot tell the difference between reasoning that got to the right answer correctly and reasoning that got to the right answer by lucky shortcuts, cancelled errors, or fabricated intermediate facts. Reinforcing on outcome alone rewards those shortcuts, so the model becomes more confident in chains of thought that contain wrong intermediate steps. Later, on harder problems where the shortcut does not exist, the same kinds of wrong intermediate steps lead to wrong final answers. The team needs a feedback signal that can reject a candidate because step three is wrong, even when step five happens to land on the right number.",
       "forces": [
         "Step-level annotation is expensive (humans must label each step).",
         "Step boundaries vary across tasks.",
@@ -1293,7 +1293,7 @@
       "example_scenario": "A maths-reasoning agent passes most of the eval set but on inspection many traces have correct final answers reached through wrong intermediate steps — shortcuts the outcome reward model rewarded. The team trains a process-reward-model: human raters label each chain-of-thought step as correct, neutral, incorrect, or hallucinated; a classifier learns step-level scores. At inference, candidates whose intermediate steps score low are rejected even when the final answer happens to match. The agent's reasoning quality, not just its final accuracy, improves.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  CoT[Reasoning trace] --> S1[Step 1] --> S2[Step 2] --> S3[Step 3] --> Ans[Final answer]\n  S1 --> PRM[Process reward model]\n  S2 --> PRM\n  S3 --> PRM\n  PRM -->|low score| Reject[Reject candidate]\n  PRM -->|all high| Accept[Accept]"
+        "mermaid": "flowchart TD\n  CoT[Reasoning trace] --> S1[Step 1] --> S2[Step 2] --> S3[Step 3] --> Ans[Final answer]\n  S1 --> PRM[Process reward model]\n  S2 --> PRM\n  S3 --> PRM\n  PRM -->|low score| Reject[Reject candidate]\n  PRM -->|all high| Accept[Accept]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1306,8 +1306,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Have the model review its own output and produce a revised version in one or more passes.",
-      "context": "First-pass model outputs contain mistakes a second look would catch; the cost of an extra pass is acceptable.",
-      "problem": "One-shot generation underuses the model; a second pass focused on critique often fixes errors at modest cost.",
+      "context": "A team runs a large language model on a generation task (drafting an email, writing a function, composing a press release) where the first-pass output usually contains errors that a careful second read would catch: a missing edge case, a clumsy phrase, a factual slip. Latency and cost budgets allow at least one extra model call per output. The team is not asking for deep correctness verification, just a 'look it over' pass before shipping.",
+      "problem": "One-shot generation underuses the model in a specific way: the model has the ability to spot its own surface errors when it is asked to look at a finished draft, but in a single forward pass it commits to tokens without the opportunity to review what it has written. Without a separate critique step, obvious local mistakes ship even when the model could have caught them. A naive free-form critique pass helps a little but invents new criteria on each call, so reviews are inconsistent, and after one or two iterations the same model just starts approving its own work. The team needs structure around the critique step to make it actually catch errors instead of rubber-stamping.",
       "forces": [
         "Same-model self-critique misses correlated blind spots.",
         "Free-form review drifts; the model invents new criteria each time.",
@@ -1447,7 +1447,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  T[Task] --> P[Producer pass]\n  P --> O1[Output v1]\n  O1 --> Cr[Critic pass]\n  Cr -->|issues| Rev[Revise pass]\n  Rev --> O2[Output v2]\n  O2 -->|loop until clean<br/>or max iters| Cr\n  O2 --> Final[Final output]"
+        "mermaid": "flowchart TD\n  T[Task] --> P[Producer pass]\n  P --> O1[Output v1]\n  O1 --> Cr[Critic pass]\n  Cr -->|issues| Rev[Revise pass]\n  Rev --> O2[Output v2]\n  O2 -->|loop until clean<br/>or max iters| Cr\n  O2 --> Final[Final output]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1460,8 +1460,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Have the agent write linguistic lessons from past failures and consult them in future episodes.",
-      "context": "The same agent attempts similar tasks repeatedly; without memory across attempts, mistakes recur.",
-      "problem": "Stateless agents repeat the same errors; full RL fine-tuning is too expensive for most settings.",
+      "context": "A team operates an agent that attempts many similar tasks over time, such as a coding agent solving one programming problem after another or a research assistant answering successive user queries on related topics. Each task is a separate episode and the agent forgets everything between them. The team would like the agent to get better at the kinds of mistakes it has made before, but they cannot afford to fine-tune model weights with reinforcement learning every time a new failure mode shows up.",
+      "problem": "A stateless agent repeats the same mistakes across episodes because it has no memory of having made them before. The information about what went wrong last time exists, briefly, at the end of the last episode and is then thrown away with the conversation. Full reinforcement learning would in principle close the loop but is too expensive to run per failure for most teams, and changing weights is irreversible in ways that small everyday corrections do not warrant. The team needs a way to carry lessons from one episode to the next without touching model weights, but a naive 'remember everything' store quickly accumulates noise that misguides future runs more than it helps.",
       "forces": [
         "Lesson quality is bounded by the model's self-critique ability.",
         "Lesson retrieval (which lesson applies?) is a search problem.",
@@ -1528,7 +1528,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Ep[Episode] --> R[Reflect:<br/>verbal lesson]\n  R --> M[(Long-term memory<br/>keyed by task type)]\n  Q[New episode] --> Ret[Retrieve lessons]\n  M --> Ret\n  Ret -->|prepend to context| Run[Run agent]\n  Run --> Ep"
+        "mermaid": "flowchart TD\n  Ep[Episode] --> R[Reflect:<br/>verbal lesson]\n  R --> M[(Long-term memory<br/>keyed by task type)]\n  Q[New episode] --> Ret[Retrieve lessons]\n  M --> Ret\n  Ret -->|prepend to context| Run[Run agent]\n  Run --> Ep"
       },
       "known_uses": [
         {
@@ -1556,8 +1556,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Sample the same question multiple times at non-zero temperature and aggregate by majority or judge to mitigate hallucination.",
-      "context": "Reasoning-heavy questions where the model is mostly right but sometimes invents a different chain.",
-      "problem": "A single sample at zero temperature gives the most likely chain; sampling and voting often outperforms it because the right answer is the one most chains converge on.",
+      "context": "A team uses a large language model on reasoning-heavy tasks like math word problems, multi-step logic puzzles, or multiple-choice questions where the model is mostly right but occasionally invents a wrong intermediate chain and confidently produces the wrong answer. The team can extract a comparable answer (a number, a class, a final choice) from each generation. Inference cost permits running the same prompt several times in parallel.",
+      "problem": "A single sample at zero temperature gives the model's single most likely chain of reasoning, but that chain is sometimes the wrong one and there is no way for downstream code to tell. Trying again with a different seed can produce a different answer, and the team has no principled way to decide which sample to trust. Without a way to combine multiple samples, the team either accepts whatever the first call returned or picks among samples arbitrarily. They are also missing a free signal: the spread across samples is itself informative about how confident the model should be, but a one-shot pipeline never gets to see it.",
       "forces": [
         "N samples cost N times more.",
         "Aggregation logic depends on whether the answer is a class, a number, or free text.",
@@ -1674,8 +1674,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Iterate generate → feedback (same model) → refine until a stop criterion fires, with no separate critic model.",
-      "context": "Generation tasks where the same model can produce useful self-feedback against an explicit improvement target.",
-      "problem": "One-shot generation under-uses the model; calling for explicit critique-and-revise from the same model raises quality at modest cost.",
+      "context": "A team runs a generation task (a piece of writing, a code snippet, a dialogue response) on a single large language model and has no second, independent model available to act as a critic. The team has, however, an explicit improvement target for the task: a short checklist, a quality rubric, or a definition of what 'better' means in this domain. The same model is capable of producing useful feedback against that target when given the draft and the checklist.",
+      "problem": "Running the model in one shot leaves quality on the table, but simply asking the same model in a follow-up prompt 'is this any good?' tends to produce vague praise that does not improve the draft. Without a clear separation between generating, critiquing, and revising, the model collapses the three jobs into one and ends up either making the draft worse with random rewrites or declaring it fine on the second look. A loop without a stop criterion runs forever; a loop with no structure produces drift instead of refinement. The team needs the same model to play three distinct roles in sequence, bounded by a clear termination condition.",
       "forces": [
         "Same-model critique inherits the model's blind spots.",
         "Termination criterion is its own design.",
@@ -1760,7 +1760,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]\n  FB --> Stop{No more issues?}\n  Stop -- no --> Ref[Refine: same model rewrites]\n  Ref --> FB\n  Stop -- yes --> Out[Final output]\n  FB -.cap.-> MaxIt[Max iterations]\n  MaxIt --> Out"
+        "mermaid": "flowchart TD\n  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]\n  FB --> Stop{No more issues?}\n  Stop -- no --> Ref[Refine: same model rewrites]\n  Ref --> FB\n  Stop -- yes --> Out[Final output]\n  FB -.cap.-> MaxIt[Max iterations]\n  MaxIt --> Out"
       },
       "last_updated": "2026-05-20"
     },
@@ -1775,8 +1775,8 @@
       ],
       "category": "verification-reflection",
       "intent": "Let a planning agent invoke a generative world model as a tool to roll out hypothetical futures before committing to an action, treating the world model as a callable simulator rather than a training target.",
-      "context": "Agents acting in environments where the consequence of an action is hard to predict from text reasoning alone — robotics, game environments, physical-world tasks, embodied tasks, or any setting where a generative world model exists that can simulate plausible futures from a state-and-action prompt.",
-      "problem": "Pure text-level lookahead (thought trees, plan-and-check) is weak when the consequence of an action depends on physics, geometry, or rich sensory dynamics that the agent's text reasoning does not actually model. Training a tightly-integrated world model into the agent is expensive and locks the agent to one model. Acting without lookahead is unsafe in irreversible environments. The agent needs grounded foresight without taking on the cost of training its own world model.",
+      "context": "A team builds a planning agent that has to act in an environment where the consequences of an action depend on physics, geometry, or rich perceptual dynamics: a household robot, a game-playing agent, an embodied agent moving in a 3D scene, or a control system over a continuous process. A capable generative world model (a video diffusion model, a learned dynamics model, an external simulator) exists that can produce a plausible rollout when given a description of the current state and a candidate action. Some of the actions the agent might take are irreversible or expensive enough that the team would rather not learn about them by acting first.",
+      "problem": "Text-level lookahead, where the agent just thinks step by step about what would happen if it acted, is weak when the answer depends on physical or perceptual details the model never represented in its text reasoning: whether the glass will tip at the shelf edge, whether the gripper will collide with the cup behind it, whether the lever will jam. The model can write a confident paragraph about either outcome without that paragraph having any contact with the actual dynamics. Training a tightly-integrated world model into the agent itself is expensive and locks the system to one model that quickly becomes stale. Acting without any lookahead is unsafe in environments where mistakes are not cheap to undo. The team needs grounded foresight without paying the cost of training their own world model from scratch.",
       "forces": [
         "Text-level reasoning often underrates physical or perceptual consequences of an action.",
         "Generative world models are improving rapidly and are available off the shelf.",

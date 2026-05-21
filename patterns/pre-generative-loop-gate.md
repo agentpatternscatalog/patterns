@@ -11,11 +11,11 @@ Before the next generation fires, detect divergence signatures (narration loops,
 
 ## Context
 
-Long-running agents with frequent ticks where some failure modes — narrating about acting instead of acting, retrying the same broken path under frustration, lapsing into rumination — are visible from telemetry before the model speaks.
+A team is running an agent with frequent ticks where certain failure modes recur often enough to be recognisable from telemetry alone: narrating about acting instead of actually invoking the tool, retrying the same broken path repeatedly after an error, or sinking into rumination on a high-intensity preoccupation without producing new content. These signatures are visible in the recent thoughts, recent tool calls, affect snapshot, and preoccupation list before the next model call fires.
 
 ## Problem
 
-Post-hoc detectors catch the failure after tokens are produced and money is spent. The agent itself often has the signal to avoid the failure if it were told, but nothing is reading that signal before the next call.
+Today's post-hoc detectors only catch these failures after the model has already produced the bad output, by which point the tokens are billed and the user has seen them. The agent itself would frequently avoid the failure if it were told the diagnostic before generating, but nothing reads the available pre-call signal and surfaces it. A hard veto on the next call is too aggressive because the same signature sometimes appears in legitimate work, but doing nothing means paying for the bad output every time.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent keeps falling into a narration loop where it says 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Tick[Pre-tick] --> Check{Divergence signature?}
   Check -->|none| Call[Generate as-is]
   Check -->|narration| Hint1[[steering: narrating about acting]]

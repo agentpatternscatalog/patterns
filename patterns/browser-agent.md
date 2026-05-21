@@ -11,11 +11,11 @@ Expose websites to the agent through a structured DOM/accessibility tree plus a 
 
 ## Context
 
-Web-based workflows (research, form filling, scraping, multi-site automation) where Computer Use is too slow and bespoke API integration is too narrow.
+A team needs an agent that operates websites end-to-end: filling forms, pulling competitive data, navigating multi-page checkouts, or running research across many sites. The target sites have no clean API the team can integrate with, and pixel-level screen control (the Computer Use approach) is too slow and brittle for routine web work.
 
 ## Problem
 
-Raw HTML is too noisy for agents; pixel-based GUI control is slow and brittle on the web specifically.
+Raw HTML is full of inline scripts, tracking pixels, and minified CSS that overwhelm the context window before the agent reaches the actual content. Treating the browser as pure pixels and driving the mouse to coordinates is slow, breaks the moment the layout shifts, and burns vision tokens on every click. Without a stable, structured representation of the page the agent ends up reasoning over noise instead of intent.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A growth team builds an agent that scrapes competitor pricing pages. Feeding raw
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   P[Page] --> Lib[Playwright lib]
   Lib --> AT[A11y tree +<br/>numbered elements]
   AT --> Agent

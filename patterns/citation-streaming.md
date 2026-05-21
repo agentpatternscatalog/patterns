@@ -11,11 +11,11 @@ Stream citations alongside generated text so the UI can render source links in p
 
 ## Context
 
-RAG-backed answers where the user must trace claims to sources; post-hoc citation breaks the streaming UX.
+A team is building a retrieval-augmented agent — Retrieval-Augmented Generation, where the model answers from a set of documents pulled in at query time — and the user needs to see which source each claim came from. The answer streams to the user token by token so the interface feels responsive. The team has to decide when and how the citations should appear alongside the streaming text.
 
 ## Problem
 
-Generating citations after the answer hides them until the end; trusting the model to inline citations as text fails reliably.
+Two obvious choices both fail. Generating the answer first and the citation list afterwards hides every source until the streaming finishes, which defeats the responsiveness the streaming was meant to deliver and trains users to wait for the end before they trust anything. Asking the model to weave citation markers into its prose and hoping it does so consistently is unreliable: marker formats drift, citations attach to the wrong span, and a free-form text channel cannot tell the user-interface code which characters are a citation and which are prose.
 
 ## Forces
 

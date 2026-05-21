@@ -11,11 +11,11 @@ Anti-pattern: the agent cites its own past memos as ground truth instead of re-v
 
 ## Context
 
-Agents with persistent workspace files that summarize project state. The notes were accurate when written; the underlying artifacts have moved on.
+A long-running agent keeps a workspace of memo files, status documents, or running notes that summarise external artifacts — repository state, project status, the contents of large files it has previously read. Each memo was accurate when the agent wrote it, but the underlying code, documents, or systems have moved on since. The agent has no cheap signal for when one of its own memos has become stale.
 
 ## Problem
 
-The agent claims a file's state, a project's status, or external system's state by quoting its own memo without re-reading the artifact the memo describes. Memos go stale; artifacts are authoritative. The contradiction can persist across many ticks if neither side is verified.
+When asked a question about an artifact's current state, the agent quotes its own past memo as if it were the artifact itself, rather than re-reading the artifact in the same step. Memos compress and persist; artifacts change. The result is a confident, well-cited answer that is silently wrong, and because the agent is citing its own writing the wrongness can be reproduced across many turns before anything from the outside contradicts it.
 
 ## Forces
 

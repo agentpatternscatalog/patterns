@@ -11,11 +11,11 @@ Vary the agent's loop interval based on current salience so the agent thinks fas
 
 ## Context
 
-Tick-based long-running agents whose workload is bursty — quiet stretches punctuated by salient events. A fixed cadence either over-spends compute during the quiet or under-thinks during the bursts.
+A team is running an agent on a continuous tick loop whose workload is bursty by nature: long quiet stretches with nothing happening, punctuated by intense periods when the user is actively engaging, a deadline is close, or new events keep arriving. The agent has access to signals about its own current load — salience scores on recent ticks, affect levels, the recency of external input — but its loop interval is a single fixed number set in configuration.
 
 ## Problem
 
-A fixed-cadence loop either over-spends compute during idle stretches or under-thinks during salient moments; both modes are wrong, and the agent has the signal (its own salience scores, its own affect, recent inputs) to decide which mode it should be in.
+A fixed-cadence loop is wrong in both directions. Running every fifteen seconds wastes tokens on idle evenings when nothing has changed since the last tick. Running every five minutes makes the agent feel sluggish during active conversation when the user is waiting for the next response. The agent already has the signal needed to decide which regime it should be in, but nothing reads that signal and adjusts the interval, so compute spend and responsiveness are decoupled from what is actually happening.
 
 ## Forces
 

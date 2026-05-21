@@ -11,11 +11,11 @@ Gate the agent's edits to its own code or rules through a separate critic person
 
 ## Context
 
-A self-modifying agent can edit its own source, prompts, or rules; without a gate, recursive self-editing can drift into incoherence or unsafe behaviour.
+A team runs an agent that can edit its own source code, its own system prompt, or its own rule files as part of its normal operation, with the goal of letting the agent improve itself over time. The edits are non-trivial: a bad one can leave the agent broken in production or, worse, leave it superficially working but with safety constraints silently removed. The team needs a way to let useful self-edits through while catching the harmful ones.
 
 ## Problem
 
-Self-edits applied directly bypass review; the agent can corrupt its own future behaviour irreversibly.
+When self-edits are applied directly without a review step, the agent can silently rewrite its own future behaviour in irreversible ways, including past the very safety preamble that was supposed to constrain it. A bad edit is not noticed until the next time the agent runs and behaves strangely, by which time the previous version is gone. Asking the same model to review its own diff inside the same context tends to rationalise the change rather than evaluate it, because the model that just argued itself into making the edit will argue itself into approving it. The team needs an independent review step that runs before any self-edit lands.
 
 ## Forces
 

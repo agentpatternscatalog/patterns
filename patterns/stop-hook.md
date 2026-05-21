@@ -11,11 +11,11 @@ Define an explicit programmatic predicate that decides when the agent's loop sho
 
 ## Context
 
-Agent loops need a stop condition; relying on the model to declare 'done' is unreliable.
+A team is operating an agent loop where the agent repeatedly thinks, acts, observes, and decides whether to keep going. The loop needs an explicit stop condition that does not rely on the model itself declaring 'done', because in practice the model's own sense of completion is unreliable — it either stops too early on hard tasks or refuses to stop on easy ones.
 
 ## Problem
 
-Implicit termination ('the model says it is done') fails when the model is uncertain or stuck.
+When termination is left implicit, with the loop ending only when the model says it is finished, the agent stalls in two opposite ways. On uncertain tasks the model will not commit to 'done' and keeps generating one more step indefinitely; on stuck tasks the model will keep trying variations of the same broken approach. Both burn budget and produce poor results. The team needs an explicit programmatic predicate — a stop hook — that decides termination from outside the model, based on observable signals such as goal completion, step count, repeated outputs, or detected errors.
 
 ## Forces
 

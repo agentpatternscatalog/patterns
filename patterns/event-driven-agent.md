@@ -11,11 +11,11 @@ Trigger the agent on external events (webhooks, message queues, file changes) in
 
 ## Context
 
-Tasks that should happen in response to something happening (PR opened, message received, alert fired) — not on a clock and not on demand.
+A team operates an agent whose job is to react to things happening in the wider system — a pull request opened on a repository, a customer message arriving in a queue, a monitoring alert firing, a file appearing in a watched folder. The work should happen when the event occurs, not when a human remembers to ask and not on a fixed schedule. An event source (webhook, message queue, file watcher) is already available or can be added.
 
 ## Problem
 
-Pulling for state on a schedule wastes effort; pushing on events is timely and efficient when an event source exists.
+If the agent has to discover these events by polling a status endpoint on a schedule, most polls find nothing and burn tokens and quota; the few that find something arrive up to one polling-interval late. Inviting the agent only on user demand misses everything that happens overnight. Wiring the agent naively to an event firehose without validation, deduplication, or rate limits exposes it to event storms, replayed deliveries, and spurious triggers that can drain budgets or cause duplicate side effects.
 
 ## Forces
 

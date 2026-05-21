@@ -11,11 +11,11 @@ Decompose a long-running coding or creative job into three role-isolated agents 
 
 ## Context
 
-Long-running application development, large refactors, and other multi-day creative jobs run by a coding-agent harness where a single agent run cannot fit the task into one context window. The work has a clear external artefact (code, document, design) that can be evaluated independently of how it was produced.
+A team runs a coding-agent harness on multi-day creative work — building a new feature across a large application, conducting a large refactor, drafting a long design document. The job is too big to fit into a single model context window, so it has to be split across many runs. There is a clear external artefact (code, document, design) that can be evaluated on its own merits without inspecting how it was produced.
 
 ## Problem
 
-Single-agent long-runs hit context limits and conflate planning, generation, and self-grading inside one head. Two-role evaluator-optimizer loops let the optimiser game the evaluator by reading its critiques as hints. Generic orchestrator-workers patterns do not specify a *grader* role with hard isolation, so quality drifts. The harness needs a three-way split where each role works in its own context and the evaluator cannot be social-engineered by the generator's reasoning.
+A single agent trying to do all of this in one head hits context limits within a few hours and conflates planning, generation, and self-grading; its own scratch reasoning leaks into how it judges its work. A two-role loop where one agent generates and the other critiques lets the generator read the critic's notes as hints and game them. Generic orchestrator-worker decomposition does not name a grader role with hard isolation, so quality drifts run by run and there is no fixed place to enforce the acceptance bar. The team needs a three-way split where each role's context stays small, the grader cannot be socially engineered by the generator, and the plan survives across runs.
 
 ## Forces
 

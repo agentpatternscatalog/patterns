@@ -11,11 +11,11 @@ Constrain reflection to a fixed, hand-authored rubric of criteria so the reviewe
 
 ## Context
 
-Open-ended reflection drifts pattern over pattern; the reviewer's criteria change with the wind, making outputs hard to compare across runs or users.
+A team uses a model to review the output of another model (or its own previous draft) as a quality gate before shipping. The review needs to be consistent across runs and across users so that two outputs from the same kind of task get judged against the same criteria. Auditors or downstream consumers want to know which checks were performed on each output.
 
 ## Problem
 
-Free-form 'review your work' produces inconsistent reviews because the model invents categories on each call.
+When the reviewer is given a free-form instruction like 'review this output and flag any issues', it invents fresh criteria on every call: today it notices tone, tomorrow it notices grammar, the day after it notices factual claims. Reviews stop being comparable across runs because they were not measuring the same thing. The reviewer also tends to drift over time, gradually narrowing its attention onto whatever issue it last saw and forgetting categories it used to check. The team has no stable answer to the question 'what did the reviewer actually look for on this run?', which makes the reviewer useless for audit and unreliable as a gate.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Pair every irreversible-looking agent action with a compensating action that can
 
 ## Context
 
-Multi-step workflows where some steps succeed and later steps fail; without compensation, partial state is left inconsistent.
+An agent is executing a multi-step plan that writes to several systems in sequence — book a flight, then a hotel, then a car, or charge a card, then provision an account, then send a welcome email. Each step succeeds or fails independently, and the agent is operating across services that have no shared transactional boundary. Some of the early steps will have already landed in the real world by the time a later step fails.
 
 ## Problem
 
-Distributed transactions are not available across most agent tool palettes; failure mid-plan leaves the system in an inconsistent state.
+Most agent tool palettes do not offer distributed transactions across the third-party systems the agent talks to, so there is no built-in mechanism to roll back a multi-step plan when one step fails. Without an explicit undo strategy, a failure halfway through the plan leaves the world in an inconsistent state: the flight is booked but the hotel is not, the card has been charged but the account does not exist. The agent then either retries blindly and double-books, or stops and leaves a human to clean up by hand.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Anti-pattern: trust the model to invoke only the tools it has been given, then d
 
 ## Context
 
-The agent is given a tool palette, but the host accepts whatever the model emits without validation.
+An agent is configured with a registered set of tools — a tool palette — that it is supposed to choose from on each turn. The host code that receives the model's tool call accepts whatever name and arguments the model emits and dispatches them without first checking that the name actually exists in the registered palette. The team assumes that because the model was shown the palette in the prompt, the model will only call tools from it.
 
 ## Problem
 
-The model invents tool names. The host either crashes, silently drops the call, or worse, dispatches to a similar-named real tool.
+Models routinely invent tool names that look reasonable but are not registered — a slight rename, a pluralised version, an imagined helper that should logically exist. The unvalidated host then either crashes with an unhelpful error, silently drops the call, or, in the worst case, fuzzy-matches the invented name to a similar real tool and executes the wrong action with side effects. Without strict validation at the dispatch boundary, phantom calls become indistinguishable from legitimate ones in the logs.
 
 ## Forces
 

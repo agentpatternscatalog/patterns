@@ -11,11 +11,11 @@ Run independent LLM calls concurrently and combine results.
 
 ## Context
 
-The task naturally splits (sectioning) or benefits from multiple independent attempts (voting).
+A task either splits cleanly into independent subtasks that can run side by side — for example reviewing a pull request for security, style, and test coverage — or benefits from running the same prompt several times and combining the results, which is the basis of self-consistency style voting in mathematical reasoning. In both cases the agent is making more than one LLM call where none of the calls depend on each other's output. The provider's rate limits and the team's budget can absorb running these calls in parallel.
 
 ## Problem
 
-Sequential execution of independent work wastes wall-clock time; single-attempt execution misses outliers a second look would catch.
+If independent subtasks run one after another, the user waits for the sum of every call even though nothing forces the order. If the model produces only one attempt at a hard reasoning problem, an unlucky sample can be wrong with no chance of catching it because there is nothing to compare against. Sequential single-attempt execution leaves both latency and quality on the table whenever the work is genuinely parallelisable.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A code-review agent runs three independent checks on each PR — security scan, 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Task] --> Sp[Split / replicate]
   Sp --> A[Call A]
   Sp --> B[Call B]

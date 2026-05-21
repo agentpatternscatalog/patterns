@@ -11,11 +11,11 @@ Anti-pattern: couple application code directly to one model provider's SDK, requ
 
 ## Context
 
-LLM applications and agent frameworks built directly against a single vendor's SDK without a provider-agnostic abstraction.
+A team is building an LLM application or agent framework directly against a single provider's SDK — calling its specific request shape, depending on its proprietary streaming chunks, using its particular tool-call format. There is no abstraction layer between the application code and the vendor SDK, because the team has no immediate plan to support a second provider and the SDK exposes useful features that would be diluted by a lowest-common-denominator interface.
 
 ## Problem
 
-Each provider has its own request schema, streaming semantics, tool-call format, and rate-limit behaviour. Application code that depends on one provider's shape cannot be redirected to another without invasive changes, and quality/cost trade-offs (multi-model-routing, provider-fallback) become impossible to evaluate.
+Every provider has its own request schema, its own streaming semantics, its own tool-call shape, and its own rate-limit headers. Application code that has been written directly against one provider cannot be redirected to another without invasive changes through the whole codebase, because the vendor's shape has leaked everywhere. Once that coupling exists, the team can no longer evaluate routing requests to a cheaper or stronger competitor for the same task, cannot fall back to another provider during an outage, and cannot move workloads for compliance reasons. Switching providers is a normal lifecycle event, not a hypothetical one, and vendor lock-in turns it into a rewrite.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A startup builds its agent product against one provider's SDK, threading provide
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   App[Application code] --> SDK[Single-provider SDK]
   SDK --> P1[Provider X]
   P1 -. outage / price hike .-> Down[Forced offline / forced rewrite]

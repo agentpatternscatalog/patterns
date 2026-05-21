@@ -11,11 +11,11 @@ Split an oversize task into independent chunks, process each in parallel, then a
 
 ## Context
 
-The input does not fit the model's context window or the task naturally decomposes (per-row, per-document, per-section).
+A team needs to apply a language model to an input that is too large for a single call — twelve hundred pages of vendor contracts, a million-row table, hundreds of documents to summarise — or to a task that decomposes naturally into independent pieces (per row, per document, per section). Per-piece work is short; what is hard is the scale.
 
 ## Problem
 
-Long-context models still degrade with size; chunked processing without coordination loses cross-chunk dependencies.
+Stuffing the whole input into a long-context model still degrades quality past a certain point; quality drops in the middle of long documents and the model conflates entities across the input. Chunking the input and processing each chunk in isolation loses anything that depends on more than one chunk, such as cross-document deduplication or per-entity aggregation. Without a structured reduction step, conflicts between chunk answers go unresolved, and the team ends up either rerunning the whole thing in a giant call or hand-merging chunk outputs.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Design the tool surface for an LLM agent specifically, with affordances differen
 
 ## Context
 
-Production coding agents and other domain agents that operate over file systems or APIs originally designed for humans.
+A team is building a coding agent, a research agent, or another domain agent that drives a file system, a shell, a web page, or an API that was originally designed for a human sitting at a keyboard. The agent is expected to read, edit, and act over those surfaces inside a fixed context budget, often for hundreds of turns per task.
 
 ## Problem
 
-Tools designed for humans (full-buffer editors, full-page web views, generic shells) overwhelm agent context and provide poor signals; agents perform better against curated agent-friendly surfaces.
+Human-facing tools are wrong-shaped for the agent: a normal text editor returns a whole 4000-line buffer when the agent only needs ten lines, a generic shell prints unbounded stdout that overflows context, and a web page returns minified JavaScript instead of structured state. The agent burns turns scrolling, paginating, and re-reading content it cannot fit, and signal-poor outputs (no exit codes, no linter feedback) hide the information the model actually needs to decide its next step.
 
 ## Forces
 
@@ -38,7 +38,7 @@ An engineering team wires their agent to the standard bash and a desktop-grade t
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Agent] -->|view file| V[File Viewer<br/>windowed + line nums]
   A -->|edit| E[Edit Tool<br/>re-runs linter]
   A -->|run| S[Shell<br/>structured stdout/stderr/exit]

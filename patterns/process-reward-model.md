@@ -11,11 +11,11 @@ Train a verifier that scores each reasoning step rather than only the final answ
 
 ## Context
 
-Multi-step reasoning tasks where final-answer scoring conflates good reasoning with lucky right answers.
+A team trains or evaluates a model on multi-step reasoning tasks such as mathematics word problems, multi-hop question answering, or chains of logical deduction. The model produces a chain of intermediate steps and a final answer, and the team has been training or selecting candidates using an outcome reward model (a verifier that only scores whether the final answer is right). They also have, or could collect, human labels at the level of individual reasoning steps.
 
 ## Problem
 
-Outcome reward models reinforce shortcut reasoning that lands on the right answer through wrong steps; step-level supervision gives finer-grained signal.
+Outcome-only scoring cannot tell the difference between reasoning that got to the right answer correctly and reasoning that got to the right answer by lucky shortcuts, cancelled errors, or fabricated intermediate facts. Reinforcing on outcome alone rewards those shortcuts, so the model becomes more confident in chains of thought that contain wrong intermediate steps. Later, on harder problems where the shortcut does not exist, the same kinds of wrong intermediate steps lead to wrong final answers. The team needs a feedback signal that can reject a candidate because step three is wrong, even when step five happens to land on the right number.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A maths-reasoning agent passes most of the eval set but on inspection many trace
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   CoT[Reasoning trace] --> S1[Step 1] --> S2[Step 2] --> S3[Step 3] --> Ans[Final answer]
   S1 --> PRM[Process reward model]
   S2 --> PRM

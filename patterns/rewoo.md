@@ -11,11 +11,11 @@ Plan a complete dependency DAG with placeholder variables before any tool runs, 
 
 ## Context
 
-Many agent tasks have planning that does not actually depend on early observations; ReAct re-prompts the big model after each tool call wastefully.
+A team runs a multi-tool agent on tasks where most of the planning could be done in one shot — search for X, then summarise the result, then extract a field — because each step's structure is determined by the task, not by what the previous step returned. A strong, expensive model is doing the planning and a cheap worker can do the tool calls. Token cost matters: the agent is called at volume.
 
 ## Problem
 
-Token cost in ReAct grows linearly with steps because each observation re-enters the prompt for the next reasoning turn.
+In a ReAct loop (reason-act-observe), every tool observation is fed back into the planner's prompt for the next reasoning turn. Token cost therefore grows roughly with the square of the step count, because each turn carries the trace of all the previous turns. On an eight-step task the planner re-reads its own scratch reasoning and all prior observations seven times. Most of those re-reads do not change the plan — the structure was knowable up front — so the team is paying for re-prompting that produces no new decisions.
 
 ## Forces
 
@@ -59,7 +59,7 @@ Planner(query) -> DAG(steps with #refs) -> Worker(steps) -> resolved_trace -> So
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   G[Goal] --> Pl[Planner]
   Pl -->|DAG with #t1, #t2 vars| Plan[Plan]
   Plan --> W[Worker]

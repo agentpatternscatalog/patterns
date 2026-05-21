@@ -11,11 +11,11 @@ Assign each agent a named role (researcher, writer, critic, planner) with a role
 
 ## Context
 
-Multi-agent systems where personas need to be distinct enough that the user (and the system) can reason about who did what.
+A team is running several agents that contribute to a shared workflow — a content pipeline with a researcher, a writer, and a critic; a coding crew with a planner, a coder, and a reviewer — and the user, the reviewer, and the team itself need to know who produced what. Each role has its own work to do and its own definition of done.
 
 ## Problem
 
-Generic agents drift toward similarity; without explicit roles, contributions blur and review becomes hard.
+When the agents share a generic prompt and an open tool palette, they drift toward sameness: the researcher starts writing prose, the writer starts critiquing, the critic starts proposing rewrites, and the outputs all sound alike. Contributions blur together in the transcript, review cannot focus on the right thing, and disagreement between roles — which is the signal the team wanted — never surfaces because every agent agrees with every other agent. Without explicit roles backed by scoped prompts, tools, and acceptance criteria, the multi-agent setup gives no benefit over a single agent.
 
 ## Forces
 

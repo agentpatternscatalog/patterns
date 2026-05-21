@@ -11,11 +11,11 @@ Train the model to be robust to irrelevant retrieved documents (distractors) in 
 
 ## Context
 
-Domain-specific RAG where retrieval inevitably mixes relevant and irrelevant documents; the off-the-shelf model is over-confident on distractors.
+A team is using retrieval-augmented generation in a specific domain and has observed that retrieval almost always returns a mix of documents. Some of the retrieved chunks are genuinely relevant to the user's query; others are topically similar distractors that share keywords or themes but do not actually answer the question. An off-the-shelf retrieval-augmented model attends to all of these chunks and is over-confident on the distractors that look plausible at a glance.
 
 ## Problem
 
-Generic RAG models are fooled by topically-similar distractors; the answer drifts to the loudest irrelevant source.
+Generic models trained on broadly relevant retrievals have not been taught to be sceptical of plausible-looking distractors in their context. When the retrieval mixes one relevant document with two or three convincing distractors, the model's answer drifts towards the loudest irrelevant source, often quoting it directly back at the user. The team needs the model to learn, during fine-tuning, how to ignore distractors in its context window and rely only on the truly relevant documents when those exist — and the team needs to do this with a training procedure that simulates the real retrieval mix rather than assuming clean inputs.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A clinical-coding RAG assistant keeps citing topically-similar but wrong ICD cha
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   D[Domain corpus] --> Tr[Build training pairs<br/>oracle + distractors]
   Tr --> FT[Fine-tune model:<br/>cite oracle, ignore distractors]
   FT --> RAG[RAG inference]

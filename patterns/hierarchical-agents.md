@@ -11,11 +11,11 @@ Organise agents in a tree where higher-level agents decompose tasks for lower-le
 
 ## Context
 
-Tasks decomposable across multiple levels of granularity (project → epic → ticket → step); a flat supervisor would have too many direct reports.
+A team is working with tasks that decompose recursively across several levels — a market research project breaks into vertical-specific research, each vertical breaks into specific information-gathering steps; a software project breaks into epics, tickets, and individual edits. At each level the right next step is different in kind, not just in detail. A single supervisor cannot meaningfully reason about every leaf at once.
 
 ## Problem
 
-Flat supervisor patterns scale poorly: one supervisor with N specialists has prompt complexity that grows with N.
+A flat supervisor pattern, where one coordinating agent dispatches to a list of specialists, scales poorly as the list grows. The supervisor's prompt grows with the number of specialists, recall on which specialist to call drops, and any new vertical forces an edit to the root prompt. The supervisor ends up trying to think simultaneously at the level of the whole project and the level of individual specialist tasks, which neither it nor any other agent does well.
 
 ## Forces
 

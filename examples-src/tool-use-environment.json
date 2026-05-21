@@ -1,0 +1,767 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "tool-use-environment",
+  "label": "Tool Use & Environment",
+  "patterns": [
+    {
+      "pattern_id": "agent-computer-interface",
+      "intent": "Show a tool surface designed for an LLM agent — windowed file viewer, lint-aware edit, structured shell — rather than a human-facing CLI.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of an agent-shaped tool surface: every primitive returns context-budget-friendly structured output.",
+          "code": "function view_file(path, start, count):\n    lines = read_window(path, start, count)\n    return {\n        \"path\": path,\n        \"start\": start,\n        \"lines\": numbered(lines),       # \"42\\tdef foo():\"\n        \"total_lines\": file_length(path),\n        \"hint\": \"call again with start=...\" if more else null,\n    }\n\nfunction edit_file(path, old_text, new_text):\n    apply_patch(path, old_text, new_text)\n    diag = linter.run(path)               # always re-lint after edit\n    return {\"ok\": diag.errors == [], \"errors\": diag.errors[:10]}\n\nfunction shell(cmd, timeout):\n    p = run(cmd, timeout=timeout)\n    return {\"stdout\": p.stdout[:8_000],   # capped to context budget\n            \"stderr\": p.stderr[:2_000],\n            \"exit_code\": p.returncode}\n\nfunction search(query, path):\n    hits = ripgrep(query, path)\n    return {\"hits\": rank(hits)[:20]}      # ranked, not raw firehose",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Built-in Read/Edit/Bash/Grep tools are agent-shaped (windowed Read, lint-aware Edit, structured Bash); allow them by name.",
+          "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n\nasync def main():\n    # The SDK ships an agent-shaped tool surface: Read returns numbered\n    # windowed slices, Edit re-checks the file, Bash returns structured\n    # stdout/stderr/exit_code, Grep is rg-backed with ranking.\n    options = ClaudeAgentOptions(\n        system_prompt=(\n            \"You are a coding agent. Use Read with offset/limit to view \"\n            \"large files in slices; never dump a whole file into context. \"\n            \"After every Edit, the tool returns lint output \\u2014 fix \"\n            \"errors before moving on.\"\n        ),\n        allowed_tools=[\"Read\", \"Edit\", \"Write\", \"Bash\", \"Grep\"],\n    )\n\n    async for message in query(\n        prompt=\"Find the failing test in tests/, open it, and fix it.\",\n        options=options,\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasyncio.run(main())",
+          "source_url": "https://code.claude.com/docs/en/overview",
+          "sdk_version": "claude-agent-sdk>=0.1",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openhands",
+          "framework_label": "OpenHands",
+          "language": "python",
+          "intent": "OpenHands ships TerminalTool + FileEditorTool that return structured exit-code/stdout/stderr and re-show file context after each edit.",
+          "code": "import os\nfrom openhands.sdk import LLM, Agent, Conversation, Tool\nfrom openhands.tools.file_editor import FileEditorTool\nfrom openhands.tools.terminal import TerminalTool\n\nllm = LLM(\n    model=os.getenv(\"LLM_MODEL\", \"anthropic/claude-sonnet-4-5\"),\n    api_key=os.getenv(\"LLM_API_KEY\", \"sk-...\"),\n)\n\n# Both tools are designed for an agent caller, not a human:\n#  - TerminalTool returns structured {stdout, stderr, exit_code}\n#  - FileEditorTool re-renders the affected slice after each edit and\n#    surfaces parse/lint problems in-band so the agent can self-correct.\nagent = Agent(\n    llm=llm,\n    tools=[\n        Tool(name=TerminalTool.name),\n        Tool(name=FileEditorTool.name),\n    ],\n)\n\nconversation = Conversation(agent=agent, workspace=os.getcwd())\nconversation.send_message(\n    \"Open src/api.py, locate handle_request, and add input validation.\"\n)\nconversation.run()",
+          "source_url": "https://docs.openhands.dev/sdk/getting-started",
+          "sdk_version": "openhands-sdk>=0.1",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-skills",
+      "intent": "Show packaged author-time procedures (SKILL.md + optional resources) loaded by the agent on demand for matching task types.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of skill discovery: scan known directories, parse frontmatter, load on demand.",
+          "code": "# layout on disk\n#   .claude/skills/\n#     pdf-extract/\n#       SKILL.md      <-- frontmatter: name, description\n#       extract.py    <-- optional companion resources\n#     csv-cleanup/\n#       SKILL.md\n\nfunction load_skills(roots):\n    catalog = []\n    for root in roots:\n        for dir in scan(root + \"/skills/*\"):\n            md = read(dir + \"/SKILL.md\")\n            meta = parse_frontmatter(md)        # {name, description}\n            catalog.append({\n                \"name\": meta.name,\n                \"description\": meta.description,\n                \"path\": dir,\n            })\n    return catalog\n\nfunction agent_step(task, catalog):\n    # model sees only names + descriptions, not the full body\n    chosen = llm.pick_skills(task, catalog)\n    bodies = [read(s.path + \"/SKILL.md\") for s in chosen]\n    return llm.run(task, system=join(bodies))   # body loaded on demand",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "ClaudeAgentOptions(setting_sources=..., skills='all') loads SKILL.md files from .claude/skills/ at user and project scope.",
+          "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n# Skills live as markdown files on disk, e.g.:\n#   .claude/skills/pdf-extract/SKILL.md\n#     ---\n#     name: pdf-extract\n#     description: Extract structured text from PDF documents\n#     ---\n#     # Procedure\n#     1. ... step-by-step instructions for the agent ...\n\n\nasync def main():\n    options = ClaudeAgentOptions(\n        # Tell the SDK where to discover skills on the filesystem.\n        setting_sources=[\"user\", \"project\"],\n        # Enable all discovered skills; pass a list of names to filter.\n        skills=\"all\",\n    )\n\n    async for message in query(\n        prompt=\"Extract the invoice line items from invoices/q1.pdf.\",\n        options=options,\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasyncio.run(main())",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/skills",
+          "sdk_version": "claude-agent-sdk>=0.1",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "app-exploration-phase",
+      "intent": "Show the two-phase lifecycle — exploration writes a per-element knowledge base, deployment retrieves it to ground each action.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the two-phase split: exploration produces docs.jsonl; deployment retrieves and acts.",
+          "code": "# Phase 1: exploration (one-time, or per UI change)\nfunction explore(app):\n    docs = []\n    for screen in walk(app):\n        for element in screen.elements:\n            interact_and_observe(element)            # click/hover/scroll\n            doc = llm.describe(\n                element=element,\n                before=screen.before,\n                after=screen.after,\n            )                                        # what / does / when-to-use\n            docs.append({\"id\": element.id, \"doc\": doc, \"path\": element.path})\n    index = vector_index(docs)\n    save(index, \"element_docs.idx\")\n    return index\n\n# Phase 2: deployment (per task)\nfunction act(task, index):\n    plan = llm.plan(task)\n    for step in plan:\n        candidates = index.search(step.description, k=5)   # retrieve docs\n        chosen = llm.pick_element(step, candidates)\n        controller.execute(chosen.id, step.args)\n\n    return done()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "augmented-llm",
+      "intent": "Show the foundational block — a single model wired with retrieval, tools, and memory it actively chooses to use.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the augmented block: model decides per step whether to retrieve, call a tool, or read/write memory.",
+          "code": "function augmented_llm(user_message):\n    # all three augmentations are model-driven, not orchestrator-driven\n    tools = [\n        retrieve(query),         # corpus-side knowledge\n        call_tool(name, args),   # side-effecting actions\n        memory_read(key),        # cross-turn state\n        memory_write(key, value),\n    ]\n\n    messages = [\n        system_prompt,\n        memory.summary(),        # prior session state surfaced as context\n        user(user_message),\n    ]\n\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages=messages, tools=tools)\n        messages.append(reply)\n\n        if not reply.tool_calls:\n            memory.commit(messages)        # persist what mattered\n            return reply.content\n\n        for call in reply.tool_calls:\n            result = dispatch(call)         # retrieve | tool | memory\n            messages.append(tool_result(call.id, result))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "browser-agent",
+      "intent": "Show the structured-DOM + small-action-vocabulary surface that sits between raw HTML and pixel-level Computer Use.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: extract a numbered, accessibility-flavoured tree; emit one action from a compact vocabulary; observe.",
+          "code": "ACTIONS = [\"click(idx)\", \"type(idx, text)\", \"scroll(dir)\",\n           \"navigate(url)\", \"extract(selector)\", \"done(summary)\"]\n\nfunction run(task, browser):\n    messages = [system_prompt, user(task)]\n\n    for step in 1..MAX_STEPS:\n        # structured page state — not raw HTML, not pixels\n        tree = browser.accessibility_tree()\n        elements = number_interactive(tree)   # [{idx:1, role:button, name:...}]\n        messages.append(observation({\"url\": browser.url, \"elements\": elements}))\n\n        reply = llm.generate(messages=messages, tools=ACTIONS)\n        messages.append(reply)\n\n        call = reply.tool_calls[0]\n        if call.name == \"done\":\n            return call.args.summary\n        browser.execute(call.name, call.args)   # Playwright-backed\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "browser-use",
+          "framework_label": "browser-use",
+          "language": "python",
+          "intent": "Agent(task=..., llm=...) reads the DOM/accessibility tree and drives a compact action vocabulary via Playwright.",
+          "code": "import asyncio\nfrom browser_use import Agent\nfrom browser_use.llm import ChatAnthropic\n\n\nasync def main():\n    # browser-use exposes a structured page representation (numbered\n    # interactive elements + accessibility tree) and a small action set\n    # (click, type, scroll, extract, done). The agent reasons over text,\n    # not pixels — vision is optional.\n    agent = Agent(\n        task=\"Find the GitHub trending Python repo and report its star count.\",\n        llm=ChatAnthropic(model=\"claude-sonnet-4-5\", api_key=\"sk-...\"),\n        use_vision=False,\n        max_actions_per_step=4,\n    )\n    result = await agent.run()\n    print(result.final_result())\n\n\nasyncio.run(main())",
+          "source_url": "https://github.com/browser-use/browser-use",
+          "sdk_version": "browser-use>=0.1",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "stagehand",
+          "framework_label": "Stagehand",
+          "language": "typescript",
+          "intent": "stagehand.page exposes typed act/extract/observe primitives over a Playwright-driven structured DOM.",
+          "code": "import { Stagehand } from \"@browserbasehq/stagehand\";\nimport { z } from \"zod\";\n\nasync function main() {\n  const stagehand = new Stagehand({ env: \"LOCAL\" });\n  await stagehand.init();\n  const page = stagehand.page;\n\n  await page.goto(\"https://github.com/trending/python?since=weekly\");\n\n  // observe() returns a list of candidate elements with structured\n  // descriptions — the small-vocabulary action surface.\n  const candidates = await page.observe(\n    \"the link to the top trending repository\"\n  );\n  await page.act(candidates[0]);\n\n  // extract() lifts typed data out of the page.\n  const data = await page.extract({\n    instruction: \"the repository name and current star count\",\n    schema: z.object({ name: z.string(), stars: z.string() }),\n  });\n  console.log(data);\n\n  await stagehand.close();\n}\n\nmain();",
+          "source_url": "https://github.com/browserbase/stagehand",
+          "sdk_version": "@browserbasehq/stagehand@^2.0",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "code-as-action",
+      "intent": "Show the code-snippet-as-action channel where the agent composes tool calls inside one Python snippet instead of unrolling them across JSON turns.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the code-as-action loop: tools are pre-imported into the sandbox; the action is a snippet.",
+          "code": "function run(task):\n    sandbox = make_sandbox(\n        imports=ALLOWED_MODULES,\n        functions=TOOL_REGISTRY,     # tools pre-imported as Python callables\n    )\n    messages = [system_prompt_for_code, user(task)]\n\n    for step in 1..MAX_STEPS:\n        snippet = llm.generate_code(messages=messages)\n        messages.append(assistant(snippet))\n\n        stdout, value, error = sandbox.execute(snippet)\n        if error:\n            messages.append(observation(f\"error: {error}\"))\n            continue\n        if value is not None:\n            return value             # snippet returned the answer\n        messages.append(observation(stdout))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "smolagents",
+          "framework_label": "smolagents",
+          "language": "python",
+          "intent": "CodeAgent emits Python snippets as its action channel; tools are pre-imported into a constrained interpreter.",
+          "source_url": "https://github.com/huggingface/smolagents",
+          "sdk_version": "smolagents>=1.0",
+          "code": "from smolagents import CodeAgent, WebSearchTool, InferenceClientModel\n\nmodel = InferenceClientModel()\n\nagent = CodeAgent(\n    tools=[WebSearchTool()],\n    model=model,\n    stream_outputs=True,\n)\n\n# Each step the agent emits a Python snippet that composes tool calls inside\n# normal control flow (loops, conditionals, intermediate variables) instead of\n# unrolling them across many JSON turns.\nresult = agent.run(\n    \"How many seconds would it take for a leopard at full speed to run \"\n    \"across the Pont des Arts?\"\n)\nprint(result)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "qwen-agent",
+          "framework_label": "Qwen-Agent",
+          "language": "python",
+          "intent": "Assistant with code_interpreter in its function_list uses Python as the action channel for composing operations.",
+          "source_url": "https://github.com/QwenLM/Qwen-Agent",
+          "sdk_version": "qwen-agent>=0.0.10",
+          "code": "from qwen_agent.agents import Assistant\n\nllm_cfg = {\n    \"model\": \"qwen-max-latest\",\n    \"model_type\": \"qwen_dashscope\",\n    \"api_key\": \"sk-...\",\n}\n\n# code_interpreter runs the agent's emitted Python in a sandbox container.\n# The agent uses it to compose multi-step operations in a single snippet.\nbot = Assistant(\n    llm=llm_cfg,\n    function_list=[\"code_interpreter\"],\n    system_message=(\n        \"For multi-step data work, write one Python snippet that does the \"\n        \"whole thing instead of asking for results one step at a time.\"\n    ),\n)\n\nmessages = [{\n    \"role\": \"user\",\n    \"content\": (\n        \"Given rows = [(120,100),(200,150),(90,80)], compute the mean \"\n        \"gross margin and print it.\"\n    ),\n}]\nfor response in bot.run(messages=messages):\n    print(response)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen",
+          "language": "python",
+          "intent": "AssistantAgent generates code; CodeExecutorAgent runs it in a Docker sandbox — the two together form the code-as-action loop.",
+          "source_url": "https://microsoft.github.io/autogen/stable/reference/python/autogen_agentchat.agents.html",
+          "sdk_version": "autogen-agentchat>=0.4",
+          "code": "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent, CodeExecutorAgent\nfrom autogen_agentchat.teams import RoundRobinGroupChat\nfrom autogen_agentchat.conditions import TextMentionTermination\nfrom autogen_ext.code_executors.docker import DockerCommandLineCodeExecutor\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\n\n\nasync def main():\n    executor = DockerCommandLineCodeExecutor(work_dir=\"./sandbox\")\n    await executor.start()\n\n    coder = AssistantAgent(\n        name=\"coder\",\n        model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"),\n        system_message=(\n            \"Solve tasks by writing one Python snippet at a time inside a \"\n            \"```python``` block. End with 'STOP' when done.\"\n        ),\n    )\n    runner = CodeExecutorAgent(\"runner\", code_executor=executor)\n\n    team = RoundRobinGroupChat(\n        [coder, runner],\n        termination_condition=TextMentionTermination(\"STOP\"),\n    )\n    await team.run(task=\"Compute the mean of [120, 200, 90] and print it.\")\n    await executor.stop()\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "code-execution",
+      "intent": "Show the emit-code, run-in-sandbox, feed-output-back loop where computation happens in an interpreter instead of in the model's head.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the code-execution loop: emit code, run in sandbox, return stdout/stderr to the model.",
+          "code": "function answer(question):\n    messages = [system_prompt, user(question)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages=messages, tools=[run_code])\n        messages.append(reply)\n\n        if not reply.tool_calls:\n            return reply.content         # final answer\n\n        for call in reply.tool_calls:\n            if call.name != \"run_code\":\n                continue\n            stdout, stderr, value = sandbox.execute(call.args.code)\n            messages.append(tool_result(call.id, {\n                \"stdout\": stdout, \"stderr\": stderr, \"value\": value\n            }))\n        # next iteration: model sees the run output and continues\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Allow the Bash tool so the model can shell out to python or other interpreters in the working directory.",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/overview",
+          "sdk_version": "claude-agent-sdk>=0.1",
+          "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n\nasync def main():\n    options = ClaudeAgentOptions(\n        # The Bash tool runs commands in the working directory; allowing it\n        # lets the agent emit a python snippet via `python -c '...'` and read\n        # the resulting stdout back into context.\n        allowed_tools=[\"Bash\", \"Read\", \"Write\"],\n    )\n\n    async for message in query(\n        prompt=(\n            \"Compute the average gross margin across the rows in orders.csv.\"\n            \" Use python via the Bash tool; print the answer.\"\n        ),\n        options=options,\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen",
+          "language": "python",
+          "intent": "CodeExecutorAgent runs model-emitted Python in a Docker sandbox and returns stdout/stderr to the conversation.",
+          "source_url": "https://microsoft.github.io/autogen/stable/reference/python/autogen_agentchat.agents.html",
+          "sdk_version": "autogen-agentchat>=0.4",
+          "code": "import asyncio\nfrom autogen_agentchat.agents import CodeExecutorAgent\nfrom autogen_agentchat.messages import TextMessage\nfrom autogen_core import CancellationToken\nfrom autogen_ext.code_executors.docker import DockerCommandLineCodeExecutor\n\n\nasync def main():\n    executor = DockerCommandLineCodeExecutor(work_dir=\"./sandbox\")\n    await executor.start()\n\n    agent = CodeExecutorAgent(\"executor\", code_executor=executor)\n\n    task = TextMessage(\n        content=(\n            \"```python\\n\"\n            \"rows = [(120, 100), (200, 150), (90, 80)]\\n\"\n            \"margins = [(r-c)/r for r, c in rows]\\n\"\n            \"print(sum(margins)/len(margins))\\n\"\n            \"```\"\n        ),\n        source=\"user\",\n    )\n    response = await agent.on_messages([task], CancellationToken())\n    print(response.chat_message.content)\n    await executor.stop()\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Wrap a sandboxed Python evaluator as a @function_tool the agent can call when arithmetic is needed.",
+          "source_url": "https://openai.github.io/openai-agents-python/agents/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "code": "import asyncio\nimport subprocess\nfrom agents import Agent, Runner, function_tool\n\n\n@function_tool\ndef run_python(code: str) -> str:\n    \"\"\"Run a short Python snippet in a subprocess and return stdout.\n\n    The agent calls this when a question needs computation rather than\n    in-context arithmetic.\n    \"\"\"\n    result = subprocess.run(\n        [\"python\", \"-c\", code],\n        capture_output=True,\n        text=True,\n        timeout=10,\n    )\n    return result.stdout or result.stderr\n\n\nagent = Agent(\n    name=\"Calculator\",\n    instructions=(\n        \"For any numeric question, call run_python with a snippet that \"\n        \"prints the answer. Do not compute in your head.\"\n    ),\n    model=\"gpt-4o-mini\",\n    tools=[run_python],\n)\n\n\nasync def main():\n    result = await Runner.run(\n        agent, \"What is the average of 120, 200, and 90?\"\n    )\n    print(result.final_output)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "computer-use",
+      "intent": "Show the screenshot-think-act loop where the agent drives a real GUI through virtual mouse and keyboard tool calls instead of per-app APIs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the Computer Use loop: capture screen, model emits action, controller executes, repeat.",
+          "code": "function run(task):\n    controller = open_desktop_or_browser()\n    messages = [system_prompt, user(task)]\n\n    for step in 1..MAX_STEPS:\n        screenshot = controller.capture()\n        messages.append(user_image(screenshot))\n\n        reply = llm.generate(\n            messages=messages,\n            tools=[click, type_text, scroll, screenshot, key, done],\n        )\n        messages.append(reply)\n\n        if reply.tool_calls and reply.tool_calls[0].name == \"done\":\n            return reply.tool_calls[0].args.summary\n\n        for call in reply.tool_calls:\n            controller.execute(call.name, call.args)\n            messages.append(tool_result(call.id, \"ok\"))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "stagehand",
+          "framework_label": "Stagehand",
+          "language": "typescript",
+          "intent": "stagehand.agent() turns a high-level task into a CUA-driven browser session: screenshots in, actions out.",
+          "source_url": "https://docs.stagehand.dev/basics/agent",
+          "sdk_version": "@browserbasehq/stagehand@^2.0",
+          "code": "import { Stagehand } from \"@browserbasehq/stagehand\";\n\nasync function main() {\n  const stagehand = new Stagehand({ env: \"LOCAL\" });\n  await stagehand.init();\n\n  // CUA mode = pure screenshot-based agent driving the browser visually.\n  const agent = stagehand.agent({\n    mode: \"cua\",\n    model: \"anthropic/claude-sonnet-4-6\",\n  });\n\n  const result = await agent.execute({\n    instruction: \"Search for 'agent patterns catalog' on the open web\",\n    maxSteps: 20,\n  });\n  console.log(result);\n\n  await stagehand.close();\n}\n\nmain();",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "browser-use",
+          "framework_label": "browser-use",
+          "language": "python",
+          "intent": "Agent(task=..., llm=...) drives a real browser via screenshots plus DOM-aware actions.",
+          "source_url": "https://docs.browser-use.com/customize/agent-settings",
+          "sdk_version": "browser-use>=0.1",
+          "code": "import asyncio\nfrom browser_use import Agent\nfrom browser_use.llm import ChatAnthropic\n\n\nasync def main():\n    llm = ChatAnthropic(model=\"claude-sonnet-4-5\", api_key=\"sk-...\")\n\n    agent = Agent(\n        task=(\n            \"Open the GitHub trending page, find the top Python repo \"\n            \"of the week, and report its name and star count.\"\n        ),\n        llm=llm,\n        use_vision=True,            # screenshots feed the model each step\n        max_actions_per_step=4,\n    )\n    result = await agent.run()\n    print(result.final_result())\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openhands",
+          "framework_label": "OpenHands",
+          "language": "python",
+          "intent": "OpenHands SDK wires an LLM to terminal and file-editor tools; the agent drives the workspace end-to-end.",
+          "source_url": "https://docs.openhands.dev/sdk/getting-started",
+          "sdk_version": "openhands-sdk>=0.1",
+          "code": "import os\nfrom openhands.sdk import LLM, Agent, Conversation, Tool\nfrom openhands.tools.file_editor import FileEditorTool\nfrom openhands.tools.terminal import TerminalTool\n\nllm = LLM(\n    model=os.getenv(\"LLM_MODEL\", \"anthropic/claude-sonnet-4-5\"),\n    api_key=os.getenv(\"LLM_API_KEY\", \"sk-...\"),\n)\n\nagent = Agent(\n    llm=llm,\n    tools=[\n        Tool(name=TerminalTool.name),\n        Tool(name=FileEditorTool.name),\n    ],\n)\n\nconversation = Conversation(agent=agent, workspace=os.getcwd())\nconversation.send_message(\n    \"Inspect this repo, find any TODO comments, and write a summary to TODO.md.\"\n)\nconversation.run()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dual-system-gui-agent",
+      "intent": "Show the decision-model / grounding-model split where each subproblem (planning vs pixel localisation) is routed to the model best suited for it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: decision model emits a typed high-level intent; grounding model turns intent+screenshot into a concrete action.",
+          "code": "# vocabulary the two models share\nINTENTS = [\"open(label)\", \"tap(label)\", \"swipe(direction)\",\n           \"type(label, text)\", \"back\", \"home\", \"done\"]\n\nfunction run(task, screen):\n    messages = [system_prompt, user(task)]\n\n    for step in 1..MAX_STEPS:\n        screenshot = screen.capture()\n\n        # 1. Decision model — plans, replans, but never produces coordinates.\n        intent = decision_model.next_intent(\n            task=task,\n            screenshot=screenshot,\n            history=messages,\n        )                                  # e.g. tap(\"Sign In button\")\n        if intent.name == \"done\":\n            return intent.args.summary\n\n        # 2. Grounding model — specialised on pixel localisation only.\n        action = grounding_model.ground(\n            intent=intent,\n            screenshot=screenshot,\n        )                                  # e.g. tap(x=918, y=124)\n\n        try:\n            screen.execute(action)\n            messages.append(observation({\"intent\": intent, \"action\": action}))\n        except GroundingFailed as e:\n            # errors surface back to the decision model for replanning,\n            # never retried locally inside the grounding model.\n            messages.append(observation({\"error\": str(e), \"intent\": intent}))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mcp",
+      "intent": "Show how an agent host attaches to an MCP server and lets the protocol carry typed tool discovery and invocation across vendors.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of an MCP host: connect, list tools, then call them inside the agent loop.",
+          "code": "function run(user_message):\n    server = mcp.connect(transport=stdio_or_http, config=server_config)\n    server.initialize()\n    catalog = server.tools_list()         # typed tool descriptions\n\n    messages = [system_prompt, user(user_message)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages=messages, tools=catalog)\n        messages.append(reply)\n\n        if not reply.tool_calls:\n            return reply.content\n\n        for call in reply.tool_calls:\n            result = server.tools_call(call.name, call.args)\n            messages.append(tool_result(call.id, result))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Attach an MCP server via ClaudeAgentOptions.mcp_servers; the SDK handles initialize, tools/list, and tools/call.",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/mcp",
+          "sdk_version": "claude-agent-sdk>=0.1",
+          "code": "import asyncio\nimport os\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n\nasync def main():\n    options = ClaudeAgentOptions(\n        mcp_servers={\n            \"github\": {\n                \"command\": \"npx\",\n                \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"],\n                \"env\": {\"GITHUB_TOKEN\": os.environ[\"GITHUB_TOKEN\"]},\n            }\n        },\n        # MCP tools follow mcp__<server>__<tool>; wildcard grants the server.\n        allowed_tools=[\"mcp__github__*\"],\n    )\n\n    async for message in query(\n        prompt=\"List the 3 most recent issues in anthropics/claude-code\",\n        options=options,\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Attach an MCPServerStreamableHttp instance via Agent.mcp_servers; Runner.run drives invocation.",
+          "source_url": "https://openai.github.io/openai-agents-python/mcp/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "code": "import asyncio\nfrom agents import Agent, Runner\nfrom agents.mcp import MCPServerStreamableHttp\n\n\nasync def main():\n    async with MCPServerStreamableHttp(\n        name=\"docs-server\",\n        params={\"url\": \"http://localhost:8000/mcp\"},\n    ) as server:\n        agent = Agent(\n            name=\"Docs assistant\",\n            instructions=\"Use the MCP tools to answer questions about the docs.\",\n            model=\"gpt-4o-mini\",\n            mcp_servers=[server],\n        )\n        result = await Runner.run(\n            agent, \"What hooks does this product expose?\"\n        )\n        print(result.final_output)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "BasicMCPClient + McpToolSpec turn an MCP server's catalog into LlamaIndex tools for a FunctionAgent.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/tools/mcp",
+          "sdk_version": "llama-index-tools-mcp>=0.1",
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import FunctionAgent\nfrom llama_index.llms.openai import OpenAI\nfrom llama_index.tools.mcp import BasicMCPClient, McpToolSpec\n\n\nasync def main():\n    client = BasicMCPClient(\"http://localhost:8000/mcp\")\n    tool_spec = McpToolSpec(client=client)\n    tools = await tool_spec.to_tool_list_async()\n\n    agent = FunctionAgent(\n        tools=tools,\n        llm=OpenAI(model=\"gpt-4o-mini\"),\n        system_prompt=\"Use the MCP tools when the question needs them.\",\n    )\n    response = await agent.run(user_msg=\"What hooks does this product expose?\")\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mcp-as-code-api",
+      "intent": "Show MCP servers materialised as a directory of typed code wrappers the agent imports from a sandbox script.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: walk MCP catalogs at connect time, emit one wrapper file per tool, let the agent write code that imports them.",
+          "code": "# 1. Connect-time materialisation — once per session\nfunction materialise(mcp_servers, out_dir):\n    for server in mcp_servers:\n        tools = server.tools_list()\n        for tool in tools:\n            ts = render_wrapper(\n                server=server.name,\n                name=tool.name,\n                input_schema=tool.input_schema,\n                output_schema=tool.output_schema,\n            )\n            write(f\"{out_dir}/servers/{server.name}/{tool.name}.ts\", ts)\n\n# 2. Agent step — model explores the tree like any filesystem\nfunction agent_step(task):\n    # the model's tools are just list/read/write/execute on the sandbox\n    # filesystem, NOT a loaded MCP schema list.\n    script = llm.write_code(\n        task=task,\n        context=[\"see servers/ for available wrappers; list/read as needed\"],\n    )\n    # large tool outputs live in sandbox variables, never in model context\n    stdout, value = sandbox.execute(script)\n    return value or stdout",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mcp-bidirectional-bridge",
+      "intent": "Show the symmetric MCP client+server bridge — the framework both consumes external MCP servers and publishes its own agents/tools/workflows back over MCP.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: one registry, two sides — inbound MCP servers we attach as tools, outbound artefacts we publish.",
+          "code": "# single source of truth for what the framework offers AND consumes\nregistry = {\n    \"client\": {                          # we attach these as tools\n        \"github\": stdio(\"npx\", \"@mcp/server-github\"),\n        \"docs\":   http(\"http://localhost:8000/mcp\"),\n    },\n    \"server\": {                          # we publish these to peers\n        \"agents\":    [research_agent, support_agent],\n        \"tools\":     [search_tickets, score_lead],\n        \"workflows\": [onboard_customer],\n        \"prompts\":   [\"playbook://escalation\"],\n        \"resources\": [\"corpus://policies\"],\n    },\n}\n\nfunction bring_up(registry):\n    # inbound: validate, elicit creds, expose as agent tools\n    for name, transport in registry[\"client\"].items():\n        client = mcp.connect(transport)\n        client.initialize()\n        attach_as_tools(client.tools_list(), namespace=name)\n\n    # outbound: publish over the same protocol\n    publish = mcp.serve(transport=stdio_or_http)\n    for kind, items in registry[\"server\"].items():\n        publish.expose(kind, items)\n    publish.run()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mobile-ui-agent",
+      "intent": "Show the touch-native loop — tap/long-press/swipe/type/back/home over screenshots, as a distinct surface from desktop Computer Use.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: capture screen, model picks one action from the touch vocabulary, execute, repeat.",
+          "code": "# platform-specific vocabularies, platform-agnostic loop\nANDROID = [\"tap(x,y)\", \"long_press(x,y)\", \"swipe(x1,y1,x2,y2)\",\n           \"type(text)\", \"back\", \"home\", \"done\"]\nIOS     = [\"tap(x,y)\", \"long_press(x,y)\", \"swipe(dir)\",\n           \"type(text)\", \"home\", \"done\"]\n\nfunction run(task, device):\n    actions = ANDROID if device.platform == \"android\" else IOS\n    messages = [system_prompt, user(task)]\n\n    for step in 1..MAX_STEPS:\n        screenshot = device.capture()\n        elements   = device.ui_dump()       # optional accessibility overlay\n        messages.append(user_image_with(\n            image=screenshot, annotations=elements,\n        ))\n\n        reply = llm.generate(messages=messages, tools=actions)\n        messages.append(reply)\n\n        call = reply.tool_calls[0]\n        if call.name == \"done\":\n            return call.args.summary\n        device.execute(call.name, call.args)\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "multilingual-voice-agent",
+      "intent": "Show the streaming STT-LLM-TTS pipeline where language and dialect tags propagate end-to-end across the three stages.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the voice pipeline: streaming STT, LLM, and TTS co-located, with language tags propagated.",
+          "code": "function run_voice_session(audio_in_stream):\n    stt = open_streaming_stt(languages=TARGET_LANGS)\n    llm = open_streaming_llm(multilingual=true)\n    tts_pool = {lang: open_streaming_tts(lang) for lang in TARGET_LANGS}\n\n    history = []\n    for audio_chunk in audio_in_stream:\n        partial = stt.feed(audio_chunk)\n        if not partial.is_final:\n            continue\n\n        # language + dialect carried as structured metadata, not lost\n        lang, dialect = partial.lang, partial.dialect\n        history.append(user(partial.text, lang=lang, dialect=dialect))\n\n        for text_chunk in llm.stream(history, target_lang=lang):\n            audio = tts_pool[lang].stream(text_chunk, dialect=dialect)\n            yield audio          # sub-second turn-taking\n        history.append(assistant(llm.last_message, lang=lang))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "livekit-agents",
+          "framework_label": "LiveKit Agents",
+          "language": "python",
+          "intent": "AgentSession composes VAD + STT + LLM + TTS into a single streaming voice pipeline.",
+          "source_url": "https://github.com/livekit/agents",
+          "sdk_version": "livekit-agents>=1.0",
+          "code": "from livekit.agents import (\n    Agent,\n    AgentServer,\n    AgentSession,\n    JobContext,\n    cli,\n)\nfrom livekit.plugins import silero\n\nserver = AgentServer()\n\n\n@server.rtc_session()\nasync def entrypoint(ctx: JobContext):\n    session = AgentSession(\n        vad=silero.VAD.load(),\n        # Vendor-and-language-aware components — language tags propagate\n        # through the pipeline from STT to TTS.\n        stt=\"deepgram/nova-3\",\n        llm=\"openai/gpt-4.1-mini\",\n        tts=\"cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc\",\n    )\n    agent = Agent(\n        instructions=(\n            \"You are a multilingual voice assistant. Reply in the same \"\n            \"language and dialect the user spoke in; never pivot to English.\"\n        ),\n    )\n    await session.start(agent=agent, room=ctx.room)\n    await session.generate_reply(instructions=\"greet the user\")\n\n\nif __name__ == \"__main__\":\n    cli.run_app(server)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pipecat",
+          "framework_label": "Pipecat",
+          "language": "python",
+          "intent": "Pipecat composes STT, LLM, and TTS as frame processors in a single Pipeline; frames carry language metadata.",
+          "source_url": "https://docs.pipecat.ai",
+          "sdk_version": "pipecat-ai>=0.0.40",
+          "code": "import asyncio\nfrom pipecat.pipeline.pipeline import Pipeline\nfrom pipecat.pipeline.runner import PipelineRunner\nfrom pipecat.pipeline.task import PipelineTask\nfrom pipecat.services.cartesia.tts import CartesiaTTSService\nfrom pipecat.services.deepgram.stt import DeepgramSTTService\nfrom pipecat.services.openai.llm import OpenAILLMService\n\n\nasync def main(transport):\n    stt = DeepgramSTTService(api_key=\"sk-...\")\n    llm = OpenAILLMService(api_key=\"sk-...\", model=\"gpt-4.1-mini\")\n    tts = CartesiaTTSService(api_key=\"sk-...\", voice_id=\"...\")\n\n    pipeline = Pipeline([\n        transport.input(),   # audio in\n        stt,                 # speech-to-text (language-aware)\n        llm,                 # multilingual reasoning\n        tts,                 # text-to-speech in the target language\n        transport.output(),  # audio out\n    ])\n\n    task = PipelineTask(pipeline)\n    runner = PipelineRunner()\n    await runner.run(task)\n\n\nasyncio.run(main(transport=...))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "policy-localizer-validator",
+      "intent": "Show the three-model GUI pipeline: a Policy LLM plans, a Localizer VLM grounds to pixels, a Validator VLM judges completion.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: each step routes through three differently-sized models with a clean text → pixel → judgement boundary.",
+          "code": "function run(task, screen):\n    history = [user(task)]\n\n    for step in 1..MAX_STEPS:\n        screenshot = screen.capture()\n\n        # 1. Policy — largest model, plans next textual action\n        textual_action = policy_llm.next(\n            task=task, screenshot=screenshot, history=history,\n        )                       # e.g. \"click the Sign In button in the top-right\"\n        if textual_action == \"DONE\":\n            return summarise(history)\n\n        # 2. Localizer — small specialist VLM, grounds text to coordinates\n        coords = localizer_vlm.locate(\n            description=textual_action,\n            screenshot=screenshot,\n        )                       # e.g. (918, 124)\n        screen.tap(coords)\n        after = screen.capture()\n\n        # 3. Validator — mid-sized VLM trained on completion judgements\n        verdict = validator_vlm.judge(\n            task=task, before=screenshot, after=after,\n        )                       # {label: complete|incomplete|failed, conf: 0.92}\n        if verdict.label == \"complete\" and verdict.conf >= 0.8:\n            return summarise(history)\n        if verdict.label == \"failed\" and verdict.conf >= 0.8:\n            history.append(observation(\"grounding failed; replanning\"))\n            continue\n        history.append(observation({\"action\": textual_action, \"after\": after}))\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-caching",
+      "intent": "Show the ordering rule — stable prefix first, variable content last, cache breakpoint at the boundary — so the provider can reuse the prefix.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of cache-friendly prompt assembly: stable prefix bytes are identical across calls; variable content trails.",
+          "code": "function build_messages(user_message, state):\n    # STABLE PREFIX — byte-identical across calls in this session.\n    #   The cache key is a hash of the leading bytes; any mutation\n    #   above this point invalidates the cache.\n    stable = [\n        system(SYSTEM_PROMPT),         # constant string\n        system(TOOL_DEFINITIONS),      # constant JSON, sorted keys\n        system(CHARTER_AND_RULES),\n    ]\n\n    # CACHE BREAKPOINT — some providers mark this explicitly via\n    # cache_control on the last stable message; others infer it.\n    mark_cache_breakpoint(stable[-1])\n\n    # VARIABLE TAIL — only this is re-tokenised on each call.\n    variable = [\n        user(format_state(state)),\n        user(user_message),\n    ]\n    return stable + variable\n\n# audit: any helper that mutates SYSTEM_PROMPT, reorders tools, or\n# rebuilds CHARTER_AND_RULES with non-deterministic key order silently\n# breaks the cache.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "aider",
+          "framework_label": "Aider",
+          "language": "python",
+          "intent": "Run aider with --cache-prompts so its built-in chat-history layout (system, read-only files, repo map, editables) becomes a cacheable prefix.",
+          "code": "# Aider organises its chat history so the prefix is stable:\n#   1. system prompt\n#   2. read-only files\n#   3. repository map\n#   4. editable files\n#   5. user turn\n# Passing --cache-prompts tells aider to mark the breakpoint and use the\n# provider's prompt-cache API (Anthropic and DeepSeek today).\n#\n# CLI:\n#   aider --cache-prompts --cache-keepalive-pings 5\n#\n# Equivalent via the Python entrypoint:\n\nfrom aider.main import main\n\nmain([\n    \"--cache-prompts\",\n    # keepalive pings keep the cache warm during long sessions\n    \"--cache-keepalive-pings\", \"5\",\n    \"src/api.py\",\n])",
+          "source_url": "https://aider.chat/docs/usage/caching.html",
+          "sdk_version": "aider-chat>=0.60",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "sandbox-isolation",
+      "intent": "Show running agent-emitted code in a contained environment with restricted filesystem, network, and process privileges.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: build a least-privilege sandbox, execute, capture structured output, tear down.",
+          "code": "function run_isolated(code, policy):\n    sandbox = make_sandbox(\n        runtime=policy.runtime,            # container | microvm | wasm | subprocess\n        fs=policy.fs,                      # readonly | scratch-dir | none\n        network=policy.network,            # blocked | allowlist[hosts]\n        cpu_seconds=policy.cpu_seconds,    # hard ceiling\n        memory_mb=policy.memory_mb,\n        wall_seconds=policy.wall_seconds,\n        ephemeral=true,                    # state dies with the sandbox\n    )\n    try:\n        result = sandbox.exec(code)\n        return {\n            \"stdout\": result.stdout[:8_000],\n            \"stderr\": result.stderr[:2_000],\n            \"exit_code\": result.exit_code,\n        }\n    finally:\n        sandbox.destroy()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "modal",
+          "framework_label": "Modal",
+          "language": "python",
+          "intent": "modal.Sandbox.create() spins up a per-call isolated container with declared CPU/memory/network limits.",
+          "code": "import modal\n\n# Define an isolated runtime once.\nimage = modal.Image.debian_slim().pip_install(\"pandas\")\napp = modal.App.lookup(\"agent-sandbox\", create_if_missing=True)\n\n\ndef run_user_code(code: str) -> dict:\n    \"\"\"Run agent-emitted code in a fresh sandbox; return structured output.\"\"\"\n    sb = modal.Sandbox.create(\n        app=app,\n        image=image,\n        cpu=1.0,\n        memory=1024,\n        timeout=30,            # wall-clock seconds\n        block_network=True,    # default-deny; declare allowed hosts explicitly\n    )\n    try:\n        p = sb.exec(\"python\", \"-c\", code)\n        return {\n            \"stdout\": p.stdout.read(),\n            \"stderr\": p.stderr.read(),\n            \"exit_code\": p.returncode,\n        }\n    finally:\n        sb.terminate()\n\n\nif __name__ == \"__main__\":\n    print(run_user_code(\"print(1 + 2)\"))",
+          "source_url": "https://modal.com/docs/guide/sandbox",
+          "sdk_version": "modal>=0.64",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openhands",
+          "framework_label": "OpenHands",
+          "language": "python",
+          "intent": "OpenHands runs every agent action inside a Docker-backed Runtime; SandboxConfig declares the isolation policy.",
+          "code": "from openhands.core.config import AppConfig, SandboxConfig\nfrom openhands.core.main import run_controller\nfrom openhands.events.action import MessageAction\n\n# OpenHands always executes agent actions inside its Runtime (a Docker\n# container by default; remote and local options also exist). The\n# SandboxConfig knobs declare the isolation policy.\nconfig = AppConfig(\n    sandbox=SandboxConfig(\n        runtime_container_image=\"docker.all-hands.dev/all-hands-ai/runtime:latest\",\n        timeout=120,                # per-command wall-clock seconds\n        use_host_network=False,     # network isolation on\n        enable_auto_lint=True,\n    ),\n    workspace_base=\"./workspace\",\n)\n\nrun_controller(\n    config=config,\n    initial_user_action=MessageAction(content=\"Solve task X in this repo.\"),\n)",
+          "source_url": "https://docs.openhands.dev/usage/runtimes/overview",
+          "sdk_version": "openhands>=0.10",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "skill-library",
+      "intent": "Show the agent growing its own toolkit — writing reusable skills to disk that subsequent runs can call, gated by a critic and versioned.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: agent proposes a skill, critic gates the addition, loader exposes it as a callable for future runs.",
+          "code": "SKILLS_DIR = \"skills/\"\n\nfunction propose_skill(task_trace):\n    # agent reflects on a successful trace and proposes a reusable function\n    proposal = llm.draft_skill(\n        from_trace=task_trace,\n        format=\"python module with one public function\",\n    )\n    return proposal     # {name, code, tests, docstring}\n\nfunction add_skill(proposal):\n    if not critic.approve(proposal):       # static checks + tests + LLM review\n        return reject(\"critic rejected\")\n\n    version = next_version(proposal.name)\n    write(f\"{SKILLS_DIR}/{proposal.name}@{version}.py\", proposal.code)\n    update_index({proposal.name: version})  # old versions kept, not overwritten\n\nfunction load_skills():\n    catalog = {}\n    for entry in read_index():\n        mod = import_dynamic(f\"{SKILLS_DIR}/{entry.name}@{entry.version}.py\")\n        catalog[entry.name] = mod.public_function\n    return catalog                          # passed into the agent's tool list",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "semantic-kernel",
+          "framework_label": "Semantic Kernel",
+          "language": "python",
+          "intent": "Kernel.add_plugin registers a class of @kernel_function-decorated methods; subsequent runs pick them up as callable skills.",
+          "code": "import asyncio\nfrom typing import Annotated\n\nfrom semantic_kernel import Kernel\nfrom semantic_kernel.functions import kernel_function\nfrom semantic_kernel.connectors.ai import FunctionChoiceBehavior\nfrom semantic_kernel.connectors.ai.open_ai import (\n    AzureChatCompletion,\n    AzureChatPromptExecutionSettings,\n)\nfrom semantic_kernel.contents import ChatHistory\n\n\nclass OrdersPlugin:\n    \"\"\"A small skill the agent can reuse across sessions.\"\"\"\n\n    @kernel_function(description=\"Look up an order by id\")\n    def get_order(\n        self, order_id: Annotated[str, \"The order id\"]\n    ) -> str:\n        return f\"order {order_id}: shipped\"\n\n    @kernel_function(description=\"Refund an order by id\")\n    def refund_order(self, order_id: str) -> str:\n        return f\"refunded {order_id}\"\n\n\nasync def main():\n    kernel = Kernel()\n    kernel.add_service(AzureChatCompletion(\n        deployment_name=\"gpt-4o-mini\", api_key=\"sk-...\", base_url=\"https://...\",\n    ))\n    # Register the skill into the kernel's library.\n    kernel.add_plugin(OrdersPlugin(), plugin_name=\"orders\")\n\n    settings = AzureChatPromptExecutionSettings()\n    settings.function_choice_behavior = FunctionChoiceBehavior.Auto()\n\n    history = ChatHistory()\n    history.add_user_message(\"Refund order #1234\")\n    chat = kernel.get_service()\n    result = await chat.get_chat_message_content(\n        chat_history=history, settings=settings, kernel=kernel,\n    )\n    print(result)\n\n\nasyncio.run(main())",
+          "source_url": "https://learn.microsoft.com/en-us/semantic-kernel/concepts/plugins/",
+          "sdk_version": "semantic-kernel>=1.0",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "synthetic-filesystem-overlay",
+      "intent": "Show heterogeneous enterprise sources projected into one Unix-like tree exposed through five primitives (list/find/cat/search/locate_in_tree).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: connectors mount under deterministic paths; five primitives translate path operations into per-source API calls.",
+          "code": "# mount table — each connector owns a path prefix\nMOUNTS = {\n    \"/slack\":  slack_connector,\n    \"/notion\": notion_connector,\n    \"/github\": github_connector,\n}\n\nfunction list(path):\n    conn, sub = resolve(path, MOUNTS)\n    return conn.enumerate_children(sub, paginated=true)\n\nfunction find(root, pattern):\n    conn, sub = resolve(root, MOUNTS)\n    return conn.match_paths(sub, pattern)\n\nfunction cat(path):\n    conn, sub = resolve(path, MOUNTS)\n    return conn.fetch_content(sub)              # virtual until called\n\nfunction search(query, scope=\"/\"):\n    conn, sub = resolve(scope, MOUNTS)\n    return conn.full_text(query, scope=sub)\n\nfunction locate_in_tree(opaque_id):\n    for conn in MOUNTS.values():\n        path = conn.resolve_id(opaque_id)\n        if path: return path\n    return null\n\n# the agent reasons with shell-like idioms:\n#   list(\"/slack/eng/\")\n#   find(\"/notion\", \"*onboarding*\")\n#   search(\"incident 2026-05\", \"/slack/eng\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-agent-registry",
+      "intent": "Show a single queryable catalogue of both tools and agents, with capability/cost/latency/quality metadata the agent uses to pick.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: register tools and agents with the same metadata shape; agent queries, ranks, dispatches.",
+          "code": "registry = {}      # keyed by entry id\n\nfunction register(kind, entry):\n    assert kind in {\"tool\", \"agent\"}\n    registry[entry.id] = {\n        \"kind\": kind,\n        \"description\": entry.description,\n        \"capabilities\": entry.capabilities,\n        \"cost_per_call\": entry.cost,\n        \"p50_latency_ms\": entry.latency,\n        \"quality_score\": entry.quality,\n        \"handle\": entry.handle,        # callable or A2A endpoint\n    }\n\nfunction query(task):\n    candidates = [\n        e for e in registry.values()\n        if matches(e[\"description\"], task) or matches(e[\"capabilities\"], task)\n    ]\n    return rank(candidates, by=[\"quality_score\", \"-cost_per_call\", \"-p50_latency_ms\"])\n\nfunction dispatch(task):\n    ranked = query(task)\n    if not ranked: return abort(\"no capable tool or agent found\")\n    chosen = ranked[0]\n    return chosen[\"handle\"](task)      # call tool or invoke agent uniformly",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-discovery",
+      "intent": "Show the agent discovering its tool palette at runtime from a registry rather than hardcoding it at build time.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: on startup (and periodically) query the registry, load typed schemas into the palette, cache, refresh on TTL.",
+          "code": "PALETTE = {}\nLAST_REFRESH = 0\n\nfunction discover(registry, ttl_seconds=300):\n    global LAST_REFRESH\n    if now() - LAST_REFRESH < ttl_seconds and PALETTE:\n        return PALETTE                            # cache hit\n\n    advertised = registry.list_tools()            # MCP, internal dir, etc.\n    PALETTE = {}\n    for t in advertised:\n        if not schema_valid(t.input_schema):\n            log_warn(\"skipping malformed tool\", t.name)\n            continue\n        PALETTE[t.name] = {\n            \"description\": t.description,\n            \"input_schema\": t.input_schema,\n            \"invoke\": t.invoke,\n        }\n    LAST_REFRESH = now()\n    return PALETTE\n\nfunction run(user_message, registry):\n    tools = discover(registry)\n    return agent_loop(user_message, tools=tools)  # palette is dynamic per call",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-loadout",
+      "intent": "Show selecting a small task-relevant subset of tools per request rather than exposing the whole registry to the model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: classify the request, pick N relevant tools, pass only that subset to the main agent call.",
+          "code": "MAX_TOOLS = 8                  # well under the 10–20 ceiling LLMs handle\n\nfunction pick_loadout(user_message, registry):\n    # Option A — rule-based by routed lane\n    lane = classify_lane(user_message)              # e.g. \"billing\"\n    rule_subset = registry.by_tag(lane)\n    if rule_subset:\n        return rule_subset[:MAX_TOOLS]\n\n    # Option B — model-based: a cheap classifier picks N tools by name\n    candidates = registry.descriptions()            # name + 1-line desc\n    chosen_names = small_llm.pick_tools(\n        user_message=user_message,\n        candidates=candidates,\n        k=MAX_TOOLS,\n    )\n    return [registry.get(n) for n in chosen_names]\n\nfunction run(user_message, registry):\n    loadout = pick_loadout(user_message, registry)\n    # The main inference call only sees `loadout` — other tools are\n    # genuinely unavailable for this request.\n    return agent_loop(user_message, tools=loadout)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-result-caching",
+      "intent": "Show caching deterministic tool results keyed by (tool, normalised args, auth subject) so repeat calls return immediately.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: wrap deterministic tools, key by auth subject + normalised args, set per-tool TTLs.",
+          "code": "function cached_invoke(tool, args, principal):\n    if not tool.deterministic:\n        return tool.invoke(args)             # never cache non-deterministic\n\n    key = (\n        tool.name,\n        principal.id,                        # MUST include caller identity\n        normalise(args),                     # sorted keys, canonical types\n    )\n    hit = cache.get(key)\n    if hit and hit.fresh(ttl=tool.cache_ttl):\n        return hit.value                     # immediate return\n\n    value = tool.invoke(args)\n    cache.set(key, value, ttl=tool.cache_ttl)\n    return value\n\n# tool-level policy\nTOOLS = {\n    \"weather_today\":   {\"deterministic\": true,  \"cache_ttl\": 300},\n    \"public_company\":  {\"deterministic\": true,  \"cache_ttl\": 86400},\n    \"send_email\":      {\"deterministic\": false, \"cache_ttl\": 0},\n    \"current_user\":    {\"deterministic\": true,  \"cache_ttl\": 60},  # per-principal\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-search-lazy-loading",
+      "intent": "Show deferring tool schemas until a search step demands them — replace the eager list with a single ToolSearch primitive plus a short index.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: model sees only a search primitive + names index; schemas are loaded on demand and kept for the rest of the session.",
+          "code": "INDEX = [{\"name\": t.name, \"summary\": t.summary, \"tags\": t.tags}\n         for t in registry.all()]            # cheap to ship every turn\n\nLOADED = {}                                   # name -> full schema\n\nfunction tool_search(query, k=5):\n    \"\"\"Single primitive in the system prompt. Returns full schemas.\"\"\"\n    hits = rank(INDEX, query)[:k]\n    schemas = []\n    for h in hits:\n        if h.name not in LOADED:\n            LOADED[h.name] = registry.fetch_schema(h.name)\n        schemas.append(LOADED[h.name])\n    return schemas\n\nfunction step(messages):\n    palette = [tool_search] + list(LOADED.values())   # loaded ones stay\n    reply = llm.generate(messages=messages, tools=palette)\n    # model either:\n    #   1. calls tool_search(query) → schemas land in palette next step\n    #   2. calls a previously-loaded tool by name\n    #   3. answers",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-use",
+      "intent": "Show the typed-tool-call loop where the model emits validated calls against a registered toolkit instead of free-form prose.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the typed tool-call loop: model emits a call, host validates and executes, result flows back.",
+          "code": "function run(user_message):\n    messages = [system_prompt, user(user_message)]\n    tools = registry.list()              # typed JSON-Schema palette\n\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages=messages, tools=tools)\n        messages.append(reply)\n\n        if not reply.tool_calls:\n            return reply.content         # model answered\n\n        for call in reply.tool_calls:\n            if not registry.validate(call.name, call.args):\n                messages.append(tool_error(call.id, \"schema invalid\"))\n                continue\n            result = registry.execute(call.name, call.args)\n            messages.append(tool_result(call.id, result))\n        # next iteration: model sees results and decides next move\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Define a typed tool with @tool; create_agent owns the validation, dispatch, and agent loop.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/tools",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.chat_models import init_chat_model\nfrom langchain.tools import tool\n\n\n@tool\ndef search_orders(query: str, limit: int = 10) -> str:\n    \"\"\"Search the orders database for records matching the query.\n\n    Args:\n        query: Free-text search over order id, customer, or sku.\n        limit: Maximum rows to return.\n    \"\"\"\n    # real implementation would hit a database\n    return f\"Found {limit} orders matching {query!r}\"\n\n\nmodel = init_chat_model(\"gpt-4o-mini\")\nagent = create_agent(\n    model,\n    tools=[search_orders],\n    system_prompt=(\n        \"You can search orders. Call search_orders for any question that \"\n        \"needs order data; otherwise answer directly.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Find orders for acme corp\"}]}\n)\nprint(result[\"messages\"][-1].content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "FunctionAgent receives plain Python functions as tools; AgentWorkflow.run drives the typed-call loop.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/module_guides/deploying/agents/tools/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import FunctionAgent\nfrom llama_index.core.tools import FunctionTool\nfrom llama_index.llms.openai import OpenAI\n\n\ndef search_orders(query: str, limit: int = 10) -> str:\n    \"\"\"Search the orders database for records matching the query.\n\n    The agent reads this docstring to decide when to call the tool.\n    \"\"\"\n    return f\"Found {limit} orders matching {query!r}\"\n\n\nsearch_tool = FunctionTool.from_defaults(fn=search_orders)\n\nagent = FunctionAgent(\n    tools=[search_tool],\n    llm=OpenAI(model=\"gpt-4o-mini\"),\n    system_prompt=(\n        \"Call search_orders for any question that needs order data.\"\n    ),\n)\n\n\nasync def main():\n    response = await agent.run(user_msg=\"Find orders for acme corp\")\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "@function_tool turns a typed Python function into an Agent tool; Runner.run drives the loop.",
+          "source_url": "https://openai.github.io/openai-agents-python/agents/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "code": "import asyncio\nfrom agents import Agent, Runner, function_tool\n\n\n@function_tool\ndef search_orders(query: str, limit: int = 10) -> str:\n    \"\"\"Search the orders database for records matching the query.\"\"\"\n    return f\"Found {limit} orders matching {query!r}\"\n\n\nagent = Agent(\n    name=\"Order assistant\",\n    instructions=(\n        \"Call search_orders for any question that needs order data; \"\n        \"otherwise answer directly.\"\n    ),\n    model=\"gpt-4o-mini\",\n    tools=[search_orders],\n)\n\n\nasync def main():\n    result = await Runner.run(agent, \"Find orders for acme corp\")\n    print(result.final_output)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "toolformer",
+      "intent": "Show the self-supervised training loop that teaches a model when and how to call tools without human annotation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the Toolformer pipeline: sample candidate calls, score whether they help, keep the useful ones, fine-tune.",
+          "code": "# CORPUS = unlabelled text. TOOLS = e.g. calculator, search, qa, translate.\n\nfunction sample_candidates(passage):\n    # ask the base model to propose tool calls at plausible positions\n    return base_llm.propose_calls(passage, tools=TOOLS, k=K)\n\nfunction execute_and_splice(passage, call):\n    answer = TOOLS[call.name].invoke(call.args)\n    # splice \"[<name>(args) → answer]\" into the passage at the proposed position\n    return splice(passage, call.pos, render_call(call, answer))\n\nfunction usefulness(passage, augmented, target_continuation):\n    base = nll(base_llm, passage,    target_continuation)\n    aug  = nll(base_llm, augmented, target_continuation)\n    return base - aug                  # positive = perplexity drop\n\ntraining_data = []\nfor passage in CORPUS:\n    for call in sample_candidates(passage):\n        aug = execute_and_splice(passage, call)\n        if usefulness(passage, aug, gold_continuation_after(passage, call.pos)) > THRESHOLD:\n            training_data.append(aug)  # keep helpful insertions only\n\nfine_tune(base_llm, on=training_data)  # model now emits tool calls in-line",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "translation-layer",
+      "intent": "Show the typed boundary between the agent's clean domain model and a messy upstream API.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: one module sits between the agent palette and the vendor API; inbound mapping cleans, outbound mapping signs.",
+          "code": "# domain shape the agent sees\nclass DomainOrder:\n    id: str\n    customer: str\n    amount_cents: int\n    status: str        # \"pending\" | \"shipped\" | \"refunded\"\n\n# vendor shape (messy, legacy)\n#   { \"ORD_ID\": \"...\", \"CUST\": \"...\", \"AMT\": \"12.50\", \"ST\": \"S\", ... }\n\nfunction get_order(order_id) -> DomainOrder:                # inbound\n    raw = vendor.get(\"/v1/order/\" + order_id)\n    return DomainOrder(\n        id=raw[\"ORD_ID\"],\n        customer=raw[\"CUST\"],\n        amount_cents=int(float(raw[\"AMT\"]) * 100),\n        status=VENDOR_STATUS_MAP[raw[\"ST\"]],               # \"S\" -> \"shipped\"\n    )\n\nfunction refund(order_id, reason) -> DomainOrder:           # outbound\n    body = {\n        \"OP\": \"REF\",\n        \"ORD_ID\": order_id,\n        \"RSN\": reason[:120],         # vendor truncates silently otherwise\n    }\n    raw = vendor.post(\"/v1/op\", body=sign_hmac(body, VENDOR_KEY))\n    return get_order(order_id)         # re-read in domain shape\n\n# the agent only sees get_order and refund — vendor warts are invisible.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "wasm-skill-runtime",
+      "intent": "Show each skill packaged as a Wasm module with a capability manifest; the host instantiates per call with only those capabilities.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: load the manifest, build a least-privilege Wasm instance, call the typed entry point, tear down.",
+          "code": "# on disk\n#   skills/pdf-extract/\n#     skill.wasm                  <-- component-model module\n#     manifest.yaml               <-- declared capabilities\n#       name: pdf-extract\n#       fs:       [\"/workspace/inputs:r\", \"/workspace/outputs:rw\"]\n#       network: []               # default-deny\n#       env:     [\"OPENAI_API_KEY\"]\n#       entry:   \"extract\"        # exported wasm function\n\nfunction invoke_skill(name, args):\n    manifest = load(f\"skills/{name}/manifest.yaml\")\n    module   = load_wasm(f\"skills/{name}/skill.wasm\")\n\n    # the runtime enforces the manifest as the contract\n    instance = wasm.instantiate(\n        module=module,\n        fs_caps      = manifest.fs,        # WASI preopens, scoped paths\n        network_caps = manifest.network,   # host allowlist (often empty)\n        env_caps     = {k: env[k] for k in manifest.env},\n        cpu_seconds  = manifest.cpu_seconds or 5,\n        memory_pages = manifest.memory_pages or 256,\n    )\n\n    try:\n        return instance.call(manifest.entry, args)   # typed via component model\n    except CapabilityError as e:\n        # missing-capability calls fail at the boundary, not inside the host\n        return {\"error\": \"capability_denied\", \"detail\": str(e)}\n    finally:\n        instance.destroy()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

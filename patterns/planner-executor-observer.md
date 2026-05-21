@@ -11,11 +11,11 @@ Add an explicit Observer role between Planner and Executor so progress is checke
 
 ## Context
 
-Plan-and-Execute systems either let the executor run blind (planner finds out at the end) or report at every step (rebuilding ReAct with extra coordination overhead).
+A team runs a Plan-and-Execute agent: a planner emits an ordered plan once and an executor walks the steps. The executor's work needs to be checked against the original intent — does the cumulative output still match what the planner asked for, or has the executor wandered onto an adjacent topic? The team is willing to spend a small amount of supervision overhead to catch drift early instead of paying for an entire bad run.
 
 ## Problem
 
-The missing third role is supervision of execution against intent; without it, plan quality is invisible until the run completes.
+Two existing shapes both fail this requirement. Letting the executor run blind means the planner only finds out at the end whether the run was on-track, at which point fixing it requires starting over. Reporting back to the planner after every step rebuilds the ReAct loop and reintroduces the per-step planner cost the team adopted Plan-and-Execute to avoid. There is no clean place for a cheap, focused check that reads the executor's cumulative output against the plan and decides whether to keep going, stop, or replan.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A research agent that uses a Planner and Executor loop produces fluent reports t
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   G[Goal] --> P[Planner]
   P -->|plan| E[Executor]
   E -->|step result| O[Observer]

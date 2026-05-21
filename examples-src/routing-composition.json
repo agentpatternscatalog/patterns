@@ -1,0 +1,391 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "routing-composition",
+  "label": "Routing & Composition",
+  "patterns": [
+    {
+      "pattern_id": "automatic-workflow-search",
+      "intent": "Treat the agent's workflow itself as a search artefact; mutate-and-evaluate candidate programs against a benchmark, then deploy the winner.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic MCTS-style search over candidate workflows, scored on an eval set, with the best-scoring candidate deployed.",
+          "code": "OPERATORS = [Ensemble, Review, Revise, Plan, Execute]\n\nfunction search(seed_workflow, eval_set, budget):\n    tree = root(seed_workflow)\n    best = (seed_workflow, score(seed_workflow, eval_set))\n\n    for _ in 1..budget:\n        # 1. Selection \u2014 walk down by UCB on past benchmark scores.\n        node = select_ucb(tree)\n\n        # 2. Expansion \u2014 mutate the workflow via a typed operator.\n        op = sample(OPERATORS)\n        child = mutate(node.workflow, op)\n\n        # 3. Simulation \u2014 run the candidate on the eval set.\n        s = score(child, eval_set)\n\n        # 4. Backpropagation \u2014 push score up the tree.\n        backprop(node, s)\n        attach(node, child, s)\n\n        if s > best.score:\n            best = (child, s)\n\n    return best.workflow   # deploy this one",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "DSPy treats the program as the search artefact: MIPROv2 mutates prompts/demos, scores each candidate against a metric on the trainset, and returns the best-scoring program to deploy.",
+          "source_url": "https://dspy.ai/learn/optimization/optimizers/",
+          "sdk_version": "dspy>=2.5",
+          "code": "import dspy\n\n# 1. Define the workflow as a dspy.Module (the artefact to search).\nclass AnswerWithRationale(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.cot = dspy.ChainOfThought(\"question -> answer\")\n\n    def forward(self, question):\n        return self.cot(question=question)\n\n\nprogram = AnswerWithRationale()\n\n# 2. Pick a metric \u2014 this is the eval signal MCTS-style optimisers\n#    use to score candidate workflows.\nmetric = dspy.evaluate.answer_exact_match\n\n# 3. MIPROv2 searches over prompt / few-shot variants of `program`\n#    and returns the best-scoring candidate on `trainset`.\noptimizer = dspy.MIPROv2(\n    metric=metric,\n    auto=\"light\",   # \"light\" | \"medium\" | \"heavy\" \u2014 search budget\n    num_threads=8,\n)\n\noptimized_program = optimizer.compile(\n    program,\n    trainset=YOUR_TRAINSET,\n)\n\n# 4. Deploy the winner \u2014 it has the same call signature as `program`.\nprint(optimized_program(question=\"What is task decomposition?\"))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "circuit-breaker",
+      "intent": "Stop calling a failing dependency for a cooldown after error rates breach a threshold; allow a single trial call after cooldown before fully closing the breaker.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three-state breaker (closed / open / half-open) with a rolling error-rate window and a cooldown timer; trial calls re-close the breaker only on success.",
+          "code": "STATE        = \"closed\"     # closed | open | half_open\nfailures     = rolling_window(size=N)\nopened_at    = null\nTHRESHOLD    = 0.5          # 50% error rate over the window\nCOOLDOWN     = 30           # seconds\n\nfunction call(dep, request):\n    global STATE, opened_at\n\n    if STATE == \"open\":\n        if now() - opened_at < COOLDOWN:\n            return fallback(request)   # fail fast, no remote call\n        STATE = \"half_open\"            # one trial call allowed\n\n    try:\n        result = dep.invoke(request)\n        failures.record(ok=true)\n        if STATE == \"half_open\":\n            STATE = \"closed\"           # trial succeeded \u2014 close breaker\n        return result\n    except Error as e:\n        failures.record(ok=false)\n        if STATE == \"half_open\" or failures.error_rate() > THRESHOLD:\n            STATE = \"open\"\n            opened_at = now()\n        return fallback(request)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dynamic-scaffolding",
+      "intent": "Inject task-specific scaffolding (examples, hints, schemas) into the prompt only when the task type warrants it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Library of scaffolds keyed by task type; the router classifies each request, selects matching scaffolds, splices them into the prompt, and audits which fired.",
+          "code": "# Scaffold library \u2014 small reusable prompt fragments,\n# keyed by task type and feature.\nSCAFFOLDS = {\n    \"extract:invoice\":   [INVOICE_SCHEMA, INVOICE_FEWSHOTS],\n    \"classify:intent\":   [INTENT_LABELS, INTENT_FEWSHOTS],\n    \"summarize:legal\":   [LEGAL_STYLE_HINTS],\n    \"code:python\":       [PEP8_HINTS, PYTHON_FEWSHOTS],\n}\n\nfunction build_prompt(request):\n    task_type = classifier.classify(request)    # cheap call\n    parts     = SCAFFOLDS.get(task_type, [])    # may be empty\n\n    prompt = base_system_prompt()\n    for s in parts:\n        prompt = splice(prompt, s)\n\n    audit.log(\n        request_id = request.id,\n        task_type  = task_type,\n        scaffolds  = [s.id for s in parts],\n    )\n    return prompt",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "fallback-chain",
+      "intent": "Try a primary handler; on failure or low confidence, fall through to a sequence of fallback handlers, with a generic 'I don't know' as the terminal answer rather than a wrong one.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Ordered chain of handlers, each either returning a confident answer or surfacing failure / low confidence; the last handler is a safe refusal, never an unchecked guess.",
+          "code": "HANDLERS = [\n    primary_handler,        # fast, narrow, high precision\n    secondary_handler,      # broader, slower, lower precision\n    tertiary_handler,       # very broad, weakest signal\n]\n\nTERMINAL = lambda req: Answer(\n    text=\"I don't have a confident answer for that.\",\n    confidence=1.0,         # confidently refusing IS the answer\n)\n\nfunction handle(request):\n    for h in HANDLERS:\n        try:\n            out = h(request)\n            if out.confidence >= THRESHOLD:\n                return out\n        except HandlerError:\n            continue        # fall through to next handler\n    return TERMINAL(request)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Runnable.with_fallbacks attaches an ordered list of backup Runnables; LangChain tries them in order until one succeeds \u2014 primary stays the default, fallbacks engage on error.",
+          "source_url": "https://reference.langchain.com/python/langchain_core/runnables/RunnableWithFallbacks/",
+          "sdk_version": "langchain-core>=0.3",
+          "code": "from langchain_anthropic import ChatAnthropic\nfrom langchain_openai import ChatOpenAI\n\n# Primary handler \u2014 strong frontier model.\nprimary = ChatAnthropic(model=\"claude-sonnet-4-6\")\n\n# Ordered fallbacks \u2014 cheaper / different-provider models, then a\n# deterministic refusal model would normally sit at the end.\nfallbacks = [\n    ChatOpenAI(model=\"gpt-4o\"),\n    ChatOpenAI(model=\"gpt-4o-mini\"),\n]\n\nmodel = primary.with_fallbacks(fallbacks)\n\n# Fallbacks are tried in order until one succeeds (or all fail).\n# A failure here means an SDK / provider error, not low quality \u2014\n# pair this with a separate confidence check if you want quality\n# routing rather than availability routing.\nresponse = model.invoke(\"Summarize the fallback-chain pattern in one sentence.\")\nprint(response.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "temporal",
+          "framework_label": "Temporal",
+          "language": "python",
+          "intent": "Temporal activity RetryPolicy enforces a bounded fallback ladder at the orchestrator level: failed activities retry with backoff up to maximum_attempts, then surface a typed failure the workflow can route to a backup activity.",
+          "source_url": "https://docs.temporal.io/encyclopedia/retry-policies",
+          "sdk_version": "temporalio>=1.5",
+          "code": "from datetime import timedelta\nfrom temporalio import workflow\nfrom temporalio.common import RetryPolicy\n\n\n@workflow.defn\nclass AnswerWorkflow:\n    @workflow.run\n    async def run(self, question: str) -> str:\n        # Primary activity \u2014 bounded retries with backoff form the\n        # first rung of the fallback chain.\n        try:\n            return await workflow.execute_activity(\n                \"ask_primary_model\",\n                question,\n                start_to_close_timeout=timedelta(seconds=30),\n                retry_policy=RetryPolicy(\n                    initial_interval=timedelta(seconds=1),\n                    backoff_coefficient=2.0,\n                    maximum_attempts=3,\n                ),\n            )\n        except Exception:\n            # Fallback activity \u2014 different provider / cheaper model.\n            try:\n                return await workflow.execute_activity(\n                    \"ask_fallback_model\",\n                    question,\n                    start_to_close_timeout=timedelta(seconds=30),\n                    retry_policy=RetryPolicy(maximum_attempts=2),\n                )\n            except Exception:\n                # Terminal: confident refusal, not a wrong answer.\n                return \"I don't have a confident answer for that.\"",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "graceful-degradation",
+      "intent": "When a dependency fails, downgrade the user-facing experience to a working subset rather than failing entirely, and disclose the degraded mode to the user.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each feature carries a degraded mode; on dependency failure, the request flips into that mode with a user-visible disclosure rather than surfacing an error.",
+          "code": "DEGRADED = {\n    \"vision\":     \"text_only\",\n    \"retrieval\":  \"no_citations\",\n    \"code_exec\":  \"plain_summary\",\n}\n\nfunction respond(request):\n    features = required_features(request)\n    notices  = []\n\n    for f in features:\n        if not health.ok(f):\n            request.mode[f] = DEGRADED[f]\n            notices.append(\n                disclosure(f, DEGRADED[f])     # tell the user\n            )\n\n    answer = run_pipeline(request)             # only healthy deps used\n    return assemble(answer, notices=notices)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mixture-of-experts-routing",
+      "intent": "Route each request to one or more domain-expert agents that hold deep capability in a narrow area; aggregate when more than one expert fires.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Domain experts with their own system prompts and tool palettes; a cheap router picks top-1 or top-k experts per request, and an aggregator merges outputs when multiple fire.",
+          "code": "# Each expert is deeply specialised \u2014 bespoke system prompt and\n# a narrow tool palette, possibly a fine-tuned model.\nEXPERTS = {\n    \"legal\":     Agent(prompt=LEGAL_PROMPT,    tools=LEGAL_TOOLS),\n    \"medical\":   Agent(prompt=MEDICAL_PROMPT,  tools=MEDICAL_TOOLS),\n    \"finance\":   Agent(prompt=FINANCE_PROMPT,  tools=FINANCE_TOOLS),\n    \"code\":      Agent(prompt=CODE_PROMPT,     tools=CODE_TOOLS),\n}\n\nfunction route(request):\n    scores = router_model.score_domains(\n        request,\n        labels=list(EXPERTS.keys()),\n    )\n    top = scores.top_k(k=2, min_score=0.4)\n\n    if len(top) == 0:\n        return generalist.answer(request)\n    if len(top) == 1:\n        return EXPERTS[top[0].label].answer(request)\n\n    # Multiple domains relevant \u2014 fan out and aggregate.\n    outputs = parallel_map(\n        lambda label: EXPERTS[label].answer(request),\n        [t.label for t in top],\n    )\n    return aggregator.merge(outputs, weights=top.scores)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "multi-model-routing",
+      "intent": "Show classify-then-bind-to-cheapest-tier in pseudo-code and in three Python/CLI tools that explicitly split traffic across models so spend tracks difficulty.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: classify each request, route to the cheapest tier that clears its quality bar, optionally cascade on low confidence.",
+          "code": "MODELS = {\n    \"cheap\":  client(\"cheap-model\"),\n    \"strong\": client(\"strong-model\"),\n}\n\n# Per-class binding: each class is pinned to a tier in advance,\n# not chosen ad-hoc by the calling agent.\nROUTING = {\n    \"extract\":   \"cheap\",\n    \"classify\":  \"cheap\",\n    \"answer\":    \"strong\",\n}\n\nfunction route(request):\n    cls = classifier.classify(request)   # cheap-model call\n    tier = ROUTING[cls]\n    out = MODELS[tier].generate(request)\n\n    # Optional cascade: only the cheap tier may escalate, and only\n    # on low confidence, so we don't always-pay the strong tier.\n    if tier == \"cheap\" and out.confidence < THRESHOLD:\n        out = MODELS[\"strong\"].generate(request)\n\n    return out",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "instructor",
+          "framework_label": "Instructor",
+          "language": "python",
+          "intent": "instructor.from_provider returns a uniform client per provider; the app holds one cheap and one strong client and dispatches by request class.",
+          "source_url": "https://python.useinstructor.com/",
+          "sdk_version": "instructor>=1.0",
+          "code": "import instructor\nfrom pydantic import BaseModel\n\n\nclass Extraction(BaseModel):\n    name: str\n    category: str\n\n\nclass Analysis(BaseModel):\n    summary: str\n    key_insights: list[str]\n    sentiment: str\n\n\n# Two pre-bound clients; same Pydantic-driven call site for both.\ncheap = instructor.from_provider(\"openai/gpt-4o-mini\")\nstrong = instructor.from_provider(\"openai/gpt-4o\")\n\n\ndef handle(request_class: str, text: str):\n    if request_class == \"extract\":\n        return cheap.create(\n            response_model=Extraction,\n            messages=[{\"role\": \"user\", \"content\": text}],\n        )\n    if request_class == \"analyze\":\n        return strong.create(\n            response_model=Analysis,\n            messages=[{\"role\": \"user\", \"content\": text}],\n        )\n    raise ValueError(f\"unknown class: {request_class}\")\n\n\nprint(handle(\"extract\", \"Jane, Technology\"))\nprint(handle(\"analyze\", \"Quarterly market commentary...\"))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "aider",
+          "framework_label": "Aider",
+          "language": "pseudo",
+          "intent": "Architect mode binds reasoning to a strong/expensive model and file-editing to a cheaper model \u2014 a per-role tier split shipped as a CLI flag.",
+          "source_url": "https://aider.chat/docs/usage/modes.html",
+          "sdk_version": "aider-chat>=0.60",
+          "code": "# Pair a strong reasoning model (architect) with a cheaper editor\n# model that turns the architect's plan into concrete file edits.\n# Reasoning tokens stay on the expensive tier; the high-volume\n# edit-application traffic runs on the cheap tier.\n\naider --architect \\\n      --model         o1 \\\n      --editor-model  gpt-4o\n\n# Behind the flag, aider routes each user request through two\n# model calls:\n#\n#   1. architect_model.propose(request)   -> plan in natural language\n#   2. editor_model.apply(plan)           -> concrete diff/edits\n#\n# The split is fixed per-role, not per-message: there is no\n# escalation from editor back to architect mid-edit.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "browser-use",
+          "framework_label": "Browser Use",
+          "language": "python",
+          "intent": "Agent accepts a strong llm for reasoning and a separate page_extraction_llm for the high-volume page-text extraction role; defaults to llm when unset.",
+          "source_url": "https://github.com/browser-use/browser-use",
+          "sdk_version": "browser-use>=0.1",
+          "code": "import asyncio\nfrom browser_use import Agent\nfrom browser_use.llm import ChatOpenAI\n\n# Strong model handles the agent's reasoning loop.\nreasoning_llm = ChatOpenAI(model=\"gpt-4o\")\n\n# Cheap, fast model handles the high-volume page-extraction calls\n# that just need to pull text out of a DOM.\nextraction_llm = ChatOpenAI(model=\"gpt-4o-mini\")\n\nagent = Agent(\n    task=\"Find the number of stars of the browser-use repo on GitHub.\",\n    llm=reasoning_llm,\n    page_extraction_llm=extraction_llm,\n)\n\n\nasync def main():\n    await agent.run()\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "open-weight-cascade",
+      "intent": "Build a sensitivity-aware multi-model cascade where lower tiers are self-hosted open-weight models and only insensitive escalations cross to a hosted frontier model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Sensitivity classification fires before any model call; sensitive traffic is pinned to the open-weight tier (and degrades rather than escalates), only insensitive hard traffic crosses the boundary to the frontier model.",
+          "code": "OPEN_SMALL = self_hosted_client(\"qwen-2.5-7b\")     # inside boundary\nOPEN_LARGE = self_hosted_client(\"llama-3.1-70b\")   # inside boundary\nFRONTIER   = hosted_client(\"claude-sonnet-4-6\")    # crosses boundary\n\nTHRESHOLD  = 0.7\n\nfunction route(request):\n    # 1. Sensitivity classification BEFORE any model call.\n    if pii_classifier.is_sensitive(request):\n        out = OPEN_LARGE.generate(request)\n        if out.confidence < THRESHOLD:\n            # Sensitive + uncertain: refuse / degrade.\n            # NEVER escalate sensitive traffic across the boundary.\n            return degrade(request, reason=\"sensitive_uncertain\")\n        return out\n\n    # 2. Insensitive easy: smallest local model.\n    out = OPEN_SMALL.generate(request)\n    if out.confidence >= THRESHOLD:\n        return out\n\n    # 3. Insensitive hard: escalate to frontier.\n    return FRONTIER.generate(request)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "parallel-tool-calls",
+      "intent": "Let the model emit several independent tool calls in one assistant turn; the host fans them out concurrently and returns all results before the next turn.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Provider returns multiple tool_calls in one assistant turn; host executes them concurrently with bounded concurrency, then appends all tool results before resuming the agent loop.",
+          "code": "function step(messages):\n    reply = llm.generate(messages, tools=TOOLS)\n    messages.append(reply)\n\n    if not reply.tool_calls:\n        return reply                       # agent answered\n\n    # Fan out concurrently \u2014 bounded by MAX_PARALLEL so a single\n    # turn can't exhaust rate limits or worker pools.\n    results = parallel_map(\n        lambda call: dispatch(call.name, call.args),\n        reply.tool_calls,\n        max_concurrency=MAX_PARALLEL,\n    )\n\n    # All results return as separate tool messages; the next\n    # assistant turn sees them together.\n    for call, result in zip(reply.tool_calls, results):\n        messages.append(tool_result(call.id, result))\n\n    return None  # caller loops",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "cohere-command",
+          "framework_label": "Cohere Command",
+          "language": "python",
+          "intent": "Cohere V2 returns multiple ToolCallV2 entries in a single response.message.tool_calls; the host runs them concurrently and appends each as its own tool message before the next chat call.",
+          "source_url": "https://docs.cohere.com/v2/docs/tool-use-overview",
+          "sdk_version": "cohere>=5.11",
+          "code": "import cohere\n\nco = cohere.ClientV2()\n\ntools = [\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"search_docs\",\n            \"description\": \"Search documentation for a query.\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"query\":  {\"type\": \"string\"},\n                    \"top_k\":  {\"type\": \"integer\"},\n                },\n                \"required\": [\"query\"],\n            },\n        },\n    }\n]\n\nmessages = [{\n    \"role\": \"user\",\n    \"content\": \"Find docs about tool use and structured outputs.\",\n}]\n\nresponse = co.chat(\n    model=\"command-a-plus-05-2026\",\n    messages=messages,\n    tools=tools,\n)\n\n# The model may emit several tool_calls in one turn \u2014 fan them out.\nif response.message.tool_calls:\n    messages.append(response.message)\n    # Host dispatches all calls concurrently and appends each result.\n    for call in response.message.tool_calls:\n        result = run_tool(call.function.name, call.function.arguments)\n        messages.append({\n            \"role\": \"tool\",\n            \"tool_call_id\": call.id,\n            \"content\": result,\n        })\n\n    # Next turn sees all tool results together.\n    response = co.chat(model=\"command-a-plus-05-2026\",\n                      messages=messages, tools=tools)\n\nprint(response.message.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "parallelization",
+      "intent": "Run independent LLM calls concurrently \u2014 either sectioning a task into independent subtasks or voting across repeated runs \u2014 and combine results.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two flavours side by side: sectioning fans different subtasks across calls and concatenates; voting fans the same task across calls and aggregates by majority or judge.",
+          "code": "# --- Sectioning ---------------------------------------------------\nfunction sectioned_run(task):\n    subtasks = split(task)              # independent pieces\n    parts    = parallel_map(\n        lambda sub: llm.generate(sub),\n        subtasks,\n    )\n    return concat(parts)\n\n# --- Voting -------------------------------------------------------\nfunction voted_run(task, n=5):\n    samples = parallel_map(\n        lambda _: llm.generate(task, temperature=0.7),\n        range(n),\n    )\n    return aggregate(samples)           # majority vote OR judge model",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "eko",
+          "framework_label": "Eko",
+          "language": "typescript",
+          "intent": "Eko 3 builds a dependency graph from the natural-language task and runs independent agents concurrently; the framework handles the fan-out \u2014 the caller just expresses the work.",
+          "source_url": "https://github.com/FellouAI/eko",
+          "sdk_version": "@eko-ai/eko@^3.0",
+          "code": "import { Eko, BrowserAgent, FileAgent } from \"@eko-ai/eko\";\n\nconst llms = {\n  default: {\n    provider: \"anthropic\",\n    model: \"claude-sonnet-4-6\",\n    apiKey: process.env.ANTHROPIC_API_KEY!,\n  },\n};\n\n// Two independent agents \u2014 Eko's planner will see they have no\n// dependency on each other and run them in parallel.\nconst agents = [new BrowserAgent(), new FileAgent()];\nconst eko = new Eko({ llms, agents });\n\n// The natural-language task names three independent subtasks;\n// Eko sections the work and dispatches concurrently.\nconst result = await eko.run(\n  \"Search recent news about agentic patterns AND \" +\n  \"summarize the top three results AND \" +\n  \"save the summary to ~/Desktop/summary.md\"\n);\n\nconsole.log(result);",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "pipes-and-filters",
+      "intent": "Compose stream-shaped processing as a chain of small single-responsibility filters connected by typed pipes, each testable in isolation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each filter is a single-input, single-output function; pipes are plain composition; the pipeline runs as a fold over a stream of records.",
+          "code": "# Each filter does one thing and is independently testable.\nfilter clean(record)   -> record:  ...\nfilter classify(record) -> record:  ...\nfilter enrich(record)   -> record:  ...\nfilter render(record)   -> output:  ...\n\n# A pipe is just function composition.\npipeline = compose(clean, classify, enrich, render)\n\nfunction run(stream):\n    for record in stream:\n        yield pipeline(record)         # one record at a time\n\n# Filters can be swapped, reordered, or reused across pipelines\n# because they share the same record shape on the pipe.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "hamilton",
+          "framework_label": "Hamilton",
+          "language": "python",
+          "intent": "Hamilton lifts each filter into a typed Python function whose parameters declare its upstream pipes; the driver builds the DAG automatically and runs the requested outputs.",
+          "source_url": "https://github.com/DAGWorks-Inc/hamilton",
+          "sdk_version": "sf-hamilton>=1.80",
+          "code": "# pipeline.py \u2014 each function is one filter; parameter names ARE\n# the pipes (Hamilton resolves them by name across the module).\n\ndef raw_text(source: str) -> str:\n    return load(source)\n\n\ndef clean(raw_text: str) -> str:\n    return normalize_whitespace(raw_text)\n\n\ndef classified(clean: str) -> str:\n    return classifier_model(clean)\n\n\ndef enriched(clean: str, classified: str) -> dict:\n    return {\"text\": clean, \"label\": classified, \"meta\": lookup(classified)}\n\n\ndef rendered(enriched: dict) -> str:\n    return template.render(enriched)\n\n\n# --- driver -------------------------------------------------------\nimport pipeline\nfrom hamilton import driver\n\ndr = driver.Builder().with_modules(pipeline).build()\nresult = dr.execute(\n    [\"rendered\"],\n    inputs={\"source\": \"path/to/file.txt\"},\n)\nprint(result[\"rendered\"])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pipecat",
+          "framework_label": "Pipecat",
+          "language": "python",
+          "intent": "Pipecat literally lists filters as a Python list; the Pipeline wires them end-to-end and streams frames through, one filter per stage.",
+          "source_url": "https://docs.pipecat.ai/getting-started/quickstart",
+          "sdk_version": "pipecat-ai>=0.0.50",
+          "code": "from pipecat.pipeline.pipeline import Pipeline\nfrom pipecat.pipeline.task import PipelineTask\nfrom pipecat.pipeline.runner import PipelineRunner\nfrom pipecat.services.deepgram import DeepgramSTTService\nfrom pipecat.services.openai import OpenAILLMService\nfrom pipecat.services.cartesia import CartesiaTTSService\n\nstt = DeepgramSTTService(api_key=\"...\")\nllm = OpenAILLMService(api_key=\"...\", model=\"gpt-4o\")\ntts = CartesiaTTSService(api_key=\"...\", voice_id=\"...\")\n\n# Each entry is a filter; the list order IS the pipe sequence.\npipeline = Pipeline([\n    transport.input(),       # audio in\n    stt,                     # speech -> text\n    user_aggregator,         # add user turn to context\n    llm,                     # text -> text\n    tts,                     # text -> audio\n    transport.output(),      # audio out\n    assistant_aggregator,    # capture bot turn\n])\n\ntask = PipelineTask(pipeline)\nawait PipelineRunner().run(task)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-chaining",
+      "intent": "Decompose a task into a fixed sequence of LLM calls, where each step's validated output becomes the next step's input.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Linear, validated chain: each step has its own prompt and expected output shape; a failed validation retries that step or aborts, downstream steps only see validated inputs.",
+          "code": "STEPS = [\n    Step(name=\"extract\",   prompt=EXTRACT_PROMPT,   schema=ExtractOut),\n    Step(name=\"classify\",  prompt=CLASSIFY_PROMPT,  schema=ClassifyOut),\n    Step(name=\"summarize\", prompt=SUMMARIZE_PROMPT, schema=SummaryOut),\n]\n\nfunction run(input):\n    value = input\n    for step in STEPS:\n        for attempt in 1..MAX_RETRIES:\n            raw = llm.generate(step.prompt, input=value)\n            try:\n                value = validate(raw, step.schema)\n                break               # this step is done\n            except ValidationError:\n                continue\n        else:\n            return abort(step.name) # never reach downstream steps\n    return value",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "atomic-agents",
+          "framework_label": "Atomic Agents",
+          "language": "python",
+          "intent": "Atomic Agents make the pipe explicit through Pydantic schemas: an agent's output_schema is fed directly into the next agent's input_schema, enforcing a validated, fixed-shape chain.",
+          "source_url": "https://github.com/BrainBlend-AI/atomic-agents",
+          "sdk_version": "atomic-agents>=1.0",
+          "code": "import instructor\nfrom openai import OpenAI\nfrom pydantic import Field\nfrom atomic_agents import AtomicAgent, AgentConfig, BaseIOSchema\nfrom atomic_agents.context import SystemPromptGenerator\n\nclient = instructor.from_openai(OpenAI())\n\n\nclass QueryOut(BaseIOSchema):\n    query: str = Field(..., description=\"Search query\")\n\n\nclass AnswerOut(BaseIOSchema):\n    answer: str = Field(..., description=\"Final answer\")\n\n\n# Step 1 \u2014 input is the framework's base schema, output is QueryOut.\nquery_agent = AtomicAgent[BaseIOSchema, QueryOut](\n    config=AgentConfig(\n        client=client,\n        model=\"gpt-4o-mini\",\n        system_prompt_generator=SystemPromptGenerator(\n            background=[\"Turn the user goal into one focused search query.\"],\n        ),\n    )\n)\n\n# Step 2 \u2014 its input_schema IS step 1's output_schema. That match\n# is the chain: no glue code, just typed composition.\nanswer_agent = AtomicAgent[QueryOut, AnswerOut](\n    config=AgentConfig(\n        client=client,\n        model=\"gpt-4o\",\n        system_prompt_generator=SystemPromptGenerator(\n            background=[\"Answer using the provided query as context.\"],\n        ),\n    )\n)\n\nq = query_agent.run(BaseIOSchema())\nfinal = answer_agent.run(q)\nprint(final.answer)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "provider-fallback",
+      "intent": "When one provider's API errors mid-stream, transparently switch to another provider while preserving conversation state and surfacing one continuous stream to the client.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A gateway owns the conversation; on stream error it translates the in-flight state into the fallback provider's message/tool format and resumes streaming to the client over the same connection.",
+          "code": "PROVIDERS = [primary, secondary, tertiary]   # ordered\n\nfunction stream_chat(client_stream, conversation):\n    partial = \"\"\n    for provider in PROVIDERS:\n        try:\n            messages = provider.translate(conversation)\n            for chunk in provider.stream(messages):\n                partial += chunk.text\n                client_stream.send(chunk)\n            return                       # finished cleanly\n        except StreamError:\n            # Preserve what we already streamed so the next provider\n            # continues from there rather than restarting.\n            conversation.append_partial(partial)\n            partial = \"\"\n            continue\n    client_stream.error(\"all providers failed\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "provider-string-routing",
+      "intent": "Select model and provider through a single namespaced string ('provider/model') resolved against an env-var-credentialled registry, so call sites take one parameter rather than a typed provider object.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Registry keyed by short prefix; each entry knows how to load credentials from env and how to invoke its underlying SDK; the call site takes a single 'provider/model' string.",
+          "code": "REGISTRY = {\n    \"openai\":    OpenAIProvider(env=\"OPENAI_API_KEY\"),\n    \"anthropic\": AnthropicProvider(env=\"ANTHROPIC_API_KEY\"),\n    \"google\":    GoogleProvider(env=\"GOOGLE_API_KEY\"),\n    \"xai\":       XaiProvider(env=\"XAI_API_KEY\"),\n}\n\nfunction generate(provider_model, prompt):\n    prefix, model = provider_model.split(\"/\", 1)\n    provider      = REGISTRY[prefix]\n    return provider.complete(model=model, prompt=prompt)\n\n# Call site \u2014 one string, no typed provider object.\nout = generate(\"anthropic/claude-sonnet-4-6\", \"Hello\")\n\n# Trivial to chain with provider-fallback:\n#   for s in [\"anthropic/claude-sonnet-4-6\",\n#             \"openai/gpt-4o\",\n#             \"google/gemini-2.0-flash\"]:\n#       try: return generate(s, prompt)\n#       except ProviderError: continue",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "deepseek-agent",
+          "framework_label": "DeepSeek",
+          "language": "python",
+          "intent": "DeepSeek is OpenAI-SDK-compatible: switching providers is a base_url + model-name change, which is the runtime shape provider-string routers normalise behind a single namespaced string.",
+          "source_url": "https://api-docs.deepseek.com",
+          "sdk_version": "openai>=1.40",
+          "code": "import os\nfrom openai import OpenAI\n\n# A provider-string router would resolve \"deepseek/deepseek-v4-pro\"\n# to (base_url, env_var, model). The OpenAI SDK is reused as the\n# wire-format adapter \u2014 only base_url and model change per provider.\n\nclient = OpenAI(\n    api_key  = os.environ[\"DEEPSEEK_API_KEY\"],   # env-keyed creds\n    base_url = \"https://api.deepseek.com\",       # provider prefix\n)\n\nresponse = client.chat.completions.create(\n    model=\"deepseek-v4-pro\",                     # the model half\n    messages=[\n        {\"role\": \"system\", \"content\": \"You are a helpful assistant.\"},\n        {\"role\": \"user\",   \"content\": \"Hello\"},\n    ],\n)\n\nprint(response.choices[0].message.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "routing",
+      "intent": "Classify the incoming request with a lightweight model and dispatch it to the specialist (lane / agent / model) best suited to handle it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Cheap classifier returns a label; the host dispatches to the matching specialist \u2014 command, agent, or chat lane \u2014 with a generic chat lane as the safe default.",
+          "code": "LANES = {\n    \"command\": deterministic_action_handler,   # no LLM in the loop\n    \"agent\":   multi_step_agent,               # tool-using agent\n    \"chat\":    plain_chat_model,               # no tools\n}\n\nfunction route(request):\n    # Cheapest model available \u2014 classification only.\n    label = classifier.classify(\n        request,\n        labels=list(LANES.keys()),\n    )\n    handler = LANES.get(label, LANES[\"chat\"])   # safe default\n    return handler(request)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

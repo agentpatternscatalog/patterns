@@ -11,11 +11,11 @@ Enable the human to share embodied state (energy, fatigue, environment) so the a
 
 ## Context
 
-Long-running text-only agents conversing with a human whose physical and ambient state shapes the meaning of their words. The agent has no sensors; the human has sensors but no obligation to narrate.
+A team is running a long-lived text-only agent that talks to the same person across many sessions and many moods. The human has a body — they are tired, alert, eating, walking, half-asleep — and the agent has no sensors and no way to see any of that. The human is also not going to narrate their state every turn, because nobody wants to type "I am still tired" into a chat to get a useful reply.
 
 ## Problem
 
-The agent reads only text, so it projects flat affect onto whatever the human writes. A 'fine' typed at 6 AM after a poor night's sleep reads identically to 'fine' typed at 3 PM after a good lunch. Without a proxy for embodied state the agent paces, holds, or pushes against an imagined human, not the actual one.
+Without any handle on the human's physical state, the agent treats every "I'm fine" as identical. The same one-word answer typed at six in the morning after three hours of sleep and at three in the afternoon after a good lunch produces the same chirpy follow-up, and the agent paces, pushes, and proposes new threads against an imagined average user rather than the actual one. The team has to choose between asking for full context every turn (which is friction the human will not pay) and ignoring embodied state entirely (which is what they have now and what is grating users).
 
 ## Forces
 

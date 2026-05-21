@@ -11,11 +11,11 @@ Have the LLM write a hypothetical answer document, embed it, and use it as the r
 
 ## Context
 
-Short or underspecified queries embed far from long-form passages in dense vector space; supervised relevance data is absent.
+A team is using dense vector retrieval to find documents that match user queries, but the queries are short and underspecified — often a few words — while the passages in the corpus are long, well-formed, and written in a different style. The team also does not have labelled query-document relevance pairs that would let them train a query encoder to bridge the asymmetry.
 
 ## Problem
 
-Query-document length and style asymmetry hurts dense retrieval recall on short queries.
+Short queries embed far from long-form passages in the dense vector space because their length and style differ so much from the source text. Without supervised relevance pairs, the team cannot fine-tune a query encoder to close this gap, and zero-shot dense retrieval recall on short queries stays poor. They need a way to translate the user's short query into something that lives in the same neighbourhood of the embedding space as the target passages, using only the resources they already have on hand.
 
 ## Forces
 

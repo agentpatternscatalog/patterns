@@ -1,5 +1,7 @@
 # Agentic Patterns Catalog
 
+**Live site:** <https://agentpatternscatalog.github.io/patterns/> — browse all 214 patterns as rendered HTML with Mermaid diagrams, plus the recipes and framework-coverage views.
+
 A machine-readable reference of agentic design patterns in GoF/POSA form. Pure data — no code, no scripts. Organised by category, with typed cross-pattern edges (`uses`, `composes-with`, `specialises`, `alternative-to`).
 
 ## What "agentic" means
@@ -30,6 +32,7 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 
 ## Browse the catalog
 
+- **[agentpatternscatalog.github.io/patterns](https://agentpatternscatalog.github.io/patterns/)** — rendered HTML site with Mermaid diagrams; the easiest way to read the catalog.
 - **[`INDEX.md`](INDEX.md)** — every pattern grouped by category.
 - **[`patterns/`](patterns/)** — one Markdown page per pattern.
 - **[`patterns-src/`](patterns-src/)** — source of truth: one JSON shard per category, each entry validated against [`schema.json`](schema.json).

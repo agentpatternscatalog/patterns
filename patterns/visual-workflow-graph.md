@@ -11,11 +11,11 @@ Express agentic logic as a visual graph of typed nodes connected on a canvas wit
 
 ## Context
 
-Low-code and no-code platforms (Dify, Coze, n8n, Flowise, Langflow, FastGPT, Bisheng) and IDE-embedded workflow editors where the same product surface is used by developers and by business users.
+A team is building on a low-code or no-code platform — Dify, Coze, n8n, Flowise, Langflow, FastGPT, Bisheng — or in an IDE-embedded workflow editor, where the same product surface is used both by developers and by non-developers such as business users or operations teams. The workflow itself is the artefact those users will edit and review, not the code behind it.
 
 ## Problem
 
-Procedural agentic code is dense for non-coders and review-heavy for developers; the graph topology — which nodes feed which — is the part that needs to be inspectable, but it is buried inside source files.
+Procedural agentic code is dense and unfamiliar for non-coders, and review-heavy even for developers because the orchestration logic is buried inside source files. The graph topology — which nodes feed which, which branches gate which — is the part that most needs to be inspectable, but in a procedural codebase that topology has to be reconstructed by reading code. The platform needs a graph-shaped representation of the workflow as the primary artefact, with code only behind the individual nodes that need it.
 
 ## Forces
 
@@ -60,7 +60,7 @@ A customer-success team wants to build a triage workflow that classifies incomin
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Start([Start]) --> QC[Question Classifier]
   QC -->|billing| KB1[Retrieval: billing]
   QC -->|tech| KB2[Retrieval: tech]

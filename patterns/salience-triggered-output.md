@@ -11,11 +11,11 @@ Have the agent emit a message only when an internal salience signal crosses a th
 
 ## Context
 
-A tick-based or always-on agent; constant output overwhelms; silence is wasteful when something matters.
+A team is running an agent that wakes up on a regular tick, or runs continuously, and has the option to say something to the user on every cycle. It might be a monitoring agent, a background reasoning loop, or any process that produces a stream of internal events that could each become a notification. The team has to decide which of those events are worth the user's attention.
 
 ## Problem
 
-Agents that emit on every cycle are noisy; agents that only emit on user request miss timely signals.
+An agent that emits on every cycle quickly becomes noise — users stop reading the channel, mute it, or close the application. An agent that emits only when explicitly asked goes silent during the moments when the user would have most wanted to hear from it, such as when a metric breaks pattern or a long-running task finishes. Without a way to score how interesting each internal event is, the team is stuck choosing between spamming and ghosting, with no middle ground that matches output rate to actual signal rate.
 
 ## Forces
 
@@ -58,7 +58,7 @@ An always-on monitoring agent emits one line per second; users mute the channel 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Ev[Internal event] --> Sc[Score salience]
   Sc --> Th{> threshold?}
   Th -->|no| Log[Log only]

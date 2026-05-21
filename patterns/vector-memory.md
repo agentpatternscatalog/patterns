@@ -11,11 +11,11 @@ Store memories as embeddings in a vector index and retrieve the most semanticall
 
 ## Context
 
-Long-running agents accumulate facts/observations whose relevance is best judged by similarity to the current context.
+A long-running agent accumulates facts and observations over time, and on each step it needs to find the small subset of past items that is relevant to the current situation. Relevance is best judged by semantic similarity rather than by exact term match or chronological recency: 'find the past notes whose meaning is close to what is happening now'.
 
 ## Problem
 
-Append-only logs grow unboundedly; without semantic retrieval the agent cannot find the relevant past.
+An append-only log of everything the agent has seen grows unboundedly and quickly becomes too large to search by linear scan. Without a semantic retrieval layer, the agent has no way to find the relevant past, because keyword search misses paraphrase and chronological recency misses older but topically relevant items. The team needs a memory store that supports similarity queries against an embedding of the current context, so that the agent can pull back exactly the items it should be thinking about now.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A long-running personal agent's append-only thought log grows past a million ent
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Mem[New memory item] --> Emb[Embed]
   Emb --> Idx[(Vector index)]
   Q[Query / current state] --> QEmb[Embed]

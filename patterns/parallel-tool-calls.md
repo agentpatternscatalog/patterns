@@ -11,11 +11,11 @@ Allow the model to emit several independent tool calls in one assistant turn; th
 
 ## Context
 
-Tasks where the model can identify independent sub-actions in one breath and parallel execution would cut wall-clock time.
+A tool-using agent is on a task where the next step naturally splits into several independent lookups or actions — fetch three records from different tables, read four files, query two APIs that have nothing to do with each other. The provider's chat API supports a single assistant turn that contains more than one tool call, and the model is capable of identifying these independent calls in one breath rather than thinking step by step.
 
 ## Problem
 
-Sequential tool calls waste latency on independent operations; full DAG-planning patterns are heavyweight for the simple parallel case.
+If the agent issues these calls sequentially, the wall-clock latency is the sum of every call even though none of them depend on the others, and the product feels sluggish for no good reason. Building a full directed-acyclic-graph planner that schedules tool calls and tracks dependencies is heavyweight for the simple case where the model already knows which calls are independent. The team needs a lighter way to let independent calls run at the same time without standing up a planner.
 
 ## Forces
 

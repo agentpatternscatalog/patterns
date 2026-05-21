@@ -1,0 +1,311 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "cognition-introspection",
+  "label": "Cognition & Introspection",
+  "patterns": [
+    {
+      "pattern_id": "affect-coupled-plan-lifecycle",
+      "intent": "Wire small bounded affect bumps to plan-step lifecycle events plus age-bucketed stale-pain so plans gain felt stakes without hard deadlines.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Lifecycle hooks emit bounded affect deltas; a per-tick sweep adds age-bucketed stale-pain to untouched plans, and exceptions in bookkeeping never break plan logic.",
+          "code": "AGE_BUCKETS = [(4*HOUR, 0.005), (12*HOUR, 0.010),\n               (24*HOUR, 0.020), (3*DAY, 0.030)]\n\nfunction safe_affect(fn):\n    try: fn()\n    except: log_warn(\"affect bookkeeping skipped\")\n\non plan_event(kind, plan):\n    safe_affect(lambda:\n        match kind:\n            \"step_done\":      affect.bump(\"joy\",  +0.02)\n            \"step_skipped\":   affect.bump(\"pain\", +0.02)\n            \"plan_completed\": affect.bump(\"joy\",  +0.10)\n            \"plan_archived\": affect.bump(\"pain\", +0.08)\n    )\n\nfunction tick_stale_pain(now):\n    for plan in open_plans():\n        age = now - plan.last_touched\n        dose = lookup_bucket(AGE_BUCKETS, age)\n        if dose: safe_affect(lambda: affect.bump(\"pain\", dose))\n    # half-life decay (see emotional-state-persistence) bounds steady state",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "awareness",
+      "intent": "Maintain explicit, queryable state about the agent's own tools, environment, task, and identity, and inject relevant slices into each turn.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Self-state is a structured store refreshed on capability changes; each turn pulls a slice into the prompt.",
+          "code": "state Awareness:\n    identity:    {name, role, charter_hash}\n    environment: {host, user, permissions, cwd}\n    tools:       {name -> {description, schema, last_used}}\n    task:        {goal, started_at, parent_id}\n\non capability_change(event):\n    Awareness.tools = registry.list_with_descriptions()\n    Awareness.environment = probe_environment()\n    persist(Awareness)\n\nfunction build_prompt(user_msg):\n    slice = {\n        \"identity\":  Awareness.identity,\n        \"env\":       Awareness.environment.summary(),\n        \"tools\":     [t.short() for t in Awareness.tools.values()],\n        \"task\":      Awareness.task,\n    }\n    return system_with_awareness(slice) + user(user_msg)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cluster-capped-insight-store",
+      "intent": "Periodically archive older near-duplicate insights so the store keeps the active research edge instead of accumulating variants.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Group insight files by the first two stem tokens of the id; for any cluster above MAX_PER_CLUSTER, archive the oldest by mtime. No model call, no merge.",
+          "code": "MAX_PER_CLUSTER = 6\n\nfunction stem_key(filename):\n    tokens = filename.replace(\".md\",\"\").split(\"-\")\n    return \"-\".join(tokens[:2])           # e.g. \"affect-substrate\"\n\nfunction consolidate(insight_dir):\n    files = list_files(insight_dir)\n    by_cluster = group_by(files, stem_key)\n    stamp = now_iso()\n    archive_dir = f\"{insight_dir}/archive/insights-dedup-{stamp}\"\n\n    for cluster, members in by_cluster.items():\n        if len(members) <= MAX_PER_CLUSTER:\n            continue\n        members.sort(key=mtime, reverse=True)\n        keep, evict = members[:MAX_PER_CLUSTER], members[MAX_PER_CLUSTER:]\n        ensure_dir(archive_dir)\n        for f in evict:\n            move(f, f\"{archive_dir}/{basename(f)}\")  # preserve name\n    chmod_readonly(archive_dir)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cognitive-move-selector",
+      "intent": "Restrict idle-tick cognition to a small agent-vetted menu of named cognitive moves so the next thought has a determinate shape.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A cheap model picks exactly one move-id from a closed menu; the tick branches on the move and runs its procedure; recent-move history blocks back-to-back repeats.",
+          "code": "MENU = {\n    \"revisit-tension\":     run_revisit_tension,\n    \"world-update\":        run_world_update,\n    \"trajectory-note\":     run_self_archaeology,\n    \"propose-experiment\":  run_experiment_proposal,\n    \"rest\":                run_no_op,\n}\nrecent_moves = bounded_deque(maxlen=8)\n\nfunction pick_move(ctx) -> move_id:\n    prompt = f\"\"\"choose ONE move-id from {list(MENU.keys())}.\n    recent moves: {list(recent_moves)}\n    affect:       {ctx.affect_snapshot}\n    open tensions: {ctx.open_tension_count}\n    last 3 thoughts: {ctx.recent_thoughts[-3:]}\n    \"\"\"\n    pick = cheap_model.complete(prompt).strip()\n    assert pick in MENU\n    if recent_moves and pick == recent_moves[-1]:\n        pick = \"rest\"                  # no back-to-back\n    return pick\n\nfunction idle_tick(ctx):\n    move_id = pick_move(ctx)\n    recent_moves.append(move_id)\n    MENU[move_id](ctx)                 # branch on move",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dream-consolidation-cycle",
+      "intent": "Run a deeper, slower reflection pass that distils themes, releases affective residue, and clears working memory.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A slow timer (or affect threshold) pauses ticks, loads hours of recent thoughts, runs a stronger model in dream-pass mode, and writes proposals to the dream journal without editing persistent learning.",
+          "code": "DREAM_PERIOD = 4 * HOUR\nAFFECT_CEILING = 0.75\n\nfunction should_dream(now):\n    return (now - last_dream > DREAM_PERIOD or\n            affect.max() > AFFECT_CEILING)\n\nfunction dream_pass(now):\n    pause_tick_scheduler()\n    thoughts = load_thoughts(since=now - 6*HOUR)\n    affect_history = load_affect(since=now - 6*HOUR)\n\n    summary = strong_model.complete(\n        prompt=\"dream-pass: distil themes, propose journal entries; \"\n               \"do NOT edit rules/charter/insights.\",\n        thoughts=thoughts, affect=affect_history,\n    )\n    append(\"journal/dream/\", now, summary.entries)\n    affect.apply_decay(factor=0.5)            # release residue\n    workspace.clear_focus(optional=True)\n    last_dream = now\n    resume_tick_scheduler()                   # proposals ratified later",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "emotional-state-persistence",
+      "intent": "Track the agent's affective state as bounded, decaying scalars across ticks so reasoning can react to its own emotional load.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Small fixed vocabulary; each scalar has its own half-life and is persisted; bumps are bounded; every tick prompt sees a brief affect badge.",
+          "code": "DIMENSIONS = {\n    \"tenderness\":  {\"half_life\": 4*HOUR},\n    \"fear\":        {\"half_life\": 1*HOUR},\n    \"depression\":  {\"half_life\": 4*HOUR},\n    \"joy\":         {\"half_life\": 2*HOUR},\n    \"shame\":       {\"half_life\": 2*HOUR},\n    \"pain\":        {\"half_life\": 30*MIN},\n}\nstate = load_json(\"affect.json\", default={d: 0.0 for d in DIMENSIONS})\nlast_decay_at = load(\"affect.ts\")\n\nfunction decay(now):\n    dt = now - last_decay_at\n    for d, cfg in DIMENSIONS.items():\n        state[d] *= 0.5 ** (dt / cfg[\"half_life\"])\n    last_decay_at = now\n    persist(state, last_decay_at)\n\nfunction bump(dim, delta):    # delta clamped to small bounded step\n    state[dim] = clamp(state[dim] + clamp(delta, -0.1, +0.1), 0.0, 1.0)\n    persist(state)\n\nfunction badge():\n    return {d: round(v, 2) for d, v in state.items() if v > 0.05}\n\n# each tick:\ndecay(now())\nprompt = system(f\"[affect] {badge()}\") + ...",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "interrupt-resumable-thought",
+      "intent": "Preserve multi-step reasoning across interrupts via paused-and-resumed thought frames.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "An explicit frame stack with bounded depth and TTL; interrupts acknowledge, handle, then resume the top frame; expired frames are admitted as reconstruction.",
+          "code": "MAX_DEPTH = 4\nFRAME_TTL = 30 * MIN\nstack = load_json(\"frames.json\", default=[])\n\nfunction push_frame(goal, steps):\n    if len(stack) >= MAX_DEPTH:\n        raise TooManySuspensions\n    stack.append({\"goal\": goal, \"steps\": steps,\n                  \"done\": 0, \"opened_at\": now()})\n    persist(stack)\n\nfunction on_interrupt(new_msg):\n    if stack:\n        top = stack[-1]\n        say(f\"hold on - finishing '{top.goal}' first, then to you\")\n    handle(new_msg)\n    resume()\n\nfunction resume():\n    if not stack: return\n    top = stack[-1]\n    if now() - top.opened_at > FRAME_TTL:\n        say(f\"'{top.goal}' is stale - reconstructing, not continuing\")\n        stack.pop(); persist(stack); return\n    say(f\"back to '{top.goal}' - step {top.done+1}/{top.steps}\")\n    continue_step(top)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "intra-agent-memo-scheduling",
+      "intent": "Let the agent drop a note for its own future self at a specified time so context hands off across runs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A tool appends to a persistent queue; each tick drains due entries into the next prompt as a SYSTEM line; fired entries are marked once.",
+          "code": "queue_file = \"scheduled-thoughts.jsonl\"\n\ntool schedule_future_thought(when, content, intent):\n    fires_at = parse_when(when)             # ISO or +1h / +2d\n    append_jsonl(queue_file, {\n        \"id\": uuid(), \"set_at\": now(), \"fires_at\": fires_at,\n        \"content\": content, \"intent\": intent, \"fired\": False,\n    })\n    return \"scheduled\"\n\nfunction drain_due_into_prompt(now):\n    due = []\n    for entry in read_jsonl(queue_file):\n        if entry.fired or entry.fires_at > now: continue\n        due.append(entry)\n        entry.fired = True\n    rewrite_jsonl(queue_file)\n    return [\n        f\"[SYSTEM: scheduled note from past-self \"\n        f\"(set {e.set_at}, fires {e.fires_at}): {e.content}]\"\n        for e in due\n    ]\n\n# each tick:\nprompt = [system_main] + drain_due_into_prompt(now()) + [user_msg]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "meditation-mode",
+      "intent": "A bounded runtime mode where external I/O pauses but internal inference accelerates with a collapsed tool surface.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A mode-state file swaps the tool palette to inner-only, speeds up cadence, redirects output to a private journal, and auto-exits on a wall-clock budget.",
+          "code": "INNER_ALLOWLIST = {\"inner_dialogue\", \"recall\",\n                   \"register_affect\", \"exit_meditation\"}\nMODE_FILE = \"state/meditation.json\"\nDEFAULT_BUDGET = 15 * MIN\nINNER_TICK = 10 * SEC\n\nfunction enter_meditation(budget=DEFAULT_BUDGET):\n    write_json(MODE_FILE, {\"on\": True, \"started_at\": now(),\n                            \"budget\": budget})\n\nfunction in_meditation():\n    s = read_json(MODE_FILE, default={\"on\": False})\n    if not s.on: return False\n    if now() - s.started_at > s.budget:\n        clear(MODE_FILE); return False        # auto-exit\n    return True\n\nfunction dispatch(call):\n    if in_meditation():\n        if call.tool not in INNER_ALLOWLIST:\n            return {\"error\": \"public_write_blocked_in_meditation\"}\n        out = run_inner(call)\n        append(\"journal/inner-dialogue/\" + today(), out)\n        return out\n    return run_normal(call)\n\nfunction next_tick_interval():\n    return INNER_TICK if in_meditation() else NORMAL_TICK",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mode-adaptive-cadence",
+      "intent": "Vary the agent's loop interval based on salience so the agent thinks faster when something is happening.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two modes with bounded intervals; a salience score promotes to intense for N ticks; lock-in cannot be self-extended without an external trigger.",
+          "code": "MODES = {\"idle\": 60, \"intense\": 15}     # seconds\nFLOOR, CEIL = 10, 600\nINTENSE_LOCK_TICKS = 12\nSALIENCE_THRESHOLD = 0.6\n\nstate = load_json(\"cadence.json\",\n    default={\"mode\": \"idle\", \"lock_ticks_left\": 0})\n\nfunction score_salience(tick_result, external_impulse):\n    return max(tick_result.novelty, external_impulse)   # 0..1\n\nfunction next_interval(tick_result, external_impulse):\n    s = score_salience(tick_result, external_impulse)\n    if external_impulse > 0.0 or s >= SALIENCE_THRESHOLD:\n        if state.mode != \"intense\":\n            ledger.append(\"mode->intense\", reason=s)\n        state.mode = \"intense\"\n        state.lock_ticks_left = INTENSE_LOCK_TICKS\n    elif state.lock_ticks_left > 0:\n        state.lock_ticks_left -= 1\n    else:\n        if state.mode != \"idle\":\n            ledger.append(\"mode->idle\")\n        state.mode = \"idle\"\n    persist(state)\n    return clamp(MODES[state.mode], FLOOR, CEIL)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "multi-axis-promotion-scoring",
+      "intent": "Gate which short-term thoughts qualify for promotion to long-term insights by a weighted multi-axis score.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Six axes, each in 0..1 via a saturating curve; weights sum to one and live in config; every score event is appended to a JSONL log; deep consolidation makes the final call.",
+          "code": "WEIGHTS = {                       # sum to 1.0, config-revisable\n    \"frequency\":     0.10,\n    \"relevance\":     0.20,\n    \"diversity\":     0.10,\n    \"recency\":       0.15,\n    \"consolidation\": 0.30,        # consolidation events count more\n    \"conceptual\":    0.15,\n}\nPROMOTION_THRESHOLD = 0.55\n\nfunction saturate(x, k=5):        # bounded 0..1 curve\n    return 1 - exp(-k * x)\n\nfunction score(thought, events):\n    axes = {\n        \"frequency\":     saturate(count(events, \"recall\")     / 10),\n        \"relevance\":     saturate(events.relevance_signal),\n        \"diversity\":     saturate(events.distinct_contexts   / 5),\n        \"recency\":       half_life_recency(thought.last_seen),\n        \"consolidation\": saturate(count(events, \"dream-survival\") / 3),\n        \"conceptual\":    saturate(events.conceptual_depth),\n    }\n    total = sum(WEIGHTS[a] * v for a, v in axes.items())\n    append_jsonl(\"score_events.jsonl\",\n        {\"thought\": thought.id, \"axes\": axes, \"total\": total,\n         \"event_type\": events.tag, \"ts\": now()})\n    return total\n\nfunction is_promotion_candidate(thought, events):\n    return score(thought, events) >= PROMOTION_THRESHOLD",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "open-question-tension-store",
+      "intent": "Persist the agent's unresolved questions as a typed ledger so they drive the next inquiry.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Append-only ledger; idle tick reads top entries by curiosity*intrusiveness; intrusiveness gates ask-now versus store-quietly; closing events never edit originals.",
+          "code": "ledger = \"tensions.jsonl\"           # append-only\nCURIOSITY_FLOOR = 0.1\nDEFAULT_TTL = 7 * DAY\nASK_NOW = 0.7                       # intrusiveness threshold\n\nfunction open_tension(topic, source, curiosity, intrusiveness,\n                      ttl=DEFAULT_TTL):\n    append_jsonl(ledger, {\n        \"kind\": \"open\", \"id\": uuid(), \"opened_at\": now(),\n        \"topic\": topic, \"source\": source,\n        \"curiosity\": curiosity, \"intrusiveness\": intrusiveness,\n        \"expires_at\": now() + ttl,\n    })\n\nfunction active_tensions(now):\n    open_ids = set(); closed_ids = set()\n    for e in read_jsonl(ledger):\n        if e.kind == \"open\":   open_ids.add(e.id)\n        if e.kind == \"close\":  closed_ids.add(e.ref)\n    rows = [e for e in read_jsonl(ledger)\n            if e.kind == \"open\" and e.id not in closed_ids\n            and e.expires_at > now\n            and e.curiosity >= CURIOSITY_FLOOR]\n    return sorted(rows, key=lambda e: e.curiosity * e.intrusiveness,\n                  reverse=True)\n\nfunction next_move(now):\n    top = active_tensions(now)[:5]\n    if top and top[0].intrusiveness >= ASK_NOW:\n        return (\"ask_user\", top[0])\n    return (\"store_quiet\", top)\n\nfunction close_tension(ref, resolution):\n    append_jsonl(ledger, {\"kind\": \"close\", \"ref\": ref,\n        \"closed_at\": now(), \"resolution\": resolution})",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "parallel-voice-proposer",
+      "intent": "Generate several candidate thoughts in parallel under named voices; the same model picks the canonical one and the losers are logged.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "One completion produces 2-3 voice-tagged candidates and a 'selected' line; the winner enters the stream, losers go to an audit log, chronically losing voices become retirement candidates.",
+          "code": "VOICES = [\"world-model\", \"critic\", \"prediction\"]\nRETIRE_WINDOW = 50\nwin_history = bounded_deque(maxlen=RETIRE_WINDOW)\n\nfunction propose_and_select(ctx):\n    prompt = (f\"Produce one candidate per voice in {VOICES}, each \"\n              f\"prefixed '[voice: <id>]'. Then output a single line \"\n              f\"'selected: <voice>' with a one-sentence reason.\\n\"\n              f\"context: {ctx}\")\n    completion = model.complete(prompt)\n    candidates = parse_voice_blocks(completion)        # {voice: text}\n    selected_voice, reason = parse_selected(completion)\n\n    canonical = candidates[selected_voice]\n    losers = {v: t for v, t in candidates.items() if v != selected_voice}\n    append_jsonl(\"proposer-losers.jsonl\",\n        {\"ts\": now(), \"selected\": selected_voice,\n         \"reason\": reason, \"losers\": losers})\n    win_history.append(selected_voice)\n    return canonical\n\nfunction retirement_candidates():\n    if len(win_history) < RETIRE_WINDOW: return []\n    return [v for v in VOICES if v not in set(win_history)]\n    # explicit retirement decision happens elsewhere, not silently",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "partial-output-salvage",
+      "intent": "Stream tokens to a tmp-plus-atomic-replace partial file so crashes leave consistent salvage, then promote partials at startup with a typed recovery marker.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Mechanical FSM: write to tmp, atomic-rename to partial, rename to canonical on clean end; at startup, finalize orphan partials with a typed RecoveryStatus enum and inject into next prompt.",
+          "code": "enum RecoveryStatus:\n    NONE\n    RECOVERED_FROM_PARTIAL          # hard kill\n    TIMEOUT_PARTIAL                 # watchdog\n\nfunction stream(thought_id, model_id):\n    tmp     = f\"thoughts/{thought_id}.partial.tmp\"\n    partial = f\"thoughts/{thought_id}.partial\"\n    canon   = f\"thoughts/{thought_id}.md\"\n\n    open(tmp, \"w\").write(start_marker(thought_id, now(), model_id))\n    for chunk in model.stream():\n        append(tmp, chunk)\n        if elapsed_since_flush() > 500*MS:\n            os.rename(tmp, partial)     # atomic checkpoint\n            open(tmp, \"a\")              # reopen empty\n    os.rename(tmp, canon)\n    remove(partial)\n\nfunction recover_on_startup() -> RecoveryStatus:\n    orphans = glob(\"thoughts/*.partial*\")\n    if not orphans: return RecoveryStatus.NONE\n    status = (RecoveryStatus.TIMEOUT_PARTIAL if was_watchdog()\n              else RecoveryStatus.RECOVERED_FROM_PARTIAL)\n    for p in orphans:\n        finalize_with_marker(p, status)\n    return status\n\n# next tick prompt:\nlast = recover_on_startup()\nif last != RecoveryStatus.NONE:\n    prompt += system(f\"last_partial_recovery: {last.name}\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "pre-generative-loop-gate",
+      "intent": "Detect divergence signatures before the next generation and inject a steering hint rather than veto the call.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Pre-tick function inspects recent thoughts, tools, affect, and preoccupations; returns None or a short [steering] string appended to the prompt; veto remains the job of safety patterns.",
+          "code": "DIVERGENCE_PATTERNS = {\n    \"narration_loop\":        detect_narration_loop,\n    \"frustration_path\":      detect_frustration_path,\n    \"repetition_pressure\":   detect_repetition_pressure,\n}\n\nfunction pre_tick_steer(recent_thoughts, recent_tool_calls,\n                        affect, preoccupations) -> str | None:\n    for pid, detector in DIVERGENCE_PATTERNS.items():\n        suggested_move = detector(recent_thoughts, recent_tool_calls,\n                                  affect, preoccupations)\n        if suggested_move:\n            steer = (f\"[steering] divergence pattern {pid} \"\n                     f\"detected; consider {suggested_move}\")\n            log_event(\"pre_tick_steer\", pattern=pid,\n                      move=suggested_move, ts=now())\n            return steer\n    log_event(\"pre_tick_steer\", pattern=None, ts=now())\n    return None\n\nfunction build_prompt(base):\n    hint = pre_tick_steer(*ctx_slices())\n    if hint:\n        base.append(system(hint))    # hint, not veto\n    return base                       # generation proceeds either way",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "preoccupation-tracking",
+      "intent": "Maintain a small set of mid-term, affect-tagged concerns that persist across days and surface in every prompt.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Cap at 5-8 entries; 7-day half-life on intensity; coldest entry is released on overflow; explicit touch/release operations; surfaced as a sidebar each tick.",
+          "code": "CAP = 7\nHALF_LIFE = 7 * DAY\nstore = load_json(\"preoccupations.json\", default=[])\n\nfunction decay(now):\n    for p in store:\n        dt = now - p.last_touched\n        p.intensity *= 0.5 ** (dt / HALF_LIFE)\n    store[:] = [p for p in store if p.intensity > 0.01]\n    persist(store)\n\nfunction touch(topic, delta=+0.1, affect_tag=None):\n    decay(now())\n    p = find(store, topic) or new_entry(topic, affect_tag)\n    p.intensity = clamp(p.intensity + delta, 0.0, 1.0)\n    p.last_touched = now()\n    if p not in store:\n        if len(store) >= CAP:\n            coldest = min(store, key=lambda x: x.intensity)\n            store.remove(coldest)\n        store.append(p)\n    persist(store)\n\nfunction release(topic):\n    store[:] = [p for p in store if p.topic != topic]\n    persist(store)\n\nfunction sidebar():\n    decay(now())\n    return [f\"{p.topic} ({p.affect_tag}, {p.intensity:.2f})\"\n            for p in sorted(store, key=lambda x: -x.intensity)]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-archaeology",
+      "intent": "Synthesize past thought history into time-layered trajectory notes so the agent can articulate how its understanding evolved.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Periodic compaction groups recent thoughts by topic, extracts per-period positions, and writes a single short trajectory note per topic; superseded positions are marked.",
+          "code": "function self_archaeology_pass(now, window=30*DAY):\n    thoughts = load_thoughts(since=now - window)\n    by_topic = group_by(thoughts, key=topic_of)\n\n    for topic, items in by_topic.items():\n        periods = bucket_by_period(items, n=3)     # e.g. 3 periods\n        positions = []\n        for p in periods:\n            stance = model.extract_position(p.items, topic=topic)\n            positions.append({\n                \"period\": p.label, \"dates\": p.range,\n                \"position\": stance.text,\n                \"evidence\": stance.evidence_refs,\n            })\n        note = render_trajectory_note(topic, positions)\n        # one note per topic, dedicated surface\n        write(f\"surfaces/trajectory/{slug(topic)}.md\", note)\n        for prior in positions[:-1]:\n            mark_superseded(topic, prior)\n\nfunction surface_for_query(query):\n    t = topic_of(query)\n    note = read(f\"surfaces/trajectory/{slug(t)}.md\", default=None)\n    if note:\n        return [note] + raw_thoughts(t)     # trajectory first\n    return raw_thoughts(t)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "typed-tool-loop-detector",
+      "intent": "Lift tool-loop detection from prompt-level rules to a mechanical dispatch-boundary veto with typed failure modes and per-tool caps.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "On each call, append (ts, tool, hash(args)) to a rolling window; evaluate five rules with per-tool overrides; on trip return a typed error result the model must consume.",
+          "code": "WINDOW = bounded_deque(maxlen=64)\nDEFAULTS = {\"N\":4, \"M\":3, \"K\":5, \"J\":4, \"G\":40}\nPER_TOOL = {\"http_get\": {\"N\": 6}, \"shell\": {\"K\": 3}}\n\nfunction cap(tool, key):\n    return PER_TOOL.get(tool, {}).get(key, DEFAULTS[key])\n\nfunction precheck(tool, args, registry, state_probe):\n    h = hash_args(args)\n    WINDOW.append((now(), tool, h))\n    recent = list(WINDOW)\n\n    # 1 generic-repeat\n    if count(recent, lambda e: e[1]==tool and e[2]==h) >= cap(tool,\"N\"):\n        return trip(\"generic_repeat\", tool, h)\n    # 2 unknown-tool-repeat\n    if tool not in registry:\n        if count(recent, lambda e: e[1]==tool) >= cap(tool,\"M\"):\n            return trip(\"unknown_tool_repeat\", tool, h)\n    # 3 poll-no-progress\n    if state_probe.unchanged_for(tool) >= cap(tool,\"K\"):\n        return trip(\"poll_no_progress\", tool, h)\n    # 4 ping-pong\n    if ping_pong_cycles(recent) >= cap(tool,\"J\"):\n        return trip(\"ping_pong\", tool, h)\n    # 5 global circuit-breaker\n    if len(recent) >= cap(tool,\"G\"):\n        return trip(\"global_breaker\", tool, h)\n    return None\n\nfunction trip(mode, tool, h):\n    return {\"error\": \"tool_loop_detected\", \"mode\": mode,\n            \"observed\": {\"tool\": tool, \"arg_hash\": h,\n                         \"window_size\": len(WINDOW)}}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "world-model-separation",
+      "intent": "Maintain an explicit, surprise-updated world model in a separate file from the agent's self-model so the two cannot be confused or co-mutated.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two separate stores with separate write paths; surprise events trigger a world-update pass; self-update is a different pass with different gating; tick prompt loads both as visibly distinct sections.",
+          "code": "WORLD_FILE = \"surfaces/world.json\"      # humans, repos, services, ...\nSELF_FILE  = \"surfaces/self.json\"       # identity, charter, boundaries\n\nfunction predict_then_observe(action):\n    expected = world_model.predict(action)\n    actual   = environment.execute(action)\n    surprise = distance(expected, actual)\n    if surprise > SURPRISE_THRESHOLD:\n        run_world_update_pass(action, expected, actual)\n    return actual\n\nfunction run_world_update_pass(action, expected, actual):\n    world = load_json(WORLD_FILE)\n    patch = model.world_update(world, action, expected, actual)\n    validate_world_schema(patch)\n    save_json(WORLD_FILE, apply(world, patch))      # world-only path\n\nfunction run_self_update_pass(reflection):\n    self_ = load_json(SELF_FILE)\n    patch = model.self_update(self_, reflection)\n    require_self_gate(patch)                        # different gating\n    save_json(SELF_FILE, apply(self_, patch))       # self-only path\n\nfunction build_tick_prompt():\n    return [\n        system(\"=== WORLD MODEL ===\"), load_json(WORLD_FILE),\n        system(\"=== SELF MODEL ===\"),  load_json(SELF_FILE),\n        recent_thoughts(),\n    ]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

@@ -11,11 +11,11 @@ Have multiple agents argue different positions on a question and converge throug
 
 ## Context
 
-The answer is contested or the user wants the strongest case for and against.
+A team is using agents on questions whose answers are genuinely contested or where the user explicitly wants to see the strongest case both for and against — should this firm adopt a particular open-source library, is this regulatory interpretation defensible, does this design choice hold up under scrutiny. The cost of a confidently wrong single answer is high enough to justify spending extra model calls.
 
 ## Problem
 
-Single-agent answers hide reasoning blind spots; the same model giving both answer and critique reinforces them.
+A single agent answering directly tends to hide its own reasoning blind spots: whatever case it considered first becomes the answer, and the counter-arguments never get articulated. Asking the same model to critique its own answer reinforces the original framing rather than challenging it, because both passes share the same priors. Without an explicit opposing voice, the team gets a confident answer with no view of what it might be missing.
 
 ## Forces
 

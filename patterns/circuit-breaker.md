@@ -11,11 +11,11 @@ Stop calling a failing dependency for a cooldown period after error rates exceed
 
 ## Context
 
-Agents that depend on external APIs which can fail (rate limits, outages, regional incidents); retries amplify the problem.
+An agent calls external services as part of every request — third-party APIs, vector databases, model providers, internal microservices — and those dependencies fail from time to time through rate limiting, vendor outages, regional incidents, or transient bugs. The agent itself does not control when these failures happen, but it does control how it reacts when one of them starts returning errors. Retries are the natural first instinct because most transient errors clear on their own.
 
 ## Problem
 
-Hammering a failing dependency wastes cost, increases latency, and can block legitimate traffic when rate limits are involved.
+When a dependency is genuinely down or rate-limited, naive retry logic hammers it with the same failing call over and over, burning token budget and wall-clock latency on responses that will never succeed. Worse, the retry storm can push a partially-degraded vendor past its rate limits and block legitimate traffic from other tenants, turning a small incident into a larger one. The team has no way to give the upstream a chance to recover without a coordinated decision to back off.
 
 ## Forces
 

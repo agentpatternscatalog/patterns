@@ -11,11 +11,11 @@ Place a dedicated manager between the participants of a multi-agent group chat t
 
 ## Context
 
-Multi-agent systems where several specialist agents share a conversation context and only one should speak per turn; without a chair, everyone speaks at once or nobody speaks.
+A team is running three or more specialist agents — a planner, a coder, a reviewer, a tester — that all share one conversation transcript and need to take turns sensibly. Only one agent should speak per turn, the transcript needs to stay coherent, and the conversation has to end when the work is done rather than running forever.
 
 ## Problem
 
-Free-for-all turn-taking either talks over itself (every agent emits every turn) or stalls (no agent picks itself); per-pair hand-offs do not generalise past three agents.
+If every agent decides for itself whether to speak, the result is either chatter (each agent emits a turn on every step) or paralysis (no agent picks itself and the conversation stalls). Wiring up per-pair hand-offs — agent A always passes to B, B to C — works for two or three agents but does not generalise as the cast grows, and gives no central place to decide when the conversation is finished. The team needs a single component that allocates turns, watches for termination, and leaves an audit trail.
 
 ## Forces
 

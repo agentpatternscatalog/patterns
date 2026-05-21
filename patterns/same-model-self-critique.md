@@ -11,11 +11,11 @@ Anti-pattern: have the same model both produce an answer and critique it, expect
 
 ## Context
 
-Reflexion or evaluator-optimizer loops where producer and critic share a model and a prompt family.
+A team builds a reflective agent — Reflexion, self-refine, or an evaluator-optimizer loop — where one call produces a candidate answer and a second call critiques and revises it. To keep cost and integration simple, both calls use the same model, often with prompts that share their wording about what 'good' looks like. The critique step is then presented internally or to users as an independent check on the answer.
 
 ## Problem
 
-The critic shares the producer's blind spots. Wrong answers are reinforced as confident. 2025 replication studies confirm the effect.
+Because producer and critic come from the same weights and read overlapping prompts, the critic shares the producer's blind spots; whatever the model is confidently wrong about, it is also confidently wrong about when wearing the critic hat. Wrong answers come back from the loop endorsed and slightly polished, and the team reports higher confidence on what is, statistically, the same error rate. Replication studies through 2025 have repeatedly confirmed that single-model self-critique catches surface mistakes but does not act as independent verification.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A team ships an agent where the same model writes an answer and then 'self-criti
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   M[Same model] -->|produces| A[Answer]
   M -->|critiques| A
   A -.shared blind spots.-> Illusion[Illusion of independence]

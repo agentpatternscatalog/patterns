@@ -11,11 +11,11 @@ Place a coordinating agent above a set of specialised agents and route work to t
 
 ## Context
 
-Different request types benefit from different system prompts, tool palettes, and models; routing alone is too coarse because the lanes themselves want their own loop. Distinct from orchestrator-workers: supervisor routes work to a *fixed* set of pre-existing specialist agents; orchestrator-workers dynamically *decomposes* a task into ad-hoc subtasks per request.
+A team is handling a mix of request types — billing questions, technical support, sales enquiries — and each type benefits from its own system prompt, its own tool palette, and possibly its own model. Each type is itself a multi-step interaction, not a single response, so routing alone is too coarse: the lanes want their own inner agent loop. This is distinct from orchestrator-workers, which dynamically decomposes a task into ad-hoc sub-tasks per request; supervisor routes work to a fixed set of pre-existing specialist agents.
 
 ## Problem
 
-A single agent that handles everything has either too few tools (limiting capability) or too many (confusing the model).
+A single agent trying to handle every request type has either too few tools — which limits what it can actually do — or too many, in which case the model gets confused about which tool fits which request, the prompt balloons, and recall drops. The team cannot tune the agent for billing without making it worse at sales. A flat router that just dispatches to a one-shot specialist does not give each lane the multi-step loop it needs. Some coordinating layer above the specialists has to own dispatch and aggregation.
 
 ## Forces
 

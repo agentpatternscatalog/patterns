@@ -11,11 +11,11 @@ Detect and remove personally identifiable information from inputs to and outputs
 
 ## Context
 
-Regulated environments (healthcare, finance, EU GDPR, US HIPAA) where the model must not see or echo certain personal data.
+A team runs an agent in a regulated environment — healthcare, finance, public sector — where legal frameworks (the EU General Data Protection Regulation, the US Health Insurance Portability and Accountability Act, sectoral data-protection rules) restrict what personally identifying information the system is allowed to see, store, log, or pass on to a third party. The agent's inputs and outputs flow through prompt logs, trace stores, evaluation harnesses, and, for hosted models, the provider's infrastructure.
 
 ## Problem
 
-LLMs memorise and echo what they see; any PII in the prompt risks ending up in the response, the logs, or the training set of the next model.
+Large language models echo what they see in context: any personally identifying information that enters the prompt can end up in the model's response, in the application's trace log, in the eval harness export, and in the third-party provider's request records. Once a customer's name, date of birth, or social-security number has crossed those boundaries, containment is essentially impossible after the fact. Without detection and redaction at the boundary where data enters the model, the operator cannot honestly claim that personal data is protected.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A health-tech company's support agent logs are reviewed by a security auditor wh
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[User input] --> D[Detect: regex + NER + classifier]
   D -->|placeholders| LLM[LLM]
   LLM --> Out1[Raw output]

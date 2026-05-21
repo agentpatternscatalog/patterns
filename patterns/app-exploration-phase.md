@@ -11,11 +11,11 @@ Before deploying an agent against an opaque app, have it explore (or watch a hum
 
 ## Context
 
-The agent must operate an app whose UI is not self-describing (no accessibility metadata, no API). Element semantics ("this is the cart icon", "this opens search filters") have to be learned somehow.
+A team is deploying an agent against a mobile or desktop app whose user interface exposes no public API and no accessibility metadata that names its controls. The only way to learn what a given button does, or which menu reveals a particular setting, is to interact with the app and observe what happens. The same app will be driven many times by many users.
 
 ## Problem
 
-Without prior knowledge of element semantics, the agent guesses at every screen — slow, error-prone, and wasteful per-deployment-task.
+Without any prior knowledge of what each element does, the agent has to guess on every screen of every task: it confuses the cancel button with the confirm button, misreads which icon opens search, and hallucinates the names of fields it has never seen. Every user task pays for the same rediscovery work, and a single misclick on a sensitive action (payment, deletion) cannot be undone by the agent reasoning harder next turn.
 
 ## Forces
 
@@ -45,7 +45,7 @@ Phase 1: Agent (or Human) -> interact_with_app -> per-element docs -> KB. Phase 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Phase1[Exploration]
     E[Agent explores app<br/>or watches demo] --> D[Per-element docs]
   end

@@ -11,11 +11,11 @@ Train the model to learn when and how to call tools through self-supervised data
 
 ## Context
 
-Tool use deployed at scale where prompt-based function-calling underperforms and human-labelled tool-use traces are unavailable.
+A team is deploying tool use at scale and has noticed that prompt-based function-calling — telling the model in the system prompt what tools are available and hoping it calls them well — underperforms in production. They do not have a dataset of human-labelled tool-use traces showing when each tool should have been called and with what arguments, and creating one at scale is not affordable.
 
 ## Problem
 
-Prompt-based tool calling is brittle and capability-limited; supervised fine-tuning needs costly human-labelled traces.
+Prompt-based tool calling is brittle: the model often forgets to call a tool when it should, calls the wrong one, or invents wrong arguments. The natural alternative — supervised fine-tuning on tool-use traces — requires costly human-labelled data the team does not have. They need a way to teach the model when and how to call tools using only self-supervised signals derived from outputs the model can already produce, so that the training data scales without human annotation.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A team wants their model to call a calculator and a search tool reliably without
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Ctx[Training context] --> Cand[Generate candidate tool calls]
   Cand --> Ins[Insert into context]
   Ins --> Score[Score: perplexity drop on gold continuation?]

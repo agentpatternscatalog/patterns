@@ -11,11 +11,11 @@ Train a small meta-model with reinforcement learning to dynamically dispatch sub
 
 ## Context
 
-Production multi-agent stacks that route sub-tasks to a heterogeneous pool of frontier models (different vendors, sizes, specialisations) plus tools. The routing logic is usually a tree of hand-written rules and prompt-time hints. Tasks span many domains, and no single hand-coded routing tree generalises well across them.
+A team operates a production multi-agent stack that dispatches sub-tasks across a heterogeneous pool of frontier large language models from different vendors — one strong at long-context summarisation, one at code synthesis, one at image understanding — plus a set of tools. The routing logic between them is usually a hand-written tree of if-this-then-that rules with prompt-time hints. Tasks span many domains and the pool of workers keeps changing as vendors release and deprecate models.
 
 ## Problem
 
-Hand-coded orchestrator logic does not generalise. Static heuristics for which model gets which sub-task miss task-specific signals and grow stale as the worker pool changes. A frontier model used as the orchestrator is expensive on every step and still does not learn from the reward signal of finished tasks. There is no obvious place for the system to improve its own decomposition strategy from experience.
+Hand-coded orchestrator logic does not generalise across the breadth of incoming tasks: static heuristics for which model gets which sub-task miss the task-specific signals that actually predict the right routing, and the rules grow stale every time the worker pool changes. Using a frontier model itself as the orchestrator is expensive on every dispatch step and still does not learn from the reward signal that finished tasks provide. There is no obvious place for the system to improve its own decomposition strategy from experience, so every gain in routing quality requires another round of human rule editing.
 
 ## Forces
 

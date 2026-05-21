@@ -11,11 +11,11 @@ Anti-pattern: scrub failed actions, stack traces, and error observations from th
 
 ## Context
 
-Agents that take many actions per task accumulate failures; teams tidy the transcript so prompts stay short, or retry silently, or replace failed tool outputs with placeholders.
+An agent takes many tool actions per task and naturally accumulates failures — a tool returns an HTTP 500, a command exits non-zero, an API call is rejected. The team wants short, tidy prompts and clean-looking transcripts, so the wrapper either retries silently, replaces the failed tool output with a generic placeholder like 'retrying...', or strips stack traces before they ever reach the model's context. The intent is usually a mix of cosmetics, token economy, and a feeling that errors are noise.
 
 ## Problem
 
-Hiding the failure deletes the very signal the model would use to update its beliefs and stop repeating the same mistake. The agent then re-attempts the failed action, sometimes in a loop, because nothing in its context contradicts the choice.
+The error message, stack trace, or rejection reason is exactly the signal the model needs to revise its plan and stop repeating the same call. When it is scrubbed before re-prompting, the agent re-attempts the failed action turn after turn, sometimes in tight loops, because nothing in its visible context contradicts the choice. After-the-fact debugging is also harder, because the transcript no longer shows whether a run succeeded cleanly or was salvaged across several hidden failures.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Keep one user's session state and memory unreachable from another user's agent.
 
 ## Context
 
-Multi-user agent products where leaks across users are a privacy and security failure.
+A team is shipping an agent product to many users. Each user expects their conversation history, preferences, and any data they share to stay private to them. For cost and operational reasons, the backend shares some infrastructure across users — caches, vector stores, model contexts — rather than running a fully isolated stack per user.
 
 ## Problem
 
-Shared memory backends and shared model contexts can leak one user's data into another's response.
+A shared memory backend or a shared model context can leak one user's data into another user's response. A misindexed cache key returns user A's history to user B. A prompt-cache prefix that includes user-specific context is reused across users. A vector store query without per-user partitioning surfaces another user's documents as 'relevant'. Any of these is a privacy and security failure that can be much worse than an ordinary bug, because the leak may go unnoticed for a long time and the consequences for user trust and regulatory exposure are severe.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A multi-tenant assistant uses a shared vector cache across all users and one day
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U1[User A request] -->|sub=A| Auth[Identity carrier]
   U2[User B request] -->|sub=B| Auth
   Auth --> Key[Scope by user identity]

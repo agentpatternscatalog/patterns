@@ -11,11 +11,11 @@ Iterate generate → feedback (same model) → refine until a stop criterion fir
 
 ## Context
 
-Generation tasks where the same model can produce useful self-feedback against an explicit improvement target.
+A team runs a generation task (a piece of writing, a code snippet, a dialogue response) on a single large language model and has no second, independent model available to act as a critic. The team has, however, an explicit improvement target for the task: a short checklist, a quality rubric, or a definition of what 'better' means in this domain. The same model is capable of producing useful feedback against that target when given the draft and the checklist.
 
 ## Problem
 
-One-shot generation under-uses the model; calling for explicit critique-and-revise from the same model raises quality at modest cost.
+Running the model in one shot leaves quality on the table, but simply asking the same model in a follow-up prompt 'is this any good?' tends to produce vague praise that does not improve the draft. Without a clear separation between generating, critiquing, and revising, the model collapses the three jobs into one and ends up either making the draft worse with random rewrites or declaring it fine on the second look. A loop without a stop criterion runs forever; a loop with no structure produces drift instead of refinement. The team needs the same model to play three distinct roles in sequence, bounded by a clear termination condition.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A coding agent writes a function that compiles but uses an awkward API surface. 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]
   FB --> Stop{No more issues?}
   Stop -- no --> Ref[Refine: same model rewrites]

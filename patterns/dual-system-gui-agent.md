@@ -11,11 +11,11 @@ Split a GUI agent into two specialised models: a decision model that plans and r
 
 ## Context
 
-Long, multi-step GUI tasks (web flows, phone apps) where planning needs flexibility and abstraction while grounding needs precise visual matching at action time.
+A team is operating a long, multi-step GUI workflow with an agent: a web flow that involves filling forms across half a dozen pages, or a phone app sequence that books a ride, applies a coupon, and confirms payment. The task needs flexible high-level planning (when to back out, when to retry, what to do if the form looks different than expected) and at the same time precise pixel-accurate grounding of each click.
 
 ## Problem
 
-A single model that does both planning and grounding is dominated by the harder skill at any moment: a planning-strong model misclicks; a vision-strong model loops on local fixes when it should replan.
+When one model does both planning and pixel grounding, it is dominated by whichever skill is hardest at the current step. A model strong at planning clicks the wrong menu item by a few pixels; a model strong at vision keeps trying to recover from a bad click locally instead of stepping back and replanning. Failures cannot be attributed cleanly either, since the same model is responsible for both deciding what to do and for executing it.
 
 ## Forces
 

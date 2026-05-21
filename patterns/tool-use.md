@@ -11,11 +11,11 @@ Let the LLM produce typed calls against an external toolkit instead of producing
 
 ## Context
 
-An agent must affect the outside world (read a record, edit state, render an artefact) and the model alone cannot do this safely or correctly.
+A team is building an agent that has to affect the outside world: read a customer record, cancel an order, write a row to a database, render a chart, post to a channel. The model alone cannot do these things safely or correctly, and the surrounding system needs deterministic, validated operations to act on intent.
 
 ## Problem
 
-Free-form text is unparseable at the boundary; the model invents fields, mis-spells operations, or returns prose where the system needs structure.
+If the model speaks only free-form text, the host has to parse intent out of prose on every turn: the model invents field names, mis-spells operations, returns half-structured Markdown, or buries the actual command in an explanation. Invalid calls are caught only when downstream code crashes, and audit trails for which operations were attempted have to be reconstructed from natural language. The model is good at expressing intent and weak at producing perfectly typed structure without a schema to validate against.
 
 ## Forces
 

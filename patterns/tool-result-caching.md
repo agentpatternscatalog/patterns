@@ -11,11 +11,11 @@ Cache the result of expensive deterministic tool calls keyed by their arguments 
 
 ## Context
 
-Agents that re-call the same tool with the same arguments multiple times within one task (lookups, computations, immutable reads).
+A team runs an agent that calls deterministic lookup or computation tools many times within a single task — fetching the same company profile from four sub-tasks, recomputing the same exchange rate, reading the same immutable document for several reasoning steps. The tools are paid (per-call cost), rate-limited, or simply slow, and the agent has no memory of having called them before.
 
 ## Problem
 
-Repeat calls on the same arguments waste latency and money; the tool layer often has no awareness of caller behaviour.
+Repeat calls on identical arguments pay full latency and full per-call cost every time, even though the result has not changed and the tool author would gladly serve it from a cache. The agent's loop is structured one call at a time and has no awareness of caller history, so the same lookup gets re-fetched whenever a different reasoning step happens to need it. Caches written naively can leak results across users when caller identity is not part of the key.
 
 ## Forces
 
@@ -54,7 +54,7 @@ An agent that researches companies calls the same `get_company_profile(domain)` 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Call[Tool call] --> Key[Key = tool_name + normalised_args + auth_subject]
   Key --> Cache{Cache hit?}
   Cache -- yes --> Hit[Return cached result]

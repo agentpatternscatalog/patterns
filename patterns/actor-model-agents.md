@@ -11,11 +11,11 @@ Implement each agent as an independent actor with its own mailbox, processing as
 
 ## Context
 
-Multi-agent systems where agents must run concurrently, communicate without a central conversational chair, and survive partial failures of peers.
+A team is building a multi-agent system where several agents must run at the same time, react to events as they arrive, and keep going even when one of them crashes. There is no single conversational chair driving turn order, and the agents may live in different processes or on different machines.
 
 ## Problem
 
-Request/response conversational shape couples agents tightly to a single thread of control; shared mutable state across agents invites race conditions and makes failure containment hard.
+If the agents are modelled as a request-and-response conversation, they are pinned to one thread of control and cannot easily run concurrently. If they share mutable state — a common dictionary, a shared queue, a global cache — concurrent reads and writes produce race conditions, and a crash in one agent corrupts state the others were relying on. Ad-hoc locking solves neither problem cleanly: it slows the system down and still leaves failure containment as an afterthought.
 
 ## Forces
 

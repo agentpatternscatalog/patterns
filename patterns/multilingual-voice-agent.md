@@ -11,11 +11,11 @@ Compose a low-latency voice agent as a tightly co-located pipeline of speech-to-
 
 ## Context
 
-Markets where the user base speaks one of many regional languages and dialects (e.g. India's 22 scheduled languages), often on telephony channels (calls, WhatsApp), where written input is rare and TTS quality in the target language is non-negotiable.
+A team is building a voice agent for a market where users speak one of many regional languages and dialects, such as India's 22 scheduled languages or Iberian Spanish and Catalan. The product runs on telephony channels (phone calls, WhatsApp voice) where written input is rare and the agent has to converse in the user's own language at sub-second turn-taking latency.
 
 ## Problem
 
-Bolting a generic English LLM between a generic STT and TTS loses dialect, code-switching, and nuance; per-component quality drops compound across the chain; latency exceeds the budget for natural turn-taking.
+Bolting a generic English-trained large language model between a generic speech-to-text (STT) component and a generic text-to-speech (TTS) component loses dialect, code-switching, and accent the moment audio is transcribed. Quality drops at each stage multiply across the pipeline, the model silently replies in a slightly off pivot language, and end-to-end latency exceeds the roughly one-second budget that natural conversation tolerates. Telephony audio (8 kHz) makes every stage noisier still.
 
 ## Forces
 

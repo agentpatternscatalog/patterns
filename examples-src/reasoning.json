@@ -1,0 +1,243 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "reasoning",
+  "label": "Reasoning",
+  "patterns": [
+    {
+      "pattern_id": "chain-of-thought",
+      "intent": "Elicit and capture intermediate reasoning steps before the final answer, either by prompt design or via a framework module that injects a reasoning field.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: pin a CoT instruction and parse the reasoning trace separately from the final answer.",
+          "code": "function answer_with_cot(question):\n    system = \"Solve the problem. First write your reasoning,\n              then on a new line write 'Answer:' followed by\n              the final answer.\"\n    reply = llm.generate(\n        system=system,\n        user=question,\n    )\n\n    # Parse the trace so callers can audit reasoning separately.\n    if \"Answer:\" in reply:\n        reasoning, answer = reply.rsplit(\"Answer:\", 1)\n    else:\n        reasoning, answer = reply, \"\"\n\n    return {\n        \"reasoning\": reasoning.strip(),\n        \"answer\": answer.strip(),\n    }",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Use a system_prompt on create_agent that pins step-by-step reasoning before any tool call or final answer.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.chat_models import init_chat_model\n\nmodel = init_chat_model(\"gpt-4o-mini\")\n\nagent = create_agent(\n    model=model,\n    tools=[],  # CoT does not require tools; the loop just emits reasoning.\n    system_prompt=(\n        \"Think through the user's question step by step. \"\n        \"First write out your reasoning explicitly. \"\n        \"Then, on a new line, write 'Answer:' followed by the final answer.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"If a train leaves at 9:15 and the trip takes 2h 47m, when does it arrive?\"}]}\n)\nprint(result[\"messages\"][-1].content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "dspy.ChainOfThought auto-injects a 'reasoning' field before the output field declared in the signature.",
+          "source_url": "https://dspy.ai/learn/programming/modules/",
+          "sdk_version": "dspy-ai>=2.5",
+          "code": "import dspy\n\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\n\n# Signature is a string: inputs -> outputs.\n# ChainOfThought silently prepends a `reasoning` field to the outputs.\nsolve = dspy.ChainOfThought(\"question -> answer\")\n\nresult = solve(\n    question=\"If a train leaves at 9:15 and the trip takes 2h 47m, when does it arrive?\"\n)\n\nprint(\"reasoning:\", result.reasoning)\nprint(\"answer:\", result.answer)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "chain-of-verification",
+      "intent": "Draft, plan independent verification questions, answer them in isolation, then revise the draft using those answers.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Four-step CoVe pipeline: draft, plan questions, answer each in an isolated context, revise.",
+          "code": "function chain_of_verification(question):\n    # 1. Draft an initial answer.\n    draft = llm.generate(\n        system=\"Answer the question directly.\",\n        user=question,\n    )\n\n    # 2. Plan verification questions for the claims in the draft.\n    plan_prompt = f\"\"\"List 3-6 short, independent factual questions\n        whose answers would confirm or refute claims in this draft.\n        Return one question per line.\n\n        DRAFT:\n        {draft}\"\"\"\n    questions = llm.generate(user=plan_prompt).splitlines()\n\n    # 3. Answer each question in an ISOLATED context (no draft, no\n    #    other questions) so errors do not propagate.\n    answers = []\n    for q in questions:\n        a = llm.generate(\n            system=\"Answer this question factually and concisely.\",\n            user=q,                       # fresh context per question\n        )\n        answers.append((q, a))\n\n    # 4. Revise the draft using the verification Q/A pairs.\n    revise_prompt = f\"\"\"Revise the draft so it is consistent with\n        the verified answers. Remove or correct any claim the\n        verification contradicts.\n\n        DRAFT:\n        {draft}\n\n        VERIFICATION:\n        {format_qa(answers)}\"\"\"\n    return llm.generate(user=revise_prompt)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "extended-thinking",
+      "intent": "Hand the model a configurable budget of internal reasoning tokens before it produces the user-visible answer.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Provider-agnostic skeleton: pick a thinking budget per task class, send the request, observe reasoning-token spend.",
+          "code": "function answer_with_extended_thinking(question, difficulty):\n    # Per-task budget: cheap for routing, expensive for hard reasoning.\n    budget = {\n        \"routing\": 1024,\n        \"normal\":  4096,\n        \"hard\":   16384,\n    }[difficulty]\n\n    response = llm.generate(\n        model=\"reasoning-capable-model\",\n        messages=[user(question)],\n        thinking={\n            \"type\": \"enabled\",\n            \"budget_tokens\": budget,    # API name varies by provider\n        },\n    )\n\n    # Most providers return reasoning separately from the answer.\n    log_usage({\n        \"reasoning_tokens\": response.usage.reasoning_tokens,\n        \"output_tokens\":    response.usage.output_tokens,\n    })\n    return response.content",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "typescript",
+          "intent": "Pass a thinking config to query() so Claude spends internal reasoning tokens before answering.",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/typescript",
+          "sdk_version": "@anthropic-ai/claude-agent-sdk@latest",
+          "code": "import { query } from \"@anthropic-ai/claude-agent-sdk\";\n\n// On models that support it, `thinking` lets Claude spend internal\n// reasoning tokens before producing the user-visible answer.\n// `{ type: \"adaptive\" }` is the default for supported models and lets\n// the model decide per-turn how much to think.\nfor await (const message of query({\n  prompt: \"Plan the safest order to refactor these three coupled modules.\",\n  options: {\n    thinking: { type: \"adaptive\" },\n  },\n})) {\n  console.log(message);\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-code",
+          "framework_label": "Claude Code",
+          "language": "json",
+          "intent": "Configure extended thinking globally via settings.json and the MAX_THINKING_TOKENS env var.",
+          "source_url": "https://code.claude.com/docs/en/model-config",
+          "sdk_version": "claude-code>=2.1",
+          "code": "{\n  \"_comment\": \"~/.claude/settings.json — turn extended thinking on globally\",\n  \"model\": \"opus\",\n  \"alwaysThinkingEnabled\": true,\n  \"env\": {\n    \"_comment\": \"Fixed budget mode (Sonnet 4.6 / Opus 4.6).\",\n    \"_comment2\": \"On Opus 4.7 use /effort or effortLevel instead.\",\n    \"CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING\": \"1\",\n    \"MAX_THINKING_TOKENS\": \"16384\"\n  },\n  \"effortLevel\": \"high\"\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "deepseek-agent",
+          "framework_label": "DeepSeek",
+          "language": "python",
+          "intent": "Call deepseek-reasoner via the OpenAI SDK and read reasoning_content separately from content.",
+          "source_url": "https://api-docs.deepseek.com/guides/reasoning_model",
+          "sdk_version": "openai>=1.0",
+          "code": "from openai import OpenAI\n\nclient = OpenAI(\n    api_key=\"<DEEPSEEK_API_KEY>\",\n    base_url=\"https://api.deepseek.com\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"deepseek-reasoner\",\n    messages=[{\"role\": \"user\", \"content\": \"9.11 and 9.8, which is greater?\"}],\n)\n\nmsg = response.choices[0].message\nprint(\"reasoning:\", msg.reasoning_content)  # internal CoT trace\nprint(\"answer:   \", msg.content)            # user-visible answer\n\n# In multi-turn use, do NOT feed reasoning_content back into messages;\n# the API returns 400 if it appears in the input.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "graph-of-thoughts",
+      "intent": "Model reasoning as a DAG of thoughts so branches can be generated, refined, aggregated, and scored.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "DAG of thoughts with generate / refine / aggregate / score operations driven by an orchestrator.",
+          "code": "class Thought:\n    id, content, score, parents = ...\n\nclass GraphOfThoughts:\n    def __init__(self, problem):\n        self.nodes = {}\n        self.root = self.add(content=problem, parents=[])\n\n    def add(self, content, parents):\n        t = Thought(id=new_id(), content=content,\n                    score=None, parents=parents)\n        self.nodes[t.id] = t\n        return t\n\n    def generate(self, node, k):\n        # CoT-style expansion: produce k child thoughts.\n        for c in llm.sample(node.content, n=k):\n            self.add(content=c, parents=[node])\n\n    def refine(self, node):\n        improved = llm.improve(node.content)\n        return self.add(content=improved, parents=[node])\n\n    def aggregate(self, nodes):\n        merged = llm.merge([n.content for n in nodes])\n        return self.add(content=merged, parents=nodes)\n\n    def score(self, node):\n        node.score = llm.score(node.content)\n\n# Orchestrator chains operations to produce the final thought.\ng = GraphOfThoughts(problem)\ng.generate(g.root, k=5)\ncandidates = list(g.nodes.values())[1:]\nfor n in candidates:\n    g.score(n)\ntop = sorted(candidates, key=lambda n: -n.score)[:3]\nfinal = g.aggregate(top)\nreturn final.content",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "least-to-most",
+      "intent": "Decompose a hard problem into an ordered list of easier subproblems, then solve them sequentially with each answer feeding the next.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two-stage prompt: decompose into ordered subproblems, then solve sequentially with growing context.",
+          "code": "function least_to_most(question):\n    # Stage 1: Decomposition.\n    decompose_prompt = f\"\"\"Break this problem into a numbered list\n        of subproblems, ordered from easiest to hardest. Each\n        subproblem must be answerable using only the original\n        question and the answers to earlier subproblems.\n\n        QUESTION: {question}\"\"\"\n    subproblems = parse_numbered(llm.generate(user=decompose_prompt))\n\n    # Stage 2: Sequential solve. Each step sees the original\n    # question plus all previously solved (subproblem, answer) pairs.\n    solved = []\n    for sub in subproblems:\n        prior = \"\\n\".join(f\"Q: {q}\\nA: {a}\" for q, a in solved)\n        solve_prompt = f\"\"\"ORIGINAL QUESTION: {question}\n\n            PRIOR SUBPROBLEMS:\n            {prior}\n\n            CURRENT SUBPROBLEM: {sub}\n\n            Answer the current subproblem.\"\"\"\n        answer = llm.generate(user=solve_prompt)\n        solved.append((sub, answer))\n\n    # Final answer is the answer to the last (hardest) subproblem.\n    return solved[-1][1]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "rest-em",
+      "intent": "Generate, reward-filter, fine-tune; iterate to bootstrap reasoning without human-labelled data.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "EM-style loop: sample many responses per problem, filter by reward, fine-tune, repeat.",
+          "code": "function rest_em(base_model, problems, ground_truth, R, K):\n    model = base_model\n    for round in 1..R:\n        # E-step: generate K responses per problem with the current model.\n        accepted = []\n        for p in problems:\n            for k in 1..K:\n                resp = sample(model, p, temperature=0.8)\n                # Reward can be exact-match against ground_truth\n                # OR an executable test (unit test, code runner).\n                if reward(resp, ground_truth[p]) >= THRESHOLD:\n                    accepted.append({\"prompt\": p, \"completion\": resp})\n\n        if not accepted:\n            break   # collapse: model produces nothing reward-able\n\n        # M-step: supervised fine-tune the BASE model on accepted set.\n        # (ReST-EM restarts from base each round to avoid drift.)\n        model = supervised_finetune(\n            base_model=base_model,\n            data=accepted,\n        )\n\n    return model",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-ask",
+      "intent": "Have the model emit explicit follow-up sub-questions, answer them (optionally via a search tool), then compose the final answer.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Interleave sub-questions and answers in a single transcript; loop until the model emits 'So the final answer is'.",
+          "code": "SELF_ASK_PROMPT = \"\"\"Question: {q}\nAre follow up questions needed here: Yes.\nFollow up:\"\"\"\n\nfunction self_ask(question, search_tool):\n    transcript = SELF_ASK_PROMPT.format(q=question)\n\n    for step in 1..MAX_STEPS:\n        # Model emits the next follow-up question (or final answer).\n        chunk = llm.generate(\n            prompt=transcript,\n            stop=[\"Intermediate answer:\", \"So the final answer is\"],\n        )\n        transcript += chunk\n\n        if \"So the final answer is\" in chunk:\n            return chunk.split(\"So the final answer is\")[-1].strip()\n\n        # Otherwise the chunk ends with a follow-up question.\n        followup = chunk.strip().splitlines()[-1]\n        intermediate = search_tool(followup)\n        transcript += f\"\\nIntermediate answer: {intermediate}\\nFollow up:\"\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "star-bootstrapping",
+      "intent": "Bootstrap a model's reasoning by training on its own correct chain-of-thought outputs, with rationalization to recover failed examples.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "STaR loop: generate CoT, keep correct ones, rationalize the rest from the gold answer, fine-tune, repeat.",
+          "code": "function star(base_model, dataset, R):\n    model = base_model\n    for round in 1..R:\n        kept = []\n\n        for (question, gold_answer) in dataset:\n            # 1. Generate a rationale + answer with CoT prompting.\n            rationale, answer = cot_generate(model, question)\n\n            if answer == gold_answer:\n                # Correct: keep the rationale as a training example.\n                kept.append({\n                    \"prompt\":     question,\n                    \"completion\": rationale + \"\\nAnswer: \" + answer,\n                })\n            else:\n                # 2. Rationalization: give the gold answer as a hint\n                #    and ask the model to produce a rationale that\n                #    *would have* justified it.\n                hinted = cot_generate_with_hint(\n                    model, question, hint=gold_answer,\n                )\n                kept.append({\n                    \"prompt\":     question,\n                    \"completion\": hinted + \"\\nAnswer: \" + gold_answer,\n                })\n\n        # 3. Fine-tune on the kept (correct + rationalized) set.\n        model = supervised_finetune(base_model, data=kept)\n\n    return model",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "test-time-compute-scaling",
+      "intent": "Spend more inference-time compute (samples, search, deeper thinking) instead of more parameters; pick the technique that fits the task.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Route to the inference-time technique that fits the task class; compose where complementary.",
+          "code": "function answer_with_scaled_compute(task, budget):\n    cls = classify(task)\n\n    if cls == \"verifier_amenable\":\n        # Best-of-N: sample N answers, pick the highest-scoring.\n        cands = [llm.sample(task) for _ in range(budget.N)]\n        return argmax(cands, key=verifier.score)\n\n    if cls == \"sampling_amenable\":\n        # Self-consistency: sample, then majority-vote the answer.\n        cands = [llm.sample(task, temperature=0.7)\n                 for _ in range(budget.N)]\n        return majority_vote([extract_answer(c) for c in cands])\n\n    if cls == \"combinatorial\":\n        # Tree search over thought steps (see tree-of-thoughts).\n        return tree_search(task, width=budget.W, depth=budget.D)\n\n    if cls == \"sequential_reasoning\":\n        # Extended thinking: longer internal CoT budget.\n        return llm.generate(\n            task, thinking={\"budget_tokens\": budget.thinking},\n        )\n\n    return llm.generate(task)   # default: single pass",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tree-of-thoughts",
+      "intent": "Search a tree of partial reasoning states with explicit lookahead, self-evaluation, and backtracking.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "BFS over a tree of thoughts: sample candidates per node, self-evaluate, keep top-B, return best leaf.",
+          "code": "function tree_of_thoughts(problem, B=3, K=5, MAX_DEPTH=4):\n    root = {\"path\": [], \"state\": problem}\n    frontier = [root]\n\n    for depth in 1..MAX_DEPTH:\n        # 1. Expand: each node proposes K next thoughts.\n        children = []\n        for node in frontier:\n            for thought in llm.sample_thoughts(node, k=K):\n                children.append({\n                    \"path\":  node[\"path\"] + [thought],\n                    \"state\": apply(node[\"state\"], thought),\n                })\n\n        # 2. Evaluate: self-evaluate each child (or use a programmatic\n        #    checker for math / code).\n        for c in children:\n            c[\"score\"] = llm.evaluate(c[\"state\"])  # e.g. \"sure/maybe/no\"\n\n        # 3. Prune: keep the top-B by score. Backtracking is implicit\n        #    here: low-scoring branches simply drop off the frontier.\n        frontier = sorted(children, key=lambda c: -c[\"score\"])[:B]\n\n        if any(is_terminal(c[\"state\"]) for c in frontier):\n            break\n\n    best = max(frontier, key=lambda c: c[\"score\"])\n    return best[\"path\"], best[\"state\"]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "zero-shot-cot",
+      "intent": "Elicit step-by-step reasoning with a single trigger phrase, no few-shot exemplars; optionally extract the final answer in a second pass.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two-stage zero-shot CoT: trigger reasoning with a phrase, then extract the final answer with a follow-up prompt.",
+          "code": "ZERO_SHOT_TRIGGER = \"Let's think step by step.\"\nEXTRACT_TRIGGER   = \"Therefore, the answer (numeric or short phrase) is\"\n\nfunction zero_shot_cot(question):\n    # Stage 1: Elicit reasoning. No exemplars are provided.\n    reasoning = llm.generate(\n        prompt=f\"Q: {question}\\nA: {ZERO_SHOT_TRIGGER}\",\n    )\n\n    # Stage 2 (optional): Extract a clean final answer. Feeding the\n    # reasoning back lets the model commit to a single token / span.\n    answer = llm.generate(\n        prompt=(\n            f\"Q: {question}\\n\"\n            f\"A: {ZERO_SHOT_TRIGGER} {reasoning}\\n\"\n            f\"{EXTRACT_TRIGGER}\"\n        ),\n        max_tokens=16,\n    )\n\n    return {\"reasoning\": reasoning.strip(), \"answer\": answer.strip()}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

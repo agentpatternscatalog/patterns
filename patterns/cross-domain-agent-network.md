@@ -11,11 +11,11 @@ Decompose enterprise agency into a set of domain-specialised agents (finance, su
 
 ## Context
 
-Large enterprises whose business processes already live across many backing systems (ERP, CRM, HR, ticketing) and where end-to-end workflows (e.g. dispute → cash collection → finance close) cross domain boundaries.
+A large enterprise already runs its business across many backing systems — finance in an ERP, customers in a CRM, employees in an HR system, support in a ticketing system — and the end-to-end workflows it cares about cross those boundaries. A dispute moves from customer service into finance into supply chain; closing a quarter pulls data from half a dozen sources. Each domain has its own data model, vocabulary, compliance rules, and team that owns it.
 
 ## Problem
 
-A single mega-agent grounded against every system has bad recall, no clear ownership, and no domain-specific guardrails; flat tool-use agents over a flat tool catalogue degrade as the catalogue grows.
+Building a single mega-agent grounded against every backing system produces an agent with a sprawling tool catalogue, no clear domain ownership, and no domain-specific guardrails. Recall drops as the catalogue grows: the agent picks the wrong tool, mixes up vocabularies between domains, and applies finance rules to an HR question. Compliance teams have nowhere to attach domain controls, and no single team can be made accountable for the whole thing. Flat tool-use agents over a flat catalogue degrade in exactly this regime.
 
 ## Forces
 
@@ -45,7 +45,7 @@ User -> Role Assistant -> Domain Agent A (own data + tools) -- protocol message 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User request] --> R[Router]
   R --> F[Finance Agent<br/>own data + tools]
   R --> S[Supply Chain Agent]

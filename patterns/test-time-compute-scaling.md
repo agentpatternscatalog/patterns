@@ -11,11 +11,11 @@ Allocate more inference-time compute (samples, search, deeper thinking) instead 
 
 ## Context
 
-Frontier of agent capability where parameter scaling has saturated and quality gains come from inference-time techniques.
+A team is at a quality ceiling on a hard workload — math benchmarks, code reasoning, complex planning — and the obvious move of waiting for the next generation of a larger model is either unavailable or too expensive. They have inference budget they could spend, and they have noticed that some classes of problem respond well to spending more compute at answer-time rather than at training-time.
 
 ## Problem
 
-Naive single-pass inference under-uses available compute; many hard tasks have inference-time techniques that beat ever-larger models.
+A single-pass call to even a strong model under-uses the compute available at inference time. The team knows several inference-time techniques exist — drawing many samples and picking the best, voting across many samples, searching over reasoning trees, allocating more internal reasoning tokens — but each technique shines on a different kind of task. Without a deliberate policy for how to spend inference budget per task class, the team leaves easy quality gains on the floor and pays too much on the items that would not have benefited.
 
 ## Forces
 

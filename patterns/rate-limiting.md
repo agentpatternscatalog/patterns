@@ -11,11 +11,11 @@ Cap the number of requests, tokens, or tool calls per user (or session) within a
 
 ## Context
 
-Multi-tenant agent products where one user (or runaway agent) can consume disproportionate resources.
+A team runs a multi-tenant agent product where many users share the same backend resources — token budgets with model providers, tool API quotas, compute capacity. Any one of those users can, accidentally or maliciously, send much more traffic than the operator priced for: a runaway script, a compromised account, or simply a single power user opening hundreds of concurrent sessions.
 
 ## Problem
 
-Without limits, a single user (or compromised account) can bankrupt the product or starve others.
+Without per-identity limits, a single caller can drain the month's token budget in a few hours, hit downstream provider rate limits and starve every other user, or simply run up an unbounded bill the operator did not authorise. Imposing one global cap is too blunt — it punishes everyone for one bad actor — and trusting users to behave reasonably has never worked at scale. The team is forced to choose between generous limits that hurt cost and tight limits that hurt legitimate users.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A coding assistant ships a free tier and within a week one signed-up account ope
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Req[Request] --> ID[Identify caller]
   ID --> B[Token bucket /<br/>sliding window]
   B -->|under limit| Allow[Allow]

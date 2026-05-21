@@ -11,11 +11,11 @@ Run a single agent through a protracted think-search-verify-revise-act loop span
 
 ## Context
 
-Open-ended research, deep-investigation, and long-horizon analysis tasks where a single short ReAct loop or a one-shot plan is too shallow. The agent has access to retrieval, browsing, and code-execution tools and is expected to spend minutes-to-hours on a single question.
+A team runs an agent on open-ended research and deep-investigation work — assessing whether a paper's claims replicate, tracing the root cause of a system anomaly, scoping a novel question — where the answer cannot be reached by a short reason-act-observe loop or by a one-shot plan. The agent has retrieval, browsing, and code-execution tools and is expected to spend minutes to hours on a single question, accumulating evidence across hundreds of tool calls.
 
 ## Problem
 
-Short reasoning budgets and one-shot plans collapse complex investigations into surface-level answers. Multi-agent research orchestrators (lead-researcher + subagents) introduce coordination overhead and message-passing artefacts. A single agent that can re-question its own working hypothesis across hundreds of tool calls — without handing off to peers — needs an explicit control loop, otherwise it either terminates too early or wanders into unbounded looping.
+Short reasoning budgets and one-shot plans collapse these investigations into surface-level answers because the agent never gets to revisit its working hypothesis. Splitting the work across multiple agents (a lead researcher delegating to subagents) introduces coordination overhead, message-passing artefacts, and inconsistent reasoning across the team. A single agent that runs for hours without any explicit cycle structure either declares victory too early or wanders into unbounded looping, with no checkpoint where drift becomes visible. The team needs one agent with an explicit, repeatable cycle that can sustain a long investigation without losing coherence or runaway cost.
 
 ## Forces
 

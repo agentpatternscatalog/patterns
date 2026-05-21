@@ -11,11 +11,11 @@ Reduce hallucination by drafting an answer, generating independent verification 
 
 ## Context
 
-Long-form factual generation (biographies, summaries, recommendations) where plausible-sounding errors creep into the draft.
+A team is using a large language model to produce long-form factual writing: a biography of a person, a summary that names specific entities and dates, or a recommendation that cites particular products, papers, or sources. The output reads fluently and confidently, but a careful reader inspecting individual sentences finds claims that are subtly or completely wrong — a wrong birth year, an invented citation, a made-up product feature, a confidently asserted fact that does not exist.
 
 ## Problem
 
-When the model verifies its own draft in the same context, the draft biases follow-up checks; errors persist.
+When the same model is then asked to check its own draft within the same conversation, it sees the draft text in its context window. Its follow-up answers are pulled towards agreeing with what was just written, so the same wrong claims get reaffirmed instead of caught. Simply telling the model 'now check this for errors' does not work, because the draft itself biases the verifier, and the hallucinations slip through into the final output.
 
 ## Forces
 

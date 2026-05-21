@@ -11,11 +11,11 @@ Define a protocol for agents to exchange tasks, capabilities, and results across
 
 ## Context
 
-Agents from different teams or vendors need to cooperate but speak different internal shapes.
+An organisation has agents built by different teams or bought from different vendors — a legal review agent from one supplier, an HR agent from another, an internal IT agent — and they need to cooperate on workflows that cross their boundaries. Each agent speaks a different internal shape: different request envelopes, different result formats, different auth.
 
 ## Problem
 
-Bespoke point-to-point integrations do not scale; each new agent pair requires fresh glue.
+Wiring each pair of agents together with bespoke integration code does not scale. Every new agent forces fresh glue against every other agent it might talk to, and every change to one side breaks the others. There is no shared catalogue of what each agent can do, no shared auth story, and no shared way to version the request envelopes. The cost of adding the fourth or fifth agent becomes prohibitive long before the organisation has the agent population it wanted.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Represent a family of related entities in a single core schema with type-specifi
 
 ## Context
 
-Multiple entity sub-types (yarn / fabric / thread; project / queue / favorite) share most fields but differ in some.
+A team is designing a data model for a family of related entities that share most of their fields but differ in a few. A textile catalogue has yarn, fabric, and trim records, each with a common core (a stock-keeping unit, a supplier, a lead time) plus a handful of type-specific fields (yarn weight, fabric weave, trim attachment). A user-content system has projects, queues, and favourites that share an owner and a timestamp but diverge in their payloads. The team has to decide how to represent the shared core and the divergent extensions in a single schema that clients of different ages can still read.
 
 ## Problem
 
-Separate schemas per sub-type duplicate work and break clients that do not understand all sub-types; one giant schema with all fields is bloated and unenforceable.
+Two naive choices both go wrong. One schema per sub-type duplicates the common fields and forces every client to know about every sub-type; when a new sub-type appears, old clients break or have to be updated in lockstep. A single flat schema that contains every possible field for every sub-type is bloated, hard to validate, and silently allows nonsensical combinations such as a fabric record carrying a yarn weight. The team needs a representation that keeps the common parts common, isolates the per-sub-type fields, and lets old clients survive the addition of a new sub-type.
 
 ## Forces
 

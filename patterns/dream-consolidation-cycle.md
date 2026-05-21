@@ -11,11 +11,11 @@ Run a deeper, slower reflection pass distinct from per-tick reflection — readi
 
 ## Context
 
-Long-running agents that already run a per-tick reflection and a periodic insight extraction. Without an intermediate slower pass, per-tick reflection is too shallow to consolidate themes and weekly insight extraction is too coarse to release built-up affect or reset focus.
+A team is running a long-lived agent that already has two reflection cadences in place: a quick reflection pass that runs after every tick to keep the immediate conversation coherent, and a much slower insight extraction that runs perhaps once a week to promote durable patterns into a long-term store. Between those two cadences there is a gap of several hours during which the agent accumulates thoughts, mood, and partly-finished threads without any consolidation step.
 
 ## Problem
 
-Per-tick reflection is too shallow to consolidate themes; weekly insight extraction is too coarse to release built-up affect or reset focus. Without an intermediate sleep-like pass, the agent ruminates on stale items and emotional state never resets between sessions.
+Per-tick reflection is too shallow to notice that a theme has been recurring all afternoon, and the weekly insight pass is too coarse to release the affective residue from yesterday's tense exchange before today begins. Without an intermediate sleep-like pass that runs every few hours, the agent keeps ruminating on stale items, its affect scalars never get a chance to decay back toward baseline between sessions, and working memory stays cluttered with threads it should have either consolidated or let go.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Interleave a single thought, a single tool call, and a single observation per st
 
 ## Context
 
-The task requires looking things up or acting on the world; the answer cannot be produced by pure thinking.
+A team builds an agent for a task that cannot be answered from the model's parametric knowledge alone — it has to look something up, query a database, search the web, or take an action against a real system. The next step often depends on what the previous tool call returned, so the agent cannot plan all the calls up front. Tool calls cost latency and money and may have side effects, so each one needs to be deliberate.
 
 ## Problem
 
-Pure chain-of-thought hallucinates facts; pure tool-blasting wastes calls on the wrong things.
+Pure chain-of-thought reasoning produces fluent, confident answers that hallucinate the facts a tool would have returned. Pure tool-blasting — calling several tools speculatively per turn — wastes calls on the wrong things, returns more results than the model can use, and gives the agent no chance to think between calls. Without a structured interleave of reasoning and action, the agent either guesses or thrashes, and the loop has no clean place to put a step budget or a termination check.
 
 ## Forces
 

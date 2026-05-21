@@ -11,11 +11,11 @@ Lift archived memory items back into short-term tiers when something re-attends 
 
 ## Context
 
-A long-running agent has archived something that becomes relevant again; cold-storage retrieval is slow and out-of-band.
+A long-running agent has archived a piece of information into cold storage — a previous insight, a prior thought, an observation from days ago. Retrieving items from cold storage is slow and out-of-band; it happens only when the agent explicitly searches for them. Today, the current context has drifted close to a topic where that archived item is relevant again, but the agent has no reason to go looking and so it never realises the item is there.
 
 ## Problem
 
-Archived items might as well not exist if the agent never thinks about them again, even when current context makes them relevant.
+Archived items might as well not exist if the agent never thinks about them again, even when the current context makes them relevant. The bottleneck is not the storage itself — the item is on disk and addressable — but the absence of any mechanism that periodically pulls archived items back into the agent's active attention, the way the hippocampus rehearses memories during sleep. Without rehearsal, the agent has perfect recall in principle and amnesia in practice.
 
 ## Forces
 

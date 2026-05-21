@@ -11,11 +11,11 @@ Express map-over-collection inside a visual workflow as an explicit Iteration no
 
 ## Context
 
-Visual workflow platforms where a portion of work must be applied to every element of a list (every retrieved chunk, every search result, every uploaded file) and the iteration must be inspectable per element.
+A team builds workflows on a visual canvas — Dify, Coze, n8n, or a similar low-code platform — where some part of the work has to be applied to every element of a list: every retrieved chunk, every search result, every uploaded file, every row in a spreadsheet. The team wants the iteration itself to be visible on the canvas alongside the rest of the flow, so failures and timings can be inspected per element rather than hidden inside a black box.
 
 ## Problem
 
-An LLM-driven loop (loop in the agentic loop's sense) is non-deterministic and hard to bound; collapsing the iteration into a single LLM call hides per-element failures; expressing the loop as a procedural script outside the workflow loses the visual debug surface.
+A model-driven loop (where the language model decides when to stop iterating) is non-deterministic and hard to bound by the data length. Collapsing the whole list into one large model call hides per-element failures, so when one of fifty PDFs fails the workflow either retries the whole batch or silently drops the bad one. Pushing the loop out into a code node or an external script loses the visual debug surface that justified using the canvas in the first place. None of these options gives a structural, data-bounded, inspectable iteration.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A document-processing workflow receives a list of uploaded PDFs. The team needs 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[(Input array)] --> Iter[Iteration node]
   subgraph Sub[Subgraph per element]
     S1[Step 1] --> S2[Step 2] --> S3[Step 3]

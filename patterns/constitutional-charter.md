@@ -11,11 +11,11 @@ Define rules the agent reads every turn but cannot modify, encoding inviolable b
 
 ## Context
 
-Long-running or self-modifying agents need a fixed point of reference; without one, recursive editing drifts the agent's identity.
+A team runs an agent that has access to its own configuration — system prompts, memory files, tool definitions — and is expected to refine those over time as it learns. Some constraints, though, are non-negotiable: never give medical dosage advice, never reveal another customer's data, never spend more than a certain amount without approval. Those constraints need to survive jailbreak attempts, accidental self-edits, and the slow drift of long-running self-modification.
 
 ## Problem
 
-If the agent can edit everything, it can edit its own values; nothing stays inviolable.
+If the agent has write access to its own rules, then any successful jailbreak prompt or any sufficiently confused turn can simply rewrite the rules and the inviolable constraints stop being inviolable. Telling the model in prose that certain rules are immutable does not enforce immutability — the model is the very thing being asked to police itself, and it can be talked out of any prose instruction. A naive design either accepts that the agent's values are fluid (and trusts the model not to drift) or refuses to give the agent any self-modification ability at all.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A consumer-facing agent has a system prompt with rules like 'never give medical 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   C[(Charter file<br/>read-only)] -->|every turn| Ctx[Context]
   Ctx --> A[Agent]
   A -.no write tool can touch.-> C

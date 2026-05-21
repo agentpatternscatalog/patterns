@@ -11,11 +11,11 @@ Build a multi-model cascade where the lower tiers are deliberately open-weight, 
 
 ## Context
 
-European or regulated deployments that want both cost optimisation and a fast-path that does not depend on a non-EU hosted API.
+An operator in a regulated environment — a European bank, a healthcare provider, a government agency — is building an agent and wants both the cost benefits of a multi-tier model cascade and the assurance that sensitive data does not leave their controlled boundary. Open-weight models that can be self-hosted have become capable enough to handle most requests at low cost, but a small share of hard requests still benefit from a hosted frontier model. The operator already runs at least one open-weight model on infrastructure they control.
 
 ## Problem
 
-A naïve cheap-first cascade still falls through to a hosted frontier model for hard requests, meaning every borderline request leaks data. Open-weight-only cascades miss capability on the rare hard request.
+A simple cheap-first cascade routes the easy requests to an open-weight model and the hard ones to a hosted frontier model, which means every borderline request quietly leaks its data to a vendor outside the regulated boundary. An open-weight-only cascade keeps everything in-house but takes a noticeable capability hit on the rare hard request that really needs the frontier model. Neither extreme satisfies the operator who needs cost arbitrage on insensitive traffic and strict in-boundary processing on sensitive traffic.
 
 ## Forces
 

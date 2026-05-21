@@ -11,11 +11,11 @@ Surface per-request, per-user, and per-feature cost and token consumption to ope
 
 ## Context
 
-Production agent products where cost surprises (a runaway feature, a bad routing decision) blow up bills before anyone notices.
+A team is running an agent product in production that calls one or more paid model providers and a set of paid tools. Spend depends on which feature the user touched, which model was routed to, how long the conversation got, and how many tool calls the agent decided to make. Operators need to know in close to real time where the money is going, not weeks later when the invoice arrives.
 
 ## Problem
 
-Without per-feature cost visibility, expensive failures hide in aggregate metrics until billing arrives.
+Without per-feature, per-route, per-model attribution, an aggregate dashboard only shows that total tokens went up. A single bad routing decision, a chatty new prompt, or a runaway loop in one feature can multiply the bill for that feature ten times while the global average barely twitches. The team is forced to choose between learning about the problem from the monthly billing statement or building ad-hoc spreadsheets every time a number looks off.
 
 ## Forces
 
@@ -38,7 +38,7 @@ An ops team notices the monthly LLM bill has tripled but can't say which feature
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]
   T[Tool call] -->|tag| TS
   TS --> D[Dashboards<br/>by feature / model / hour]

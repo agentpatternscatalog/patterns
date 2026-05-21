@@ -11,11 +11,11 @@ Sample N candidate outputs and select the highest-ranked by a reward model or sc
 
 ## Context
 
-Output quality matters and a reward model exists (or can be approximated) to score candidates.
+A team runs a large language model on a task where the quality of any single output varies noticeably from sample to sample, such as a code-review summary, a translation, or a customer reply. They have a way to rank candidate outputs against each other, either a trained reward model that scores responses or a rule-based scorer that approximates one. Inference cost is high enough to matter but not so high that running the model a few extra times for the same prompt is prohibitive.
 
 ## Problem
 
-A single sample may be acceptable; the best of N is often markedly better at modest cost increase.
+A single sample drawn from the model at low temperature is often acceptable but rarely the best the model can produce, and on any given prompt the team has no way to tell whether they got a good draw or a mediocre one. Increasing temperature on a single sample raises variance without raising the floor: sometimes the result is better and sometimes worse, and the team ships whichever one happens to come out. Without a selection step that compares several candidates, the model's own decoding choice is the only filter on quality.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A code-review assistant generates a one-paragraph summary for each pull request,
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   P[Prompt] --> G[Sample N candidates<br/>temp > 0]
   G --> C1[c1]
   G --> C2[c2]

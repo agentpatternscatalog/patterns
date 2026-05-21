@@ -11,11 +11,11 @@ Generate the agent team — role descriptions and instances — at run time base
 
 ## Context
 
-The task arrives without a known type; a fixed pool of pre-assigned roles either over-provisions (expensive, noisy) or under-covers (missing the right specialist).
+A multi-agent platform accepts a wide range of tasks through one entry point — drafting a regulatory filing, refactoring a Python module, planning a marketing campaign — and the right team of specialists varies sharply from one task to the next. The platform cannot know the task type in advance and cannot afford to keep one large fixed crew always running.
 
 ## Problem
 
-Hard-coded role lists are brittle: the right team for "draft a regulatory filing" is not the right team for "refactor a Python module"; both tasks share an entry point.
+A hard-coded role list is brittle: the team that suits a legal filing is not the team that suits a code refactor, and the writer-reviewer-editor lineup that helped the first request is dead weight for the second. Over-provisioning a large fixed pool wastes tokens and creates noise. Under-provisioning misses the specialist the task actually needed. Without a way to assemble the team at run time, every workflow either drags around unnecessary roles or quietly skips work that should have happened.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Run the entire agent stack (model weights, inference, tool layer, vector stores,
 
 ## Context
 
-Public administration, regulated industry (banking, defense, health), or critical infrastructure operators where data egress to a foreign-cloud LLM provider is forbidden by policy or law (e.g. EU AI Act high-risk systems, BSI C5, NIS2, sectoral data-protection regimes).
+An operator in public administration, banking, defence, health, or critical infrastructure needs to deploy an agent under a policy or legal regime that forbids sending the prompts, tool inputs, or outputs to a foreign-cloud large-language-model provider. Concrete drivers include the EU AI Act for high-risk systems, the German BSI C5 cloud-security framework, the EU NIS2 directive, and sectoral data-protection rules covering medical or financial data. The operator must be able to demonstrate that no in-scope data crosses the boundary they control.
 
 ## Problem
 
-Hosted-API agents leak prompts, tool inputs, and outputs to a third party; for regulated workloads this is a non-starter regardless of contractual assurances.
+A hosted-API agent sends every prompt, every tool input, and every output to a third party — that is the architecture. Contractual assurances from the provider do not satisfy regulators who require the data to stay inside a specific jurisdiction and under the operator's own keys. At the same time, the frontier hosted models offer the best capability per dollar, and self-hosting demands GPU capital expenditure and machine-learning operations skill the operator may not have. Without a deliberate stack where every load-bearing component sits inside the operator-controlled boundary, the team has to choose between being non-compliant and not shipping at all.
 
 ## Forces
 

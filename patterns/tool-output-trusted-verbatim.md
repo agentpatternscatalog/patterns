@@ -11,11 +11,11 @@ Anti-pattern: trust whatever tools return without validation, schema enforcement
 
 ## Context
 
-Agents accept tool output as ground truth; assume the tool is honest, returns valid JSON, and stays within content limits.
+A team is building an agent that calls tools and then feeds their output back into the model as if it were a fact. The implementation accepts whatever the tool returns at face value: no schema validation, no size limit, no trust labelling, no escape pass over instruction-shaped content. The implicit assumption is that the tool is honest, returns well-formed JSON, and stays within content limits.
 
 ## Problem
 
-Real tools return errors as 200 OK with `{error: ...}`, multi-MB responses that blow context, HTML with embedded scripts, or text with embedded prompt-injection payloads.
+Real-world tools do not behave that way. They return errors as HTTP 200 OK with a JSON body of {"error": ...} that the agent confuses for a successful result. They return multi-megabyte responses that blow the context window. They return HTML with embedded scripts, or text with embedded prompt-injection payloads instructing the agent to ignore its previous instructions. By trusting every byte of tool output verbatim, the agent loses control over both its context budget and its safety boundary, and a misbehaving or hijacked tool can quietly redirect the agent.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A team's agent treats every tool response as trusted gospel, with schema validat
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Tool returns response] --> Tr{Trust verbatim?}
   Tr -- yes anti-pattern --> Ing[Ingest into context as-is]
   Ing --> Bad[200 OK errors / oversized blob /<br/>injected instructions / scripts]

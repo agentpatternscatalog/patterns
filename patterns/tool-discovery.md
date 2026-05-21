@@ -11,11 +11,11 @@ Let the agent discover available tools at runtime rather than hardcoding the too
 
 ## Context
 
-Tool palettes evolve; new tools land without redeploying the agent. MCP and similar protocols make discovery feasible. Distinct from tool-agent-registry: tool-discovery is the general mechanism ("agent fetches its tool palette at runtime"); tool-agent-registry is a specialisation that also catalogues agents and exposes selection metadata (cost, quality, capability) for ranking.
+A team runs an agent whose tool palette changes faster than its release cycle: new internal capabilities ship weekly, partner integrations come and go, and there is a directory (an MCP server, an internal registry) that already advertises tools with typed schemas. The team wants the agent to learn about new capabilities without rebuilding and redeploying the agent itself.
 
 ## Problem
 
-Hardcoded tool palettes force a redeploy for every new capability; dynamic environments need dynamic palettes.
+Hardcoding the tool list at build time means every new capability needs a code change and a redeploy of the agent, even when the underlying tool is fully ready to go. Multiple agents in the same organisation drift out of sync because each one was last redeployed at a different moment. Without a runtime mechanism for discovery, the agent simply cannot reach tools that landed after its last release.
 
 ## Forces
 

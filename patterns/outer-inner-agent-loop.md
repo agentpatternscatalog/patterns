@@ -11,11 +11,11 @@ Run two nested loops: an outer planner agent that decomposes the goal into subta
 
 ## Context
 
-Long-horizon tasks where decomposition matters as much as execution, and where execution evidence may invalidate the plan partway through.
+A team operates an agent on long-horizon work — multi-step report writing, multi-stage data investigations, multi-day refactors — where the breakdown of the goal matters as much as the individual steps. Partway through the run, the agent may discover something that invalidates the original plan: a missing data source, a contradictory finding, a failed dependency. The team wants the planner to react to that evidence instead of letting execution proceed on a stale plan.
 
 ## Problem
 
-A single agent loop conflates planning and acting: replanning interrupts execution, and execution drift is invisible to the planner until late.
+A single agent loop that conflates planning and acting (such as ReAct) does both on every turn and pays the cost of replanning at each step even when the plan is still valid. Plan-and-Execute fixes the plan up front but then runs the executor blind — by the time execution finishes, the planner has no chance to react to mid-run evidence except by abandoning the run. The team needs planning and execution on separate cadences, with a controlled channel by which execution evidence can interrupt the plan.
 
 ## Forces
 

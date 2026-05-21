@@ -11,11 +11,11 @@ Spawn 100 or more identical, full-capability agent instances in parallel — eac
 
 ## Context
 
-Wide-coverage tasks such as comparing many candidates, scanning many sources, or sampling many independent strategies. Each subtask is large enough that a role-specialised lightweight worker is too weak, but small enough that a full agent can handle it. Per-agent isolation is available (sandbox VMs or worktrees).
+A team needs an agent to do a wide-coverage job — compare a long list of candidate libraries, scan a hundred different sources for the same kind of information, or sample many independent strategies for the same problem. Each individual unit of work is too large for a stripped-down worker prompt but small enough that a full general agent can finish it on its own. The infrastructure can hand each instance its own isolated environment, such as a sandbox virtual machine or a separate working copy of the codebase.
 
 ## Problem
 
-Orchestrator-workers patterns assume specialisation — the orchestrator decomposes by role and dispatches to differently-skilled workers. Many real wide-coverage jobs are not role-decomposable: each unit of work needs the *same* full capability. Spawning hundreds of role-specialised workers wastes the orchestrator's effort and produces inconsistent worker quality. Spawning hundreds without isolation or aggregation produces the Unbounded Subagent Spawn anti-pattern.
+The usual orchestrator-workers pattern assumes specialisation: the orchestrator decomposes the job by role and hands each piece to a worker with a different skill. Many wide-coverage jobs are not role-decomposable at all — every unit needs the same full agent capability, just over a different slice of input. Inventing fake roles wastes the orchestrator's effort and produces inconsistent worker quality. Spawning hundreds of clones without isolation or an aggregation strategy collapses into the unbounded-subagent-spawn anti-pattern.
 
 ## Forces
 

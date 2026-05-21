@@ -11,11 +11,11 @@ Have the model emit explicit follow-up sub-questions, answer them (optionally vi
 
 ## Context
 
-Multi-hop questions where the model knows each single hop but fails to chain hops in one inference.
+A team is using a model on questions whose answer requires chaining several known facts together. For example, 'which of the founder's PhD advisors won a Turing Award?' depends on first knowing who founded the organisation, then who that person's PhD advisors were, then which awards each of those advisors won. The model can answer each individual hop correctly when asked in isolation, but when the question is posed as a single sentence it tends to return the wrong endpoint.
 
 ## Problem
 
-The 'compositionality gap': models know each fact in isolation but fail to combine them into a multi-hop answer.
+Knowing each fact and being able to chain those facts together inside a single inference are different skills; this gap between them is the so-called compositionality gap. Without scaffolding, the model collapses the chain into a single step and either invents an answer or returns the wrong endpoint. Plain chain-of-thought helps a little, but the reasoning steps are not framed as questions, so the model cannot offload any of them to a search tool, and a human reader cannot easily inspect where in the chain the model went wrong.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A QA agent fails on multi-hop questions like 'which of the founder's PhD advisor
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Top question] --> M[Model]
   M --> SQ1[Sub-question 1]
   SQ1 -->|answer directly<br/>or via search| A1[Answer 1]

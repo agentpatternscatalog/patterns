@@ -11,11 +11,11 @@ Persist the agent's reasoning trace alongside its actions so post-hoc review can
 
 ## Context
 
-Audit and debugging both need access to what the agent considered, not just what it did.
+A team runs an agent that makes consequential choices in production, for example a trading agent that opens positions or a support agent that takes refund actions. When something goes wrong days or weeks later, an engineer, auditor, or compliance reviewer wants to understand not only which action the agent took but the reasoning the agent considered at the time. The team already keeps a log of actions taken; what is missing is the thinking that produced each action.
 
 ## Problem
 
-Action-only logs answer 'what' but not 'why'; debugging a wrong action requires the reasoning chain.
+An action-only log can tell the reviewer that the agent shorted a position at 14:32, but not which signals it weighed or which alternatives it rejected. Debugging a wrong action degenerates into guessing what the model might have been thinking, and user-facing explanations become impossible to provide truthfully. The team is forced to choose between piecing the reasoning back together from incomplete clues or accepting that some agent decisions are simply unexplainable after the fact.
 
 ## Forces
 
@@ -34,7 +34,7 @@ Persist reasoning at a chosen granularity (full trace, key decisions, or summary
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Agent action] --> P[(Provenance ledger)]
   A --> R[Reasoning trace]
   R --> L[(Decision log<br/>indexed by request id + time)]

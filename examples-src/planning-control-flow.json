@@ -1,0 +1,647 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "planning-control-flow",
+  "label": "Planning & Control Flow",
+  "patterns": [
+    {
+      "pattern_id": "adaptive-branching-tree-search",
+      "intent": "Use Thompson sampling at each node to choose between deepening the current candidate, branching a fresh sibling, and (optionally) which LLM to call. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Per-node Thompson sampling chooses deepen vs branch (and optionally which model); the rollout score updates the chosen action's posterior.",
+          "code": "function search(root, budget):\n    for rollout in 1..budget:\n        node = select(root)                # walk down by sampling\n        action, model = sample_action(node) # Thompson draw\n        child = expand(node, action, model)\n        score = evaluate(child)             # verifier or oracle\n        backpropagate(child, score)\n    return best_leaf(root)\n\nfunction sample_action(node):\n    # actions: deepen current candidate, or branch fresh\n    samples = {}\n    for (action, model), posterior in node.posteriors.items():\n        samples[(action, model)] = posterior.sample()\n    return argmax(samples)                  # highest sampled value\n\nfunction backpropagate(node, score):\n    while node is not None:\n        node.posteriors[node.taken_action].update(score)\n        node = node.parent",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "clone-fan-out-research",
+      "intent": "Spawn N identical, full-capability agent clones over an input partition with isolated sandboxes; aggregate their independent outputs once at the end. Pseudo-only (Manus is closed).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Driver partitions the input, allocates one isolated sandbox per clone, runs identical agents in parallel, and a single aggregator consolidates results at the end.",
+          "code": "function clone_fan_out(goal, N=100):\n    slices = partition(goal, N)             # one slice per clone\n    if cost_estimate(N) > BUDGET:\n        abort(\"clone budget exceeded\")\n\n    sandboxes = [allocate_sandbox() for _ in range(N)]\n    results = parallel_for(slices, sandboxes) do |slice, sb|\n        agent = Agent(\n            system_prompt=SAME_PROMPT,      # identical, no role split\n            tools=FULL_TOOLSET,\n            sandbox=sb,                     # isolated VM / worktree\n        )\n        return agent.run(slice)             # writes to shared bucket\n\n    # clones never communicated; aggregation is one-shot\n    return aggregator.run(\n        goal,\n        results,\n        strategy=\"vote|rank|dedupe|synthesise\",\n    )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "disambiguation",
+      "intent": "Ask a single focused clarifying question before acting on a low-confidence intent. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Classify intent confidence; if below threshold, ask one focused question with the most-likely interpretation as a default; otherwise act.",
+          "code": "function handle(request, history):\n    intent = classify(request, history)\n    if intent.confidence >= CONFIDENCE_THRESHOLD:\n        return act(intent)                  # confident enough to proceed\n\n    # ambiguity: ask exactly one focused question,\n    # phrased with the most-likely reading as the default\n    question = llm.draft_clarification(\n        request,\n        candidates=intent.top_k,\n        default=intent.top_k[0],\n    )\n    answer = ask_user(question)\n\n    resolved = classify(answer, history + [request, question])\n    return act(resolved)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "event-driven-agent",
+      "intent": "Invoke the agent only on validated, deduplicated, rate-limited external events. Pseudo plus three event-driven runtimes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Validate, dedupe, and rate-limit before invoking the agent; ack only after successful processing.",
+          "code": "subscribe(event_source) do |event|\n    if not validate(event):\n        reject(event); continue\n    if seen_recently(event.id):       # idempotency / dedupe\n        ack(event); continue\n    if rate_limited():\n        defer(event); continue\n\n    try:\n        result = agent.run(event.payload)\n        record(event.id, result)\n        ack(event)                     # ack only on success\n    except Exception as exc:\n        nack(event, reason=exc)        # let the source redeliver",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex Workflows",
+          "language": "python",
+          "intent": "Workflows expose Event-typed steps; each @step is invoked when an event of its declared type appears on the bus.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/understanding/workflows/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom workflows import Workflow, step\nfrom workflows.events import Event, StartEvent, StopEvent\nfrom llama_index.llms.openai import OpenAI\n\n\nclass WebhookEvent(Event):\n    payload: dict\n\n\nclass AgentReplyEvent(Event):\n    text: str\n\n\nclass WebhookAgentFlow(Workflow):\n    llm = OpenAI(model=\"gpt-4o-mini\")\n\n    @step\n    async def receive(self, ev: StartEvent) -> WebhookEvent:\n        # In production: validate signature, dedupe by ev.delivery_id.\n        return WebhookEvent(payload=ev.payload)\n\n    @step\n    async def run_agent(self, ev: WebhookEvent) -> AgentReplyEvent:\n        prompt = f\"Triage this webhook payload: {ev.payload}\"\n        response = await self.llm.acomplete(prompt)\n        return AgentReplyEvent(text=str(response))\n\n    @step\n    async def finish(self, ev: AgentReplyEvent) -> StopEvent:\n        return StopEvent(result=ev.text)\n\n\nasync def main():\n    flow = WebhookAgentFlow(timeout=60)\n    result = await flow.run(payload={\"action\": \"opened\", \"pr\": 42})\n    print(result)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "temporal",
+          "framework_label": "Temporal (Python)",
+          "language": "python",
+          "intent": "A long-running Temporal workflow waits on a signal handler; external events arrive as workflow signals and unblock the next agent step.",
+          "source_url": "https://docs.temporal.io/develop/python/message-passing",
+          "sdk_version": "temporalio>=1.6",
+          "code": "from dataclasses import dataclass\nfrom datetime import timedelta\nfrom temporalio import workflow\n\n\n@dataclass\nclass WebhookEvent:\n    delivery_id: str\n    payload: dict\n\n\n@workflow.defn\nclass EventDrivenAgent:\n    def __init__(self) -> None:\n        self._inbox: list[WebhookEvent] = []\n        self._seen: set[str] = set()\n\n    @workflow.signal\n    def deliver(self, event: WebhookEvent) -> None:\n        # Idempotency: drop duplicate deliveries.\n        if event.delivery_id in self._seen:\n            return\n        self._seen.add(event.delivery_id)\n        self._inbox.append(event)\n\n    @workflow.run\n    async def run(self) -> None:\n        while True:\n            await workflow.wait_condition(lambda: bool(self._inbox))\n            event = self._inbox.pop(0)\n            # Each event triggers one agent activity invocation.\n            await workflow.execute_activity(\n                \"run_agent_once\",\n                event.payload,\n                start_to_close_timeout=timedelta(minutes=5),\n            )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen Core",
+          "language": "python",
+          "intent": "RoutedAgent on a SingleThreadedAgentRuntime: the runtime delivers each typed message to the matching @message_handler.",
+          "source_url": "https://microsoft.github.io/autogen/stable/",
+          "sdk_version": "autogen-core>=0.4",
+          "code": "import asyncio\nfrom dataclasses import dataclass\nfrom autogen_core import (\n    AgentId,\n    MessageContext,\n    RoutedAgent,\n    SingleThreadedAgentRuntime,\n    message_handler,\n)\n\n\n@dataclass\nclass WebhookEvent:\n    delivery_id: str\n    payload: dict\n\n\nclass WebhookAgent(RoutedAgent):\n    def __init__(self) -> None:\n        super().__init__(\"WebhookAgent\")\n        self._seen: set[str] = set()\n\n    @message_handler\n    async def on_event(self, message: WebhookEvent, ctx: MessageContext) -> None:\n        if message.delivery_id in self._seen:\n            return                              # dedupe\n        self._seen.add(message.delivery_id)\n        # ... run the agent over message.payload ...\n        print(f\"handled {message.delivery_id}: {message.payload}\")\n\n\nasync def main() -> None:\n    runtime = SingleThreadedAgentRuntime()\n    await WebhookAgent.register(runtime, \"webhook_agent\", lambda: WebhookAgent())\n    runtime.start()\n    await runtime.send_message(\n        WebhookEvent(delivery_id=\"d-1\", payload={\"pr\": 42}),\n        AgentId(\"webhook_agent\", \"default\"),\n    )\n    await runtime.stop_when_idle()\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "exploration-exploitation",
+      "intent": "Balance exploiting the best-known action with exploring alternatives that might be better. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three concrete strategies — epsilon-greedy, UCB, Thompson sampling — over an action set with per-action reward stats.",
+          "code": "function pick_action(actions, stats, strategy=\"thompson\"):\n    if strategy == \"epsilon_greedy\":\n        if random() < EPSILON:\n            return random_choice(actions)   # explore\n        return argmax(actions, key=stats.mean)  # exploit\n\n    if strategy == \"ucb\":\n        t = total_pulls(stats)\n        return argmax(actions, key=lambda a:\n            stats[a].mean + sqrt(2 * log(t) / stats[a].pulls))\n\n    if strategy == \"thompson\":\n        # sample from each action's posterior, take the highest\n        return argmax(actions, key=lambda a: stats[a].posterior.sample())\n\nfunction loop():\n    while running:\n        a = pick_action(ACTIONS, STATS, strategy=\"thompson\")\n        reward = run(a)\n        STATS[a].update(reward)             # refine posterior",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "goal-decomposition",
+      "intent": "Recursively decompose a goal into sub-goals until each leaf is directly actionable; siblings may run in parallel. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Build a goal tree; leaves are atomic actions; siblings can execute in parallel; monitor progress per branch.",
+          "code": "function decompose(goal, depth=0):\n    if depth > MAX_DEPTH or is_actionable(goal):\n        return Leaf(goal)\n\n    children = llm.split(goal)              # one level of decomposition\n    if len(children) == 1 and children[0] == goal:\n        return Leaf(goal)                   # cannot split further\n\n    return Node(goal, [decompose(c, depth + 1) for c in children])\n\nfunction execute(node):\n    if node is Leaf:\n        return run_action(node.goal)\n\n    # siblings can run in parallel (distinct from least-to-most)\n    results = parallel_for(node.children) do |child|\n        return execute(child)\n    end\n    if any_stuck(results):\n        surface_to_planner(node, results)   # observable per branch\n    return combine(node.goal, results)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "iteration-node",
+      "intent": "Express map-over-collection inside a visual workflow as an Iteration node that runs an inner subgraph once per element, with bounded concurrency and per-element error surfaces. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Iteration node binds each element of an input array to a parameter, runs the inner subgraph, and emits an output array; per-element failures stay scoped.",
+          "code": "node IterationNode:\n    inputs:\n        items: Array<T>\n        concurrency: int = 1               # 1 = sequential\n    subgraph: Subgraph(param: T -> result: R)\n    outputs:\n        results: Array<{index: int, ok: bool, value?: R, error?: str}>\n\nfunction run(node, items):\n    results = []\n    pool = ConcurrencyPool(node.concurrency)\n    for (i, item) in enumerate(items):\n        pool.submit(i, () => {\n            try:\n                value = node.subgraph.run(param=item)\n                emit_log(node, i, \"ok\")\n                return {index: i, ok: true, value: value}\n            except Exception as e:\n                emit_log(node, i, \"error\", e)\n                # failure scoped per element, node continues\n                return {index: i, ok: false, error: str(e)}\n        })\n    return pool.collect_sorted_by_index()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "lats",
+      "intent": "Lift the agent loop into an MCTS-style search tree with a learned value function and backtracking. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "MCTS over partial agent trajectories: UCT selection, expansion samples next thought/action, value-function rollout, backprop; backtrack from a failing branch.",
+          "code": "function lats(root, budget):\n    for iteration in 1..budget:\n        leaf = select(root)                 # walk down by UCT\n        children = expand(leaf)             # sample next thoughts/actions\n        if not children:\n            backpropagate(leaf, value(leaf))\n            continue\n        child = pick_unvisited(children)\n        v = simulate(child)                 # rollout under value function\n        backpropagate(child, v)\n    return best_trajectory(root)\n\nfunction select(node):\n    while node.children and all_visited(node.children):\n        node = argmax(node.children, key=uct_score)\n    return node\n\nfunction backpropagate(node, value):\n    while node is not None:\n        node.visits += 1\n        node.total_value += value           # later: backtrack from low value\n        node = node.parent",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "llm-compiler",
+      "intent": "Plan a dependency DAG, dispatch independent steps in parallel through a task-fetching unit, join results at the end. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three roles: Planner emits a DAG of tool calls; Task-Fetching Unit dispatches each step as its inputs resolve; Joiner assembles the final answer.",
+          "code": "function llm_compiler(query):\n    dag = planner.build(query)              # nodes with explicit deps\n    results = {}\n    pending = {n.id: set(n.deps) for n in dag.nodes}\n    pool = ConcurrencyPool(MAX_PARALLEL)\n\n    while pending or pool.in_flight():\n        # task-fetching: dispatch any node whose deps are now resolved\n        for n in dag.nodes:\n            if n.id in pending and not pending[n.id]:\n                pool.submit(n.id, () => run_tool(n, results))\n                del pending[n.id]\n\n        done_id, value = pool.wait_one()\n        results[done_id] = value\n        for nid in pending:\n            pending[nid].discard(done_id)   # unblock downstream\n\n    return joiner.assemble(query, dag, results)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "map-reduce",
+      "intent": "Chunk oversize input, process each chunk in parallel, then aggregate with conflict resolution. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Map step processes each chunk independently; reduce step aggregates via a structured protocol that surfaces conflicts and runs a calibration pass.",
+          "code": "function map_reduce(task, input, chunk_size):\n    chunks = split(input, chunk_size)\n\n    # MAP: per-chunk LLM call, independent\n    partials = parallel_for(chunks) do |chunk|\n        return llm.map(\n            task=task,\n            chunk=chunk,\n            schema=STRUCTURED_PARTIAL,      # forces typed output\n        )\n    end\n\n    # REDUCE: structured aggregation that surfaces conflicts\n    aggregate = llm.reduce(\n        task=task,\n        partials=partials,\n        protocol=\"dependencies + claims + sources\",\n    )\n\n    # CONFIDENCE CALIBRATION: explicit pass to resolve conflicts\n    return llm.calibrate(\n        aggregate=aggregate,\n        partials=partials,\n        resolve_conflicts=true,\n    )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "outer-inner-agent-loop",
+      "intent": "Outer planner decomposes the goal into subtasks; inner ReAct executor runs each; outer may interrupt to replan when milestones slip. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two nested loops: outer holds global state and dispatches subtasks; inner runs a ReAct loop and reports structured results; outer can interrupt mid-run.",
+          "code": "function outer(goal):\n    plan = outer_agent.decompose(goal)      # subtasks with milestones\n    global_state = {goal: goal, done: []}\n\n    for sub in plan:\n        interrupt = Channel()\n        result = inner(sub, interrupt)      # may signal mid-run\n        global_state.done.append((sub, result))\n\n        if outer_agent.should_replan(global_state):\n            plan = outer_agent.replan(global_state)\n\n    return outer_agent.summarise(global_state)\n\nfunction inner(subtask, interrupt):\n    messages = [system_for(subtask)]\n    for step in 1..MAX_STEPS:\n        if interrupt.signalled():\n            return Result(ok=False, reason=\"outer asked to stop\")\n        reply = llm.generate(messages=messages, tools=tools_for(subtask))\n        messages.append(reply)\n        if not reply.tool_calls:\n            return Result(ok=True, value=reply.content)\n        for call in reply.tool_calls:\n            messages.append(tool_result(call.id, dispatch(call)))\n    return Result(ok=False, reason=\"step budget\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "passive-goal-creator",
+      "intent": "Refine the user's prompt into a precise actionable goal using memory and prior examples, before planning starts. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A goal-creation component sits between the dialogue interface and the planner; it reads memory and prior examples and emits a refined goal.",
+          "code": "function passive_goal_creator(user_prompt, conversation_id):\n    history = memory.recent_turns(conversation_id, k=10)\n    related = memory.search_tasks(user_prompt, k=5)\n    examples = memory.examples(positive=true, negative=true, k=3)\n\n    refined = llm.refine_goal(\n        prompt=user_prompt,\n        history=history,\n        related_tasks=related,\n        examples=examples,\n        schema=GOAL_SCHEMA,                 # forces actionable form\n    )\n\n    if refined.ambiguous:\n        return ask_user_to_disambiguate(refined.candidates)\n\n    return planner.start(refined)           # planner sees refined goal",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "plan-and-execute",
+      "intent": "Pay a strong planner once to emit an inspectable ordered plan, then walk it with a cheaper executor. Pseudo-code plus three frameworks.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two-stage loop: planner emits an ordered step list; executor walks it and only loops back to the planner on surprise.",
+          "code": "function plan_and_execute(goal):\n    plan = strong_llm.plan(goal)              # ordered list of steps\n    log(\"plan\", plan)                          # inspectable up front\n    results = []\n\n    for step in plan:\n        try:\n            result = cheap_llm.execute(step, context=results)\n            results.append(result)\n        except SurpriseOrFailure as exc:\n            # ask the strong planner to repair, given partial progress\n            plan = strong_llm.replan(goal, results, error=exc)\n            return plan_and_execute_continue(plan, results)\n\n    return cheap_llm.summarise(goal, results)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Structured-output planner produces an ordered step list; an agent executor walks each step under a cheaper model.",
+          "source_url": "https://www.langchain.com/blog/planning-agents",
+          "sdk_version": "langchain>=1.0",
+          "code": "from pydantic import BaseModel, Field\nfrom langchain.agents import create_agent\nfrom langchain.tools import tool\nfrom langchain_openai import ChatOpenAI\n\n\nclass Plan(BaseModel):\n    \"\"\"Ordered steps for the executor to walk.\"\"\"\n    steps: list[str] = Field(description=\"Concrete, ordered, atomic steps.\")\n\n\nplanner_llm = ChatOpenAI(model=\"gpt-4o\").with_structured_output(Plan)\nexecutor_llm = ChatOpenAI(model=\"gpt-4o-mini\")\n\n\n@tool\ndef search(q: str) -> str:\n    \"\"\"Search the web.\"\"\"\n    return f\"results for {q}\"\n\n\nexecutor = create_agent(executor_llm, tools=[search])\n\n\ndef run(goal: str) -> list[str]:\n    plan = planner_llm.invoke(\n        f\"Plan ordered steps to achieve: {goal}\"\n    )\n    results: list[str] = []\n    for step in plan.steps:\n        out = executor.invoke(\n            {\"messages\": [{\"role\": \"user\", \"content\": step}]}\n        )\n        results.append(out[\"messages\"][-1].content)\n    return results\n\n\nprint(run(\"book a team offsite in Barcelona for ten people next month\"))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "Plan-and-execute graph: a planner node populates state.plan; an executor node walks steps; a replanner edge returns to the planner on surprise.",
+          "source_url": "https://github.com/langchain-ai/langgraph",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from typing import TypedDict\nfrom langchain_openai import ChatOpenAI\nfrom langgraph.graph import StateGraph, END\nfrom langgraph.prebuilt import create_react_agent\n\n\nclass State(TypedDict):\n    goal: str\n    plan: list[str]\n    past: list[tuple[str, str]]\n\n\nplanner = ChatOpenAI(model=\"gpt-4o\")\nexecutor = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), tools=[])\n\n\ndef plan_step(state: State) -> State:\n    raw = planner.invoke(\n        f\"Return a numbered ordered plan for: {state['goal']}\"\n    ).content\n    state[\"plan\"] = [line.strip(\"-* 0123456789.\")\n                     for line in raw.splitlines() if line.strip()]\n    return state\n\n\ndef execute_step(state: State) -> State:\n    step = state[\"plan\"][len(state[\"past\"])]\n    out = executor.invoke({\"messages\": [{\"role\": \"user\", \"content\": step}]})\n    state[\"past\"].append((step, out[\"messages\"][-1].content))\n    return state\n\n\ndef should_continue(state: State) -> str:\n    return END if len(state[\"past\"]) >= len(state[\"plan\"]) else \"execute\"\n\n\ng = StateGraph(State)\ng.add_node(\"plan\", plan_step)\ng.add_node(\"execute\", execute_step)\ng.set_entry_point(\"plan\")\ng.add_edge(\"plan\", \"execute\")\ng.add_conditional_edges(\"execute\", should_continue)\napp = g.compile()\n\nprint(app.invoke({\"goal\": \"draft Q3 release notes\", \"plan\": [], \"past\": []}))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "agentscope",
+          "framework_label": "AgentScope",
+          "language": "python",
+          "intent": "AgentScope's ReActAgent instructed to plan first, then execute under the same loop; toolkit holds the executor tools.",
+          "source_url": "https://github.com/agentscope-ai/agentscope",
+          "sdk_version": "agentscope>=0.1",
+          "code": "import asyncio\nfrom agentscope.agent import ReActAgent\nfrom agentscope.memory import InMemoryMemory\nfrom agentscope.message import Msg\nfrom agentscope.model import DashScopeChatModel\nfrom agentscope.tool import Toolkit\n\n\ndef search_venue(city: str) -> str:\n    \"\"\"Search team-offsite venues in a city.\"\"\"\n    return f\"3 venue options for {city}\"\n\n\ndef book_venue(venue_id: str) -> str:\n    \"\"\"Book a venue by id.\"\"\"\n    return f\"booked {venue_id}\"\n\n\ntoolkit = Toolkit()\ntoolkit.register_tool_function(search_venue)\ntoolkit.register_tool_function(book_venue)\n\nagent = ReActAgent(\n    name=\"Planner\",\n    sys_prompt=(\n        \"First write a short ordered plan. Then execute the plan step \"\n        \"by step using the tools. Only deviate from the plan if a tool \"\n        \"result forces you to.\"\n    ),\n    model=DashScopeChatModel(model_name=\"qwen-max\"),\n    memory=InMemoryMemory(),\n    toolkit=toolkit,\n)\n\n\nasync def main():\n    reply = await agent(Msg(\"user\", \"Plan and book a Barcelona offsite\", \"user\"))\n    print(reply.content)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "planner-executor-observer",
+      "intent": "Three roles — Planner emits the plan, Executor runs steps, Observer reads cumulative results and decides loop/respond/replan. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each role has its own prompt and may use its own model; the Observer is what makes the loop honest about whether progress matches the plan.",
+          "code": "function run(goal):\n    plan = planner.run(goal)                # ordered steps\n    results = []\n\n    while true:\n        if len(results) >= len(plan):\n            verdict = observer.judge(goal, plan, results)\n            if verdict == \"respond\":\n                return executor.summarise(goal, results)\n            if verdict == \"replan\":\n                plan = planner.run(goal, context=results)\n                continue\n\n        step = plan[len(results)]\n        outcome = executor.run(step, context=results)\n        results.append(outcome)\n\n        # observer reads cumulative state, not just the latest step\n        verdict = observer.judge(goal, plan, results)\n        if verdict == \"replan\":\n            plan = planner.run(goal, context=results)\n        if verdict == \"respond\":\n            return executor.summarise(goal, results)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "planner-generator-evaluator-harness",
+      "intent": "Role-isolated agents: Planner emits a feature-list, Generator builds one chunk per fresh context, Evaluator grades against a fixed rubric without seeing the Generator's trace. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three roles, each invoked in a fresh context: Planner once, Generator per chunk, Evaluator per artefact revision; driver routes between them.",
+          "code": "function harness(goal):\n    feature_list = planner.run(goal)        # ordered chunks + criteria\n    artefact = empty_artefact()\n\n    for chunk in feature_list.chunks:\n        attempts = 0\n        while attempts < MAX_RETRIES:\n            # Generator runs in a fresh context: feature_list,\n            # current artefact, and the target chunk only.\n            artefact = generator.run(\n                feature_list=feature_list,\n                artefact=artefact,\n                chunk=chunk,\n            )\n            # Evaluator runs in its own fresh context: artefact +\n            # rubric only. It does not see the generator's trace.\n            verdict = evaluator.run(\n                artefact=artefact,\n                rubric=feature_list.rubric,\n            )\n            if verdict.pass_:\n                break\n            attempts += 1\n        if not verdict.pass_:\n            return Result(ok=false, chunk=chunk, findings=verdict.findings)\n\n    return Result(ok=true, artefact=artefact)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "proactive-goal-creator",
+      "intent": "Capture multimodal context (gestures, screen, audio, environment) alongside the user's prompt and fuse it into a refined goal, with explicit consent signalling. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Activates capture sensors, runs context engineering on multimodal input, fuses with the prompt, and notifies the user when capture is active.",
+          "code": "function proactive_goal_creator(user_prompt, session):\n    # explicit notification — low false-positive rate\n    if session.consent.allows_capture():\n        notify_user(\"capturing context: screen + camera\")\n\n    raw = {}\n    if session.devices.camera:\n        raw.gestures = camera.snapshot_and_classify()\n    if session.devices.screen:\n        raw.screen = screen.snapshot_and_ocr()\n    if session.devices.mic:\n        raw.audio_summary = mic.recent_window_summary()\n    if session.devices.sensors:\n        raw.environment = sensors.read()\n\n    engineered = context_engineer.filter_and_redact(raw)\n\n    refined = llm.fuse(\n        prompt=user_prompt,\n        multimodal_context=engineered,\n        schema=GOAL_SCHEMA,\n    )\n    return planner.start(refined)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "react",
+      "intent": "Interleave one Thought, one Action, and one Observation per step inside a bounded loop, in pseudo-code and three Python frameworks that ship the loop as a first-class abstraction.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic ReAct loop bounded by a step budget; one tool call per step, observation fed back to the model.",
+          "code": "function react(question, tools, max_steps):\n    messages = [system_prompt, user(question)]\n    for step in 1..max_steps:\n        reply = llm.generate(messages=messages, tools=tools)\n        messages.append(reply)            # records the Thought\n\n        if not reply.tool_calls:\n            return reply.content          # agent decided to answer\n\n        call = reply.tool_calls[0]        # one tool call per step\n        observation = dispatch(call.name, call.args)\n        messages.append(tool_result(call.id, observation))\n        # next iteration: model reasons over the fresh observation\n\n    return abort(\"step budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "create_agent owns the Thought/Action/Observation loop; the @tool docstring tells the model when to call it.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.tools import tool\nfrom langchain_openai import ChatOpenAI\n\n\n@tool\ndef search(query: str) -> str:\n    \"\"\"Search the web and return a short result string.\"\"\"\n    return f\"top result for: {query}\"\n\n\nmodel = ChatOpenAI(model=\"gpt-4o-mini\")\nagent = create_agent(\n    model,\n    tools=[search],\n    system_prompt=(\n        \"Use the search tool when the user's question needs fresh facts. \"\n        \"Call one tool at a time, then reason over the result.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Latest AI safety news?\"}]}\n)\nprint(result[\"messages\"][-1].content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "create_react_agent compiles a prebuilt Thought-Action-Observation graph with a recursion limit acting as the step budget.",
+          "source_url": "https://langchain-ai.github.io/langgraph/reference/prebuilt/",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from langchain_anthropic import ChatAnthropic\nfrom langchain_core.tools import tool\nfrom langgraph.prebuilt import create_react_agent\n\n\n@tool\ndef get_weather(location: str) -> str:\n    \"\"\"Return the current weather for a city.\"\"\"\n    return f\"{location}: 18C, light rain\"\n\n\nmodel = ChatAnthropic(model=\"claude-3-5-sonnet-latest\")\nagent = create_react_agent(\n    model,\n    tools=[get_weather],\n    prompt=(\n        \"You are a travel assistant. Call get_weather when the user asks \"\n        \"about conditions in a city. One tool call per step.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Should I bring a coat to Oslo?\"}]},\n    config={\"recursion_limit\": 10},   # step budget\n)\nprint(result[\"messages\"][-1].content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "ReActAgent runs the explicit reason-act-observe loop and works with any LLM, not just function-calling models.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/agent/react_agent",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import ReActAgent\nfrom llama_index.core.workflow import Context\nfrom llama_index.llms.openai import OpenAI\n\n\ndef multiply(a: int, b: int) -> int:\n    \"\"\"Multiply two integers and return the result.\"\"\"\n    return a * b\n\n\ndef add(a: int, b: int) -> int:\n    \"\"\"Add two integers and return the result.\"\"\"\n    return a + b\n\n\nllm = OpenAI(model=\"gpt-4o-mini\")\nagent = ReActAgent(tools=[multiply, add], llm=llm)\n\n\nasync def main():\n    ctx = Context(agent)\n    response = await agent.run(\"What is 20 + (2 * 4)?\", ctx=ctx)\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "replan-on-failure",
+      "intent": "Fire a replan when execution evidence contradicts the current plan; preserve compatible partial progress. Pseudo plus Temporal retry policy.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Defined replan triggers (tool error, unexpected observation, observer dissent) pause the executor and run the planner again with failure context.",
+          "code": "function execute_with_replan(goal):\n    plan = planner.run(goal)\n    progress = []\n\n    while plan.has_more(progress):\n        step = plan.next(progress)\n        try:\n            obs = executor.run(step)\n            if observer.dissents(step, obs):\n                raise ReplanTrigger(\"observer dissent\", obs)\n            if surprising(obs, step.expected):\n                raise ReplanTrigger(\"unexpected observation\", obs)\n            progress.append((step, obs))\n        except (ToolError, ReplanTrigger) as exc:\n            # preserve compatible partial progress\n            keep = [(s, o) for (s, o) in progress\n                    if plan.still_valid(s)]\n            plan = planner.run(\n                goal,\n                progress=keep,\n                failure=exc,\n            )\n            progress = keep\n\n    return executor.summarise(goal, progress)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "temporal",
+          "framework_label": "Temporal",
+          "language": "python",
+          "intent": "Temporal RetryPolicy bounds activity retries; on non-retryable failure the workflow catches the ApplicationError and re-invokes the planner activity with the failure context.",
+          "code": "from datetime import timedelta\nfrom temporalio import workflow\nfrom temporalio.common import RetryPolicy\nfrom temporalio.exceptions import ApplicationError\n\n\n@workflow.defn\nclass ReplanOnFailure:\n    @workflow.run\n    async def run(self, goal: str) -> str:\n        plan = await workflow.execute_activity(\n            \"plan\", goal,\n            start_to_close_timeout=timedelta(minutes=2),\n        )\n        progress: list[dict] = []\n\n        for step in plan:\n            try:\n                obs = await workflow.execute_activity(\n                    \"execute_step\", {\"step\": step, \"progress\": progress},\n                    start_to_close_timeout=timedelta(minutes=5),\n                    retry_policy=RetryPolicy(\n                        initial_interval=timedelta(seconds=2),\n                        maximum_attempts=3,\n                        # non_retryable: planner-relevant signals\n                        non_retryable_error_types=[\"ReplanTrigger\"],\n                    ),\n                )\n                progress.append({\"step\": step, \"obs\": obs})\n            except ApplicationError as exc:\n                if exc.type != \"ReplanTrigger\":\n                    raise\n                # replan with failure context; keep compatible progress\n                plan = await workflow.execute_activity(\n                    \"plan\",\n                    {\"goal\": goal, \"progress\": progress, \"failure\": str(exc)},\n                    start_to_close_timeout=timedelta(minutes=2),\n                )\n        return await workflow.execute_activity(\n            \"summarise\", {\"goal\": goal, \"progress\": progress},\n            start_to_close_timeout=timedelta(minutes=2),\n        )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://docs.temporal.io/encyclopedia/retry-policies",
+          "sdk_version": "temporalio>=1.6"
+        }
+      ]
+    },
+    {
+      "pattern_id": "rewoo",
+      "intent": "Plan a full dependency DAG with placeholder variables before any tool runs; a Worker resolves the placeholders; a Solver reads the resolved trace. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Planner emits steps with placeholder variables; Worker resolves dependencies in order; Solver reads the resolved trace and produces the answer.",
+          "code": "function rewoo(query):\n    # Planner emits a DAG: each step references prior outputs as #t1 etc.\n    # The planner does NOT see any tool observations.\n    plan = planner.run(\n        query,\n        schema=\"\"\"\n        steps:\n          - id: t1\n            tool: ToolA\n            args: {x: <literal>}\n          - id: t2\n            tool: ToolB\n            args: {input: \"#t1\"}\n        \"\"\",\n    )\n\n    # Worker executes in dependency order; substitutes #t_i references.\n    results = {}\n    for step in topological_order(plan.steps):\n        args = substitute(step.args, results)   # #t1 -> results[t1]\n        results[step.id] = run_tool(step.tool, args)\n\n    # Solver sees the resolved trace and produces the final answer.\n    return solver.run(query, plan=plan, results=results)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "rumination-agent",
+      "intent": "Run a single agent through a long think-search-verify-revise-act cycle, compacting context between iterations. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Five named phases per outer iteration; loop terminates on confidence, budget, or explicit answer-ready signal; context is compacted between cycles.",
+          "code": "function ruminate(question, budget):\n    trace = []\n    hypothesis = llm.initial_hypothesis(question)\n\n    for cycle in 1..budget:\n        # 1) think: update hypothesis from compacted trace\n        hypothesis = llm.think(question, hypothesis, trace)\n\n        # 2) search: tool calls scoped to the hypothesis\n        evidence = tools.search(scope=hypothesis)\n\n        # 3) verify: explicit pass/fail notes against the hypothesis\n        notes = llm.verify(hypothesis, evidence)\n\n        # 4) revise: narrow, broaden, or replace\n        hypothesis = llm.revise(hypothesis, notes)\n\n        # 5) act: write findings / update externalised plan\n        artefact = llm.act(question, hypothesis, evidence, notes)\n        trace = compact(trace + [(hypothesis, evidence, notes, artefact)])\n\n        if notes.confidence >= THRESHOLD or notes.answer_ready:\n            return artefact\n\n    return abort(\"budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "scheduled-agent",
+      "intent": "Trigger the agent on a fixed schedule with persisted state across runs. Pseudo plus three scheduler runtimes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Cron triggers; agent reads durable state, runs, writes results, exits. Idempotent so retries are safe.",
+          "code": "register_cron(\"0 6 * * *\", run_daily_digest)\n\nfunction run_daily_digest():\n    state = durable_store.read(\"digest\")\n    since = state.last_seen or \"yesterday\"\n\n    items = fetch_new_items(since=since)\n    if items.empty():\n        return                              # idle run, no work\n\n    digest = agent.summarise(items)\n    deliver(digest)\n\n    durable_store.write(\"digest\", {\n        \"last_seen\": items.max_timestamp,\n        \"last_run\": now(),\n    })",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "temporal",
+          "framework_label": "Temporal (Python)",
+          "language": "python",
+          "intent": "Client.create_schedule binds a workflow to a cron spec; Temporal handles missed runs, overlap policy, and history.",
+          "source_url": "https://docs.temporal.io/develop/python/schedules",
+          "sdk_version": "temporalio>=1.6",
+          "code": "import asyncio\nfrom datetime import timedelta\nfrom temporalio import workflow\nfrom temporalio.client import (\n    Client,\n    Schedule,\n    ScheduleActionStartWorkflow,\n    ScheduleSpec,\n)\n\n\n@workflow.defn\nclass DailyDigest:\n    @workflow.run\n    async def run(self) -> str:\n        # Read durable state, fetch new items, summarise, persist.\n        return await workflow.execute_activity(\n            \"build_digest\",\n            start_to_close_timeout=timedelta(minutes=10),\n        )\n\n\nasync def main() -> None:\n    client = await Client.connect(\"localhost:7233\")\n    await client.create_schedule(\n        \"daily-digest\",\n        Schedule(\n            action=ScheduleActionStartWorkflow(\n                DailyDigest.run,\n                id=\"daily-digest-wf\",\n                task_queue=\"agents\",\n            ),\n            spec=ScheduleSpec(cron_expressions=[\"0 6 * * *\"]),\n        ),\n    )\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "modal",
+          "framework_label": "Modal (Python)",
+          "language": "python",
+          "intent": "schedule= on @app.function turns any Python function into a managed cron job; state lives in a modal.Dict across runs.",
+          "source_url": "https://modal.com/docs/guide/cron",
+          "sdk_version": "modal>=0.64",
+          "code": "import modal\n\napp = modal.App(\"daily-digest\")\nstate = modal.Dict.from_name(\"digest-state\", create_if_missing=True)\n\nimage = modal.Image.debian_slim().pip_install(\"anthropic\")\n\n\n@app.function(image=image, schedule=modal.Cron(\"0 6 * * *\"))\ndef run_daily_digest() -> None:\n    import anthropic\n\n    last_seen = state.get(\"last_seen\", \"yesterday\")\n    items = fetch_new_items(since=last_seen)\n    if not items:\n        return\n\n    client = anthropic.Anthropic()\n    digest = client.messages.create(\n        model=\"claude-3-5-sonnet-latest\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\",\n                   \"content\": f\"Summarise these items:\\n{items}\"}],\n    ).content[0].text\n\n    deliver(digest)\n    state[\"last_seen\"] = max(i.timestamp for i in items)\n\n\ndef fetch_new_items(since): ...   # implemented elsewhere\ndef deliver(text): ...",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "restack",
+          "framework_label": "Restack (TypeScript)",
+          "language": "typescript",
+          "intent": "Restack workflow defines the agent's work; scheduleWorkflow binds it to a cron spec at the client side.",
+          "source_url": "https://docs.restack.io/features/workflows",
+          "sdk_version": "@restackio/ai@^0.0.x",
+          "code": "// workflow.ts\nimport { workflow, step } from \"@restackio/ai/workflow\";\nimport * as functions from \"./functions\";\n\n@workflow.defn()\nexport class DailyDigest {\n  @workflow.run\n  async run(): Promise<string> {\n    const items = await step<typeof functions>({}).fetchNewItems();\n    if (items.length === 0) return \"no-op\";\n    const digest = await step<typeof functions>({}).summarise(items);\n    await step<typeof functions>({}).deliver(digest);\n    return \"ok\";\n  }\n}\n\n// schedule.ts\nimport Restack from \"@restackio/ai\";\nimport { DailyDigest } from \"./workflow\";\n\nasync function schedule() {\n  const client = new Restack();\n  await client.scheduleWorkflow({\n    workflowName: DailyDigest.name,\n    workflowId: `daily-digest-${Date.now()}`,\n    cronSchedule: \"0 6 * * *\", // every day at 06:00 UTC\n  });\n}\n\nschedule();",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "spec-driven-loop",
+      "intent": "Run the same prompt against a fixed spec in a deterministic outer loop until tests pass. Pseudo plus a shell-loop and MetaGPT.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Outer shell loop pipes the same PROMPT.md into the agent each iteration; the agent updates a fix_plan.md and the test gate decides whether to stop.",
+          "code": "# outer shell loop — deterministic re-entry of the same prompt\nwhile true; do\n    cat PROMPT.md | claude_code        # one task at a time\n    # the agent updates fix_plan.md as part of the run\n\n    if run_tests; then\n        break                          # spec satisfied\n    fi\n\n    if [ $((iter += 1)) -gt MAX_ITERS ]; then\n        exit 1                         # bounded\n    fi\ndone\n\n# PROMPT.md (single source of truth):\n#   1. Read fix_plan.md\n#   2. Work the next unticked item\n#   3. Update fix_plan.md (tick / add follow-ups)\n#   4. Run the test command at the bottom\n# Subagents are used for parallel reads only; build/test stays serial.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "gpt-engineer",
+          "framework_label": "GPT-Engineer",
+          "language": "python",
+          "intent": "GPT-Engineer drives a CLI loop from a single prompt file; the agent re-reads the prompt, edits the workspace, and exits with a test gate that the wrapper checks.",
+          "code": "# spec_loop.sh — wrap gpt-engineer in a spec-driven outer loop\n# prerequisite: `pip install gpt-engineer` and a `PROMPT` file in ./project\n#\n# PROMPT (single source of truth) describes:\n#   - the desired behaviour\n#   - the test command (e.g. `pytest -q`)\n#   - where the agent should record progress (fix_plan.md)\n\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nPROJECT = Path(\"./project\")\nMAX_ITERS = 8\n\nfor i in range(MAX_ITERS):\n    # one iteration: gpt-engineer reads PROMPT and edits the workspace\n    subprocess.run([\"gpte\", str(PROJECT), \"--improve\"], check=True)\n\n    # test gate gates the next iteration\n    result = subprocess.run(\n        [\"pytest\", \"-q\"], cwd=PROJECT, capture_output=True\n    )\n    if result.returncode == 0:\n        print(f\"spec satisfied after {i + 1} iterations\")\n        sys.exit(0)\n\n    # otherwise the agent's own fix_plan.md is updated in-tree;\n    # the next iteration reads it from the same PROMPT.\nsys.exit(\"spec not satisfied within budget\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://github.com/AntonOsika/gpt-engineer",
+          "sdk_version": "gpt-engineer>=0.3"
+        },
+        {
+          "framework": "metagpt",
+          "framework_label": "MetaGPT",
+          "language": "python",
+          "intent": "MetaGPT's SoftwareCompany runs role agents against a single product spec; the loop ends when the QA role's tests pass.",
+          "code": "import asyncio\nfrom metagpt.software_company import SoftwareCompany\nfrom metagpt.roles import (\n    ProductManager,\n    Architect,\n    Engineer,\n    QaEngineer,\n)\n\n\nasync def main():\n    company = SoftwareCompany()\n    company.hire([\n        ProductManager(),    # turns PROMPT.md into a PRD\n        Architect(),         # turns PRD into a design\n        Engineer(),          # implements against the design\n        QaEngineer(),        # runs the test gate — closes the spec loop\n    ])\n    company.invest(investment=3.0)\n\n    # The spec lives in idea (or a PROMPT.md fed in here);\n    # the loop re-runs roles until QA reports green.\n    await company.run(\n        idea=\"Build a CLI todo app per ./PROMPT.md; pytest must pass.\",\n        n_round=8,\n    )\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://github.com/geekan/MetaGPT",
+          "sdk_version": "metagpt>=0.8"
+        }
+      ]
+    },
+    {
+      "pattern_id": "spec-first-agent",
+      "intent": "Drive the agent loop from a human-authored spec document instead of free-form prompts. Pseudo plus a gpt-engineer CLI example.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Spec file is the single source of truth; each iteration the agent reads it, executes against it, optionally updates it under controlled conditions.",
+          "code": "function spec_first_agent(spec_path):\n    while not done(spec_path):\n        spec = read(spec_path)              # single source of truth\n        plan = agent.plan_from_spec(spec)\n\n        for step in plan:\n            run(step)                       # acts only against the spec\n\n        # spec is the definition of done — the agent does NOT redefine it\n        if agent.thinks_spec_changed_and_allowed():\n            propose = agent.propose_spec_edit(spec)\n            if reviewer.approve(propose):   # controlled update path\n                write(spec_path, propose)\n\n        if test_against_spec(spec_path):\n            return \"done\"",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "gpt-engineer",
+          "framework_label": "GPT-Engineer",
+          "language": "python",
+          "intent": "GPT-Engineer reads a single human-authored `prompt` file as the spec and operates entirely against it; the `improve` mode re-runs the agent against the same spec on edits.",
+          "code": "# project layout (spec-first):\n#   project/\n#     prompt           <- human-authored spec, single source of truth\n#     src/...          <- agent's output\n#\n# Authoring flow:\n#   1. write `prompt`\n#   2. `gpte project` — agent reads `prompt` and produces src/\n#   3. edit `prompt` only — never edit src/ directly\n#   4. `gpte project --improve` — agent re-runs against the same spec\n\nimport subprocess\nfrom pathlib import Path\n\nproject = Path(\"./project\")\nspec = project / \"prompt\"\nassert spec.exists(), \"spec is required before the agent runs\"\n\n# bootstrap: first run reads `prompt` and writes src/\nsubprocess.run([\"gpte\", str(project)], check=True)\n\n# subsequent runs: edit `prompt`, then re-run improve\nsubprocess.run([\"gpte\", str(project), \"--improve\"], check=True)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://github.com/AntonOsika/gpt-engineer",
+          "sdk_version": "gpt-engineer>=0.3"
+        }
+      ]
+    },
+    {
+      "pattern_id": "todo-list-driven-agent",
+      "intent": "Write a todo.md early, tick items as the agent completes them, re-inject the unticked tail at each turn. Pseudo plus AutoGPT and BabyAGI.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Plan is a checklist file in the sandbox; each turn reads the file, works the next unticked item, updates the file, re-injects the tail.",
+          "code": "function todo_driven_agent(goal, sandbox):\n    # 1) author the plan as a file in the sandbox\n    if not sandbox.exists(\"todo.md\"):\n        sandbox.write(\"todo.md\", agent.draft_plan(goal))\n\n    while true:\n        todo = sandbox.read(\"todo.md\")\n        items = parse_checklist(todo)\n        unticked = [i for i in items if not i.done]\n        if not unticked:\n            return agent.summarise(goal, todo)\n\n        next_item = unticked[0]\n\n        # re-inject the unticked tail into the prompt\n        outcome = agent.run_one_turn(\n            goal=goal,\n            current_item=next_item,\n            remaining=unticked,\n        )\n\n        # update the file: tick, add follow-ups, drop dead-ends\n        todo = update_checklist(todo, next_item, outcome)\n        sandbox.write(\"todo.md\", todo)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogpt",
+          "framework_label": "AutoGPT (classic)",
+          "language": "python",
+          "intent": "Original AutoGPT keeps a self-maintained plan and runs one tool action per cycle, updating the plan and re-injecting it.",
+          "code": "# distilled from autogpt/agents/agent.py in Significant-Gravitas/AutoGPT\n# (classic loop). The agent owns its own plan file and updates it each cycle.\n\nfrom pathlib import Path\n\nplan_file = Path(\"workspace/plan.md\")\nmax_cycles = 30\n\nif not plan_file.exists():\n    plan_file.write_text(agent.draft_plan(goal=\"Research and report on X\"))\n\nfor cycle in range(max_cycles):\n    plan = plan_file.read_text()\n    unticked = [line for line in plan.splitlines() if line.startswith(\"- [ ]\")]\n    if not unticked:\n        break\n\n    # one cycle: pick next action, run a tool, update plan\n    thought = agent.think(plan=plan, history=agent.history)\n    action = agent.choose_action(thought)\n    observation = agent.execute(action)\n\n    plan = agent.update_plan(\n        plan=plan,\n        completed=unticked[0],\n        observation=observation,\n    )\n    plan_file.write_text(plan)              # durable across cycles",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://github.com/Significant-Gravitas/AutoGPT/blob/master/classic/original_autogpt/autogpt/agents/agent.py",
+          "sdk_version": "AutoGPT classic"
+        },
+        {
+          "framework": "babyagi",
+          "framework_label": "BabyAGI",
+          "language": "python",
+          "intent": "BabyAGI keeps an in-process task list, executes the top task, then asks the LLM to add new tasks and reprioritise — the list IS the plan.",
+          "code": "# distilled from yoheinakajima/babyagi — the task list IS the plan.\nfrom collections import deque\n\nobjective = \"Research the topic and write a report\"\ntask_list: deque[dict] = deque([{\"id\": 1, \"name\": \"Draft outline\"}])\nresults_store: dict = {}\n\nwhile task_list:\n    task = task_list.popleft()\n    # 1) execute the top task\n    result = execution_agent(objective, task[\"name\"])\n    results_store[task[\"id\"]] = result\n\n    # 2) ask the LLM to create follow-up tasks based on the result\n    new_tasks = task_creation_agent(\n        objective=objective,\n        result=result,\n        task_description=task[\"name\"],\n        task_list=[t[\"name\"] for t in task_list],\n    )\n    next_id = max((t[\"id\"] for t in task_list), default=task[\"id\"]) + 1\n    for nt in new_tasks:\n        task_list.append({\"id\": next_id, \"name\": nt})\n        next_id += 1\n\n    # 3) reprioritise the remaining list\n    task_list = prioritization_agent(\n        task_list=list(task_list),\n        objective=objective,\n    )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://github.com/yoheinakajima/babyagi",
+          "sdk_version": "babyagi (original)"
+        }
+      ]
+    },
+    {
+      "pattern_id": "visual-workflow-graph",
+      "intent": "Workflow as a typed graph of nodes connected on a canvas, persisted as a serialisable artefact the runtime executes. Pseudo plus Langflow and Flowise JSON shapes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A small vocabulary of typed nodes (Start, End, LLM, Tool, Conditional, Iteration, Agent) connected by typed edges; the JSON/YAML artefact is the source of truth, the canvas is its UI projection.",
+          "code": "graph:\n  nodes:\n    - id: start\n      type: Start\n      outputs: {message: string}\n\n    - id: classify\n      type: LLM\n      model: gpt-4o-mini\n      inputs: {message: \"$start.message\"}\n      outputs: {intent: string}\n\n    - id: route\n      type: Conditional\n      cases:\n        - when: \"intent == 'billing'\"\n          goto: billing_agent\n        - default: tech_agent\n\n    - id: billing_agent\n      type: Agent\n      tools: [lookup_invoice]\n      outputs: {reply: string}\n\n    - id: tech_agent\n      type: Agent\n      tools: [search_kb]\n      outputs: {reply: string}\n\n    - id: end\n      type: End\n      inputs: {reply: \"$billing_agent.reply | $tech_agent.reply\"}\n\nedges:\n  - {from: start,         to: classify}\n  - {from: classify,      to: route}\n  - {from: route,         to: [billing_agent, tech_agent]}\n  - {from: billing_agent, to: end}\n  - {from: tech_agent,    to: end}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langflow",
+          "framework_label": "Langflow",
+          "language": "json",
+          "intent": "Langflow persists a flow as a JSON `data` object with `nodes` and `edges`; each node carries a `type` and a typed `data.node.template`. The canvas is a UI projection of this file.",
+          "code": "{\n  \"data\": {\n    \"nodes\": [\n      {\n        \"id\": \"ChatInput-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\n          \"type\": \"ChatInput\",\n          \"node\": {\n            \"template\": {\n              \"input_value\": {\"type\": \"str\", \"value\": \"\"}\n            },\n            \"base_classes\": [\"Message\"]\n          }\n        }\n      },\n      {\n        \"id\": \"OpenAIModel-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\n          \"type\": \"OpenAIModel\",\n          \"node\": {\n            \"template\": {\n              \"model_name\": {\"type\": \"str\", \"value\": \"gpt-4o-mini\"},\n              \"input_value\": {\"type\": \"Message\"}\n            },\n            \"base_classes\": [\"Message\"]\n          }\n        }\n      },\n      {\n        \"id\": \"ChatOutput-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\"type\": \"ChatOutput\", \"node\": {\"template\": {}}}\n      }\n    ],\n    \"edges\": [\n      {\"source\": \"ChatInput-1\",   \"target\": \"OpenAIModel-1\",\n       \"sourceHandle\": \"message\", \"targetHandle\": \"input_value\"},\n      {\"source\": \"OpenAIModel-1\", \"target\": \"ChatOutput-1\",\n       \"sourceHandle\": \"message\", \"targetHandle\": \"input_value\"}\n    ]\n  }\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://docs.langflow.org/concepts-overview",
+          "sdk_version": "langflow>=1.0"
+        },
+        {
+          "framework": "flowise",
+          "framework_label": "Flowise",
+          "language": "json",
+          "intent": "Flowise persists a chatflow as `nodes` and `edges` with typed handles; AgentFlow v2 nodes (Start, LLM, Agent, Condition, End) are wired by source/target handle ids.",
+          "code": "{\n  \"nodes\": [\n    {\n      \"id\": \"startAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"startAgentflow\", \"label\": \"Start\",\n               \"inputs\": {\"startInputType\": \"chatInput\"}}\n    },\n    {\n      \"id\": \"llmAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"llmAgentflow\", \"label\": \"LLM\",\n               \"inputs\": {\"llmModel\": \"chatOpenAI\",\n                          \"llmModelConfig\": {\"modelName\": \"gpt-4o-mini\"}}}\n    },\n    {\n      \"id\": \"conditionAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"conditionAgentflow\", \"label\": \"Condition\",\n               \"inputs\": {\"conditions\":\n                 [{\"value1\": \"{{ llmAgentflow_0 }}\", \"operation\": \"contains\",\n                   \"value2\": \"billing\"}]}}\n    },\n    {\n      \"id\": \"agentAgentflow_billing\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"agentAgentflow\", \"label\": \"Billing Agent\"}\n    }\n  ],\n  \"edges\": [\n    {\"source\": \"startAgentflow_0\",     \"target\": \"llmAgentflow_0\"},\n    {\"source\": \"llmAgentflow_0\",       \"target\": \"conditionAgentflow_0\"},\n    {\"source\": \"conditionAgentflow_0\", \"target\": \"agentAgentflow_billing\",\n     \"sourceHandle\": \"conditionAgentflow_0-output-0\"}\n  ]\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21",
+          "source_url": "https://docs.flowiseai.com/using-flowise/agentflowv2",
+          "sdk_version": "flowise>=2.0"
+        }
+      ]
+    }
+  ]
+}

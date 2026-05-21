@@ -11,11 +11,11 @@ Anti-pattern: every bug fix adds a sentence to the system prompt; nothing is eve
 
 ## Context
 
-Production agents whose system prompt grows monotonically over months; no eviction policy; no review for relevance.
+A production agent has been live for months and the system prompt has grown one sentence at a time. Each bug fix, edge case, and customer complaint adds another instruction; nothing is ever removed because removing a line feels riskier than leaving it. There is no owner of the prompt as a whole, no review on prompt diffs, and no eviction policy for instructions that are no longer relevant.
 
 ## Problem
 
-Past a few thousand tokens, the prompt squeezes retrieval, forces cache misses, and yields diminishing-returns instruction following. Distinct from hero-agent (which is about scope) — this is about prompt accretion as a process.
+Past a few thousand tokens, the prompt starts to squeeze retrieved context and tool definitions out of the model's attention budget, prompt-cache reuse degrades because every small edit changes the cached prefix, and instructions that were added at different times begin to contradict each other. The model resolves the contradictions inconsistently, so newer rules silently override older ones for some inputs and not others. This is distinct from a hero agent, which is about scope; this is about the accretion process itself, where the prompt is treated as append-only documentation rather than as code.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A coding-agent team adds one sentence to the system prompt every time a customer
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Bug1[Bug fix 1] -->|+sentence| P[System prompt]
   Bug2[Bug fix 2] -->|+sentence| P
   Bug3[Bug fix 3] -->|+sentence| P

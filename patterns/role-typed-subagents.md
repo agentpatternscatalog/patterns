@@ -11,11 +11,11 @@ Anti-pattern: pre-allocate roles (manager, coder, designer, researcher) across a
 
 ## Context
 
-Multi-agent designs where the architect decides up-front which roles exist and assigns each sub-agent a narrow system prompt and tool palette tied to that role.
+A team is designing a multi-agent system and, before seeing real workloads, decides on a fixed set of roles — typically manager, researcher, coder, designer, reviewer — and gives each role its own narrow system prompt and restricted tool palette. The orchestrator routes each task to a sub-agent by matching the task to a role label. The architecture diagram looks like clean separation of concerns, and each specialist agent is cheaper per call than a general-purpose one.
 
 ## Problem
 
-The fixed role table constrains the system to whatever decomposition the architect anticipated; tasks that do not fit a named role are forced into the closest one, and capability-equal parallelism (running many full-capability instances against the same task) is structurally unavailable.
+Real workloads do not partition cleanly into the roles the architect imagined in advance. Tasks that fall between two roles get squeezed into whichever label is closest, and the chosen specialist underperforms because its tool palette is missing what the task actually needs. Adding a new role means changing the architecture rather than parameters, and capability-equal parallelism — running many fully capable, identical sub-agents in parallel on the same subtask — is structurally impossible because no sub-agent has the full tool set.
 
 ## Forces
 

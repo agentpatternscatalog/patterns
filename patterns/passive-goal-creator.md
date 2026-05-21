@@ -11,11 +11,11 @@ Analyse the user's articulated prompts and accompanying context to derive a prec
 
 ## Context
 
-Users interact with the agent through a dialogue interface, providing prompts that may be ambiguous, incomplete, or under-specified relative to the work the agent must do.
+A team runs an agent behind a dialogue interface — a chatbot, a coding assistant, a personal-assistant surface — where users type short, conversational prompts. Those prompts are often under-specified relative to what the agent has to do: the user says "book me a flight Thursday" and leaves the destination, the time of day, and the preferences implicit. Other relevant context (recent conversation, stored preferences, prior tasks) lives in memory but does not arrive automatically with the prompt.
 
 ## Problem
 
-Plans built directly from raw user prompts inherit the user's underspecification; the agent then either guesses or fails. The agent needs an explicit step that turns the user's prompt plus relevant context into a goal precise enough to plan against.
+If the planner reads the raw user prompt directly it inherits all of that under-specification. It then either guesses (producing confidently wrong work the user has to correct) or fails on a missing field. Pushing the clarification work into every downstream component spreads the same problem across many places. The team needs one early step that turns a thin dialogue prompt plus retrieved memory into a precise, structured goal that the planner can act on.
 
 ## Forces
 
@@ -51,7 +51,7 @@ A user types: "book me a flight Thursday". A passive goal creator pulls recent c
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User] -->|prompt| D[Dialogue interface]
   D --> P[Passive goal creator]
   P <-->|retrieve context| M[Memory]

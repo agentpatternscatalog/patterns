@@ -11,11 +11,11 @@ Decompose a hard problem into an ordered list of easier subproblems, then solve 
 
 ## Context
 
-Tasks with poor length or complexity generalisation: the model handles the easy training-style cases but fails on harder, longer instances.
+A team is using a model on a task class where short, training-style examples work fine but longer or more complex instances fail. For example, the model can handle two-step word problems but starts losing pieces on five-step ones, or it follows two-clause instructions but drops information when there are seven. Plain chain-of-thought reasoning closes some of this gap but still breaks down at the hard end of the distribution.
 
 ## Problem
 
-CoT generalises poorly out of distribution; the model needs explicit scaffolding for harder instances.
+Even with chain-of-thought, the model is still trying to span the whole problem in a single reasoning trace. As the problem grows, the trace gets long and the model loses track partway through, makes a wrong commitment early, and never recovers. Without an explicit way to break a hard instance into ordered, simpler subproblems and have the model see each one in turn with the prior answers in hand, accuracy collapses on exactly the cases where the technique was supposed to help.
 
 ## Forces
 

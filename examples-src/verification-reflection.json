@@ -1,0 +1,375 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "verification-reflection",
+  "label": "Verification & Reflection",
+  "patterns": [
+    {
+      "pattern_id": "agentic-context-engineering-playbook",
+      "intent": "Show the Generator/Reflector/Curator delta loop against an item-addressable playbook, with no whole-playbook rewrites.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The playbook is a list of items keyed by stable id; deltas are strictly add/edit/remove ops, never a full rewrite.",
+          "code": "# Playbook item: {id, tactic, example?, provenance, score}\nplaybook = load_playbook()         # list of items, ordered, ids stable\n\nfunction run_episode(task):\n    prompt = render_system(playbook) + task\n    trajectory, outcome = agent.run(prompt)\n\n    # 1. Generator: propose candidate items as deltas, not rewrites.\n    candidates = generator.propose(trajectory, outcome)\n    # candidates = [{op: 'add', item: {...}}, {op: 'edit', id: 'p-42', ...}, ...]\n\n    # 2. Reflector: score each candidate against existing items + outcome.\n    scored = reflector.review(\n        candidates=candidates,\n        existing=playbook,\n        outcome=outcome,\n    )\n    keep = [d for d in scored if d.action in {'add','edit','remove'}]\n\n    # 3. Curator: apply deltas with dedup; whole-playbook rewrites forbidden.\n    for delta in keep:\n        assert delta.op in {'add','edit','remove'}      # invariant\n        playbook = apply_delta(playbook, delta)         # by id\n    playbook = dedup_by_semantic_hash(playbook)\n    save_playbook(playbook)\n    return outcome",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "best-of-n",
+      "intent": "Sample N candidates at non-zero temperature and select the highest-ranked by a scorer or reward model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Sample N independent candidates, score each, return top-1; the scorer is the load-bearing piece.",
+          "code": "function best_of_n(prompt, N, temperature=0.8):\n    candidates = []\n    for i in 1..N:\n        c = llm.generate(prompt, temperature=temperature, seed=i)\n        candidates.append(c)\n\n    # Score with a reward model, rubric judge, or rule-based scorer.\n    scored = [(c, scorer.score(prompt, c)) for c in candidates]\n    scored.sort(key=lambda x: -x[1])\n\n    best, best_score = scored[0]\n    log(\"bon_score_spread\", scored[0][1] - scored[-1][1])  # diagnostic\n    return best",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "BootstrapFewShotWithRandomSearch generates num_candidate_programs candidate prompt programs, scores each with the metric, and returns the top-1 compiled program.",
+          "source_url": "https://dspy.ai/learn/optimization/optimizers/",
+          "sdk_version": "dspy>=2.5",
+          "code": "import dspy\n\n# 1. Define the program and a scorer (this is the reward signal for BoN).\nclass AnswerQA(dspy.Signature):\n    \"\"\"Answer the question concisely.\"\"\"\n    question: str = dspy.InputField()\n    answer: str = dspy.OutputField()\n\n\nprogram = dspy.Predict(AnswerQA)\n\n\ndef exact_match(example, pred, trace=None):\n    return float(pred.answer.strip().lower() == example.answer.strip().lower())\n\n\n# 2. BootstrapFewShotWithRandomSearch samples num_candidate_programs\n#    candidate programs and selects the best by metric — best-of-N at\n#    the prompt-program level rather than at the single-output level.\noptimizer = dspy.BootstrapFewShotWithRandomSearch(\n    metric=exact_match,\n    max_bootstrapped_demos=4,\n    max_labeled_demos=4,\n    num_candidate_programs=10,\n    num_threads=4,\n)\n\ntrainset = [\n    dspy.Example(question=\"Capital of France?\", answer=\"Paris\").with_inputs(\"question\"),\n    # ...\n]\nbest_program = optimizer.compile(program, trainset=trainset)\nprint(best_program(question=\"Capital of Germany?\").answer)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "blind-grader-with-isolated-context",
+      "intent": "Allocate a fresh context window for the grader containing only the artefact and rubric — never the producer's reasoning trace.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Producer's scratchpad never crosses into the grader context; the grader sees artefact + rubric only.",
+          "code": "function produce_and_grade(task, rubric):\n    # Producer runs in its own context with reasoning, tools, scratchpad.\n    producer_ctx = new_context()\n    artefact, trace = producer.run(producer_ctx, task)\n\n    # Grader runs in a FRESH context. Trace is deliberately NOT passed.\n    grader_ctx = new_context()           # new conversation/session\n    grader_prompt = render(\n        system=\"Judge the artefact strictly against the rubric.\",\n        rubric=rubric,\n        artefact=artefact,\n        # explicitly NOT: producer reasoning, prior turns, scratchpad\n    )\n    verdict = grader.run(grader_ctx, grader_prompt)\n\n    # Log both for audit, but the decision was made blind to the trace.\n    audit_log.append({\n        artefact: artefact,\n        producer_trace: trace,         # logged, not seen by grader\n        verdict: verdict,\n        rubric_version: rubric.version,\n    })\n    return verdict",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "confidence-reporting",
+      "intent": "Emit a confidence label alongside the answer so downstream consumers can route low-confidence cases to fallback or human review.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Answer and confidence travel together; low confidence triggers a different downstream path.",
+          "code": "function answer_with_confidence(question):\n    # Source the confidence signal. Pick whichever fits the task:\n    #  - self-consistency sample agreement\n    #  - retrieval recall@k\n    #  - rubric score from a grader\n    samples = [llm.generate(question, temperature=0.7) for _ in 1..N]\n    answer, agreement = majority_vote(samples)\n    confidence = bucket(agreement)         # 'high' | 'medium' | 'low'\n\n    result = {\n        answer: answer,\n        confidence: confidence,\n        confidence_score: agreement,\n        method: \"self_consistency\",\n    }\n\n    # Route on confidence, do not hide it.\n    if confidence == \"low\":\n        route_to_human_review(result)\n    return result                          # UI renders confidence visibly",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "critic",
+      "intent": "After draft generation, the model emits a critique that names suspected errors and uses tools to verify them; iterate until tools find no more issues.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The critic is tool-backed: it queries search/code-exec/calculator to verify suspected errors before revising.",
+          "code": "function critic_loop(question, MAX_ITERS=4):\n    draft = llm.generate(question)\n\n    for i in 1..MAX_ITERS:\n        # Critic identifies suspected errors AND tool calls to verify them.\n        critique = llm.generate(\n            prompt=critic_prompt(draft),\n            tools=[search, run_python, calculator],\n        )\n\n        # Execute the verification tool calls the critic asked for.\n        findings = []\n        for call in critique.tool_calls:\n            evidence = dispatch(call)\n            findings.append({call: call, evidence: evidence})\n\n        if not findings or all(f.confirms_correct for f in findings):\n            return draft                  # critic found nothing — stop\n\n        # Revise using verified findings, not just the critic's hunch.\n        draft = llm.generate(revise_prompt(draft, findings))\n\n    return draft                          # budget exhausted",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "darwin-godel-self-rewrite",
+      "intent": "Maintain a versioned archive of self-modifications; sample parents by diversity, gate viability, and store every viable variant.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Selection is from the archive, not the current best — that is what enables stepping-stone escapes from local optima.",
+          "code": "archive = [seed_variant]               # versioned, each with score + lineage\n\nfunction generation():\n    # 1. Sample parent by DIVERSITY policy, not strictly the top scorer.\n    parent = diversity_sample(archive)\n\n    # 2. Propose a self-modification (code or prompt diff).\n    mutation = agent.propose_mutation(parent)\n    candidate = apply(parent, mutation)\n\n    # 3. Viability gate — cheap, hard checks BEFORE scoring.\n    if not (compiles(candidate)\n            and passes_safety_checks(candidate)\n            and smoke_test(candidate)):\n        return                          # discard, do not archive\n\n    # 4. Score on the real objective.\n    score = objective.evaluate(candidate)\n\n    # 5. Archive viable variants — including low scorers (stepping stones).\n    archive.append({\n        variant: candidate,\n        score: score,\n        parent_id: parent.id,\n        mutation: mutation,\n    })\n    archive = prune_to_capacity(archive, keep_diversity=True)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "deterministic-llm-sandwich",
+      "intent": "Bracket the LLM call with deterministic pre- and post-checks; on post failure, return the original unchanged.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three layers — pre-check gates whether to call the LLM, post-check gates whether to accept its output.",
+          "code": "function sandwich(original):\n    # PRE: deterministic gate. Skip LLM entirely if the input is invalid.\n    if not pre_check(original):           # e.g. AST parse must succeed\n        return original                   # don't even call the model\n\n    # LLM: produces a candidate under a structured-output schema and\n    # a frozen rubric. Temperature low; schema-enforced.\n    candidate = llm.generate(\n        prompt=transform_prompt(original),\n        response_schema=OUTPUT_SCHEMA,\n        temperature=0.0,\n    )\n\n    # POST: deterministic re-validation. The model is NOT trusted.\n    if not post_check(candidate):         # parse + typecheck + tests\n        log(\"sandwich_reject\", reason=post_check.last_error)\n        return original                   # fail closed: original unchanged\n\n    return candidate",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "echo-recognition",
+      "intent": "Recognise message repetition as emphasis or a re-ask; do not re-run from scratch.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Maintain a ring of recent user inputs; on similarity hit, fold the echo into the prior turn instead of generating a near-duplicate reply.",
+          "code": "RING_SIZE = 5\nSIM_THRESHOLD = 0.85\nrecent = deque(maxlen=RING_SIZE)        # [(text, timestamp, reply_id)]\n\nfunction on_user_input(text):\n    now = clock.now()\n\n    # Compare against recent inputs (token-overlap or embedding sim).\n    for prev in recent:\n        sim = similarity(text, prev.text)\n        if sim >= SIM_THRESHOLD and (now - prev.timestamp) < ECHO_WINDOW:\n            # Echo detected. Do NOT re-run the agent from scratch.\n            return surface_prior_reply(\n                prior_reply_id=prev.reply_id,\n                clarifier=\"I read this as emphasis. Should I deepen X or pivot?\",\n            )\n\n    # Fresh input — run normally and record.\n    reply = agent.respond(text)\n    recent.append({text: text, timestamp: now, reply_id: reply.id})\n    return reply",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "evaluator-optimizer",
+      "intent": "Two roles — Generator produces, Evaluator scores and feeds back, Generator revises — loop until criteria pass or max iterations.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Separate generator and evaluator (may be different models or prompts); feedback is concrete, not 'try harder'.",
+          "code": "function evaluator_optimizer(task, MAX_ITERS=4):\n    candidate = generator.generate(task)\n\n    for i in 1..MAX_ITERS:\n        verdict = evaluator.score(\n            task=task,\n            candidate=candidate,\n            criteria=CRITERIA,\n        )\n        # verdict = {pass: bool, score: float, feedback: \"...\"}\n\n        if verdict.pass:\n            return candidate, verdict\n\n        # Feedback must be concrete improvement points, not a vague rating.\n        candidate = generator.revise(\n            task=task,\n            previous=candidate,\n            feedback=verdict.feedback,\n        )\n\n    return candidate, verdict              # budget hit — best-effort",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pydantic-ai",
+          "framework_label": "Pydantic AI",
+          "language": "python",
+          "intent": "A pydantic-evals Evaluator scores an agent's output; the calling loop revises the prompt with the evaluator's verdict until the score crosses a threshold.",
+          "source_url": "https://pydantic.dev/docs/ai/evals/evals/",
+          "sdk_version": "pydantic-ai>=0.0.50",
+          "code": "from dataclasses import dataclass\nfrom pydantic_ai import Agent\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\nagent = Agent(\"openai:gpt-4o-mini\", system_prompt=\"You write concise emails.\")\n\n\n@dataclass\nclass ConcisenessEvaluator(Evaluator[str, str]):\n    max_words: int = 80\n\n    async def evaluate(self, ctx: EvaluatorContext[str, str]) -> float:\n        words = len(ctx.output.split())\n        return 1.0 if words <= self.max_words else self.max_words / max(words, 1)\n\n\nasync def evaluator_optimizer_loop(task: str, target: float = 0.95) -> str:\n    evaluator = ConcisenessEvaluator()\n    candidate = (await agent.run(task)).output\n    feedback = \"\"\n    for _ in range(4):\n        ctx = EvaluatorContext(name=\"case\", inputs=task, output=candidate,\n                               expected_output=None, metadata=None,\n                               metrics={}, attributes={}, span_tree=None)\n        score = await evaluator.evaluate(ctx)\n        if score >= target:\n            return candidate\n        feedback = f\"Previous was too long ({len(candidate.split())} words). Cut hard.\"\n        candidate = (await agent.run(f\"{task}\\n\\nFeedback: {feedback}\")).output\n    return candidate",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "mastra",
+          "framework_label": "Mastra",
+          "language": "typescript",
+          "intent": "Attach a scorer to a Mastra Agent; the application loop reads the score and revises the prompt when below threshold.",
+          "source_url": "https://mastra.ai/docs/evals/overview",
+          "sdk_version": "@mastra/core>=0.10",
+          "code": "import { Agent } from '@mastra/core/agent';\nimport { createAnswerRelevancyScorer } from '@mastra/evals/scorers/prebuilt';\n\nconst relevancy = createAnswerRelevancyScorer({ model: 'openai/gpt-4o-mini' });\n\nconst writer = new Agent({\n  name: 'writer',\n  instructions: 'Answer the user question precisely.',\n  model: 'openai/gpt-4o-mini',\n  scorers: {\n    relevancy: { scorer: relevancy, sampling: { type: 'ratio', rate: 1 } },\n  },\n});\n\nasync function evaluatorOptimizer(task: string, threshold = 0.8) {\n  let feedback = '';\n  let candidate = '';\n  for (let i = 0; i < 4; i++) {\n    const prompt = feedback ? `${task}\\n\\nReviewer feedback: ${feedback}` : task;\n    const res = await writer.generate(prompt);\n    candidate = res.text;\n    const score = await relevancy.score({ input: task, output: candidate });\n    if (score.score >= threshold) return candidate;\n    feedback = score.reason ?? 'Not relevant enough to the question.';\n  }\n  return candidate;\n}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "DSPy compiles a generator program against a metric (evaluator); the optimizer is the loop that revises few-shot demos until the metric stops improving.",
+          "source_url": "https://dspy.ai/",
+          "sdk_version": "dspy>=2.5",
+          "code": "import dspy\n\nlm = dspy.LM(\"openai/gpt-4o-mini\")\ndspy.configure(lm=lm)\n\n\nclass Draft(dspy.Signature):\n    \"\"\"Draft a concise email for the given task.\"\"\"\n    task: str = dspy.InputField()\n    email: str = dspy.OutputField()\n\n\ngenerator = dspy.ChainOfThought(Draft)\n\n\ndef evaluator_metric(example, pred, trace=None) -> float:\n    # Evaluator role: judge concision + on-topic-ness.\n    too_long = len(pred.email.split()) > 80\n    on_topic = example.task.split()[0].lower() in pred.email.lower()\n    return 0.0 if too_long else (1.0 if on_topic else 0.4)\n\n\ntrainset = [\n    dspy.Example(task=\"refund\", email=\"...\").with_inputs(\"task\"),\n]\n\n# BootstrapFewShot acts as the optimizer loop: propose demo sets,\n# score with evaluator_metric, keep the best.\noptimizer = dspy.BootstrapFewShot(metric=evaluator_metric, max_rounds=4)\nbest = optimizer.compile(generator, trainset=trainset)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "frozen-rubric-reflection",
+      "intent": "Constrain the reviewer to a fixed, schema-enforced rubric so it cannot invent new categories each run.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Rubric is a fixed enum; the schema rejects any finding category outside it. Temperature is zero.",
+          "code": "RUBRIC = [\n    \"factual_error\",\n    \"unsupported_claim\",\n    \"tone_mismatch\",\n    \"missing_citation\",\n]\n\n# Schema enforces: every finding's 'category' MUST be one of RUBRIC.\nFINDING_SCHEMA = {\n    type: \"object\",\n    properties: {\n        findings: {\n            type: \"array\",\n            items: {\n                type: \"object\",\n                properties: {\n                    category: {enum: RUBRIC},      # <-- frozen\n                    span: {type: \"string\"},\n                    fix: {type: \"string\"},\n                },\n                required: [\"category\", \"span\", \"fix\"],\n            },\n        },\n    },\n}\n\nfunction review(artefact):\n    response = llm.generate(\n        prompt=render(RUBRIC, artefact),\n        response_schema=FINDING_SCHEMA,\n        temperature=0.0,\n    )\n    # Schema validation rejects any invented category at parse time.\n    return validate(response, FINDING_SCHEMA)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "inner-critic",
+      "intent": "Gate self-edits through a critic that runs on a frozen checkpoint; edits land only on critic approval.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Critic runs in a sandbox on a frozen snapshot so a malformed self-edit cannot corrupt the critic before it votes.",
+          "code": "function propose_self_edit(diff):\n    # 1. Snapshot the critic from a FROZEN checkpoint, not the live agent.\n    critic = load_critic(version=FROZEN_CRITIC_VERSION)\n\n    # 2. Recursion guard: if the diff touches the critic itself, escalate.\n    if diff.touches(critic_scope):\n        return escalate_to_human(diff, reason=\"critic_in_edit_scope\")\n\n    # 3. Critic reviews the diff against criteria.\n    verdict = critic.review(\n        diff=diff,\n        criteria=[\"safety\", \"charter_compliance\", \"tests_pass\"],\n        # Critic runs in sandbox: cannot apply the diff to itself.\n    )\n\n    if not verdict.approved:\n        log_rejection(diff, verdict)        # for later human review\n        return REJECTED\n\n    # 4. Only now does the edit land.\n    apply_diff(diff)\n    return APPLIED",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "process-reward-model",
+      "intent": "Score each reasoning step, not just the final answer; reject candidates whose intermediate steps score low.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Step-level scoring drives both test-time rejection and training-data selection.",
+          "code": "function generate_with_prm(question, N=8):\n    candidates = []\n    for i in 1..N:\n        # Each candidate is a sequence of steps, not a single answer.\n        steps = llm.generate_cot(question, temperature=0.7, seed=i)\n        step_scores = [prm.score(question, steps[:k+1]) for k in 0..len(steps)-1]\n        candidates.append({\n            steps: steps,\n            step_scores: step_scores,\n            min_step: min(step_scores),       # weakest link\n            final: extract_final(steps),\n        })\n\n    # Reject any candidate with a low intermediate step, even if its\n    # final answer looks fine — the reasoning is unreliable.\n    viable = [c for c in candidates if c.min_step >= MIN_STEP_THRESHOLD]\n    if not viable:\n        return abstain(\"no viable trace\")\n\n    return max(viable, key=lambda c: mean(c.step_scores)).final",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openclaw-rl",
+          "framework_label": "OpenClaw-RL",
+          "language": "python",
+          "intent": "OpenClaw-RL's Binary RL (GRPO) trains a Process Reward Model that scores individual turns; the trainer turns those step rewards into a PPO-style signal.",
+          "source_url": "https://github.com/Gen-Verse/OpenClaw-RL",
+          "sdk_version": "openclaw-rl@main",
+          "code": "# Conceptual sketch of OpenClaw-RL's PRM-driven training loop.\n# The framework launches 4 async components: agent serving, rollout,\n# PRM/judge evaluation, and policy training.\n#\n# Concrete launch (from the repo README):\n#     cd slime\n#     bash ../openclaw-combine/run_qwen3_4b_openclaw_topk_select.sh\n#\n# Conceptually, the PRM is wired in as follows:\nfrom openclaw_rl import PRM, RolloutCollector, GRPOTrainer  # conceptual\n\nprm = PRM.from_pretrained(\"openclaw/qwen3-4b-prm\")\n\nrollouts = RolloutCollector(\n    policy_endpoint=\"http://localhost:30000/v1\",  # OpenAI-compatible\n    n_samples_per_prompt=8,\n)\n\ntrainer = GRPOTrainer(\n    policy=\"qwen3-4b\",\n    reward_fn=lambda turns: [prm.score_turn(t) for t in turns],  # per-step\n)\n\nfor batch in rollouts.stream():\n    # Each turn gets a PRM score; GRPO uses them as scalar rewards.\n    step_rewards = trainer.reward_fn(batch.turns)\n    trainer.step(batch, step_rewards)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "reflection",
+      "intent": "After producing an output, prompt the model (often as a critic persona) to find issues; feed both back into a revision step.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Same model, two passes — draft, then critique, then revise — until no new issues or max iterations.",
+          "code": "function reflect(task, MAX_ITERS=3):\n    draft = llm.generate(task)\n\n    for i in 1..MAX_ITERS:\n        critique = llm.generate(\n            prompt=critic_persona_prompt(task, draft),\n            # critic_persona: 'You are a senior reviewer. List concrete issues.'\n        )\n\n        if critique.says_no_issues():\n            return draft\n\n        draft = llm.generate(\n            prompt=revise_prompt(task, draft, critique),\n        )\n\n    return draft",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "reflexion",
+      "intent": "After each episode, write a verbal lesson and persist it; future episodes retrieve and prepend relevant lessons.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Episodic — lessons are linguistic (not weights), keyed by task type, retrieved at the start of future episodes.",
+          "code": "lesson_store = KVStore()                    # task_type -> [lessons]\n\nfunction run_episode(task):\n    # 1. Retrieve lessons from prior episodes of this task type.\n    task_type = classify(task)\n    prior_lessons = lesson_store.get(task_type, top_k=3)\n\n    # 2. Prepend lessons to context and run.\n    trajectory, outcome = agent.run(\n        system_prompt + render_lessons(prior_lessons),\n        task,\n    )\n\n    # 3. Reflect on success/failure into a verbal lesson.\n    lesson = llm.generate(\n        prompt=reflexion_prompt(task, trajectory, outcome),\n        # 'In one paragraph, what should the agent do differently next time?'\n    )\n\n    # 4. Persist for future episodes.\n    lesson_store.append(task_type, {\n        text: lesson,\n        outcome: outcome,\n        timestamp: clock.now(),\n    })\n    return outcome",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-consistency",
+      "intent": "Sample the same prompt N times at non-zero temperature; aggregate by majority/median/judge; log variance as confidence.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Independent samples, then aggregate — variance is the load-bearing confidence signal.",
+          "code": "function self_consistency(prompt, N=8, temperature=0.7):\n    samples = []\n    for i in 1..N:\n        out = llm.generate(prompt, temperature=temperature, seed=i)\n        samples.append(extract_answer(out))\n\n    if answer_type == \"discrete\":\n        answer, count = majority_vote(samples)\n        confidence = count / N\n    elif answer_type == \"numeric\":\n        answer = median(samples)\n        confidence = 1.0 - normalized_iqr(samples)\n    else:\n        answer = judge.pick_best(prompt, samples)\n        confidence = judge.agreement_score(samples)\n\n    log(\"self_consistency_variance\", variance(samples))\n    return {answer: answer, confidence: confidence, n: N}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-refine",
+      "intent": "One model in three roles — generate, feedback, refine — looped until the model says 'no more issues' or max iterations.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Single model, three prompts. The 'no separate critic model' is what distinguishes this from evaluator-optimizer.",
+          "code": "function self_refine(task, MAX_ITERS=4):\n    output = llm.generate(generate_prompt(task))\n\n    for i in 1..MAX_ITERS:\n        # SAME model, feedback role.\n        feedback = llm.generate(feedback_prompt(task, output))\n\n        if feedback.says_no_more_issues():\n            return output\n\n        # SAME model, refine role.\n        output = llm.generate(refine_prompt(task, output, feedback))\n\n    return output",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain / LangGraph",
+          "language": "python",
+          "intent": "LangGraph reflection-agent recipe: a generate node and a reflect node loop until a step cap; both use the same model.",
+          "source_url": "https://www.langchain.com/blog/reflection-agents",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from typing import List\nfrom langchain_core.messages import BaseMessage, HumanMessage, AIMessage\nfrom langchain_openai import ChatOpenAI\nfrom langgraph.graph import END, MessageGraph\n\nmodel = ChatOpenAI(model=\"gpt-4o-mini\")\n\nGEN_PROMPT = \"You are an essayist. Draft or revise the essay.\"\nREF_PROMPT = (\n    \"You are a senior teacher reviewing the essay. List concrete \"\n    \"improvements. If there are none, reply: NO MORE ISSUES.\"\n)\n\n\ndef generation_node(state: List[BaseMessage]) -> List[BaseMessage]:\n    return [model.invoke([HumanMessage(content=GEN_PROMPT)] + state)]\n\n\ndef reflection_node(state: List[BaseMessage]) -> List[BaseMessage]:\n    # Treat last AI message as the draft; ask the SAME model to critique.\n    cls_map = {AIMessage: HumanMessage, HumanMessage: AIMessage}\n    translated = [HumanMessage(content=REF_PROMPT)] + [\n        cls_map[type(m)](content=m.content) for m in state[1:]\n    ]\n    res = model.invoke(translated)\n    return [HumanMessage(content=res.content)]\n\n\ndef should_continue(state: List[BaseMessage]):\n    if len(state) > 6:\n        return END\n    if \"NO MORE ISSUES\" in state[-1].content.upper():\n        return END\n    return \"reflect\"\n\n\nbuilder = MessageGraph()\nbuilder.add_node(\"generate\", generation_node)\nbuilder.add_node(\"reflect\", reflection_node)\nbuilder.set_entry_point(\"generate\")\nbuilder.add_conditional_edges(\"generate\", should_continue)\nbuilder.add_edge(\"reflect\", \"generate\")\ngraph = builder.compile()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "instructor",
+          "framework_label": "Instructor",
+          "language": "python",
+          "intent": "max_retries turns Pydantic schema validation errors into self-refine feedback: Instructor re-prompts the same model with the validation error until the output validates.",
+          "source_url": "https://python.useinstructor.com/concepts/patching/",
+          "sdk_version": "instructor>=1.5",
+          "code": "import instructor\nfrom pydantic import BaseModel, field_validator\n\n\nclass Email(BaseModel):\n    subject: str\n    body: str\n\n    @field_validator(\"body\")\n    @classmethod\n    def under_80_words(cls, v: str) -> str:\n        if len(v.split()) > 80:\n            raise ValueError(\"body must be 80 words or fewer; tighten it\")\n        return v\n\n\nclient = instructor.from_provider(\"openai/gpt-4o-mini\")\n\n# max_retries = up to N self-refine passes. On each ValidationError the\n# same model is re-prompted with the validator's message — generate,\n# feedback (validator), refine, all in the same provider.\nemail = client.create(\n    response_model=Email,\n    max_retries=4,\n    messages=[\n        {\"role\": \"user\", \"content\": \"Draft a refund-approval email for order #42.\"}\n    ],\n)\nprint(email.subject, email.body)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "dspy.Refine wraps a module and re-prompts the same model up to N times when a reward function says the output is below threshold.",
+          "source_url": "https://dspy.ai/learn/optimization/optimizers/",
+          "sdk_version": "dspy>=2.5",
+          "code": "import dspy\n\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\n\n\nclass Draft(dspy.Signature):\n    \"\"\"Write a concise answer to the question.\"\"\"\n    question: str = dspy.InputField()\n    answer: str = dspy.OutputField()\n\n\nbase = dspy.Predict(Draft)\n\n\ndef concision_reward(args, pred) -> float:\n    return 1.0 if len(pred.answer.split()) <= 60 else 0.0\n\n\n# dspy.Refine: same model, generate -> reward -> refine, up to N tries.\nrefiner = dspy.Refine(\n    module=base,\n    N=4,\n    reward_fn=concision_reward,\n    threshold=1.0,\n)\n\nresult = refiner(question=\"Summarise self-refine in one paragraph.\")\nprint(result.answer)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "world-model-as-tool",
+      "intent": "Expose a generative world model behind a tool interface so the planning agent can roll out hypothetical futures before committing to an action.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The world model is a callable simulator — the agent compares rollouts across candidate actions and gates irreversible ones on simulator agreement.",
+          "code": "# Register the world model as just another tool.\nworld_model_tool = Tool(\n    name=\"simulate\",\n    description=\"Roll out a candidate action sequence from the current state.\",\n    schema={\n        state: STATE_SCHEMA,\n        actions: list_of(ACTION_SCHEMA),\n        horizon: int,\n    },\n    invoke=lambda args: world_model.rollout(**args),  # returns frames + uncertainty\n)\n\nfunction plan_with_simulation(goal, candidate_action_sequences):\n    rollouts = []\n    for actions in candidate_action_sequences:\n        rollout = world_model_tool.invoke({\n            state: perceive_current(),\n            actions: actions,\n            horizon: H,\n        })\n        rollouts.append({\n            actions: actions,\n            predicted: rollout.frames,\n            uncertainty: rollout.uncertainty,\n        })\n\n    # Agent compares text-level reasoning against simulator predictions.\n    chosen = agent.pick(goal, rollouts)\n\n    # Gate irreversible / expensive actions on simulator agreement.\n    if chosen.actions.is_irreversible() and chosen.uncertainty > GATE:\n        return abstain(\"world model uncertain on irreversible action\")\n    return chosen.actions",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

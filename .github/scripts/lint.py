@@ -13,6 +13,8 @@ Rules are grouped to match the README's framing:
   A8  Vocabulary             "the model"/"the LLM", never "the AI"
   A9  Tone                   no emoji, no hype words, neutral voice
   A10 Naming                 no duplicate names or alias collisions
+  A16 Reader-view template   5 sections (Summary, Problem, When-to-Use,
+                             When-Not-to-Use, Architecture Diagram) all renderable
 
 Usage:
   python3 .github/scripts/lint.py                 # all rules, error on violations
@@ -200,7 +202,10 @@ def has_emoji(s: str) -> bool:
 def rule_a1(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A1 GoF/POSA form: schema, required slots, kebab id."""
     out: list[Violation] = []
-    required = ("id", "name", "category", "intent", "context", "problem", "solution", "status_in_practice")
+    required = (
+        "id", "name", "category", "intent", "context", "problem", "solution",
+        "status_in_practice", "example_scenario", "applicability", "diagram",
+    )
     seen: dict[str, str] = {}
 
     try:
@@ -796,6 +801,107 @@ def rule_a12(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+def rule_a16(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A16 Reader-view template: every pattern must populate the 10 sections.
+
+    The reader view renders patterns as 10 numbered sections:
+      1. Pattern Name              (name + lede)
+      2. Problem                   (context + problem)
+      3. When to Use               (applicability.use_when)
+      4. When Not to Use           (applicability.do_not_use_when)
+      5. Architecture Diagram      (diagram.mermaid)
+      6. Components                (components[])
+      7. Tools                     (tools[])
+      8. Guardrails                (constrains)
+      9. Failure Modes             (consequences.liabilities | failure_modes[])
+      10. Evaluation Metrics       (evaluation_metrics[])
+
+    Sections 1-5 and 8-9 are hard requirements (one violation per offending
+    pattern). Sections 6, 7, 10 are backfill-in-progress: rather than spam
+    hundreds of per-pattern violations, A16 emits one summary line per missing
+    section listing the count and a short sample. Drop them as full per-pattern
+    violations once backfill is complete.
+    """
+    out: list[Violation] = []
+    missing_components: list[str] = []
+    missing_tools: list[str] = []
+    missing_metrics: list[str] = []
+
+    for p in patterns:
+        pid = p["id"]
+        loc = f"{where.get(pid, '?')}::{pid}"
+
+        # 1. Pattern Name section (Summary = intent + example_scenario).
+        if not (p.get("intent") or "").strip():
+            out.append(Violation("A16.1", loc, "section 1 (Pattern Name): intent is empty"))
+        ex = (p.get("example_scenario") or "").strip()
+        if not ex:
+            out.append(Violation("A16.1", loc, "section 1 (Pattern Name): example_scenario missing (2-4 sentence narrative required)"))
+        elif len(ex) < 30:
+            out.append(Violation("A16.1", loc, f"section 1 (Pattern Name): example_scenario is {len(ex)} chars (<30; too short)"))
+
+        # 2. Problem section.
+        if not (p.get("context") or "").strip():
+            out.append(Violation("A16.2", loc, "section 2 (Problem): context is empty"))
+        if not (p.get("problem") or "").strip():
+            out.append(Violation("A16.2", loc, "section 2 (Problem): problem is empty"))
+
+        # 3 & 4. When to Use / When Not to Use.
+        app = p.get("applicability") or {}
+        if not (app.get("use_when") or []):
+            out.append(Violation("A16.3", loc, "section 3 (When to Use): applicability.use_when is empty"))
+        if not (app.get("do_not_use_when") or []):
+            out.append(Violation("A16.4", loc, "section 4 (When Not to Use): applicability.do_not_use_when is empty"))
+
+        # 5. Architecture Diagram.
+        d = p.get("diagram") or {}
+        if not d:
+            out.append(Violation("A16.5", loc, "section 5 (Architecture Diagram): diagram block missing"))
+        else:
+            if not d.get("type"):
+                out.append(Violation("A16.5", loc, "section 5 (Architecture Diagram): diagram.type missing"))
+            if not (d.get("mermaid") or "").strip():
+                out.append(Violation("A16.5", loc, "section 5 (Architecture Diagram): diagram.mermaid is empty"))
+
+        # 6. Components — backfill in progress.
+        if not (p.get("components") or []):
+            missing_components.append(pid)
+
+        # 7. Tools — backfill in progress.
+        if not (p.get("tools") or []):
+            missing_tools.append(pid)
+
+        # 8. Guardrails — constrains is required-by-convention (also covered by A3).
+        if not (p.get("constrains") or "").strip():
+            out.append(Violation("A16.8", loc, "section 8 (Guardrails): constrains is empty"))
+
+        # 9. Failure Modes — accept liabilities[] OR explicit failure_modes[].
+        cons = p.get("consequences") or {}
+        if not ((cons.get("liabilities") or []) or (p.get("failure_modes") or [])):
+            out.append(Violation("A16.9", loc, "section 9 (Failure Modes): consequences.liabilities and failure_modes are both empty"))
+
+        # 10. Evaluation Metrics — backfill in progress.
+        if not (p.get("evaluation_metrics") or []):
+            missing_metrics.append(pid)
+
+    # Summary-style violations for the backfill-in-progress sections. One line
+    # per section, not one per pattern, so the report stays readable.
+    total = len(patterns)
+    for code, label, missing in (
+        ("A16.6", "section 6 (Components)", missing_components),
+        ("A16.7", "section 7 (Tools)", missing_tools),
+        ("A16.10", "section 10 (Evaluation Metrics)", missing_metrics),
+    ):
+        if missing:
+            sample = ", ".join(sorted(missing)[:3])
+            more = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
+            out.append(Violation(
+                code, "patterns-src/",
+                f"{label}: {len(missing)}/{total} patterns missing; e.g. {sample}{more}",
+            ))
+    return out
+
+
 RULES = {
     "A1": ("schema/structure", lambda P, W, N: rule_a1(P, W)),
     "A2": ("repo hygiene", lambda P, W, N: rule_a2()),
@@ -812,6 +918,7 @@ RULES = {
     "A13": ("diagram sanity", lambda P, W, N: rule_a13(P, W)),
     "A14": ("variant sanity", lambda P, W, N: rule_a14(P, W)),
     "A15": ("verification-todo refs", lambda P, W, N: rule_a15(P, W)),
+    "A16": ("reader-view template", lambda P, W, N: rule_a16(P, W)),
 }
 
 

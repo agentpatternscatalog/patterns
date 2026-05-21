@@ -11,11 +11,11 @@ Ground the agent's reasoning in the current absolute time without requiring tool
 
 ## Context
 
-Long-running agents whose runtime spans hours or days, especially those holding conversations with humans whose temporal context (morning vs night, weekday vs weekend, season) shifts the meaning of words like 'soon', 'recently', or 'today'. Now-anchoring lives in the memory category not because it stores anything across turns, but because it provides the temporal grounding every other contextual reasoning step depends on.
+A long-running agent's runtime spans hours or days, and it holds conversations with humans whose temporal context shifts beneath their words. The same word — 'soon', 'recently', 'today', 'this evening' — means different things at 9 a.m. on a Monday than at 11 p.m. on a Friday. This pattern lives in the memory category not because it stores anything across turns, but because every other contextual reasoning step depends on having an explicit time anchor available in the prompt.
 
 ## Problem
 
-Without an explicit time anchor the agent either guesses the time, treats every turn as timeless, or has to call a tool to find out — turning a routine fact into friction. Replies become temporally generic ('hi!') instead of grounded ('good evening — Friday already').
+Without an explicit time anchor injected into the prompt, the agent either guesses the time from scattered clues, treats every turn as timeless, or has to call a tool to find out — turning a routine fact (the current time) into friction in every interaction. As a result, the agent's replies become temporally generic ('hi!') instead of grounded ('good evening — Friday already'), and any reasoning that depends on relative time ('this happened two days ago', 'this is due tomorrow') is either wrong or arbitrarily delayed by a tool call.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent answers 'good morning!' at 22:00 because nothing i
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   C[Clock] --> N[NOW block builder]
   N -->|ISO local, UTC,<br/>weekday, week,<br/>season, moon| H[## NOW header]
   H --> SP[System prompt]

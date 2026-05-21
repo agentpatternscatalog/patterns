@@ -11,11 +11,11 @@ Project heterogeneous enterprise data sources into a single navigable Unix-like 
 
 ## Context
 
-Enterprise agents that must read across Notion, Slack, Google Drive, GitHub, Linear, Jira, email, and a dozen internal systems. Each source has its own auth, pagination, search dialect, and result shape. Even with MCP, the agent juggles dozens of source-specific tools and incompatible mental models per call.
+A team is building an enterprise agent that has to read across many heterogeneous internal systems: Notion, Slack, Google Drive, GitHub, Linear, Jira, email, plus internal databases. Each source has its own authentication, pagination, search dialect, and result shape, and cross-source tasks (a Slack thread plus the linked Notion doc plus the related pull request) are the norm rather than the exception.
 
 ## Problem
 
-Designing agent-friendly APIs per source (per the Agent-Computer Interface pattern) does not scale — every new source adds a new vocabulary the agent must learn. Vector RAG flattens everything into chunks and loses structure. The agent has strong priors for filesystem navigation (ls, find, cat, grep) from training on Unix-like data, but no native data source matches those semantics. Observations from internal logs show agents spontaneously inventing file-path syntax ("/notion/eng/onboarding.md") even when no filesystem exists, because the abstraction is intuitive.
+Designing one agent-friendly tool API per source does not scale: every new connector adds a fresh vocabulary the model has to learn, and the tool count climbs past the point where the agent can choose well between them. Flattening everything into a vector store of chunks loses structure and makes cross-source joins impossible. Meanwhile the model has very strong priors for Unix-like filesystem navigation (list, find, cat, grep) from training data, but no native enterprise source matches those semantics — observations from production logs show agents inventing file-path syntax against APIs where no filesystem actually exists.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Treat the eval suite as the contract the agent must satisfy; releases ship only 
 
 ## Context
 
-Production agents where 'works on my prompt' is insufficient and stakeholders need a quality bar to depend on.
+A team ships an agent to real users and is expected to keep a stable quality bar release after release. They have an evaluation suite — a held-out set of inputs paired with expected outputs or rubric checks — that already gives them a numeric read on quality. Stakeholders such as product, customers, and compliance depend on that bar holding from one release to the next.
 
 ## Problem
 
-Without a release gate tied to evals, quality regressions slip through; the eval suite becomes documentation rather than enforcement.
+If the eval suite is something the team runs by hand and looks at when they remember to, regressions slip through silently: a prompt tweak goes out on Tuesday, the eval suite is not run, and by Thursday quality has dropped without anyone noticing. The suite turns into aspirational documentation rather than an actual constraint on releases. The team is forced to choose between trusting vibes between deploys or treating the eval suite the way they would treat a failing unit test.
 
 ## Forces
 

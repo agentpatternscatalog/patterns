@@ -11,11 +11,11 @@ Recognize human message repetition as emphasis or a re-ask rather than as an ind
 
 ## Context
 
-Conversational agents where the human might intentionally repeat themselves (because the previous reply missed the point, because the channel might be unreliable, or because they want to underline urgency). Without echo recognition, the agent generates a fresh response per repeat — often slight variations of the same earlier mistake.
+A team builds a conversational agent that talks with humans over many turns. Real users sometimes repeat themselves on purpose: the previous reply missed the point and they are restating with emphasis, they are worried the message did not go through, or they want to underline urgency by saying the same thing twice. The agent has access to its recent conversation history and could in principle detect when a new incoming message is a near-duplicate of a recent one.
 
 ## Problem
 
-A duplicated incoming message reads to the agent as a new, equal-weight turn. The agent re-runs the same reasoning, often producing a near-duplicate reply or a slight rewording. The human's emphasis-by-repetition becomes invisible and the conversation either spins or amplifies misalignment.
+When the agent treats every incoming message as an independent new turn, a repeated message reads as a fresh prompt of equal weight to any other. The agent re-runs the same reasoning over slightly rearranged context and produces a near-duplicate of its previous reply, perhaps with one word changed. The user's emphasis-by-repetition becomes invisible: instead of being heard louder, they are answered again with the same answer they already rejected. The conversation either spins in place or drifts further from what the user actually wants, and the agent never registers that the repetition itself was a signal.
 
 ## Forces
 

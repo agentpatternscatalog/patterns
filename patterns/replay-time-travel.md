@@ -11,11 +11,11 @@ Re-run a past agent trace from any step with modified inputs/prompts/tools to de
 
 ## Context
 
-Agent debugging and experimentation; production incidents that need reproduction.
+A team supports an agent in production where users occasionally hit weird, hard-to-reproduce behaviour: a strange reply, an unexpected tool call, a wrong answer on an input that worked yesterday. Engineers want to load the exact past run, jump to a specific step, swap in a different prompt or model, and see whether the alternative would have done better. The system already captures per-step inputs, outputs, prompts, model identifiers, and tool calls in a trace store.
 
 ## Problem
 
-Agent runs are non-deterministic and state-laden; without replay, debugging is reproduction-by-prayer.
+Agent runs depend on non-deterministic model outputs, accumulated conversation state, and external tool results that may not be the same on the next call. Trying to reproduce a three-day-old bug locally usually fails because too much has changed, and engineers end up debugging by re-running the user's prompt and hoping the model behaves the same way. The team is forced to choose between spending hours on guess-and-check reproduction or shrugging off intermittent bugs that they cannot deterministically trigger.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A support agent gives a strange reply to a user three days ago and the team cann
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]
   Tr --> Sel[Pick step N]
   Sel --> Mod[Modify prompt /<br/>model / tool result]

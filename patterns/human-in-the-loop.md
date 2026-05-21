@@ -11,11 +11,11 @@ Require explicit human approval at defined points before the agent performs an a
 
 ## Context
 
-An action is destructive, irreversible, or regulatory; the cost of being wrong exceeds the cost of waiting.
+A team runs an agent that can take consequential actions on the user's behalf — moving money, deleting files, sending public messages, deploying code, changing production configuration. The agent is correct most of the time but the cost of being wrong on certain action classes (an irreversible payment, a public broadcast, a destructive write) is much higher than the cost of pausing for a human to confirm. Some of those action classes also carry regulatory weight: the operator must be able to show that a human approved the step.
 
 ## Problem
 
-Fully autonomous action at risky boundaries combines model confidence with consequence; the combination is unsafe.
+If the agent acts fully autonomously across all action classes, then any moment of model overconfidence becomes a real-world incident: a typo-squatted vendor gets paid, the wrong customer gets emailed, the production database loses a table. If the agent gates every action behind human approval, users get approval-fatigued, start clicking through prompts without reading them, and the gating stops protecting anyone. Without a way to single out the small set of action classes that genuinely warrant a pause, the team has to choose between unsafe autonomy and unusable friction.
 
 ## Forces
 

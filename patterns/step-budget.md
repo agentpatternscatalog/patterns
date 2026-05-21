@@ -11,11 +11,11 @@ Cap the number of tool calls or loop iterations the agent is allowed within a si
 
 ## Context
 
-Agent loops can run forever or wander; without a hard cap, runaway loops cost real money.
+A team runs an agent inside some kind of loop — a ReAct loop, a plan-execute loop, a multi-agent debate — where the model is invoked repeatedly to take more steps until it decides it is finished. Each loop iteration costs model tokens, tool-call money, and wall-clock time, and the loop has no naturally bounded length: the model itself decides when to stop. In real traffic, some sessions wander into pathological states where the model keeps deciding to take one more step.
 
 ## Problem
 
-Soft termination conditions (model says 'done') fail open; the agent never says done.
+If termination relies on the model saying 'I am done', then a confused, stuck, or over-eager agent will simply never declare itself done, and the loop runs until something else stops it — a timeout, a crash, or an angry invoice at the end of the month. The team has no way to bound the worst-case cost or latency of a single request, and one pathological session can burn through more budget than thousands of normal ones combined. Without a hard numeric cap that the loop respects regardless of the model's opinion, runaway behaviour is always one bad prompt away.
 
 ## Forces
 

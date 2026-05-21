@@ -11,11 +11,11 @@ Elicit step-by-step reasoning with a single trigger phrase rather than few-shot 
 
 ## Context
 
-Reasoning tasks where curating few-shot exemplars is impractical or costly.
+A team is building prompts for many different reasoning tasks — dozens or hundreds — where writing carefully crafted few-shot examples with full chain-of-thought traces would be expensive in effort and would have to be redone each time the task changes. They want something close to chain-of-thought quality but without paying the per-task curation cost for every new task type.
 
 ## Problem
 
-Few-shot CoT requires exemplar curation per task type; that effort scales poorly across many tasks.
+Few-shot chain-of-thought needs a small set of worked examples for every distinct task; the work of writing and maintaining those examples does not scale across a large portfolio of tasks or a fast-changing product. Without exemplars, however, plain prompting collapses the reasoning into a single output token and quality drops sharply. The team needs a way to trigger step-by-step reasoning that does not depend on supplying task-specific worked solutions in the prompt.
 
 ## Forces
 
@@ -60,7 +60,7 @@ A team is building agent prompts for fifty different tasks and writing few-shot 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Question] --> P[Prompt + 'Let's think step by step']
   P --> M[Model]
   M --> R[Reasoning chain]

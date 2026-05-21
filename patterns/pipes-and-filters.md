@@ -11,11 +11,11 @@ Compose stream-shaped processing as a chain of small filters connected by pipes.
 
 ## Context
 
-Data flows through several transformations (parse, classify, transform, validate, format); each transformation is independently testable.
+A team is building a data-transformation flow in which input passes through several distinct steps before becoming output — for example a document goes through PDF extraction, OCR cleanup, language detection, chunking, and embedding, or an inbound message goes through parsing, classification, transformation, validation, and formatting. Each stage has a single responsibility and could in principle be tested or reused on its own, but only if it has a clean boundary. The team is choosing how to structure the code.
 
 ## Problem
 
-Monolithic transformations are hard to test; bespoke pipelines reinvent connection plumbing each time.
+If the whole transformation lives in one monolithic function, the stages are tangled together and none of them can be tested in isolation; a bug in the OCR step is only reachable by running the entire pipeline end to end. If the team writes a bespoke pipeline each time, every project reinvents the plumbing for connecting one stage to the next and the stages cannot be shared across pipelines. Both extremes block the reuse and isolated testing the team wants.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A document-processing agent has grown into a 1500-line monolith that does PDF ex
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[Input stream] --> F1[Filter 1]
   F1 -->|pipe| F2[Filter 2]
   F2 -->|pipe| F3[Filter 3]

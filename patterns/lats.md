@@ -11,11 +11,11 @@ Lift the agent loop into a search tree with a learned value function and backtra
 
 ## Context
 
-The task has multiple plausible reasoning paths and committing to the first one yields suboptimal answers.
+A team gives an agent a problem where several reasoning paths are plausible at the start — a coding bug with multiple possible root causes, a puzzle with several candidate frames, an investigation that could go in three directions. The first plausible path is often not the best one, and committing to it produces confidently wrong answers when it dead-ends. The team has at least some signal (test suite, verifier, heuristic scorer) that can rate a partial trajectory.
 
 ## Problem
 
-ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit from exploring alternatives.
+Single-chain agent loops like ReAct (the reason-act-observe loop) and Plan-and-Execute commit to one chain of thought from the first step. When that chain enters a wrong frame they cannot backtrack cheaply; they either thrash inside the wrong frame or restart from scratch. Self-consistency (sample many answers and vote) helps for one-shot tasks but does not help an agent that needs to interleave tool calls with reasoning. The team needs a way to explore alternative trajectories while still spending most of the compute on the branches that are paying off.
 
 ## Forces
 
