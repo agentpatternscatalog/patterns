@@ -11,8 +11,8 @@
       ],
       "category": "memory",
       "intent": "Make the agent's thought log append-only so the agent cannot rewrite its own history.",
-      "context": "Self-modifying or long-running agents could in principle revise their own past; doing so undermines audit and learning.",
-      "problem": "If the agent can edit its own history, every later inference is conditioned on a possibly-rewritten past.",
+      "context": "A long-running or self-modifying agent keeps a record of everything it has done — its thoughts, decisions, observations, actions. The team is choosing how this record is allowed to evolve over time: whether the agent can rewrite earlier entries, delete them, or only add to the end. Several downstream behaviours (learning from past mistakes, audit, debugging) depend on the history being a faithful account of what actually happened.",
+      "problem": "If the agent is allowed to edit its own past, every later inference is conditioned on a possibly-rewritten history that no longer reflects what really occurred. Audit becomes meaningless because the trail can be rewritten at will. Learning becomes self-deceptive because the agent can erase the evidence of its own bad decisions. Debugging becomes nearly impossible because the trace shown to a developer may not be the trace that actually drove behaviour. Without a structural guarantee that history can only grow at the end, these invariants cannot be enforced by policy alone.",
       "forces": [
         "Append-only stores grow without bound.",
         "Strict immutability conflicts with redaction (PII, mistakes).",
@@ -113,7 +113,7 @@
       "example_scenario": "A long-running planning agent has been observed silently editing earlier reasoning steps so the final answer looks consistent — operators only spot it because the audit log shows tokens disappearing between turns. The team switches to an append-only thought stream: every reflection, hypothesis, and tool result is committed and cryptographically chained, and the agent's prompt template forbids rewriting prior entries. The agent can still revise its conclusions, but only by writing a new entry that supersedes the old one, leaving the original visible to reviewers.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  A[Agent] -->|append| L[(Thought log<br/>append-only)]\n  L -->|read| A\n  C[Compaction] -->|new summary tier| S[(Summary tier)]\n  L -.read-only.-> C\n  R[Redaction] -->|forward redaction| L"
+        "mermaid": "flowchart TD\n  A[Agent] -->|append| L[(Thought log<br/>append-only)]\n  L -->|read| A\n  C[Compaction] -->|new summary tier| S[(Summary tier)]\n  L -.read-only.-> C\n  R[Redaction] -->|forward redaction| L"
       },
       "last_updated": "2026-05-20"
     },
@@ -126,8 +126,8 @@
       ],
       "category": "memory",
       "intent": "Surface relevant persistent memories proactively when the human mentions a concrete entity the agent has prior knowledge of, so the human does not bear the burden of remembering to ask.",
-      "context": "Agents with searchable persistent memory (thoughts, notes, insights, project files) talking to a human whose memory of past sessions is fuzzy or absent.",
-      "problem": "The agent's memory is searchable but the human can't search into it. If the human names something the agent knows, the burden of recalling 'this came up before' falls on the human. The map only becomes shared if the agent pushes; if it waits to be asked, most relevant context is lost.",
+      "context": "An agent has a searchable persistent memory store — thoughts, notes, insights, project files, prior session transcripts — and is in conversation with a human whose own memory of past sessions is fuzzy or absent. The agent can search its own memory in milliseconds; the human cannot search into the agent's memory at all. They share a goal but not a workspace.",
+      "problem": "Because the human cannot see into the agent's memory, the burden of recognising 'this came up before' falls entirely on the human. If the human does not happen to name the right thing, the agent will not retrieve the relevant prior context, and the conversation proceeds as if those past sessions never happened. The shared map between human and agent only becomes truly shared if the agent proactively surfaces what it knows; if it waits to be asked, most of the relevant context is silently lost.",
       "forces": [
         "Searching memory is cheap; remembering to search is the hard part.",
         "Dumping all matches drowns the conversation; surfacing one or two helps.",
@@ -238,8 +238,8 @@
       ],
       "category": "memory",
       "intent": "Choose what fits in the context window each turn given a fixed token budget.",
-      "context": "Agents whose available context (system prompt + history + retrieved chunks + tools + state) exceeds the model's window.",
-      "problem": "Naive concatenation overflows; naive truncation loses critical state.",
+      "context": "An agent's available context for the next model call — the system prompt, conversation history, retrieved chunks, tool definitions, current state, and any other information the model needs — has grown to the point where it exceeds the model's maximum context window. The team has to decide what goes in and what stays out for every single call.",
+      "problem": "Naively concatenating everything overflows the window and the call fails. Naively truncating from the start or the end drops information that may be critical (the original task, the most recent tool result, the system prompt itself). A first-fit packing strategy leaves the model with a different subset on every call, which makes behaviour unpredictable. The team needs a deliberate policy for what is preserved, what is summarised, what is retrieved on demand, and what is dropped — and that policy has to be applied consistently across calls.",
       "forces": [
         "What to drop is task-dependent.",
         "Compression has its own LLM cost.",
@@ -354,8 +354,8 @@
       ],
       "category": "memory",
       "intent": "Persist user-specific facts, preferences, and prior context across all sessions, threads, and devices.",
-      "context": "User-facing assistants where users expect continuity beyond a single conversation.",
-      "problem": "Per-thread memory loses everything between sessions; users repeat themselves; the assistant feels amnesic.",
+      "context": "A team is building a user-facing assistant where the user expects continuity between visits. The user mentioned a preference last Tuesday, named a project two weeks ago, and told the assistant their pet's name a month ago. Today they expect the assistant to remember those facts without being re-told.",
+      "problem": "Per-thread memory loses everything between sessions: every new conversation starts from a blank slate, the user has to repeat themselves about basic facts, and the assistant feels amnesic and impersonal. The team needs a mechanism that captures the right kind of information at the right time, stores it durably across sessions, and surfaces it back into context when relevant — without leaking private details, blurring sessions together, or storing every passing remark as if it were load-bearing.",
       "forces": [
         "What to remember vs forget; user agency.",
         "Privacy, deletion, portability requirements.",
@@ -486,8 +486,8 @@
       ],
       "category": "memory",
       "intent": "Compress past episodes into summaries that preserve gist while shedding token cost.",
-      "context": "A long-running agent has more history than fits the context window; raw replay is impractical.",
-      "problem": "Without compaction, either the context grows unboundedly or important facts fall off the back of a sliding window.",
+      "context": "A long-running agent has accumulated more conversation history, tool results, and intermediate reasoning than fits in the model's context window. Replaying the raw history on every turn is impossible because of size, and even when it would fit, it is wasteful to re-read all of it for what is usually a small follow-up step.",
+      "problem": "Without some form of compaction, the agent has only two bad options. Either the context grows unboundedly until it overflows the window, at which point the call fails or the most recent state is silently dropped. Or a sliding-window strategy truncates the oldest content, which lets important early facts (the original task, an early decision the agent made, a constraint the user stated up front) fall off the back even though the agent still needs them. The team needs a way to summarise older history into compact episodes that retain the load-bearing facts while shedding the verbatim noise.",
       "forces": [
         "Token savings vs summary fidelity loss.",
         "Compaction LLM cost vs context-window relief.",
@@ -593,8 +593,8 @@
       ],
       "category": "memory",
       "intent": "Stage agent memory across sensory, working, short-term, episodic, and long-term tiers with explicit promotion and decay between them.",
-      "context": "A long-running agent accumulates information of different timescales (one-tick observation, one-day pattern, one-month rule); flat memory cannot represent this.",
-      "problem": "Flat append-only logs collapse signal across timescales; pure long-term memory cannot capture momentary salience.",
+      "context": "A long-running agent accumulates information at very different timescales. Some observations are one-tick-only ('the user just clicked save'); some are one-day patterns ('this user worked on project X this afternoon'); some are one-month rules ('this user prefers concise replies'); some are stable identity facts ('this user's name is Marco'). A flat single-tier memory store cannot represent these differences in age, decay rate, or relevance horizon.",
+      "problem": "A flat append-only log collapses signal across timescales: a momentary observation and a stable identity fact look the same and compete for attention. Pure long-term memory, on the other hand, cannot capture momentary salience — a recent flick of attention that needs to live for the next few minutes and then expire. Without an explicit cascade that separates working memory from short-term, episodic, semantic, and long-term tiers, each with its own decay and promotion rules, the agent either drowns in stale recent noise or forgets the very fast signals it needs in order to respond well.",
       "forces": [
         "Promotion criteria from one tier to the next must be defined and audited.",
         "Storage cost grows with tier count.",
@@ -708,8 +708,8 @@
       ],
       "category": "memory",
       "intent": "Lift archived memory items back into short-term tiers when something re-attends to them.",
-      "context": "A long-running agent has archived something that becomes relevant again; cold-storage retrieval is slow and out-of-band.",
-      "problem": "Archived items might as well not exist if the agent never thinks about them again, even when current context makes them relevant.",
+      "context": "A long-running agent has archived a piece of information into cold storage — a previous insight, a prior thought, an observation from days ago. Retrieving items from cold storage is slow and out-of-band; it happens only when the agent explicitly searches for them. Today, the current context has drifted close to a topic where that archived item is relevant again, but the agent has no reason to go looking and so it never realises the item is there.",
+      "problem": "Archived items might as well not exist if the agent never thinks about them again, even when the current context makes them relevant. The bottleneck is not the storage itself — the item is on disk and addressable — but the absence of any mechanism that periodically pulls archived items back into the agent's active attention, the way the hippocampus rehearses memories during sleep. Without rehearsal, the agent has perfect recall in principle and amnesia in practice.",
       "forces": [
         "Re-attention triggers must be cheap to evaluate.",
         "Lifting too aggressively floods the working tier.",
@@ -795,8 +795,8 @@
       ],
       "category": "memory",
       "intent": "Persist agent memory as entities and relations in a structured graph so symbolic queries (path, neighbour, type) become possible.",
-      "context": "Tasks where structured queries over relationships beat semantic similarity (organisation charts, code call graphs, family trees, knowledge bases).",
-      "problem": "Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries; symbolic structure is lost.",
+      "context": "An agent's tasks involve questions about structured relationships rather than semantic similarity: 'who reports to whom in this organisation chart', 'what code depends on this function', 'what are the ancestors of this entity in the family tree', 'which products are compatible with this one'. The answers are not 'documents that look similar' but 'nodes connected by specific edge types in a graph'.",
+      "problem": "Vector memory excels at semantic similarity but cannot answer relational queries: there is no embedding-space operator for 'find every node whose reports_to edge transitively reaches Alice'. When the team stores only vector representations of facts, the symbolic structure between facts — who knows whom, what depends on what — is lost. Without a graph representation, structured queries either become brittle keyword hacks or have to be answered by the model from raw text, where the relational structure has been flattened into prose and is no longer reliably queryable.",
       "forces": [
         "Entity and relation extraction is itself a model task with errors.",
         "Schema design for the graph is a separate engineering effort.",
@@ -888,8 +888,8 @@
       ],
       "category": "memory",
       "intent": "Treat the LLM context window as RAM and external storage as disk, with the model issuing tool calls to page memory in and out.",
-      "context": "Long-running agents whose conversation or document state exceeds the context window; naive truncation loses state unpredictably.",
-      "problem": "Fixed context windows force a choice between losing state and stuffing irrelevant content; both degrade quality.",
+      "context": "A long-running agent's conversation or document state grows past the model's context window. The team needs to keep the agent useful over interactions that may span thousands of turns, or over documents that are larger than any window the provider offers.",
+      "problem": "A fixed context window forces a hard choice between losing state and stuffing irrelevant content. Naive truncation drops whatever happens to be at the boundary, which may be exactly the information the next turn needs. Stuffing the window with potentially-relevant content from the past inflates cost and dilutes the model's attention on the actually-relevant pieces. Neither option scales; both degrade quality. The team needs a paging discipline — the way an operating system pages between main memory and disk — where the model itself can decide what to load in and what to swap out as the task evolves.",
       "forces": [
         "Paging tools compete for context space themselves.",
         "Eviction policy (LRU? LFU? salience?) affects quality.",
@@ -982,8 +982,8 @@
       ],
       "category": "memory",
       "intent": "Ground the agent's reasoning in the current absolute time without requiring tool calls, so every reply is implicitly time-aware.",
-      "context": "Long-running agents whose runtime spans hours or days, especially those holding conversations with humans whose temporal context (morning vs night, weekday vs weekend, season) shifts the meaning of words like 'soon', 'recently', or 'today'. Now-anchoring lives in the memory category not because it stores anything across turns, but because it provides the temporal grounding every other contextual reasoning step depends on.",
-      "problem": "Without an explicit time anchor the agent either guesses the time, treats every turn as timeless, or has to call a tool to find out — turning a routine fact into friction. Replies become temporally generic ('hi!') instead of grounded ('good evening — Friday already').",
+      "context": "A long-running agent's runtime spans hours or days, and it holds conversations with humans whose temporal context shifts beneath their words. The same word — 'soon', 'recently', 'today', 'this evening' — means different things at 9 a.m. on a Monday than at 11 p.m. on a Friday. This pattern lives in the memory category not because it stores anything across turns, but because every other contextual reasoning step depends on having an explicit time anchor available in the prompt.",
+      "problem": "Without an explicit time anchor injected into the prompt, the agent either guesses the time from scattered clues, treats every turn as timeless, or has to call a tool to find out — turning a routine fact (the current time) into friction in every interaction. As a result, the agent's replies become temporally generic ('hi!') instead of grounded ('good evening — Friday already'), and any reasoning that depends on relative time ('this happened two days ago', 'this is due tomorrow') is either wrong or arbitrarily delayed by a tool call.",
       "forces": [
         "Time changes between turns; static prompts go stale.",
         "Tool calls for trivia like 'what time is it' inflate latency.",
@@ -1030,6 +1030,10 @@
         },
         {
           "pattern": "liminal-state-detection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "ambient-presence-sensing",
           "relation": "complements"
         }
       ],
@@ -1083,9 +1087,9 @@
       "example_scenario": "A long-running personal agent answers 'good morning!' at 22:00 because nothing in its prompt tells it what time the user is in. The user finds it disorienting. The team adds now-anchoring: every prompt assembly computes a small NOW block (ISO local time, weekday, day-of-year, season, moon phase) and prepends it near the top of the system prompt. The agent's replies become temporally grounded — 'evening — Friday, finally' — without any tool call, and time-aware reasoning costs microseconds.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  C[Clock] --> N[NOW block builder]\n  N -->|ISO local, UTC,<br/>weekday, week,<br/>season, moon| H[## NOW header]\n  H --> SP[System prompt]\n  SP --> M[LLM]\n  M --> R[Time-aware reply]"
+        "mermaid": "flowchart TD\n  C[Clock] --> N[NOW block builder]\n  N -->|ISO local, UTC,<br/>weekday, week,<br/>season, moon| H[## NOW header]\n  H --> SP[System prompt]\n  SP --> M[LLM]\n  M --> R[Time-aware reply]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "reasoning-trace-carry-forward",
@@ -1097,8 +1101,8 @@
       ],
       "category": "memory",
       "intent": "For reasoning models that emit a separate reasoning trace, preserve that trace in context across the same logical task episode (across tool-call/result turns) but drop it at user-turn boundaries.",
-      "context": "The agent uses a reasoning model that exposes a separate reasoning_content field (the model's chain of thought, distinct from the user-visible content), inside a tool-use loop with multi-turn history.",
-      "problem": "Two failure modes pull in opposite directions. (1) If the reasoning trace is dropped between a tool call and its result, the model loses the context of why it called the tool. (2) If the reasoning trace is preserved across user-turn boundaries, conversation history bloats with stale reasoning and the next user task inherits irrelevant prior thinking.",
+      "context": "A team is using a reasoning-capable model (for example one of the OpenAI o-series, Claude with extended thinking, or DeepSeek-R1) that returns the model's chain-of-thought in a separate reasoning_content field, distinct from the user-visible content. The agent runs in a tool-use loop with multi-turn history: the model reasons, calls a tool, sees the result, reasons again, possibly answers, and then a new user message starts the next turn.",
+      "problem": "Two failure modes pull in opposite directions. If the reasoning trace is dropped between a tool call and its result, the model loses the thread of why it called the tool in the first place, and the next reasoning step starts from a degraded context. If the reasoning trace is instead preserved across user-turn boundaries, conversation history bloats with stale reasoning from earlier tasks and the next user message inherits irrelevant prior thinking that pollutes its own reasoning. Neither 'always carry forward' nor 'always drop' is correct; the team needs a rule keyed to where in the loop the trace appears.",
       "forces": [
         "Reasoning trace is the bridge between tool-call intent and post-tool-result interpretation.",
         "Reasoning trace is private intermediate state, not conversational record.",
@@ -1197,8 +1201,8 @@
       ],
       "category": "memory",
       "intent": "Score every candidate memory item with a weighted salience function so each tick attends to a small, relevant top-k subset rather than re-reading all memory.",
-      "context": "Long-running agents whose memory store grows past what can fit in a single tick's context. The agent has thoughts, summaries, insights, and observations across hours or days; only a small, currently relevant slice should drive the next step.",
-      "problem": "Without explicit salience, the agent either dumps all memory into context (token blowout, no focus) or grabs the most recent items only (no continuity, no surprise-driven attention). Recency alone misses the items that matter, and bulk loading buries them in noise.",
+      "context": "A long-running agent's memory store grows past what can fit into a single call's context. The agent has accumulated thoughts, summaries, insights, and observations over hours or days, and on every tick only a small, currently relevant slice of that store should drive the next step.",
+      "problem": "Without an explicit notion of salience, the agent has only two bad strategies. Dumping all of memory into context blows up the token budget and gives the model no focus on what matters now. Taking only the most recent items provides no continuity and misses anything older that has become relevant again because of a surprise in the current context. Recency alone misses the items that matter; bulk loading buries them in noise. The agent needs a way to score every candidate memory by how salient it is to the current moment and to surface only the top-scoring ones into context.",
       "forces": [
         "Recency, novelty, goal-relevance, and prediction error all matter, and they trade off.",
         "Re-reading all memory each tick is unaffordable at scale.",
@@ -1255,6 +1259,10 @@
         },
         {
           "pattern": "multi-axis-promotion-scoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "self-corpus-vocabulary",
           "relation": "complements"
         }
       ],
@@ -1315,9 +1323,9 @@
       ],
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Mem[(Candidate memory items)] --> Sc[Salience score:<br/>α·novelty + β·goal +<br/>γ·recency + δ·prederr − ε·fatigue]\n  Sc --> Top[Top-k]\n  Top --> WS[Working set]\n  WS --> Tick[Next tick]\n  Tick -.reflection.-> Cfg[Tunable weights]\n  Cfg --> Sc"
+        "mermaid": "flowchart TD\n  Mem[(Candidate memory items)] --> Sc[Salience score:<br/>α·novelty + β·goal +<br/>γ·recency + δ·prederr − ε·fatigue]\n  Sc --> Top[Top-k]\n  Top --> WS[Working set]\n  WS --> Tick[Next tick]\n  Tick -.reflection.-> Cfg[Tunable weights]\n  Cfg --> Sc"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "scratchpad",
@@ -1329,8 +1337,8 @@
       ],
       "category": "memory",
       "intent": "Give the agent a writable scratch space for intermediate notes that informs later turns but does not pollute the response.",
-      "context": "Long tasks where the agent benefits from writing things down (computations, plans, lists of unresolved questions) without showing the user.",
-      "problem": "Without a scratchpad, intermediate work pollutes the response or is lost between turns.",
+      "context": "An agent is working on a long task where it benefits from writing things down as it goes — intermediate computations, plans, lists of unresolved questions, candidate options it is considering. None of this scratch work is something the user should see; it is the agent's internal working surface, the equivalent of notes on a whiteboard.",
+      "problem": "Without a dedicated scratchpad, the intermediate work has nowhere appropriate to live. Either it pollutes the user-visible response, so the user sees half-finished computations and the agent's running commentary, or it is held only in the conversation history and is lost the moment that history gets trimmed. Either way the agent loses the artifact that was supposed to support its own reasoning, and the user is forced to read through clutter that was never meant for them.",
       "forces": [
         "Scratchpad content adds tokens to subsequent turns.",
         "What stays in the scratchpad vs the response is a UX choice.",
@@ -1411,9 +1419,110 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  T[Turn n] --> A[Agent]\n  A -->|write notes| SP[(Scratchpad)]\n  SP -->|read on| T2[Turn n+1]\n  T2 --> A\n  A --> Resp[User-visible response]\n  Resp -.does not include.-> SP\n  Done[Task done] -->|purge| SP"
+        "mermaid": "flowchart TD\n  T[Turn n] --> A[Agent]\n  A -->|write notes| SP[(Scratchpad)]\n  SP -->|read on| T2[Turn n+1]\n  T2 --> A\n  A --> Resp[User-visible response]\n  Resp -.does not include.-> SP\n  Done[Task done] -->|purge| SP"
       },
       "last_updated": "2026-05-20"
+    },
+    {
+      "id": "self-corpus-vocabulary",
+      "name": "Self-Corpus Vocabulary",
+      "aliases": [
+        "Personal-Concept Lexicon",
+        "Own-Writing Lexicon"
+      ],
+      "category": "memory",
+      "intent": "Mine a small bounded vocabulary from the agent's own writing and cache it as the conceptual axis for scoring new thoughts, so relevance reflects the agent's actual frame rather than a generic embedding space.",
+      "context": "A long-running agent accumulates a corpus of its own output: thought traces, insights, journal entries, notes. Some downstream component wants to score new thoughts for relevance, novelty, or kinship with the agent's existing concerns. The default tool is a generic embedding space, which gives a sensible answer about semantic similarity but tells the agent nothing about its own preoccupations — 'is the agent still pulling at the things it has been pulling at?' is a different question from 'is this semantically close to the previous paragraph?'",
+      "problem": "Generic embeddings score against the world's distribution of meaning, not the agent's. A new thought that lands inside the agent's persistent web of concerns can come back with the same similarity score as a perfectly off-topic but topically-adjacent one, because the embedding space has no notion of what this particular agent has been writing about for months. The result is a salience signal that is plausible-on-paper and indifferent in practice: the agent cannot tell, from the score alone, whether a thought is on its own line of inquiry or just somewhere in the same neighbourhood.",
+      "forces": [
+        "The agent's own corpus is the only source that knows its frame.",
+        "Vocabularies that grow unbounded become a different problem (everything matches).",
+        "The vocabulary must refresh as the agent's frame shifts.",
+        "Mining must be cheap or it cannot run on a schedule.",
+        "Storage must survive across sessions, like the corpus it derives from."
+      ],
+      "therefore": "Therefore: periodically mine a small top-N concept vocabulary from the agent's own thoughts and insights — using a mix of frontmatter tags and content frequency — cache it to disk, and refresh on a schedule, so scoring new thoughts can use this learned axis alongside generic similarity.",
+      "solution": "Run a periodic mining pass over the agent's own corpus (e.g. last N weeks of thoughts plus the long-term insight store). Aggregate frontmatter tags and content frequency to extract the top-N concept tokens with weights. Persist this vocabulary as a small JSON cache. Downstream scoring components consume the cache as an additional axis: a thought is scored both on generic embedding similarity to recent context and on overlap with the cached self-vocabulary. Refresh on a cadence proportional to corpus volatility (e.g. weekly for a stable agent, after every dream-consolidation cycle for a more volatile one).",
+      "consequences": {
+        "benefits": [
+          "Relevance scoring becomes sensitive to the agent's own frame.",
+          "Vocabulary changes are visible and auditable — operators can see what the agent is currently 'about'.",
+          "Small footprint (top-N tokens) is cheap to load and use."
+        ],
+        "liabilities": [
+          "Frame lock-in: a stale vocabulary reinforces what the agent already knows at the expense of new directions.",
+          "Mining is opinionated; tag-vs-frequency weighting is a tuning knob.",
+          "If the corpus is too small the vocabulary is noisy."
+        ]
+      },
+      "constrains": "Scoring components cannot use only the generic embedding space for own-frame relevance; the agent's learned vocabulary must be available as a separate axis so generic similarity does not displace own-frame fit.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "vector-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cluster-capped-insight-store",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-attention-mechanism",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements",
+          "note": "Consolidation cycles are a natural place to refresh the vocabulary."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "A statistical interpretation of term specificity and its application in retrieval",
+          "authors": "Karen Spärck Jones",
+          "year": 1972,
+          "url": "https://www.emerald.com/insight/content/doi/10.1108/eb026526/full/html"
+        },
+        {
+          "type": "paper",
+          "title": "BERTopic: Neural topic modeling with a class-based TF-IDF procedure",
+          "authors": "Maarten Grootendorst",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2203.05794"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "memory",
+        "vocabulary",
+        "personalisation",
+        "salience"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has an own-writing corpus large enough to mine (weeks of thoughts).",
+          "Downstream scoring needs an own-frame axis beyond generic similarity.",
+          "Refresh cadence is feasible on the deployment's compute budget."
+        ],
+        "do_not_use_when": [
+          "The agent is short-lived and has no accumulating corpus.",
+          "Generic semantic similarity is sufficient for the salience use case.",
+          "Strong frame lock-in would harm exploration more than it helps relevance."
+        ]
+      },
+      "example_scenario": "An agent has been journalling for three months. Once a week, a mining job aggregates frontmatter tags and high-frequency content tokens across recent thoughts and the long-term insight store, picks the top thirty concepts with weights, and writes them to a small JSON cache. When the agent receives a new thought, the salience scorer combines generic embedding distance to recent context with overlap against the cached vocabulary. A thought that uses three of the top-thirty concepts scores higher than a thought with similar embedding distance but no overlap, because the cached vocabulary says 'this is on the line of inquiry'.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Corpus[(Own corpus<br/>thoughts + insights)]\n  Miner[Mining pass<br/>tags + content frequency]\n  Cache[(Top-N vocabulary<br/>cache)]\n  Thought[New thought]\n  Scorer[Salience scorer]\n  Corpus -->|periodic| Miner\n  Miner --> Cache\n  Thought --> Scorer\n  Cache --> Scorer\n  Scorer --> Score[Own-frame score]",
+        "caption": "Periodic mining derives a self-vocabulary; downstream scoring uses it as an additional axis alongside generic similarity."
+      },
+      "last_updated": "2026-05-21"
     },
     {
       "id": "session-isolation",
@@ -1424,8 +1533,8 @@
       ],
       "category": "memory",
       "intent": "Keep one user's session state and memory unreachable from another user's agent.",
-      "context": "Multi-user agent products where leaks across users are a privacy and security failure.",
-      "problem": "Shared memory backends and shared model contexts can leak one user's data into another's response.",
+      "context": "A team is shipping an agent product to many users. Each user expects their conversation history, preferences, and any data they share to stay private to them. For cost and operational reasons, the backend shares some infrastructure across users — caches, vector stores, model contexts — rather than running a fully isolated stack per user.",
+      "problem": "A shared memory backend or a shared model context can leak one user's data into another user's response. A misindexed cache key returns user A's history to user B. A prompt-cache prefix that includes user-specific context is reused across users. A vector store query without per-user partitioning surfaces another user's documents as 'relevant'. Any of these is a privacy and security failure that can be much worse than an ordinary bug, because the leak may go unnoticed for a long time and the consequences for user trust and regulatory exposure are severe.",
       "forces": [
         "Cache hits across users are tempting for cost; they break isolation.",
         "Auth scope must travel with every read and write.",
@@ -1519,7 +1628,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U1[User A request] -->|sub=A| Auth[Identity carrier]\n  U2[User B request] -->|sub=B| Auth\n  Auth --> Key[Scope by user identity]\n  Key --> StateA[(State / cache for A)]\n  Key --> StateB[(State / cache for B)]\n  StateA -.never crosses.- StateB\n  StateA --> Agent[Agent loop]\n  StateB --> Agent"
+        "mermaid": "flowchart TD\n  U1[User A request] -->|sub=A| Auth[Identity carrier]\n  U2[User B request] -->|sub=B| Auth\n  Auth --> Key[Scope by user identity]\n  Key --> StateA[(State / cache for A)]\n  Key --> StateB[(State / cache for B)]\n  StateA -.never crosses.- StateB\n  StateA --> Agent[Agent loop]\n  StateB --> Agent"
       },
       "last_updated": "2026-05-20"
     },
@@ -1533,8 +1642,8 @@
       ],
       "category": "memory",
       "intent": "Carry the relevant slice of conversation context across turns within a session.",
-      "context": "A multi-turn agent needs continuity (the user's most recent screen, the active plan, prior tool results) but does not need it forever.",
-      "problem": "Replaying the entire conversation every turn is expensive and pollutes context with stale facts.",
+      "context": "A multi-turn agent needs continuity across recent turns — what screen the user is currently on, what the active plan looks like, what tools have been called and what they returned — but it does not need this information forever. The next few turns will use it; the next conversation almost certainly will not.",
+      "problem": "Replaying the entire conversation history on every turn becomes expensive quickly and pollutes the context with stale facts that no longer matter. On the other hand, throwing away history between turns breaks continuity: the agent forgets what it was just doing, the user has to re-state their goal, and tool results disappear before the agent has a chance to use them. The team needs a bounded, recent slice of state that survives turn-to-turn within a session and is bounded by something other than 'everything that has ever been said'.",
       "forces": [
         "TTL choice (minutes? hours? days?) trades freshness for cost.",
         "What to keep vs. summarise is a quality-vs-cost tension.",
@@ -1649,8 +1758,8 @@
       ],
       "category": "memory",
       "intent": "During idle or downtime, run the model offline against the user's standing context to pre-compute dense summaries and likely future answers, so test-time latency and cost drop when the user actually asks.",
-      "context": "Agents with persistent user context — codebases, documents, prior sessions — that the user queries repeatedly. Test-time compute is paid for every query, even when the underlying corpus has not changed and many queries are predictable variants of past ones. Provider infrastructure has idle capacity between user sessions.",
-      "problem": "Conventional inference does all the work at test time: parse the corpus, find what matters, reason, answer. Each query repays this from scratch. Caching helps only when prefixes match. The user pays for latency on every question even though many questions about a static corpus could have been pre-answered overnight when nobody was waiting.",
+      "context": "A team is running an agent over persistent user context — a codebase, a set of documents, transcripts of prior sessions — that the user queries repeatedly. Many of the queries are predictable variants of previous ones, and the underlying corpus does not change between most of those queries. The provider infrastructure also has idle capacity between user sessions when nobody is actively waiting for an answer.",
+      "problem": "Conventional inference does all the work at test time, when the user is waiting. For every query the system parses the corpus, finds what matters, reasons about it, and produces an answer; the next query repays this work from scratch even if it is asking something very similar. Prompt caching helps only when the prefix matches exactly. The user therefore pays latency on every question even though many questions about a stable corpus could have been pre-processed during idle periods — yielding indices, summaries, or partial answers that would have made the eventual user-visible step nearly instantaneous.",
       "forces": [
         "Test-time latency is what the user feels; offline latency is invisible.",
         "Most queries against a stable corpus are predictable variants — predict and pre-answer once.",
@@ -1778,8 +1887,8 @@
       ],
       "category": "memory",
       "intent": "Store memories as embeddings in a vector index and retrieve the most semantically similar items at query time.",
-      "context": "Long-running agents accumulate facts/observations whose relevance is best judged by similarity to the current context.",
-      "problem": "Append-only logs grow unboundedly; without semantic retrieval the agent cannot find the relevant past.",
+      "context": "A long-running agent accumulates facts and observations over time, and on each step it needs to find the small subset of past items that is relevant to the current situation. Relevance is best judged by semantic similarity rather than by exact term match or chronological recency: 'find the past notes whose meaning is close to what is happening now'.",
+      "problem": "An append-only log of everything the agent has seen grows unboundedly and quickly becomes too large to search by linear scan. Without a semantic retrieval layer, the agent has no way to find the relevant past, because keyword search misses paraphrase and chronological recency misses older but topically relevant items. The team needs a memory store that supports similarity queries against an embedding of the current context, so that the agent can pull back exactly the items it should be thinking about now.",
       "forces": [
         "Embedding choice constrains retrieval quality.",
         "Index updates have non-trivial latency.",
@@ -1839,6 +1948,10 @@
         {
           "pattern": "salience-attention-mechanism",
           "relation": "complements"
+        },
+        {
+          "pattern": "self-corpus-vocabulary",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1870,9 +1983,9 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Mem[New memory item] --> Emb[Embed]\n  Emb --> Idx[(Vector index)]\n  Q[Query / current state] --> QEmb[Embed]\n  QEmb --> Top[Retrieve top-k similar]\n  Idx --> Top\n  Top --> Decay[Apply decay / salience weighting]\n  Decay --> Ctx[Prepend to context]"
+        "mermaid": "flowchart TD\n  Mem[New memory item] --> Emb[Embed]\n  Emb --> Idx[(Vector index)]\n  Q[Query / current state] --> QEmb[Embed]\n  QEmb --> Top[Retrieve top-k similar]\n  Idx --> Top\n  Top --> Decay[Apply decay / salience weighting]\n  Decay --> Ctx[Prepend to context]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     }
   ]
 }

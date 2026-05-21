@@ -11,11 +11,11 @@ Try a primary handler; on failure or low confidence, fall through to a sequence 
 
 ## Context
 
-Production agents where any single model or tool can fail (rate limits, errors, low-confidence outputs); end-users still need an answer.
+An agent in production depends on at least one model or tool that can fail for routine reasons: rate limiting, vendor errors, regional incidents, or outputs the model itself returns with low confidence. End users are sitting on the other end of the call expecting an answer regardless of which upstream had a bad minute. The team has more than one option available — a backup model, a smaller local model, a deterministic rule-based fallback — but those options are not wired in by default.
 
 ## Problem
 
-Single-handler failure cascades to the user as an outage; low-confidence outputs degrade UX silently.
+When the single primary handler fails, the user sees an outage even though other working handlers exist in the system. When the primary returns a low-confidence answer, the product silently ships a degraded response with no signal that something better could have been tried. Without a defined ordering of handlers and a rule for moving between them, every team improvises on each incident and quality regressions in the primary go unnoticed.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Bootstrap a model's reasoning by training it on its own correct chain-of-thought
 
 ## Context
 
-Reasoning tasks where chain-of-thought helps but supervised rationale data is unavailable.
+A team wants to fine-tune a model to become a better reasoner on a class of problems where chain-of-thought prompting visibly helps. They have ground-truth final answers for a training set, and they have compute to generate many model outputs. What they do not have is a dataset of human-written rationales — the step-by-step solutions a person would normally write between problem statement and final answer.
 
 ## Problem
 
-Without supervised rationale data, fine-tuning for reasoning is constrained; pure CoT prompting plateaus.
+Without supervised step-by-step explanations, supervised fine-tuning for reasoning is stuck: the model can be trained to produce final answers, but not to produce the rationales that lead to those answers. At the same time, just prompting the base model with chain-of-thought has plateaued and is as good as plain prompting can make it. The team needs a way to build a training set of rationales without humans writing them, and a training loop that does not require the unstable machinery of full reinforcement learning.
 
 ## Forces
 

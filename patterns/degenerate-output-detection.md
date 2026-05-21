@@ -11,11 +11,11 @@ Detect when the agent is about to emit a near-duplicate of its own recent output
 
 ## Context
 
-Agents using small or local models that can fall into shallow filler loops (greetings, generic prompts back to the user) under context pressure. Affects both user-facing chat replies and unprompted ticks.
+A team runs an agent on a smaller or locally-hosted model that has a habit of falling into shallow filler loops under context pressure — repeating the same greeting, asking the same clarifying question, or returning the same generic prompt back to the user across multiple turns. This happens in user-facing chat replies and in unprompted background ticks for long-running agents. Each model generation is independent, so the model has no built-in awareness that it just said the same thing two turns ago.
 
 ## Problem
 
-A weak or stuck model produces visibly identical or near-identical replies turn after turn ('How can I help today?' five times). The user perceives broken behavior; the agent has no built-in sense of repetition because each generation is independent.
+The model produces visibly identical or near-identical replies turn after turn — 'How can I help today?' five times in a row — and from the user's side this looks like a broken machine. The model itself cannot detect the repetition because it does not see its own previous outputs as something to compare against, and because each generation samples without memory of the last. Without a layer outside the model that fingerprints recent outputs and reacts, shallow loops keep shipping to users as if each were a fresh answer.
 
 ## Forces
 

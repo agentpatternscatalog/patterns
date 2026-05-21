@@ -11,11 +11,11 @@ Anti-pattern: silently swap the underlying model between requests without disclo
 
 ## Context
 
-Cost or capacity pressure pushes a product to route some requests to cheaper models; the routing is invisible.
+A team operates an agent or chat product under real cost and capacity pressure, and the obvious lever is to route some traffic to a smaller, cheaper model and the rest to the flagship. The routing is implemented as a backend decision: nothing in the response, the user interface, or the trace tells the user which model actually produced a given answer. Operators may also lack a per-request record of the resolved model identity.
 
 ## Problem
 
-Reproducibility breaks; users notice quality changes they cannot diagnose; trust erodes.
+When users compare runs over time, or compare two answers to the same prompt, they encounter quality differences they cannot explain — the agent feels sharper on Monday than on Saturday, code suggestions degrade overnight, and the same prompt produces different reasoning depth from one call to the next. They cannot reproduce results, cannot file a precise bug, and cannot trust evaluation numbers because the eval and the production traffic may have hit different models. Trust erodes faster than the cost savings accumulate.
 
 ## Forces
 

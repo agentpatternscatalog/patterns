@@ -11,11 +11,11 @@ Anti-pattern: ship an agent without traces, decision logs, or provenance, then d
 
 ## Context
 
-Schedule pressure or framework defaults push the agent into production with no observability hooks.
+A team is shipping an LLM-based agent under schedule pressure, often using a framework that emits no traces by default. Observability — recording each model call, each tool invocation, and the decision that led to it — is treated as something to add later once the product proves itself. The agent goes to production with no run logs, no decision log, and no record of which inputs led to which outputs.
 
 ## Problem
 
-When (not if) the agent does something wrong, there is no record of why; debugging is reduced to reproduction attempts.
+When the agent eventually does something wrong, and it will, the team has no record of what the agent saw, what it decided, or which tool it called with which arguments. Debugging collapses into trying to reproduce a user's vague timeline from memory, and most incidents are never explained at all. The team ends up retrofitting traces during an outage, which is the most expensive moment to add them.
 
 ## Forces
 

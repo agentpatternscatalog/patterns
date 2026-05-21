@@ -11,11 +11,11 @@ Evaluate an agent's full trajectory (steps, tool calls, intermediate states) by 
 
 ## Context
 
-Agent evaluations (SWE-Bench, agentic benchmarks) where the final output is one signal among many and the trajectory contains evaluable structure.
+A team is evaluating an agent that solves multi-step tasks, such as fixing a bug in a real codebase or completing a chain of tool calls to answer a question. The agent emits a full trajectory: each intermediate thought, every tool call it issued, every observation it received, and a final answer. The team wants to know not just whether the final answer is right, but whether the agent got there through reasonable steps.
 
 ## Problem
 
-LLM-as-judge evaluates only the final answer; agentic tasks succeed or fail along the trajectory in ways the final answer hides.
+A simple grader that looks only at the final answer cannot tell two agents apart when one solved the task cleanly and the other thrashed through twenty redundant tool calls, made a write outside its workspace, or stumbled into the right answer by luck. Process failures such as wasted spend, unsafe actions, or fragile reasoning are completely invisible to answer-only scoring. The team is forced to choose between cheap-but-shallow grading and expensive manual review of every run.
 
 ## Forces
 

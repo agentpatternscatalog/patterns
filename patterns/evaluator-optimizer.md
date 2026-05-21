@@ -11,11 +11,11 @@ One LLM generates; another evaluates and feeds back; loop until criteria are met
 
 ## Context
 
-Tasks with measurable evaluation criteria where iterative refinement beats single-pass generation.
+A team runs a generation task where the quality of a candidate can be scored against explicit criteria: unit tests pass or fail, a rubric is satisfied or not, a translation matches a glossary or it doesn't. Single-shot generation gets most cases right but plateaus below the quality bar the team needs. The team can afford to spend several model calls per output and is willing to trade latency for quality.
 
 ## Problem
 
-Single-shot generation tops out below what an evaluator-corrected loop achieves.
+When generation and evaluation happen in one prompt the model has no incentive to disagree with itself: it produces a draft and then signs off on it. Single-shot generation tops out below what a loop with an explicit evaluator achieves, but a naive loop where the same prompt does both jobs collapses into self-approval and adds cost without quality. The team needs separate roles for proposing and judging, and a bounded loop between them, otherwise the system either fails to improve past one pass or runs forever chasing diminishing critique.
 
 ## Forces
 

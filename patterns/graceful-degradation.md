@@ -11,11 +11,11 @@ When a dependency fails, downgrade the user-facing experience to a working subse
 
 ## Context
 
-Agent products that depend on multiple optional capabilities (retrieval, vision, code-execution) where any single dependency may fail without the whole product needing to.
+A user-facing agent product combines several optional capabilities — a retrieval-augmented-generation backend that produces citations, a vision model that reads screenshots, a sandbox that runs user code, a payment integration. Each of these dependencies can have its own bad day independently of the others. The product is more than the sum of any single capability and can produce something useful even when one piece is missing.
 
 ## Problem
 
-Failing entirely on any dependency outage frustrates users; silently producing degraded output without disclosure erodes trust.
+If the product treats every dependency as load-bearing and fails the whole request when any one of them is down, an isolated vendor outage becomes a complete product outage from the user's point of view. If it silently drops the failing capability and ships whatever it can produce without disclosure, the user gets a worse answer than expected without knowing why and loses trust the next time it happens. Without a defined per-feature fallback, neither outcome is acceptable.
 
 ## Forces
 

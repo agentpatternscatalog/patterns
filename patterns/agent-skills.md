@@ -11,11 +11,11 @@ Package author-time procedures (markdown + optional resources) the agent loads o
 
 ## Context
 
-Production agent products where common workflows benefit from authored procedures the agent can pick up.
+A team is shipping an agent product that handles many distinct recurring workflows. The same agent might process refunds, change addresses, schedule appointments, and answer policy questions, each with its own multi-step procedure that the engineering or operations team has already worked out and wants the agent to follow consistently.
 
 ## Problem
 
-Stuffing every workflow into the system prompt bloats context; ad-hoc prompt files are unmanaged. Distinct from the runtime skill-library (which the agent itself authors).
+Stuffing every workflow into one system prompt pushes context past tens of thousands of tokens and the agent still skips steps or blends procedures together. The alternative of dropping ad-hoc prompt files into the repository leaves the team with no clean way to version, review, or roll back individual procedures, and no clear story for how the agent decides which one applies to the current task.
 
 ## Forces
 

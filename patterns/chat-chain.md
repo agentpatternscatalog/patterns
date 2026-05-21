@@ -11,11 +11,11 @@ Decompose a long, multi-disciplinary task into ordered phases; within each phase
 
 ## Context
 
-A task (build a small program, write a brief, prepare a report) requires several disciplines in sequence and is too long for a single agent loop or a flat multi-agent broadcast.
+A team is using agents to carry out a long task — build a small program, prepare a regulatory brief, produce a multi-section report — that naturally breaks into several disciplines that have to happen in order: requirements, design, implementation, testing, documentation. The whole task is too long to fit in one agent's loop, and each discipline benefits from focused two-agent dialogue rather than a solo monologue.
 
 ## Problem
 
-A single agent loop loses focus; broadcast multi-agent chat produces tangled context; flat prompt-chaining cannot host the back-and-forth a discipline needs.
+A single agent loop loses focus halfway through, forgetting the early requirements by the time it is writing tests. A broadcast multi-agent chat where every agent sees every message tangles design discussion with code review and blows up context windows. Flat prompt-chaining — one prompt feeds the next — cannot host the multi-turn back-and-forth a discipline like design review needs. The team needs structure across the disciplines but flexibility inside each one.
 
 ## Forces
 
@@ -45,7 +45,7 @@ Phase_1 (Role_A <-> Role_B) -> artefact_1 -> Phase_2 (Role_B <-> Role_C) -> arte
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[Goal] --> P1[Phase 1<br/>designer + coder]
   P1 --> A1[Artefact 1]
   A1 --> P2[Phase 2<br/>coder + tester]

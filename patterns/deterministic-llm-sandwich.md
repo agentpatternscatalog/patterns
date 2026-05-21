@@ -11,11 +11,11 @@ Bracket every LLM call with deterministic checks on both sides.
 
 ## Context
 
-A correctness boundary where wrong outputs cause real damage (a wrong stitch count, a malformed migration, a mis-priced order).
+A team uses a large language model at a point in the system where wrong output causes real damage: a knitting pattern with a wrong stitch count that wastes a customer's yarn, a database migration that breaks production, an insurance quote that omits a required coverage line. The model is genuinely useful at this step (it talks to the user fluently, or it transforms messy input into a tidy form) so removing it entirely is not the right answer. But every output is one hallucination away from causing harm.
 
 ## Problem
 
-Trusting the LLM's output unconditionally accepts hallucination at the most expensive moment; banning the LLM entirely loses its strengths.
+Trusting the model's output unconditionally accepts hallucination at exactly the moment where mistakes are most expensive, and there is no signal at the boundary distinguishing a correct generation from a confidently wrong one. Banning the model entirely loses everything it was good at and forces the team back to brittle templated text. Simple downstream validation (a try/catch on the database call, for example) catches some failures but only after side effects have begun or only by failing loudly to the user. The team needs a way to keep the model in the loop while bounding what kinds of output it can land.
 
 ## Forces
 
@@ -44,7 +44,7 @@ Pre(input) -> {pass, fail} ; if pass: LLM(input) -> candidate ; Post(candidate) 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[Input] --> Pre[Pre: deterministic check<br/>e.g. AST parse]
   Pre -- pass --> LLM[LLM call<br/>structured output + rubric]
   Pre -- fail --> Reject1[Reject]

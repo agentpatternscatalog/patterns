@@ -11,11 +11,11 @@ Surface which input tokens caused a given output by perturbing attention across 
 
 ## Context
 
-Regulated or high-stakes deployments where the operator must explain to an auditor or end-user *why* the model produced a specific output; pure post-hoc rationalisations are considered insufficient.
+A team operates a transformer-based language model in a setting where someone — an auditor, a regulator, a clinician, a loan applicant — can demand a real explanation for any given output. The team controls inference enough to inspect the model's internal attention weights, either because the weights are open or because the provider exposes a way to perturb attention. A generated paragraph of self-justification will not satisfy the people asking, because what they want is evidence about which parts of the input actually drove the answer.
 
 ## Problem
 
-Free-text "why did you say that?" follow-up prompts produce plausible but unfaithful justifications; the model confabulates a reason that does not match its actual decision.
+Asking the model in plain language to explain why it answered the way it did produces fluent, convincing prose that may have nothing to do with the computation that produced the answer. The model can confabulate a reason that sounds reasonable but does not reflect which input tokens actually shifted the output. The team is forced to choose between a polished but unfaithful self-explanation and saying nothing at all, neither of which is acceptable when an auditor wants input-grounded evidence.
 
 ## Forces
 

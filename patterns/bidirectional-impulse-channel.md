@@ -11,11 +11,11 @@ Let the user inject impulses into the agent and let the agent push messages to t
 
 ## Context
 
-Long-running agents (cognitive loops, monitoring agents) that have continuous internal activity the user might want to influence or be informed of.
+A team is running an agent that does not sit idle between user turns. It might be a personal assistant running a continuous reasoning loop, a monitoring agent watching a system, or any process that has internal activity the user would sometimes want to interrupt or hear about. The user is at a chat or command-line surface, occasionally typing, occasionally absent for hours.
 
 ## Problem
 
-Pure request/response chat misses the long-running case; pure push notifications are intrusive without a back-channel.
+A pure request-and-response chat interface fits this poorly: the agent has nothing to say when nothing is asked, and the user has no way to inject a correction without phrasing it as a new question for the model to interpret. A pure notification firehose in the other direction is worse, because it trains the user to mute the channel within a day. The team has to choose between an agent that goes silent until prompted and an agent that becomes background noise, with no obvious middle ground.
 
 ## Forces
 

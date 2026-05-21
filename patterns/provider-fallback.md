@@ -11,11 +11,11 @@ When one provider's API errors mid-stream, transparently switch to another provi
 
 ## Context
 
-Production agent products that depend on multiple LLM providers and need uptime across provider outages, rate limits, and regional incidents.
+A production agent product streams long responses to the user — multi-paragraph answers, generated code, structured documents — and is willing to integrate with more than one LLM provider to keep that experience working. The team already accepts that any single provider will have rate-limit windows, regional incidents, and the occasional mid-stream disconnect that drops the second half of a response. They control a gateway layer between the client and the upstream providers and can hold conversation state there.
 
 ## Problem
 
-Single-provider deployments take outages personally; fallback-chain handles request boundaries but cannot recover a stream that fails mid-generation.
+A single-provider deployment is hostage to that provider's worst hour: when its stream fails halfway through a generation, the user sees a half-rendered answer followed by an error and has to start over. A request-boundary fallback chain handles the case where a whole call fails before any output, but it cannot recover a stream that began on provider A and died after some tokens were already delivered. Without mid-stream failover, the team's only options are to lose the partial output or to lock in to whichever provider was most reliable last week.
 
 ## Forces
 

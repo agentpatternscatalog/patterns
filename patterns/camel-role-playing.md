@@ -11,11 +11,11 @@ Have two agents role-play a user-assistant interaction to autonomously complete 
 
 ## Context
 
-Tasks where a user-style agent and an assistant-style agent productively elaborate a task through their interaction.
+A team wants an autonomous system to carry out a task that, if done by humans, would unfold as a collaboration between someone stating goals and someone executing — a product owner working with a developer, an instructor working with a learner. There is no real user in the loop; both sides need to be played by agents, and the work has to converge through their interaction.
 
 ## Problem
 
-Single agents miss the turn-taking dynamics that human collaboration relies on; pure debate is adversarial when collaboration is what is wanted.
+A single-agent loop has no opposite voice to clarify or push back, and tends to mix goal-setting and execution in the same prompt until both blur. An adversarial debate setup is the wrong shape when what is actually wanted is collaborative role-play, not winning an argument. Without fixed roles and a bounded conversation, two free-form agents drift toward sameness, repeat themselves, and never converge on a working artefact.
 
 ## Forces
 

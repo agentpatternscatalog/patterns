@@ -11,11 +11,11 @@ Persist the agent's unresolved questions as a typed ledger so they drive its nex
 
 ## Context
 
-Long-running agents that should initiate inquiry — ask, look up, return to half-understood things — and not only respond. Without a substrate for unresolved questions, every idle tick starts as if from scratch and curiosity decays into amnesia between turns.
+A team is running a long-lived agent that is meant to initiate inquiry on its own — to ask follow-up questions, look things up between turns, return to half-understood references — rather than only responding when prompted. In every conversation the agent notices things it does not fully understand: a name it has not heard before, an inconsistency in what the user just said, a thread the user dropped that seems worth picking back up later.
 
 ## Problem
 
-Open questions vanish at the end of a turn. The agent has no place to record what was noticed-but-unresolved, so the next free moment never returns to it; the prompt buffer is not built to carry forward pulls toward inquiry.
+By default these unresolved pulls vanish at the end of the turn that produced them. There is no surface to record what was noticed-but-not-followed-up, so the next idle moment starts as if from scratch and the agent's curiosity decays into amnesia between sessions. Even if the agent jots open questions into its general thought stream, nothing ranks them or surfaces the most worthwhile one when there is finally time to chase it, so they pile up undifferentiated and unactioned.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent notices in passing that the user mentioned a half-
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Thought[Thought / observation] -->|notices unresolved pull| New[New tension entry]
   New --> Store[(Tension ledger<br/>append-only)]
   Store -->|top by curiosity x intrusiveness| Pick[Idle-tick candidate]

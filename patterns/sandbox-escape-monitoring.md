@@ -11,11 +11,11 @@ Treat sandbox boundary violations as telemetry; alert on syscalls, network egres
 
 ## Context
 
-Agents executing code or operating filesystems where sandbox-isolation is in place; sandboxes have known escape vulnerabilities.
+A team runs an agent that executes generated code or manipulates files on behalf of users, inside an isolation boundary such as a container, microVM, or syscall-filtered sandbox. The boundary is designed to confine what the agent can read, write, and reach over the network. Real-world sandboxes have known escape vectors and zero-day vulnerabilities; isolation is necessary but not by itself sufficient.
 
 ## Problem
 
-Sandbox-isolation is preventive only; without monitoring, a successful escape (or even an attempt) is invisible until damage is done.
+Treating the sandbox as a pure prevention mechanism means a successful escape, or even repeated escape attempts, can happen without anyone seeing them. A blocked network egress, an unexpected syscall, or a write outside the working directory will silently fail or succeed without any alert. The team is forced to choose between assuming the sandbox is impenetrable, which it is not, or learning about boundary violations from the downstream damage they cause.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A code-execution agent runs user-emitted Python in a container that should have 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]
   S -->|net egress not on allowlist| Tel
   S -->|fs write outside workdir| Tel

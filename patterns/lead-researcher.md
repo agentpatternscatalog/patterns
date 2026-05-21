@@ -11,11 +11,11 @@ A lead agent writes a research plan and dispatches parallel sub-agents that fan 
 
 ## Context
 
-Open-ended research tasks where breadth-first exploration across many sources beats depth-first single-thread reasoning.
+A team is using an agent to handle open-ended research tasks — write a market brief on a niche industry, gather competitive intelligence, prepare a literature review. The work benefits from breadth-first exploration across many sources rather than depth-first reasoning along one thread, and there is a deadline measured in hours, not days.
 
 ## Problem
 
-Single-agent research is bottlenecked on serial token generation; generic orchestrator-workers under-specifies how to handle research-shaped tasks (parallelism, source diversity, synthesis).
+A single agent doing the research serially is bottlenecked on its own token generation: it can only search and read one source at a time, and by the time it has visited ten sources the deadline has passed or its context window is exhausted. A generic orchestrator-workers pattern handles parallel sub-tasks but does not say anything about how to plan research questions, how to keep sub-agents from overlapping, or how to synthesise findings into a coherent answer. The team needs a structure shaped specifically for research, not a generic dispatcher.
 
 ## Forces
 

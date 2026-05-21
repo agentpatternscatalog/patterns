@@ -11,11 +11,11 @@ Cap the number of insights per stem-token cluster and archive the oldest variant
 
 ## Context
 
-Long-running agents that write insights to disk over months. Without a structural ceiling, near-duplicates pile up around any topic the agent thinks about often and retrieval becomes a sinkhole of old variants.
+A team is running a long-lived agent that writes small insight notes to disk over weeks and months as it reflects on its work. The store is append-only by default and grows continuously. Whenever the agent thinks about a recurring topic, it tends to produce slightly different versions of the same insight rather than locating and updating the old one, so a topic the agent revisits often ends up with a cluster of near-duplicate files.
 
 ## Problem
 
-Insight stores grow open-endedly; near-duplicates accumulate around topics the agent revisits. The agent ends up reading old variants of its own thinking instead of the current one. An LLM-driven merge is expensive and risks losing nuance.
+With no structural ceiling on per-topic clusters, the insight store accumulates twelve or fifteen variations on the same theme, and retrieval increasingly surfaces older drafts of the agent's own thinking instead of the current view. Asking a language model to merge each cluster into a single canonical insight is expensive to run on every consolidation pass and risks quietly losing the nuance that distinguishes the variants. The team is forced to choose between unbounded growth and a slow, opaque, model-driven cleanup.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent has been writing insights for six months. An audit
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Scan[Periodic scan] --> Group[Group by first two stem tokens]
   Group --> Per{Per cluster}
   Per -->|<= MAX| Keep[Keep all]

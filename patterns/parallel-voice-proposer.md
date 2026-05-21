@@ -11,11 +11,11 @@ Generate several candidate thoughts in parallel under named voices and have the 
 
 ## Context
 
-Single-agent loops where best-of-N is too expensive, inner-committee's sequential roles are too slow, but the agent benefits from seeing its own disagreement before committing to a single line of thought.
+A team is running a single-agent loop on a workload where the model often produces confident-sounding output that masks real internal disagreement. Best-of-N sampling — generating N independent completions and scoring them — would help but is too expensive per tick, and running a sequential inner-committee of personas is too slow. The team wants to surface disagreement within a single completion without paying for either alternative.
 
 ## Problem
 
-Single-pass generation collapses the model's internal disagreement into a confident-sounding mean. Sequential persona-switching is slow and depends on role ordering. Best-of-N requires an external scorer that may not exist.
+Single-pass generation collapses whatever internal tension the model has into a confident-sounding mean, and downstream consumers see only the polished result. Running multiple completions in sequence under different personas slows the loop and depends fragilely on role-ordering effects. Best-of-N needs an external reward model to pick the winner, and for many tasks no such scorer exists. The team is forced to choose between cheap-but-overconfident, slow-and-ordered, or expensive-and-needs-a-judge.
 
 ## Forces
 

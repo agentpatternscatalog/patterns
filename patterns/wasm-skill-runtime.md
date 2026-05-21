@@ -11,11 +11,11 @@ Package each agent skill or tool as a WebAssembly module with an explicit capabi
 
 ## Context
 
-An enterprise agent platform that must accept user-authored or partner-authored skills written in different languages (Rust, Python compiled, TypeScript, Go) while enforcing per-skill resource and IO limits.
+A team is operating an enterprise agent platform that must accept skills authored by external users or partners and execute them on shared infrastructure. The skills are written in different languages — Rust, Python compiled to a runnable form, TypeScript, Go — and the platform has to enforce per-skill limits on CPU, memory, network access, and filesystem access while still serving them at the rate of incoming agent requests.
 
 ## Problem
 
-Plain-process tools share the host's privileges, language-specific sandboxes (e.g. Python sandbox) are not robust, and per-skill containers are heavy; the agent can't safely run third-party skills at request rate.
+Running third-party skills as plain in-process code gives them the host's full privileges, which is unacceptable when the author is not fully trusted. Language-specific sandboxes such as a Python sandbox have a long history of escape vulnerabilities and only cover one language at a time. Spinning up a full container per skill invocation is too slow at request rate and too heavy on infrastructure. The team needs a sandbox that is light enough to start per request, language-agnostic enough to cover the polyglot skill set, and strict enough that a hostile skill cannot weaken the host environment.
 
 ## Forces
 
@@ -61,7 +61,7 @@ Host runtime { capability gate } -> Wasm sandbox(skill_module, manifest) -> dete
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Skill[Skill source<br/>Rust / Python / TS / Go] --> WasmMod[Compile to Wasm module]
   WasmMod --> Pkg[Module + capability manifest<br/>fs / net / env / syscalls]
   Pkg --> Host[Host runtime]

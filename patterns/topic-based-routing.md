@@ -11,11 +11,11 @@ Route inter-agent messages through named topics that agents subscribe to, instea
 
 ## Context
 
-Multi-agent systems where the sender does not know — and should not know — which agents are interested in a given message; new subscribers should be able to join without changing the sender.
+A team is building a multi-agent system in which a message produced by one agent is potentially of interest to several others, and the set of interested agents may change over time. The sender does not know — and should not need to know — exactly which agents will care about its message, and new subscribers should be able to join the system without forcing changes to anyone who is already publishing.
 
 ## Problem
 
-Direct agent-to-agent addressing creates a dense web of senders that know about receivers; adding a new participant requires editing every sender that should reach it.
+Direct agent-to-agent addressing, where a sender names each receiver explicitly, creates a dense web of dependencies in which every sender carries knowledge about every receiver it might want to reach. Adding a new participant then requires editing every sender that should be able to reach it, and removing one leaves dangling references everywhere. The team needs a routing mechanism where senders publish to named topics and interested agents subscribe to those topics, so that sender and receiver are decoupled and the wiring can change without touching either end.
 
 ## Forces
 
@@ -53,7 +53,7 @@ An incident-response platform has many agents. A monitor agent publishes to `tel
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   P1[Monitor agent] -->|publish| T1[(telemetry.alert)]
   T1 --> S1[Triage agent]
   T1 --> S2[Audit agent]

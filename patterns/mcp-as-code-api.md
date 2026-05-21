@@ -11,11 +11,11 @@ Materialize MCP servers as a directory of typed code wrappers so the agent write
 
 ## Context
 
-Agents connected to many MCP servers, each exposing tens or hundreds of tools with verbose JSON outputs. Conventional tool calling loads every tool schema into the prompt and round-trips every tool result back through the model, so a single workflow that joins data across servers can burn six-figure token counts before any reasoning happens. The agent already has a code-execution sandbox (Python or TypeScript runtime).
+A team is running an agent that is connected to many Model Context Protocol (MCP) servers at once: a Google Drive server, a Slack server, an internal Postgres server, a GitHub server. Each server exposes tens or hundreds of tools with verbose JSON outputs. The agent already has a code-execution sandbox available (a Python or TypeScript runtime it can use as its action channel).
 
 ## Problem
 
-Putting all MCP tool definitions in the prompt is wasteful when only a handful are used per task. Worse, every intermediate result — a 5MB spreadsheet, a paginated Slack thread, a binary diff — must be serialized into the context window even when the model only needs to pass it from one tool to the next. Token cost, latency, and context-window pressure all explode for workflows that are mostly plumbing.
+Conventional tool calling loads every advertised tool schema into the system prompt and routes every tool result back through the model's context window, even when the model is only going to pass that result straight to the next tool. A single workflow that joins a 5 megabyte spreadsheet with a paginated Slack thread can burn six-figure token counts before any actual reasoning happens, and most of those tokens are plumbing the model never has to read.
 
 ## Forces
 
@@ -42,7 +42,7 @@ Agent <-> Model context (small) | Sandbox runtime executes generated code | Tool
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Agent context<br/>small] -->|writes script| SCR[Generated code]
   SCR --> SAND[Sandbox runtime]
   subgraph FS[Tool wrapper tree on filesystem]

@@ -11,11 +11,11 @@ Treat the agent's workflow itself (a graph of LLM-invoking nodes connected by ed
 
 ## Context
 
-A repeatable task domain (coding, math, QA) where you can score outputs against a benchmark, and where the right composition of routing, planning, ensembling, review, and revise nodes is not known a priori.
+A team is building an agent for a repeatable task domain such as competitive coding, mathematical problem solving, or question answering, where each output can be scored automatically against a benchmark of known answers. They are choosing how to compose the agent out of named building blocks like a router, a planner, an ensembler, a reviewer, and a revise step, but no one on the team knows in advance which arrangement of these blocks will perform best on the target task.
 
 ## Problem
 
-Hand-designing the optimal agent workflow per domain is expensive, brittle, and biased by the designer's repertoire of patterns.
+When the workflow shape is chosen by a human designer, the choice is biased toward whatever patterns the designer has seen before, and exploring even a handful of alternatives by hand is slow and expensive. Each candidate workflow has to be implemented, run end-to-end against the benchmark, and compared, so the search space the team actually covers is a tiny fraction of the realistic compositions. The result is workflows that work but are almost certainly not the best the model and tools could deliver.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Run the same prompt against a fixed spec in a deterministic outer loop until the
 
 ## Context
 
-A greenfield task with a clear (or improvable) specification where each iteration can improve the codebase incrementally.
+A team works on a task with a clear or steadily-improvable specification — a long bug-fix list, a feature build that decomposes into small chunks, a migration whose end state is well-defined. Each iteration can move the codebase a little closer to the spec without trying to land everything at once. The team has a test suite or a similar gate that can tell whether the spec has been satisfied.
 
 ## Problem
 
-Agents that try to plan an entire feature in one go are brittle; agents that wander without a spec drift.
+Agents that try to plan and implement the whole feature in a single turn are brittle because they have to hold too many decisions in one context and they cannot back out of a bad early commitment. Agents driven from a free-form chat wander, lose their plan, and produce work that is hard to resume after an interruption. Custom orchestration frameworks add their own complexity for what should be a simple loop. The team wants something brutally simple — re-run the agent against the spec until the spec is satisfied — without losing the ability to inspect, pause, and resume.
 
 ## Forces
 

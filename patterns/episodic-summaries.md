@@ -11,11 +11,11 @@ Compress past episodes into summaries that preserve gist while shedding token co
 
 ## Context
 
-A long-running agent has more history than fits the context window; raw replay is impractical.
+A long-running agent has accumulated more conversation history, tool results, and intermediate reasoning than fits in the model's context window. Replaying the raw history on every turn is impossible because of size, and even when it would fit, it is wasteful to re-read all of it for what is usually a small follow-up step.
 
 ## Problem
 
-Without compaction, either the context grows unboundedly or important facts fall off the back of a sliding window.
+Without some form of compaction, the agent has only two bad options. Either the context grows unboundedly until it overflows the window, at which point the call fails or the most recent state is silently dropped. Or a sliding-window strategy truncates the oldest content, which lets important early facts (the original task, an early decision the agent made, a constraint the user stated up front) fall off the back even though the agent still needs them. The team needs a way to summarise older history into compact episodes that retain the load-bearing facts while shedding the verbatim noise.
 
 ## Forces
 

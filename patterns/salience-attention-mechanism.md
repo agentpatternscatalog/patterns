@@ -11,11 +11,11 @@ Score every candidate memory item with a weighted salience function so each tick
 
 ## Context
 
-Long-running agents whose memory store grows past what can fit in a single tick's context. The agent has thoughts, summaries, insights, and observations across hours or days; only a small, currently relevant slice should drive the next step.
+A long-running agent's memory store grows past what can fit into a single call's context. The agent has accumulated thoughts, summaries, insights, and observations over hours or days, and on every tick only a small, currently relevant slice of that store should drive the next step.
 
 ## Problem
 
-Without explicit salience, the agent either dumps all memory into context (token blowout, no focus) or grabs the most recent items only (no continuity, no surprise-driven attention). Recency alone misses the items that matter, and bulk loading buries them in noise.
+Without an explicit notion of salience, the agent has only two bad strategies. Dumping all of memory into context blows up the token budget and gives the model no focus on what matters now. Taking only the most recent items provides no continuity and misses anything older that has become relevant again because of a surprise in the current context. Recency alone misses the items that matter; bulk loading buries them in noise. The agent needs a way to score every candidate memory by how salient it is to the current moment and to surface only the top-scoring ones into context.
 
 ## Forces
 
@@ -35,7 +35,7 @@ Score each candidate memory item `m` with a weighted sum: `alpha * novelty(m) + 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Mem[(Candidate memory items)] --> Sc[Salience score:<br/>α·novelty + β·goal +<br/>γ·recency + δ·prederr − ε·fatigue]
   Sc --> Top[Top-k]
   Top --> WS[Working set]

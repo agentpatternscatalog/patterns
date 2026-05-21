@@ -11,11 +11,11 @@ After cheap bi-encoder or BM25 retrieval, rescore top-N candidates with a cross-
 
 ## Context
 
-Bi-encoders compress query and document independently and lose fine-grained interaction; ANN-search top-k is recall-oriented.
+A team is using a two-stage retrieval pipeline. The first stage is a fast bi-encoder that embeds the query and each document independently and compares their vectors; an approximate nearest-neighbour index returns a top-k candidate set from a large corpus. Because the encoder sees query and document separately, it cannot model fine-grained interactions between them, and because the index is tuned for recall, the top-k list mixes truly relevant candidates with topically similar but unhelpful ones.
 
 ## Problem
 
-Top-k from cheap retrieval contains both relevant and irrelevant candidates; the generator wastes context on the latter.
+Feeding the entire top-k list into the downstream generator wastes its context window on irrelevant candidates and lets the loudest distractor mislead the answer. The team needs a way to re-order or filter the candidate set so that the most relevant items rise to the top, but they cannot afford to run a heavy joint scoring model over the whole corpus on every query. They need a small but expensive scorer that runs only over the cheap retriever's shortlist and resorts it by genuine query-document relevance.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A legal-research agent retrieves 100 candidate paragraphs from a corpus of contr
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Query] --> Retr[Bi-encoder retrieval, top-100]
   Retr --> CE[Cross-encoder scores query against each candidate]
   CE --> Rank[Rerank by score]

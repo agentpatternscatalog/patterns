@@ -11,11 +11,11 @@ Persist user-specific facts, preferences, and prior context across all sessions,
 
 ## Context
 
-User-facing assistants where users expect continuity beyond a single conversation.
+A team is building a user-facing assistant where the user expects continuity between visits. The user mentioned a preference last Tuesday, named a project two weeks ago, and told the assistant their pet's name a month ago. Today they expect the assistant to remember those facts without being re-told.
 
 ## Problem
 
-Per-thread memory loses everything between sessions; users repeat themselves; the assistant feels amnesic.
+Per-thread memory loses everything between sessions: every new conversation starts from a blank slate, the user has to repeat themselves about basic facts, and the assistant feels amnesic and impersonal. The team needs a mechanism that captures the right kind of information at the right time, stores it durably across sessions, and surfaces it back into context when relevant — without leaking private details, blurring sessions together, or storing every passing remark as if it were load-bearing.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Treat mixed-language input (e.g. Hinglish — Hindi-English code-switching, ofte
 
 ## Context
 
-Conversational agents in markets where users routinely mix languages and scripts within a single utterance ("book me a cab from Saket to Connaught Place jaldi"); romanised Indic typing is the norm because Latin keyboards dominate.
+A team is building a conversational agent for a market where users routinely blend two or more languages inside a single sentence, and often type one of those languages in a script that does not belong to it. A common example is Hinglish in India, where a user might type "book me a cab from Saket to Connaught Place jaldi" — English verbs, Hindi place names, and one Hindi adverb, all in the Latin alphabet because that is what the phone keyboard offers by default. The agent has to make sense of this mix without asking the user to commit to one language.
 
 ## Problem
 
-Mono-language pipelines mis-tokenise, mis-detect, or refuse mixed-language input; forcing the user to pick a language degrades UX and discriminates against real-world bilingual usage.
+A pipeline that assumes one language per turn fails this input in several distinct ways. A tokenizer tuned for English may split a Hindi word written in Latin letters into nonsense pieces; a language detector that runs on the whole utterance flips between turns or picks the wrong language and routes the request to a Natural Language Understanding stack that does not speak it; some systems give up entirely and ask the user to please pick one language, which is both a worse experience and a tacit refusal of how bilingual users actually talk. The team is then forced to choose between rejecting natural input and building a parallel pipeline per language pair.
 
 ## Forces
 

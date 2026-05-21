@@ -11,11 +11,11 @@ Encode a human Standard Operating Procedure (roles, ordered phases, standardised
 
 ## Context
 
-A complex, repeatable task (software development, document production, regulatory submission) already has a well-known human procedure with named roles and defined deliverables between them.
+A team is automating a complex, repeatable task — software development, document production, a regulatory submission — that already has a well-known human Standard Operating Procedure (SOP). The SOP names specific roles (product manager, architect, engineer, quality assurance) and specifies the deliverables that pass between them: a requirements document, then a design, then code, then a test report. The shape of the work is already understood; what is being automated is the execution.
 
 ## Problem
 
-Free-form multi-agent chat hallucinates context, drifts off-task, and produces no auditable trail; without a procedure, agents redo each other's work or skip steps.
+If the agents simply chat freely, they hallucinate context the SOP would have pinned down, drift off-task between roles, and produce no auditable trail of which agent did what. Without typed hand-off deliverables, agents redo each other's work or quietly skip steps, and ambiguity that the SOP would catch at a phase boundary propagates to the end. The team ends up with a multi-agent system that looks lively in the transcript but produces worse artefacts than a single human following the same procedure would.
 
 ## Forces
 
@@ -61,7 +61,7 @@ Role_A -- artefact_1 --> Role_B -- artefact_2 --> Role_C ... ; shared message po
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   PM[Product role] -->|PRD| Arch[Architect role]
   Arch -->|design doc| Dev[Developer role]
   Dev -->|code| QA[QA role]

@@ -11,11 +11,11 @@ Let a planning agent invoke a generative world model (a video, physics, or envir
 
 ## Context
 
-Agents acting in environments where the consequence of an action is hard to predict from text reasoning alone — robotics, game environments, physical-world tasks, embodied tasks, or any setting where a generative world model exists that can simulate plausible futures from a state-and-action prompt.
+A team builds a planning agent that has to act in an environment where the consequences of an action depend on physics, geometry, or rich perceptual dynamics: a household robot, a game-playing agent, an embodied agent moving in a 3D scene, or a control system over a continuous process. A capable generative world model (a video diffusion model, a learned dynamics model, an external simulator) exists that can produce a plausible rollout when given a description of the current state and a candidate action. Some of the actions the agent might take are irreversible or expensive enough that the team would rather not learn about them by acting first.
 
 ## Problem
 
-Pure text-level lookahead (thought trees, plan-and-check) is weak when the consequence of an action depends on physics, geometry, or rich sensory dynamics that the agent's text reasoning does not actually model. Training a tightly-integrated world model into the agent is expensive and locks the agent to one model. Acting without lookahead is unsafe in irreversible environments. The agent needs grounded foresight without taking on the cost of training its own world model.
+Text-level lookahead, where the agent just thinks step by step about what would happen if it acted, is weak when the answer depends on physical or perceptual details the model never represented in its text reasoning: whether the glass will tip at the shelf edge, whether the gripper will collide with the cup behind it, whether the lever will jam. The model can write a confident paragraph about either outcome without that paragraph having any contact with the actual dynamics. Training a tightly-integrated world model into the agent itself is expensive and locks the system to one model that quickly becomes stale. Acting without any lookahead is unsafe in environments where mistakes are not cheap to undo. The team needs grounded foresight without paying the cost of training their own world model from scratch.
 
 ## Forces
 

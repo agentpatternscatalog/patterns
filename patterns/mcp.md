@@ -11,11 +11,11 @@ Standardise how agents discover and call tools so that a tool written once is us
 
 ## Context
 
-Multiple agents (vendor clients, IDEs, custom hosts) want to share a tool layer; rewriting tool adapters per host is wasteful and creates drift.
+An organisation operates several agent hosts at once: an IDE plugin, a desktop assistant, a custom CLI, a teammate's editor agent. Each of them wants access to the same underlying tools (a GitHub integration, a Postgres query tool, a documentation search) and ideally the team should be able to write each tool once.
 
 ## Problem
 
-Tool definitions are vendor-specific; the same capability is re-implemented per agent host with diverging behaviour.
+Without a shared protocol, every tool has to be re-implemented as a vendor-specific function-calling adapter for each host. The same GitHub integration ends up rewritten three times with subtly different argument names and error shapes, and the implementations drift as each host evolves. Authentication is rewired per host, and there is no clean way for a new agent host to discover what tools already exist in the organisation.
 
 ## Forces
 

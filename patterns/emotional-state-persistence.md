@@ -11,11 +11,11 @@ Track the agent's affective state as bounded, decaying scalars across ticks so r
 
 ## Context
 
-Long-running agents whose runs span hours or days and whose recent history affects how the next tick should be shaped. Frustration after stuck loops, a small lift after a clean win, accumulating fatigue across token-heavy stretches — none of these are visible to the next prompt unless they are materialised as state.
+A team is running an agent whose sessions span hours or days, where the texture of recent history genuinely matters for how the next turn should be shaped. Frustration after a stretch of stuck tool loops, a small lift after a clean success, accumulating fatigue across token-heavy stretches — all of these influence what good behaviour looks like next, but none of them appear anywhere in the next prompt unless they are explicitly written down as state.
 
 ## Problem
 
-Long-running agents accumulate emotional residue that is invisible to the next prompt unless it is materialised as state. Each tick treats the agent as emotionally blank, so the model cannot adapt cadence, depth, or risk-taking to its own current load.
+Without a materialised affect track, every tick reads to the model as emotionally blank, even when the agent has just had a hard exchange or a notable win. The model cannot adapt cadence, depth, or risk-taking to its own current load because that load is invisible to it. The naive alternative — letting the model self-describe its mood inside the conversation — drifts, has no decay, and can be pumped into permanent emotional states because nothing bounds the scalars or forgets old events.
 
 ## Forces
 

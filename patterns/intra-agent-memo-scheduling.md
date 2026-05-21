@@ -11,11 +11,11 @@ Let an agent drop a note for its own future self at a specified time so present 
 
 ## Context
 
-Long-running agents with a continuous tick loop or background process, where a thought now ('check whether X resolved tomorrow') would otherwise be lost between turns.
+A team is running an agent that ticks continuously across many sessions and frequently has the thought 'I should come back to this tomorrow' or 'check whether X resolved by Friday afternoon.' The present-self has context the future-self will need, but the natural prompt window only carries a handful of recent turns, so by tomorrow that intention has fallen out of context entirely.
 
 ## Problem
 
-Without an internal scheduler the agent either acts immediately on every thought (spamming the user) or forgets the thought entirely. External cron systems are too coarse and too far away from the agent's working memory.
+Without some way to drop a note for its own future self, the agent has only two unsatisfying options. It can act on the thought right now — pinging the user at 9am about something that should have waited until 4pm — or it can hope to remember on its own, which it will not. External scheduling systems like cron or a queue can fire on time but live outside the agent's working memory, so when they do fire the agent has no idea why the reminder is showing up or what its past-self intended.
 
 ## Forces
 

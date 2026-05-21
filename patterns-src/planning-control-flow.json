@@ -13,8 +13,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "At each node of an inference-time search tree, use Thompson sampling to decide whether to deepen an existing answer or branch a fresh attempt, optionally choosing per-node which underlying LLM to invoke.",
-      "context": "Inference-time search over LLM-generated candidates for tasks with verifiable or scorable outputs (code, math, ARC-style puzzles). The team has a budget of model calls and wants to spend them better than fixed-width tree-of-thoughts or flat best-of-N. Multiple LLMs may be available with complementary strengths.",
-      "problem": "Plain MCTS over LLM outputs (LATS) uses a fixed branching factor and treats every node identically. Tree-of-thoughts branches at a fixed width. Best-of-N is flat with no exploration of refinements. None of these adaptively trade width against depth based on which branches are paying off, and none can choose which LLM to call at a given node. On hard search problems this leaves a lot of compute on the table.",
+      "context": "A team is using a large language model to attack problems whose outputs can be scored — running code against tests, checking a math answer, or grading an abstract-reasoning puzzle. They have a fixed budget of model calls to spend at inference time and want to spend it better than a flat sampling pass would. Several models with different strengths may be available at once, and the controller can choose which to call at each step.",
+      "problem": "Existing inference-time search schemes commit to a fixed shape. Monte Carlo Tree Search over language-model rollouts uses a fixed branching factor and treats every node the same; tree-of-thoughts expands at a fixed width; best-of-N is flat and never refines anything. None of these adapt the trade-off between trying more fresh attempts and refining a promising one based on what the scores are actually telling the controller, and none can pick a different model for a hard node. On difficult problems this leaves a lot of compute on payoff-poor branches.",
       "forces": [
         "Width (more fresh attempts) and depth (refining existing ones) compete for the same budget.",
         "The right width/depth balance differs per node and is not known in advance.",
@@ -137,8 +137,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Spawn 100 or more identical, full-capability agent instances in parallel — each a complete general agent rather than a role-specialised worker — and aggregate their independent outputs into a single answer.",
-      "context": "Wide-coverage tasks such as comparing many candidates, scanning many sources, or sampling many independent strategies. Each subtask is large enough that a role-specialised lightweight worker is too weak, but small enough that a full agent can handle it. Per-agent isolation is available (sandbox VMs or worktrees).",
-      "problem": "Orchestrator-workers patterns assume specialisation — the orchestrator decomposes by role and dispatches to differently-skilled workers. Many real wide-coverage jobs are not role-decomposable: each unit of work needs the *same* full capability. Spawning hundreds of role-specialised workers wastes the orchestrator's effort and produces inconsistent worker quality. Spawning hundreds without isolation or aggregation produces the Unbounded Subagent Spawn anti-pattern.",
+      "context": "A team needs an agent to do a wide-coverage job — compare a long list of candidate libraries, scan a hundred different sources for the same kind of information, or sample many independent strategies for the same problem. Each individual unit of work is too large for a stripped-down worker prompt but small enough that a full general agent can finish it on its own. The infrastructure can hand each instance its own isolated environment, such as a sandbox virtual machine or a separate working copy of the codebase.",
+      "problem": "The usual orchestrator-workers pattern assumes specialisation: the orchestrator decomposes the job by role and hands each piece to a worker with a different skill. Many wide-coverage jobs are not role-decomposable at all — every unit needs the same full agent capability, just over a different slice of input. Inventing fake roles wastes the orchestrator's effort and produces inconsistent worker quality. Spawning hundreds of clones without isolation or an aggregation strategy collapses into the unbounded-subagent-spawn anti-pattern.",
       "forces": [
         "Wide coverage demands high parallelism, but parallel agents collide if they share state.",
         "Each unit of work needs full agent capability, not a stripped-down worker.",
@@ -272,8 +272,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Have the agent ask a clarifying question before acting on an ambiguous request.",
-      "context": "User requests are often underspecified; acting on the wrong interpretation costs more than asking.",
-      "problem": "Agents that always act produce confidently wrong results on ambiguous inputs.",
+      "context": "A team is building an agent that takes free-form user requests and acts on them — moving a calendar event, editing a file, sending a message. Real user requests are often underspecified or refer to entities the agent cannot uniquely resolve from context. The deployment is interactive enough that the agent can ask a follow-up question before doing anything irreversible.",
+      "problem": "An agent that always acts will silently pick one interpretation when several are plausible, and confidently do the wrong thing — moving the wrong meeting, editing the wrong file, replying to the wrong thread. Rolling back the wrong action is usually more expensive than asking a single clarifying question would have been. But asking on every request quickly becomes annoying and trains the user to ignore prompts, so the agent has to detect when it is actually uncertain instead of asking by default.",
       "forces": [
         "Asking too often is annoying.",
         "Asking too rarely produces wrong work.",
@@ -382,8 +382,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Trigger the agent on external events (webhooks, message queues, file changes) instead of user requests or schedules.",
-      "context": "Tasks that should happen in response to something happening (PR opened, message received, alert fired) — not on a clock and not on demand.",
-      "problem": "Pulling for state on a schedule wastes effort; pushing on events is timely and efficient when an event source exists.",
+      "context": "A team operates an agent whose job is to react to things happening in the wider system — a pull request opened on a repository, a customer message arriving in a queue, a monitoring alert firing, a file appearing in a watched folder. The work should happen when the event occurs, not when a human remembers to ask and not on a fixed schedule. An event source (webhook, message queue, file watcher) is already available or can be added.",
+      "problem": "If the agent has to discover these events by polling a status endpoint on a schedule, most polls find nothing and burn tokens and quota; the few that find something arrive up to one polling-interval late. Inviting the agent only on user demand misses everything that happens overnight. Wiring the agent naively to an event firehose without validation, deduplication, or rate limits exposes it to event storms, replayed deliveries, and spurious triggers that can drain budgets or cause duplicate side effects.",
       "forces": [
         "Event source reliability.",
         "Burst handling: event storms can overwhelm.",
@@ -486,8 +486,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Balance taking the best-known action (exploit) with trying alternatives that might be better (explore).",
-      "context": "Long-running agents that learn from outcomes (skill libraries, multi-armed-bandit-style choice across tools or strategies).",
-      "problem": "Pure exploitation locks the agent into local optima; pure exploration wastes effort on unproven options.",
+      "context": "A team runs a long-lived agent that repeatedly chooses among a set of options — which tool to call, which prompt template to use, which strategy to try — and can observe an outcome signal after each choice (success, reward, user thumbs-up). Over time the agent should get better at the choice, not just freeze the first decent option in place. This is the classical multi-armed-bandit setting applied to agent decision points.",
+      "problem": "An agent that always picks whatever is currently the best-known option (pure exploitation) locks in at whatever local optimum it stumbled into early and never discovers that a different tool or template would have worked better. An agent that always tries something new (pure exploration) burns budget on unproven options and never compounds what it has already learned. Picking the trade-off informally — by gut feel or by occasional manual override — gives neither the predictable improvement of a scheduled policy nor the statistical guarantees that bandit theory provides.",
       "forces": [
         "Exploration costs (failed attempts) are real.",
         "Reward signals must exist to shape the trade-off.",
@@ -570,8 +570,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Decompose a goal into sub-goals recursively until each leaf is directly actionable.",
-      "context": "Long-horizon tasks where the top-level goal cannot be acted on directly; intermediate scaffolding is needed.",
-      "problem": "Without explicit decomposition, the agent attacks the goal in one shot and produces shallow work.",
+      "context": "A team gives an agent a goal that is too large to act on in a single step — renew all cloud contracts before the next quarter, prepare a release across half a dozen repositories, plan a multi-week research investigation. The work decomposes naturally into sub-goals, and those sub-goals decompose further, until eventually each leaf is something the agent can actually do (send an email, run a query, edit one file).",
+      "problem": "Without explicit decomposition the agent attacks the whole goal at once and produces shallow work — a three-paragraph summary instead of a finished negotiation, a partial plan instead of a release. Stuck branches deep in the work disappear into the final summary because there is no place to track them. The team is forced to choose between writing the breakdown by hand every time, which negates the agent's autonomy, or trusting a single-shot answer they cannot verify.",
       "forces": [
         "Decomposition depth: too shallow loses scaffolding; too deep loses the forest.",
         "Sub-goal independence affects parallelisation.",
@@ -657,8 +657,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Express map-over-collection inside a visual workflow as an explicit Iteration node that runs a subgraph once per element of an input array, with bounded, deterministic, observable execution.",
-      "context": "Visual workflow platforms where a portion of work must be applied to every element of a list (every retrieved chunk, every search result, every uploaded file) and the iteration must be inspectable per element.",
-      "problem": "An LLM-driven loop (loop in the agentic loop's sense) is non-deterministic and hard to bound; collapsing the iteration into a single LLM call hides per-element failures; expressing the loop as a procedural script outside the workflow loses the visual debug surface.",
+      "context": "A team builds workflows on a visual canvas — Dify, Coze, n8n, or a similar low-code platform — where some part of the work has to be applied to every element of a list: every retrieved chunk, every search result, every uploaded file, every row in a spreadsheet. The team wants the iteration itself to be visible on the canvas alongside the rest of the flow, so failures and timings can be inspected per element rather than hidden inside a black box.",
+      "problem": "A model-driven loop (where the language model decides when to stop iterating) is non-deterministic and hard to bound by the data length. Collapsing the whole list into one large model call hides per-element failures, so when one of fifty PDFs fails the workflow either retries the whole batch or silently drops the bad one. Pushing the loop out into a code node or an external script loses the visual debug surface that justified using the canvas in the first place. None of these options gives a structural, data-bounded, inspectable iteration.",
       "forces": [
         "Iteration must be deterministic and bounded by the array length, not by an LLM stopping condition.",
         "Per-element results need to be inspectable to find the one element that failed.",
@@ -759,7 +759,7 @@
       "example_scenario": "A document-processing workflow receives a list of uploaded PDFs. The team needs to extract metadata from each, run a quality check, and emit a per-document summary. They wrap the extract-check-summarise sequence in an Iteration node bound to the input list. The node runs per element with a concurrency cap of four; when one PDF errors out, the iteration logs the failed index and continues. The output array preserves order so the consumer can join back to the original list.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  In[(Input array)] --> Iter[Iteration node]\n  subgraph Sub[Subgraph per element]\n    S1[Step 1] --> S2[Step 2] --> S3[Step 3]\n  end\n  Iter -->|element 0| Sub\n  Iter -->|element 1| Sub\n  Iter -->|element 2| Sub\n  Iter -->|element ...| Sub\n  Sub --> Out[(Output array)]"
+        "mermaid": "flowchart TD\n  In[(Input array)] --> Iter[Iteration node]\n  subgraph Sub[Subgraph per element]\n    S1[Step 1] --> S2[Step 2] --> S3[Step 3]\n  end\n  Iter -->|element 0| Sub\n  Iter -->|element 1| Sub\n  Iter -->|element 2| Sub\n  Iter -->|element ...| Sub\n  Sub --> Out[(Output array)]"
       },
       "last_updated": "2026-05-20"
     },
@@ -774,8 +774,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Lift the agent loop into a search tree with a learned value function and backtracking.",
-      "context": "The task has multiple plausible reasoning paths and committing to the first one yields suboptimal answers.",
-      "problem": "ReAct and Plan-and-Execute commit to a single chain; ambiguous problems benefit from exploring alternatives.",
+      "context": "A team gives an agent a problem where several reasoning paths are plausible at the start — a coding bug with multiple possible root causes, a puzzle with several candidate frames, an investigation that could go in three directions. The first plausible path is often not the best one, and committing to it produces confidently wrong answers when it dead-ends. The team has at least some signal (test suite, verifier, heuristic scorer) that can rate a partial trajectory.",
+      "problem": "Single-chain agent loops like ReAct (the reason-act-observe loop) and Plan-and-Execute commit to one chain of thought from the first step. When that chain enters a wrong frame they cannot backtrack cheaply; they either thrash inside the wrong frame or restart from scratch. Self-consistency (sample many answers and vote) helps for one-shot tasks but does not help an agent that needs to interleave tool calls with reasoning. The team needs a way to explore alternative trajectories while still spending most of the compute on the branches that are paying off.",
       "forces": [
         "Search is expensive; the value function must be cheap.",
         "Branch ranking determines whether search beats greedy.",
@@ -914,8 +914,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Take ReWOO's plan-as-DAG and run independent steps in parallel through a task-fetching dispatcher.",
-      "context": "Sequential ReWOO leaves parallelism on the table when steps have no mutual dependency.",
-      "problem": "Latency-sensitive agents waiting on tools sequentially are slower than they need to be.",
+      "context": "A team runs an agent whose work consists of many tool calls — fetching prices for nine tickers, summarising five documents, querying three APIs — and most of those calls are independent of each other. The deployment is latency-sensitive: a user is waiting for an answer or a downstream system has a deadline. The team is already using a plan-then-execute style architecture such as ReWOO (Reasoning Without Observation), where the planner emits a directed acyclic graph of tool calls before any tool runs.",
+      "problem": "A sequential executor walks the plan one tool call at a time, so end-to-end latency is the sum of every call even when the calls have no mutual dependency. Naive parallel-tool-calling (firing them all at once from a single chat turn) ignores the dependency graph and breaks when later calls reference earlier results. A bespoke parallel runner without bounded concurrency and a join step blows past provider rate limits, leaks errors across branches, and assembles results out of order. The team needs a runner that respects the dependency graph while overlapping independent work.",
       "forces": [
         "Concurrency control: limits per provider, rate limits, fan-out costs.",
         "Failure isolation: one branch failing should not kill others.",
@@ -1013,8 +1013,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Split an oversize task into independent chunks, process each in parallel, then aggregate.",
-      "context": "The input does not fit the model's context window or the task naturally decomposes (per-row, per-document, per-section).",
-      "problem": "Long-context models still degrade with size; chunked processing without coordination loses cross-chunk dependencies.",
+      "context": "A team needs to apply a language model to an input that is too large for a single call — twelve hundred pages of vendor contracts, a million-row table, hundreds of documents to summarise — or to a task that decomposes naturally into independent pieces (per row, per document, per section). Per-piece work is short; what is hard is the scale.",
+      "problem": "Stuffing the whole input into a long-context model still degrades quality past a certain point; quality drops in the middle of long documents and the model conflates entities across the input. Chunking the input and processing each chunk in isolation loses anything that depends on more than one chunk, such as cross-document deduplication or per-entity aggregation. Without a structured reduction step, conflicts between chunk answers go unresolved, and the team ends up either rerunning the whole thing in a giant call or hand-merging chunk outputs.",
       "forces": [
         "Naive chunking loses dependencies that span chunks.",
         "Conflicts between chunk answers need a resolver.",
@@ -1106,8 +1106,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Run two nested loops: an outer planner agent decomposes the goal into subtasks; an inner executor runs a ReAct loop on each, and the outer can replan based on the inner's progress.",
-      "context": "Long-horizon tasks where decomposition matters as much as execution, and where execution evidence may invalidate the plan partway through.",
-      "problem": "A single agent loop conflates planning and acting: replanning interrupts execution, and execution drift is invisible to the planner until late.",
+      "context": "A team operates an agent on long-horizon work — multi-step report writing, multi-stage data investigations, multi-day refactors — where the breakdown of the goal matters as much as the individual steps. Partway through the run, the agent may discover something that invalidates the original plan: a missing data source, a contradictory finding, a failed dependency. The team wants the planner to react to that evidence instead of letting execution proceed on a stale plan.",
+      "problem": "A single agent loop that conflates planning and acting (such as ReAct) does both on every turn and pays the cost of replanning at each step even when the plan is still valid. Plan-and-Execute fixes the plan up front but then runs the executor blind — by the time execution finishes, the planner has no chance to react to mid-run evidence except by abandoning the run. The team needs planning and execution on separate cadences, with a controlled channel by which execution evidence can interrupt the plan.",
       "forces": [
         "Plans need a stable horizon; execution needs flexibility within steps.",
         "Replanning is expensive; doing it every turn is wasteful, doing it never is brittle.",
@@ -1209,8 +1209,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Analyse the user's articulated prompts and accompanying context to derive a precise, actionable goal before any planning or tool use begins.",
-      "context": "Users interact with the agent through a dialogue interface, providing prompts that may be ambiguous, incomplete, or under-specified relative to the work the agent must do.",
-      "problem": "Plans built directly from raw user prompts inherit the user's underspecification; the agent then either guesses or fails. The agent needs an explicit step that turns the user's prompt plus relevant context into a goal precise enough to plan against.",
+      "context": "A team runs an agent behind a dialogue interface — a chatbot, a coding assistant, a personal-assistant surface — where users type short, conversational prompts. Those prompts are often under-specified relative to what the agent has to do: the user says \"book me a flight Thursday\" and leaves the destination, the time of day, and the preferences implicit. Other relevant context (recent conversation, stored preferences, prior tasks) lives in memory but does not arrive automatically with the prompt.",
+      "problem": "If the planner reads the raw user prompt directly it inherits all of that under-specification. It then either guesses (producing confidently wrong work the user has to correct) or fails on a missing field. Pushing the clarification work into every downstream component spreads the same problem across many places. The team needs one early step that turns a thin dialogue prompt plus retrieved memory into a precise, structured goal that the planner can act on.",
       "forces": [
         "Underspecification: users rarely articulate complete context or precise constraints.",
         "Efficiency: users expect quick responses, so the goal-clarification step must be cheap.",
@@ -1287,7 +1287,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U[User] -->|prompt| D[Dialogue interface]\n  D --> P[Passive goal creator]\n  P <-->|retrieve context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
+        "mermaid": "flowchart TD\n  U[User] -->|prompt| D[Dialogue interface]\n  D --> P[Passive goal creator]\n  P <-->|retrieve context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
         "caption": "Passive Goal Creator refines a dialogue prompt into a planner-ready goal."
       },
       "last_updated": "2026-05-20"
@@ -1301,8 +1301,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Plan all the steps once with a strong model, then execute each step with a cheaper model under the plan.",
-      "context": "The task is multi-step, the steps are mostly known up front, and the cost of tokens varies widely between models.",
-      "problem": "ReAct pays the strong model's price on every step including trivial executions.",
+      "context": "A team runs an agent on a task that decomposes into several mostly-known steps — book a venue, then a restaurant, then send invitations — and a strong, expensive model is available alongside a cheaper, faster one. The team would like to use the strong model where its judgment matters (deciding the steps and their order) and the cheaper model where it does not (typing each step's tool call). The world is stable enough that a plan written once is still good a few minutes later.",
+      "problem": "A ReAct loop (reason-act-observe) runs the strong model on every single step, including trivial ones where the next action is obvious, so it pays full price for routine execution. Hand-coding the workflow gives up the agent's ability to handle small surprises. Without an inspectable plan emitted before any tool fires, reviewers cannot see what the agent intends to do until it has already partially done it, and a wrong assumption near the start cannot be caught until the run produces a bad result.",
       "forces": [
         "Planning quality depends on context the planner has at planning time.",
         "Execution may discover the plan was wrong; replan-versus-fail is a real choice.",
@@ -1456,8 +1456,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Add an explicit Observer role between Planner and Executor so progress is checked against the plan instead of trusted blindly.",
-      "context": "Plan-and-Execute systems either let the executor run blind (planner finds out at the end) or report at every step (rebuilding ReAct with extra coordination overhead).",
-      "problem": "The missing third role is supervision of execution against intent; without it, plan quality is invisible until the run completes.",
+      "context": "A team runs a Plan-and-Execute agent: a planner emits an ordered plan once and an executor walks the steps. The executor's work needs to be checked against the original intent — does the cumulative output still match what the planner asked for, or has the executor wandered onto an adjacent topic? The team is willing to spend a small amount of supervision overhead to catch drift early instead of paying for an entire bad run.",
+      "problem": "Two existing shapes both fail this requirement. Letting the executor run blind means the planner only finds out at the end whether the run was on-track, at which point fixing it requires starting over. Reporting back to the planner after every step rebuilds the ReAct loop and reintroduces the per-step planner cost the team adopted Plan-and-Execute to avoid. There is no clean place for a cheap, focused check that reads the executor's cumulative output against the plan and decides whether to keep going, stop, or replan.",
       "forces": [
         "Observation must be cheap or it negates the plan-execute speedup.",
         "Triggering replans too eagerly thrashes; too lazily wastes effort.",
@@ -1537,7 +1537,7 @@
       "example_scenario": "A research agent that uses a Planner and Executor loop produces fluent reports that quietly drift from the plan: the executor swaps in adjacent topics and the planner never notices because no one is checking. The team adds an Observer role: after each executor step the observer reads the cumulative output against the plan and emits loop, respond, or replan. When the executor wanders into 'related-but-off-plan' territory the observer triggers a replan instead of letting the drift compound.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  G[Goal] --> P[Planner]\n  P -->|plan| E[Executor]\n  E -->|step result| O[Observer]\n  O -->|loop| E\n  O -->|replan| P\n  O -->|respond| R[Final answer]"
+        "mermaid": "flowchart TD\n  G[Goal] --> P[Planner]\n  P -->|plan| E[Executor]\n  E -->|step result| O[Observer]\n  O -->|loop| E\n  O -->|replan| P\n  O -->|respond| R[Final answer]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1551,8 +1551,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Decompose a long-running job into three role-isolated agents — a Planner emitting a feature list, a Generator working one chunk per fresh context, and an Evaluator grading against a rubric without seeing the Generator's trace.",
-      "context": "Long-running application development, large refactors, and other multi-day creative jobs run by a coding-agent harness where a single agent run cannot fit the task into one context window. The work has a clear external artefact (code, document, design) that can be evaluated independently of how it was produced.",
-      "problem": "Single-agent long-runs hit context limits and conflate planning, generation, and self-grading inside one head. Two-role evaluator-optimizer loops let the optimiser game the evaluator by reading its critiques as hints. Generic orchestrator-workers patterns do not specify a *grader* role with hard isolation, so quality drifts. The harness needs a three-way split where each role works in its own context and the evaluator cannot be social-engineered by the generator's reasoning.",
+      "context": "A team runs a coding-agent harness on multi-day creative work — building a new feature across a large application, conducting a large refactor, drafting a long design document. The job is too big to fit into a single model context window, so it has to be split across many runs. There is a clear external artefact (code, document, design) that can be evaluated on its own merits without inspecting how it was produced.",
+      "problem": "A single agent trying to do all of this in one head hits context limits within a few hours and conflates planning, generation, and self-grading; its own scratch reasoning leaks into how it judges its work. A two-role loop where one agent generates and the other critiques lets the generator read the critic's notes as hints and game them. Generic orchestrator-worker decomposition does not name a grader role with hard isolation, so quality drifts run by run and there is no fixed place to enforce the acceptance bar. The team needs a three-way split where each role's context stays small, the grader cannot be socially engineered by the generator, and the plan survives across runs.",
       "forces": [
         "Each role's context must stay small enough to fit, yet the overall job spans days.",
         "The evaluator must judge the artefact, not the process, but the generator naturally wants to argue.",
@@ -1678,8 +1678,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Anticipate the user's goal by capturing surrounding multimodal context (gestures, screen state, environment) in addition to what the user types or says.",
-      "context": "The agent operates in a setting where the user's articulated prompt alone is too thin — accessibility needs, embodied/physical interaction, ambient assistance — and where cameras, microphones, screen capture, or other sensors can supply the missing context.",
-      "problem": "Dialogue alone underspecifies the goal in embodied or accessibility-driven settings. The agent needs to actively capture context that the user may not articulate at all.",
+      "context": "A team builds an agent for a setting where the user cannot or will not articulate the full context in text — an accessibility tool used by someone with limited speech, an ambient home assistant, an embodied robot, a screen-aware coding helper. Cameras, microphones, screen capture, or other sensors are available and can supply context the user does not state. The team has the operational and privacy approvals to capture and process that data.",
+      "problem": "If the agent only listens to the user's typed or spoken prompt, it misses the gesture pointing at the object, the screen state the user is looking at, the ambient activity the user assumes is obvious. The user is then forced either to over-articulate (typing what they are already pointing at) or to accept wrong answers. Naively piping raw sensor streams into the planner overwhelms downstream components with multimodal data they cannot use directly. The team needs a component that captures and synthesises the relevant non-verbal context into a structured goal before planning begins.",
       "forces": [
         "Underspecification: users may be unable or unwilling to verbalise full context.",
         "Accessibility: users with motor or speech impairments cannot rely on dialogue alone.",
@@ -1766,7 +1766,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U[User] -->|prompt| D[Dialogue interface]\n  E[Environment] -->|capture| Det[Detector / sensors]\n  D --> P[Proactive goal creator]\n  Det --> P\n  P <-->|context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
+        "mermaid": "flowchart TD\n  U[User] -->|prompt| D[Dialogue interface]\n  E[Environment] -->|capture| Det[Detector / sensors]\n  D --> P[Proactive goal creator]\n  Det --> P\n  P <-->|context| M[Memory]\n  P -->|refined goal| PL[Planner]\n",
         "caption": "Proactive Goal Creator fuses captured multimodal context with the user's prompt."
       },
       "last_updated": "2026-05-20"
@@ -1780,8 +1780,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Interleave a single thought, a single tool call, and a single observation per step so the agent reasons over fresh evidence.",
-      "context": "The task requires looking things up or acting on the world; the answer cannot be produced by pure thinking.",
-      "problem": "Pure chain-of-thought hallucinates facts; pure tool-blasting wastes calls on the wrong things.",
+      "context": "A team builds an agent for a task that cannot be answered from the model's parametric knowledge alone — it has to look something up, query a database, search the web, or take an action against a real system. The next step often depends on what the previous tool call returned, so the agent cannot plan all the calls up front. Tool calls cost latency and money and may have side effects, so each one needs to be deliberate.",
+      "problem": "Pure chain-of-thought reasoning produces fluent, confident answers that hallucinate the facts a tool would have returned. Pure tool-blasting — calling several tools speculatively per turn — wastes calls on the wrong things, returns more results than the model can use, and gives the agent no chance to think between calls. Without a structured interleave of reasoning and action, the agent either guesses or thrashes, and the loop has no clean place to put a step budget or a termination check.",
       "forces": [
         "Tool calls are expensive (latency, cost, side effects).",
         "Observations change the right next step.",
@@ -1950,8 +1950,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Trigger a fresh planning step when execution evidence contradicts the current plan.",
-      "context": "Plan-and-Execute systems where the world differs from the planner's mental model and the executor surfaces evidence the plan must respond to.",
-      "problem": "Plans are made under incomplete information; without replanning, the executor either grinds through a wrong plan or fails silently.",
+      "context": "A team runs a Plan-and-Execute agent where the planner commits to a plan up front and the executor walks it step by step. The world is not perfectly predictable: a tool returns an error, an observation contradicts an assumption in the plan, or an observer disagrees with where the run is heading. The team wants the agent to repair the plan from that evidence instead of grinding through to failure.",
+      "problem": "Plans are made under incomplete information, so some plans are wrong from the start and others become wrong partway through. Without a replanning step the executor will either keep trying the same broken sequence until the step budget runs out, or it will silently fail and return partial results that look complete. A naive replan-on-every-error policy thrashes — the agent re-plans, fails, re-plans again on the new plan, and never makes progress. The team needs explicit triggers that decide when failure is bad enough to send control back to the planner with the failure context attached.",
       "forces": [
         "Replanning resets cost; thrashing is real.",
         "When to trigger replanning is itself a judgment.",
@@ -2025,7 +2025,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Plan[Plan v1] --> Exec[Executor]\n  Exec -->|tool error| Trig[Replan trigger]\n  Exec -->|unexpected obs| Trig\n  Exec -->|observer dissent| Trig\n  Trig --> P2[Planner with failure context]\n  P2 --> Plan2[Plan v2]\n  Plan2 --> Exec\n  Plan2 -.preserve compatible<br/>partial progress.-> Exec"
+        "mermaid": "flowchart TD\n  Plan[Plan v1] --> Exec[Executor]\n  Exec -->|tool error| Trig[Replan trigger]\n  Exec -->|unexpected obs| Trig\n  Exec -->|observer dissent| Trig\n  Trig --> P2[Planner with failure context]\n  P2 --> Plan2[Plan v2]\n  Plan2 --> Exec\n  Plan2 -.preserve compatible<br/>partial progress.-> Exec"
       },
       "last_updated": "2026-05-20"
     },
@@ -2039,8 +2039,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Plan a complete dependency DAG with placeholder variables before any tool runs, then execute and substitute observations into the plan.",
-      "context": "Many agent tasks have planning that does not actually depend on early observations; ReAct re-prompts the big model after each tool call wastefully.",
-      "problem": "Token cost in ReAct grows linearly with steps because each observation re-enters the prompt for the next reasoning turn.",
+      "context": "A team runs a multi-tool agent on tasks where most of the planning could be done in one shot — search for X, then summarise the result, then extract a field — because each step's structure is determined by the task, not by what the previous step returned. A strong, expensive model is doing the planning and a cheap worker can do the tool calls. Token cost matters: the agent is called at volume.",
+      "problem": "In a ReAct loop (reason-act-observe), every tool observation is fed back into the planner's prompt for the next reasoning turn. Token cost therefore grows roughly with the square of the step count, because each turn carries the trace of all the previous turns. On an eight-step task the planner re-reads its own scratch reasoning and all prior observations seven times. Most of those re-reads do not change the plan — the structure was knowable up front — so the team is paying for re-prompting that produces no new decisions.",
       "forces": [
         "Pre-planning fails when dependencies are truly observation-dependent.",
         "Placeholder substitution requires a typed variable convention.",
@@ -2106,7 +2106,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  G[Goal] --> Pl[Planner]\n  Pl -->|DAG with #t1, #t2 vars| Plan[Plan]\n  Plan --> W[Worker]\n  W -->|exec ToolA| O1[obs t1]\n  W -->|exec ToolB t1| O2[obs t2]\n  O1 --> Tr[Resolved trace]\n  O2 --> Tr\n  Tr --> S[Solver]\n  S --> Ans[Answer]"
+        "mermaid": "flowchart TD\n  G[Goal] --> Pl[Planner]\n  Pl -->|DAG with #t1, #t2 vars| Plan[Plan]\n  Plan --> W[Worker]\n  W -->|exec ToolA| O1[obs t1]\n  W -->|exec ToolB t1| O2[obs t2]\n  O1 --> Tr[Resolved trace]\n  O2 --> Tr\n  Tr --> S[Solver]\n  S --> Ans[Answer]"
       },
       "last_updated": "2026-05-20"
     },
@@ -2121,8 +2121,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Run a single agent through a protracted think-search-verify-revise-act loop spanning hundreds of tool calls, autonomously re-formulating hypotheses across the run.",
-      "context": "Open-ended research, deep-investigation, and long-horizon analysis tasks where a single short ReAct loop or a one-shot plan is too shallow. The agent has access to retrieval, browsing, and code-execution tools and is expected to spend minutes-to-hours on a single question.",
-      "problem": "Short reasoning budgets and one-shot plans collapse complex investigations into surface-level answers. Multi-agent research orchestrators (lead-researcher + subagents) introduce coordination overhead and message-passing artefacts. A single agent that can re-question its own working hypothesis across hundreds of tool calls — without handing off to peers — needs an explicit control loop, otherwise it either terminates too early or wanders into unbounded looping.",
+      "context": "A team runs an agent on open-ended research and deep-investigation work — assessing whether a paper's claims replicate, tracing the root cause of a system anomaly, scoping a novel question — where the answer cannot be reached by a short reason-act-observe loop or by a one-shot plan. The agent has retrieval, browsing, and code-execution tools and is expected to spend minutes to hours on a single question, accumulating evidence across hundreds of tool calls.",
+      "problem": "Short reasoning budgets and one-shot plans collapse these investigations into surface-level answers because the agent never gets to revisit its working hypothesis. Splitting the work across multiple agents (a lead researcher delegating to subagents) introduces coordination overhead, message-passing artefacts, and inconsistent reasoning across the team. A single agent that runs for hours without any explicit cycle structure either declares victory too early or wanders into unbounded looping, with no checkpoint where drift becomes visible. The team needs one agent with an explicit, repeatable cycle that can sustain a long investigation without losing coherence or runaway cost.",
       "forces": [
         "Depth of investigation requires many sequential tool calls, but long traces bloat context and degrade attention.",
         "Re-formulating hypotheses mid-run is essential for hard questions, yet uncontrolled re-formulation is indistinguishable from drift.",
@@ -2254,8 +2254,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Run the agent on a fixed schedule independent of user requests.",
-      "context": "Tasks that should happen periodically (overnight summaries, weekly triage, hourly health checks) regardless of user prompting.",
-      "problem": "Request-driven agents only act when called; many useful tasks need to act on time, not on demand.",
+      "context": "A team needs an agent to do work on a clock — produce an overnight summary, triage incoming issues every Monday morning, run an hourly health check, send a daily competitive-intelligence digest. The work has to happen whether or not a user remembers to ask. A scheduler (cron, a queue with delayed delivery, a managed scheduler service) and durable storage for the agent's state are available.",
+      "problem": "Request-driven agents only act when someone calls them; if no user prompts the digest, the digest never goes out. Asking a human to trigger the agent every morning defeats the point of automation. Running the agent continuously in a polling loop wastes most of its budget on idle wakeups. Without persisted state between runs, each scheduled invocation starts from zero and cannot pick up where the previous one left off, so anything that needs continuity (last-seen items, in-progress investigations) is lost.",
       "forces": [
         "Schedule density trades cost for freshness.",
         "Failure modes when the agent's run is missed.",
@@ -2353,8 +2353,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Run the same prompt against a fixed spec in a deterministic outer loop until the spec is satisfied.",
-      "context": "A greenfield task with a clear (or improvable) specification where each iteration can improve the codebase incrementally.",
-      "problem": "Agents that try to plan an entire feature in one go are brittle; agents that wander without a spec drift.",
+      "context": "A team works on a task with a clear or steadily-improvable specification — a long bug-fix list, a feature build that decomposes into small chunks, a migration whose end state is well-defined. Each iteration can move the codebase a little closer to the spec without trying to land everything at once. The team has a test suite or a similar gate that can tell whether the spec has been satisfied.",
+      "problem": "Agents that try to plan and implement the whole feature in a single turn are brittle because they have to hold too many decisions in one context and they cannot back out of a bad early commitment. Agents driven from a free-form chat wander, lose their plan, and produce work that is hard to resume after an interruption. Custom orchestration frameworks add their own complexity for what should be a simple loop. The team wants something brutally simple — re-run the agent against the spec until the spec is satisfied — without losing the ability to inspect, pause, and resume.",
       "forces": [
         "The spec must be good or the loop polishes the wrong artefact.",
         "Tests gate progress; without them the loop has no error signal.",
@@ -2438,8 +2438,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Drive the agent loop from a human-authored specification document rather than free-form prompts.",
-      "context": "The task is well-defined enough to write down; the agent benefits from a stable, inspectable target.",
-      "problem": "Free-form prompts drift; the spec is in the head of one engineer and not auditable.",
+      "context": "A team runs an agent on a task that is well-defined enough to write down — a recurring report, a bug-fix list, a migration plan, a multi-step automation. The team wants the agent's instructions to live in a file that humans can read, review, and edit alongside the code, rather than in a chat history or someone's head. Reviewers should be able to diff changes to the agent's intent the same way they diff changes to the source code.",
+      "problem": "Free-form prompts drift between sessions: the same engineer types subtly different instructions on different days and the agent's behaviour quietly changes. When the spec lives in one engineer's head, nobody else can review it, audit it, or take over when that engineer is away. Without a written target, there is no single source of truth for what \"done\" means, so the agent may declare success on partial work or keep going past where the team would have stopped. The team needs a written, version-controlled spec without giving up the agent's ability to update its own plan as it learns.",
       "forces": [
         "Spec authoring is up-front work.",
         "The agent must update the spec when learnings invalidate it; uncontrolled spec mutation is dangerous.",
@@ -2527,7 +2527,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Author[Human author] -->|writes| Spec[(PROMPT.md / fix_plan.md)]\n  Spec --> Agent[Agent loop]\n  Agent -->|reads each iter| Spec\n  Agent -->|controlled writes| Spec\n  Spec --> Done{Spec defines 'done'?}\n  Done -->|yes| Stop[Stop loop]"
+        "mermaid": "flowchart TD\n  Author[Human author] -->|writes| Spec[(PROMPT.md / fix_plan.md)]\n  Spec --> Agent[Agent loop]\n  Agent -->|reads each iter| Spec\n  Agent -->|controlled writes| Spec\n  Spec --> Done{Spec defines 'done'?}\n  Done -->|yes| Stop[Stop loop]"
       },
       "last_updated": "2026-05-20"
     },
@@ -2541,8 +2541,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Have the agent author a plan file (e.g. todo.md) early in the run, tick items as it completes them, and re-inject the remaining plan into context; the file is durable plan and working memory.",
-      "context": "A long-horizon autonomous task in a sandboxed VM with file-system access; the run may span hundreds of tool calls and exceed any usable in-context plan.",
-      "problem": "In-context plans drift to the middle of the window where the model attends least; without a durable plan artefact, paused or context-truncated runs cannot recover; the agent forgets which sub-tasks are done.",
+      "context": "A team runs an agent on a long-horizon autonomous job — a multi-hour coding task, a deep research investigation, a complex data migration — inside a sandboxed virtual machine that gives it persistent file-system access and basic tools (shell, browser, file editor). The run may span hundreds of tool calls, more than any one model context window can comfortably hold. The team needs the agent's plan to survive context truncation and process restarts.",
+      "problem": "If the plan lives only in the model's context window, it drifts toward the middle of the window where attention is weakest and the model loses track of which items it has finished. When the context is truncated to fit, the plan is the first thing to disappear because the model has moved past it. If the run is paused, crashed, or resumed in a fresh context, the agent has no durable record of which sub-tasks are done and starts over or skips items at random. Keeping the plan only in the model's head is incompatible with runs longer than a single window.",
       "forces": [
         "Models attend most strongly to the end (and start) of the context window.",
         "File-system memory is durable; in-context memory is volatile.",
@@ -2610,6 +2610,10 @@
         {
           "pattern": "affect-coupled-plan-lifecycle",
           "relation": "complements"
+        },
+        {
+          "pattern": "commitment-tracking",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2648,7 +2652,7 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Start[Run starts] --> Plan[Agent authors todo.md]\n  Plan --> Loop[Each turn]\n  Loop --> R[Read todo.md]\n  R --> Pick[Select next unticked item]\n  Pick --> Act[Act + tool calls]\n  Act --> Upd[Tick item / add follow-ups / drop dead-ends]\n  Upd --> Inject[Re-inject unticked tail into prompt]\n  Inject --> Loop\n  Upd --> Done{All ticked?}\n  Done -- yes --> End[Finish run]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "visual-workflow-graph",
@@ -2660,8 +2664,8 @@
       ],
       "category": "planning-control-flow",
       "intent": "Express agentic logic as a visual graph of typed nodes connected on a canvas with Start and End nodes so non-coding stakeholders can read and edit the flow.",
-      "context": "Low-code and no-code platforms (Dify, Coze, n8n, Flowise, Langflow, FastGPT, Bisheng) and IDE-embedded workflow editors where the same product surface is used by developers and by business users.",
-      "problem": "Procedural agentic code is dense for non-coders and review-heavy for developers; the graph topology — which nodes feed which — is the part that needs to be inspectable, but it is buried inside source files.",
+      "context": "A team is building on a low-code or no-code platform — Dify, Coze, n8n, Flowise, Langflow, FastGPT, Bisheng — or in an IDE-embedded workflow editor, where the same product surface is used both by developers and by non-developers such as business users or operations teams. The workflow itself is the artefact those users will edit and review, not the code behind it.",
+      "problem": "Procedural agentic code is dense and unfamiliar for non-coders, and review-heavy even for developers because the orchestration logic is buried inside source files. The graph topology — which nodes feed which, which branches gate which — is the part that most needs to be inspectable, but in a procedural codebase that topology has to be reconstructed by reading code. The platform needs a graph-shaped representation of the workflow as the primary artefact, with code only behind the individual nodes that need it.",
       "forces": [
         "Visual editing lowers the bar for non-developer contributors but raises the bar for version control and merge.",
         "A typed-node vocabulary (LLM, retrieval, tool, conditional, iteration, code) lets the canvas validate connections statically.",
@@ -2787,7 +2791,7 @@
       "example_scenario": "A customer-success team wants to build a triage workflow that classifies incoming messages, retrieves relevant docs, drafts a reply, and routes high-confidence drafts to send while low-confidence drafts go to human review. Their engineering team uses Dify: a Start node receives the message; a Question Classifier routes by category; a Knowledge Retrieval node fetches docs per category; an LLM node drafts the reply; a Conditional node splits on confidence; one branch ends in Send, the other in Human Review. The whole workflow is one canvas. When customer success wants to add a new category, they edit the canvas; the engineering team reviews the artefact diff in the PR.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Start([Start]) --> QC[Question Classifier]\n  QC -->|billing| KB1[Retrieval: billing]\n  QC -->|tech| KB2[Retrieval: tech]\n  QC -->|other| KB3[Retrieval: general]\n  KB1 --> LLM[LLM: draft reply]\n  KB2 --> LLM\n  KB3 --> LLM\n  LLM --> Cond{confidence >= 0.85?}\n  Cond -- yes --> Send[Tool: send]\n  Cond -- no --> Hum[Human review queue]\n  Send --> End1([End])\n  Hum --> End2([End])"
+        "mermaid": "flowchart TD\n  Start([Start]) --> QC[Question Classifier]\n  QC -->|billing| KB1[Retrieval: billing]\n  QC -->|tech| KB2[Retrieval: tech]\n  QC -->|other| KB3[Retrieval: general]\n  KB1 --> LLM[LLM: draft reply]\n  KB2 --> LLM\n  KB3 --> LLM\n  LLM --> Cond{confidence >= 0.85?}\n  Cond -- yes --> Send[Tool: send]\n  Cond -- no --> Hum[Human review queue]\n  Send --> End1([End])\n  Hum --> End2([End])"
       },
       "last_updated": "2026-05-20"
     }

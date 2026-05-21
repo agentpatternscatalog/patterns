@@ -11,11 +11,11 @@ Ensure the model never receives secrets in plaintext; tools resolve credentials 
 
 ## Context
 
-Agents with tools that need authentication (API keys, OAuth tokens, DB credentials, service accounts).
+A team builds an agent whose tools need authentication — API keys, OAuth tokens, database credentials, service-account JSON, signed URLs. Tool authors often find it convenient to pass the secret as a tool argument, which means it flows through the model's context. The model's context is then captured in the conversation history, the application's trace store, the evaluation harness, and (for hosted models) the provider's logs.
 
 ## Problem
 
-Any secret that reaches the model is now in the chat log, the trace store, the eval harness, and likely the third-party model provider. Leaks are then everywhere.
+Once a plaintext secret enters the model's context window, it is no longer recoverable: it sits in the chat log, in the trace export, in the eval dataset, and on the third-party model provider's infrastructure. Rotating the credential helps for the next call but does nothing for the copies already scattered across systems. Asking the model to please not reveal secrets it has seen is unreliable. Without a way to keep credentials out of the model's context entirely, every tool call that needs auth is a potential leak with permanent consequences.
 
 ## Forces
 

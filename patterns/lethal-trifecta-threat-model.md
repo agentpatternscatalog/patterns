@@ -11,11 +11,11 @@ Block prompt-injection-driven exfiltration by ensuring no single agent execution
 
 ## Context
 
-Tool-using agents that combine multiple capabilities — reading private data, ingesting third-party content, and calling tools that can transmit information outside the trust boundary. Common in email assistants, browsing agents, coding agents with MCP servers, and any LLM that can both query internal systems and reach the public internet.
+A team builds a tool-using agent that combines three capabilities in the same execution: it reads data the operator wants to keep private (tokens, customer records, internal files), it ingests content from sources the operator does not control (emails, fetched web pages, third-party API responses, MCP servers from unknown providers), and it can call tools that transmit information outside the trust boundary (public HTTP requests, image-URL renders, link previews, chat webhooks, even error reports). This combination is extremely common — email assistants, browsing agents, coding agents with model-context-protocol servers, and any large language model that can both query internal systems and reach the public internet.
 
 ## Problem
 
-An attacker only needs to plant one well-crafted prompt-injection payload in any untrusted content the agent will read. If the same agent execution also has access to private data and any outbound channel, the injection can extract the private data and ship it out. The model itself cannot reliably tell instructions in data apart from instructions in the system prompt.
+An attacker only has to plant one well-crafted prompt-injection payload in any piece of untrusted content the agent will read. Once that payload reaches a model that also has access to private data and an outbound channel, the injection can instruct the model to fetch the private data and ship it out, and the model has no reliable way to refuse, because instructions inside data look indistinguishable from instructions in the system prompt. Filtering the untrusted content is unreliable, prompting the model to ignore embedded instructions is unreliable, and the outbound channels are easy to overlook — image URLs, link previews, error reports, and ordinary tool calls all serve as exfiltration paths.
 
 ## Forces
 
@@ -35,7 +35,7 @@ Treat the three capabilities — **private-data read**, **untrusted-content inge
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Private data access] --> X((Trifecta))
   B[Untrusted content ingest] --> X
   C[Outbound channel] --> X

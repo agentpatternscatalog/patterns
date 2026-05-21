@@ -11,11 +11,11 @@ Prepend a short LLM-generated description to each chunk before embedding so the 
 
 ## Context
 
-Chunks that lose context at split boundaries (pronouns, 'the company', time references) embed far from queries that name the entity explicitly.
+A team is using a retrieval-augmented system over a corpus that has been split into small chunks for embedding and indexing. Many of those chunks lose surrounding context at the split boundary: pronouns like 'they' or 'it' no longer have an antecedent in the chunk, references like 'the company' or 'that quarter' drop their referent, and time references become ambiguous. The embeddings of these decontextualised chunks land far from queries that name the entity or time period explicitly.
 
 ## Problem
 
-Naive chunking destroys context; queries that name entities by full name miss chunks that refer to them by pronoun.
+When a user query names an entity by its full name and the corpus chunk that contains the answer only refers to that entity by pronoun, vector search finds the chunk distant and misses it. A naive chunk-and-embed pipeline therefore destroys exactly the context it most needs to preserve, and recall on otherwise-easy queries collapses. The chunks need to carry enough surrounding context that their embeddings stay close to the queries that should retrieve them, without inflating the corpus so much that indexing and retrieval cost become unaffordable.
 
 ## Forces
 
@@ -40,7 +40,7 @@ For each chunk, prompt an LLM with the parent document and the chunk; receive a 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Doc[Parent document] --> P[LLM: situate chunk]
   Chunk[Chunk] --> P
   P --> Pre[Short description]

@@ -11,11 +11,11 @@ At each node of an inference-time search tree, use Thompson sampling to decide a
 
 ## Context
 
-Inference-time search over LLM-generated candidates for tasks with verifiable or scorable outputs (code, math, ARC-style puzzles). The team has a budget of model calls and wants to spend them better than fixed-width tree-of-thoughts or flat best-of-N. Multiple LLMs may be available with complementary strengths.
+A team is using a large language model to attack problems whose outputs can be scored — running code against tests, checking a math answer, or grading an abstract-reasoning puzzle. They have a fixed budget of model calls to spend at inference time and want to spend it better than a flat sampling pass would. Several models with different strengths may be available at once, and the controller can choose which to call at each step.
 
 ## Problem
 
-Plain MCTS over LLM outputs (LATS) uses a fixed branching factor and treats every node identically. Tree-of-thoughts branches at a fixed width. Best-of-N is flat with no exploration of refinements. None of these adaptively trade width against depth based on which branches are paying off, and none can choose which LLM to call at a given node. On hard search problems this leaves a lot of compute on the table.
+Existing inference-time search schemes commit to a fixed shape. Monte Carlo Tree Search over language-model rollouts uses a fixed branching factor and treats every node the same; tree-of-thoughts expands at a fixed width; best-of-N is flat and never refines anything. None of these adapt the trade-off between trying more fresh attempts and refining a promising one based on what the scores are actually telling the controller, and none can pick a different model for a hard node. On difficult problems this leaves a lot of compute on payoff-poor branches.
 
 ## Forces
 

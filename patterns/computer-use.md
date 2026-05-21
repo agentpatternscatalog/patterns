@@ -11,11 +11,11 @@ Let the model drive a desktop end-to-end via screenshots plus virtual mouse/keyb
 
 ## Context
 
-Tasks that span multiple applications, legacy GUIs, or interfaces with no clean machine API; the agent must operate the same surfaces a human does.
+A team needs an agent to drive a desktop application or chain together work across several apps that have no public API and no plug-in integration: a legacy accounting suite, an internal CRM, a remote desktop, a custom Windows utility. The agent has to operate exactly the same screen, mouse, and keyboard a human would.
 
 ## Problem
 
-Most software has no clean API; agents need to operate GUIs visually, including ones the agent's vendor never integrated with.
+Building a bespoke integration for every target application takes weeks per app and has to be redone the moment the vendor changes a screen. Most enterprise software has no API at all, or only an API that covers a fraction of what users actually do in the UI. Without a way to drive the screen visually, the agent simply cannot reach those applications, and per-app integration work scales linearly with the surface area the agent is expected to cover.
 
 ## Forces
 

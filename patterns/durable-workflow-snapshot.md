@@ -11,11 +11,11 @@ Capture workflow execution state as a snapshot in a pluggable storage provider s
 
 ## Context
 
-Long-running agentic workflows that span minutes to hours, must survive ops events, and may be paused waiting on external signals (human approval, slow API, scheduled wake-up).
+A team builds workflows that may run for hours or days and that frequently pause waiting on external signals: a human approving a loan, a slow third-party API returning a result, or a scheduled wake-up the next morning. These workflows have to keep running across application deploys, restarts of the worker processes, and the loss of individual hosts. The team has access to durable storage such as a Postgres database, an object store, or a vendor-managed snapshot service.
 
 ## Problem
 
-In-process resumption (see agent-resumption) survives crashes within one process but not deployments or host loss; without external durable storage of the entire workflow state, paused runs are lost on restart.
+Keeping the workflow state only in process memory is enough to survive a single crash that the same process recovers from, but not deploys that replace the binary, host failures that move work elsewhere, or pauses long enough that the original worker is gone. Without writing the full state out to durable storage at known checkpoints, every deploy or host loss vaporises in-flight runs and the work restarts from zero. The team is forced to choose between short workflows that fit in one process lifetime or accepting that long-running workflows will routinely lose hours of progress.
 
 ## Forces
 

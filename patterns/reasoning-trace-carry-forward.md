@@ -11,11 +11,11 @@ For reasoning models that emit a separate reasoning trace, preserve that trace i
 
 ## Context
 
-The agent uses a reasoning model that exposes a separate reasoning_content field (the model's chain of thought, distinct from the user-visible content), inside a tool-use loop with multi-turn history.
+A team is using a reasoning-capable model (for example one of the OpenAI o-series, Claude with extended thinking, or DeepSeek-R1) that returns the model's chain-of-thought in a separate reasoning_content field, distinct from the user-visible content. The agent runs in a tool-use loop with multi-turn history: the model reasons, calls a tool, sees the result, reasons again, possibly answers, and then a new user message starts the next turn.
 
 ## Problem
 
-Two failure modes pull in opposite directions. (1) If the reasoning trace is dropped between a tool call and its result, the model loses the context of why it called the tool. (2) If the reasoning trace is preserved across user-turn boundaries, conversation history bloats with stale reasoning and the next user task inherits irrelevant prior thinking.
+Two failure modes pull in opposite directions. If the reasoning trace is dropped between a tool call and its result, the model loses the thread of why it called the tool in the first place, and the next reasoning step starts from a degraded context. If the reasoning trace is instead preserved across user-turn boundaries, conversation history bloats with stale reasoning from earlier tasks and the next user message inherits irrelevant prior thinking that pollutes its own reasoning. Neither 'always carry forward' nor 'always drop' is correct; the team needs a rule keyed to where in the loop the trace appears.
 
 ## Forces
 

@@ -12,8 +12,8 @@
       ],
       "category": "multi-agent",
       "intent": "Implement each agent as an independent actor with its own mailbox, processing asynchronous messages one at a time and never sharing mutable state with peers.",
-      "context": "Multi-agent systems where agents must run concurrently, communicate without a central conversational chair, and survive partial failures of peers.",
-      "problem": "Request/response conversational shape couples agents tightly to a single thread of control; shared mutable state across agents invites race conditions and makes failure containment hard.",
+      "context": "A team is building a multi-agent system where several agents must run at the same time, react to events as they arrive, and keep going even when one of them crashes. There is no single conversational chair driving turn order, and the agents may live in different processes or on different machines.",
+      "problem": "If the agents are modelled as a request-and-response conversation, they are pinned to one thread of control and cannot easily run concurrently. If they share mutable state — a common dictionary, a shared queue, a global cache — concurrent reads and writes produce race conditions, and a crash in one agent corrupts state the others were relying on. Ad-hoc locking solves neither problem cleanly: it slows the system down and still leaves failure containment as an afterthought.",
       "forces": [
         "Concurrency and asynchrony are natural to agent systems but hostile to shared-state programming.",
         "Actor-style isolation makes per-agent failure containment straightforward.",
@@ -125,8 +125,8 @@
       ],
       "category": "multi-agent",
       "intent": "Wrap a sub-agent (with its own loop, prompt, and tool palette) behind a single function-shaped tool signature, so the parent agent calls it like any other tool and never sees the sub-agent's internal turns.",
-      "context": "A parent agent that benefits from delegating bounded sub-tasks (\"search the web for X and summarise\", \"plan a multi-day itinerary\") to a specialised loop without inheriting the sub-agent's turn-level context.",
-      "problem": "Letting the parent observe the sub-agent's turns either bloats parent context or couples parent reasoning to sub-agent intermediate state. Hand-rolled multi-agent broadcast bus is over-engineering for this case.",
+      "context": "A parent agent is handling an overall goal and runs into a bounded sub-task — search the web for a topic and summarise the findings, plan a multi-day itinerary, audit a directory of files — that deserves its own focused loop with its own model, tool palette, and step budget. The parent does not need to watch the sub-task being solved; it only needs the answer.",
+      "problem": "If the parent watches every turn the sub-agent takes, the parent's context window fills up with intermediate searches and tool calls that have nothing to do with the parent's own job, and the parent's reasoning starts to entangle with the sub-agent's internals. Building a full multi-agent broadcast bus to coordinate the two is far more machinery than the situation needs. Without a clean boundary, the team ends up choosing between bloated parent context and over-engineered coordination.",
       "forces": [
         "Nested loops add abstraction; parent shouldn't care about how sub solves it.",
         "The function-shaped tool signature is already the agent's native composition unit.",
@@ -242,8 +242,8 @@
       ],
       "category": "multi-agent",
       "intent": "Have agents converse turn by turn until a completion criterion fires; agent roles drive the conversation forward.",
-      "context": "Tasks that benefit from back-and-forth between specialists (a coder agent and a reviewer agent; a teacher agent and a student agent).",
-      "problem": "Single-agent loops cannot represent dialogue-shaped collaboration; rigid orchestration patterns over-prescribe the flow.",
+      "context": "A team is building an agent system whose task is naturally shaped like a conversation between two or more specialists: a coder agent and a reviewer agent revising a patch together, a teacher agent and a student agent working through an explanation, a writer agent and an editor agent. The work converges through back-and-forth rather than through a single agent's monologue.",
+      "problem": "A single-agent loop has nowhere to put the dialogue: there is no opposing voice to push back, and inner-monologue self-critique tends to agree with itself. A rigid orchestration pipeline that fixes the step order in advance over-prescribes the flow and removes the conversational dynamics that make the pairing valuable in the first place. Without a structure for turn-taking, the team is forced to choose between a flat solo loop and a brittle hard-coded sequence.",
       "forces": [
         "Turn allocation across agents.",
         "Termination criterion definition.",
@@ -334,8 +334,8 @@
       ],
       "category": "multi-agent",
       "intent": "Give multiple agents a shared, queryable workspace they can read from and write to as they collaborate.",
-      "context": "Coordinated multi-agent work where agents need to see each other's progress and contribute to a shared artefact.",
-      "problem": "Agents working in isolation miss each other's progress; explicit messaging requires a protocol; shared mutable state without discipline races.",
+      "context": "Several specialised agents are working on a shared artefact — a document being annotated by a layout-extractor, table-parser, citation-resolver, and summariser; a code review where multiple analysers contribute findings — and each needs to see what the others have already produced before deciding what to do next. The agents are not in a fixed pipeline; the order of useful contributions depends on what is already on the page.",
+      "problem": "If the agents work in isolation, they cannot build on each other's findings and duplicate or miss work. If they message each other point to point, every new agent forces edits to every other agent that should hear from it, and the protocol grows into a brittle web. If they share an unstructured mutable workspace without discipline, concurrent writes race and overwrite useful intermediate state. The team needs a coordination shape that is more flexible than a strict pipeline but more disciplined than free shared memory.",
       "forces": [
         "Concurrent writes need conflict resolution.",
         "Blackboard contents grow; pruning is needed.",
@@ -419,7 +419,7 @@
       "example_scenario": "A document-processing pipeline has a layout-extractor agent, a table-parser, a citation-resolver, and a summariser, each strong on its own but needing each other's intermediate outputs. Wiring direct messages between every pair becomes a brittle protocol. They adopt a Blackboard: each agent posts its findings to a shared workspace and subscribes to relevant updates, with a controller deciding who runs next. Coordination becomes 'read what's on the board, contribute what you can'.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  A1[Agent A] -->|write| BB[(Blackboard<br/>shared store)]\n  A2[Agent B] -->|write| BB\n  A3[Agent C] -->|write| BB\n  BB -->|read slice| A1\n  BB -->|read slice| A2\n  BB -->|read slice| A3\n  BB -->|notify| A1"
+        "mermaid": "flowchart TD\n  A1[Agent A] -->|write| BB[(Blackboard<br/>shared store)]\n  A2[Agent B] -->|write| BB\n  A3[Agent C] -->|write| BB\n  BB -->|read slice| A1\n  BB -->|read slice| A2\n  BB -->|read slice| A3\n  BB -->|notify| A1"
       },
       "last_updated": "2026-05-20"
     },
@@ -432,8 +432,8 @@
       ],
       "category": "multi-agent",
       "intent": "Have two agents role-play a user-assistant interaction to autonomously complete a task neither could solve alone.",
-      "context": "Tasks where a user-style agent and an assistant-style agent productively elaborate a task through their interaction.",
-      "problem": "Single agents miss the turn-taking dynamics that human collaboration relies on; pure debate is adversarial when collaboration is what is wanted.",
+      "context": "A team wants an autonomous system to carry out a task that, if done by humans, would unfold as a collaboration between someone stating goals and someone executing — a product owner working with a developer, an instructor working with a learner. There is no real user in the loop; both sides need to be played by agents, and the work has to converge through their interaction.",
+      "problem": "A single-agent loop has no opposite voice to clarify or push back, and tends to mix goal-setting and execution in the same prompt until both blur. An adversarial debate setup is the wrong shape when what is actually wanted is collaborative role-play, not winning an argument. Without fixed roles and a bounded conversation, two free-form agents drift toward sameness, repeat themselves, and never converge on a working artefact.",
       "forces": [
         "Roles drift toward sameness without inception prompting.",
         "Conversation length must be bounded.",
@@ -512,8 +512,8 @@
       ],
       "category": "multi-agent",
       "intent": "Decompose a long, multi-disciplinary task into ordered phases; within each phase, run a paired-role chat between two agents until the phase artefact is signed off; pass the artefact to the next phase.",
-      "context": "A task (build a small program, write a brief, prepare a report) requires several disciplines in sequence and is too long for a single agent loop or a flat multi-agent broadcast.",
-      "problem": "A single agent loop loses focus; broadcast multi-agent chat produces tangled context; flat prompt-chaining cannot host the back-and-forth a discipline needs.",
+      "context": "A team is using agents to carry out a long task — build a small program, prepare a regulatory brief, produce a multi-section report — that naturally breaks into several disciplines that have to happen in order: requirements, design, implementation, testing, documentation. The whole task is too long to fit in one agent's loop, and each discipline benefits from focused two-agent dialogue rather than a solo monologue.",
+      "problem": "A single agent loop loses focus halfway through, forgetting the early requirements by the time it is writing tests. A broadcast multi-agent chat where every agent sees every message tangles design discussion with code review and blows up context windows. Flat prompt-chaining — one prompt feeds the next — cannot host the multi-turn back-and-forth a discipline like design review needs. The team needs structure across the disciplines but flexibility inside each one.",
       "forces": [
         "Each discipline benefits from focused two-agent dialogue.",
         "Context windows blow up if every agent sees every chat.",
@@ -599,7 +599,7 @@
       "example_scenario": "A team is using an agent system to ship a small internal tool. A single agent loop forgets the requirements by the time it's writing tests, and a free-for-all multi-agent chat tangles design discussions with code review. They structure the work as a Chat-Chain: phase 1 is two agents pairing on requirements until a spec is signed off, phase 2 is two agents pairing on design against that spec, phase 3 is implementation, and so on. Each phase's signed-off artefact becomes the only context that crosses into the next.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  In[Goal] --> P1[Phase 1<br/>designer + coder]\n  P1 --> A1[Artefact 1]\n  A1 --> P2[Phase 2<br/>coder + tester]\n  P2 --> A2[Artefact 2]\n  A2 --> P3[Phase N<br/>...]\n  P3 --> Out[Final artefact]"
+        "mermaid": "flowchart TD\n  In[Goal] --> P1[Phase 1<br/>designer + coder]\n  P1 --> A1[Artefact 1]\n  A1 --> P2[Phase 2<br/>coder + tester]\n  P2 --> A2[Artefact 2]\n  A2 --> P3[Phase N<br/>...]\n  P3 --> Out[Final artefact]"
       },
       "last_updated": "2026-05-20"
     },
@@ -612,8 +612,8 @@
       ],
       "category": "multi-agent",
       "intent": "When an instructed agent would have to invent missing context to comply, have it reverse roles and ask the instructor for the missing detail before answering.",
-      "context": "Two agents communicate (instructor → assistant) and the instruction is under-specified in a way that would force the assistant to fabricate (e.g. a missing class name, an unspecified API version, an ambiguous unit).",
-      "problem": "Without a clarification channel between agents, the assistant fabricates the missing detail; the fabrication propagates and is hard to detect at the artefact boundary.",
+      "context": "Two agents are communicating in an instructor-and-assistant shape — an orchestrator telling a coding sub-agent what to do, a planner handing work to an executor — and the instruction arrives with a decisive detail missing. The missing piece might be a specific class name, an API version, an ambiguous unit of measure, or which of several plausible interpretations the instructor actually meant.",
+      "problem": "Without a way for the assistant to ask back, it complies by inventing a plausible value for the missing detail and proceeds as if it had been told. The fabricated choice gets baked into the next artefact and is hard to spot at the hand-off boundary, where it looks like a confident answer rather than a guess. By the time the wrong assumption surfaces — in a downstream failure or a user complaint — the trail back to the original gap is buried.",
       "forces": [
         "Speed of completion vs. fidelity of context.",
         "Adding a clarification round costs latency and tokens.",
@@ -712,8 +712,8 @@
       ],
       "category": "multi-agent",
       "intent": "Decompose enterprise agency into domain-specialised agents (finance, supply chain, HR, service), each grounded in its own system of record, and route artefacts between them through a standardised inter-agent protocol.",
-      "context": "Large enterprises whose business processes already live across many backing systems (ERP, CRM, HR, ticketing) and where end-to-end workflows (e.g. dispute → cash collection → finance close) cross domain boundaries.",
-      "problem": "A single mega-agent grounded against every system has bad recall, no clear ownership, and no domain-specific guardrails; flat tool-use agents over a flat tool catalogue degrade as the catalogue grows.",
+      "context": "A large enterprise already runs its business across many backing systems — finance in an ERP, customers in a CRM, employees in an HR system, support in a ticketing system — and the end-to-end workflows it cares about cross those boundaries. A dispute moves from customer service into finance into supply chain; closing a quarter pulls data from half a dozen sources. Each domain has its own data model, vocabulary, compliance rules, and team that owns it.",
+      "problem": "Building a single mega-agent grounded against every backing system produces an agent with a sprawling tool catalogue, no clear domain ownership, and no domain-specific guardrails. Recall drops as the catalogue grows: the agent picks the wrong tool, mixes up vocabularies between domains, and applies finance rules to an HR question. Compliance teams have nowhere to attach domain controls, and no single team can be made accountable for the whole thing. Flat tool-use agents over a flat catalogue degrade in exactly this regime.",
       "forces": [
         "Each domain has its own data model, vocabulary, and compliance rules.",
         "End-to-end workflows must cross domains.",
@@ -805,7 +805,7 @@
       "example_scenario": "A large enterprise has separate teams for finance, supply chain, HR, and customer service, each with its own systems of record. A single mega-agent grounded against all of them has terrible recall and no clear ownership when something goes wrong. They build a Cross-Domain Agent Network: a domain-specialised agent per area, each grounded in its own data and bounded by domain-specific policies, and a standardised inter-agent protocol that lets a finance agent request a supplier risk score from the supply-chain agent. Each domain stays independently governed.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U[User request] --> R[Router]\n  R --> F[Finance Agent<br/>own data + tools]\n  R --> S[Supply Chain Agent]\n  R --> H[HR Agent]\n  R --> SV[Service Agent]\n  F <-->|A2A / MCP| S\n  S <-->|A2A / MCP| H\n  H <-->|A2A / MCP| SV"
+        "mermaid": "flowchart TD\n  U[User request] --> R[Router]\n  R --> F[Finance Agent<br/>own data + tools]\n  R --> S[Supply Chain Agent]\n  R --> H[HR Agent]\n  R --> SV[Service Agent]\n  F <-->|A2A / MCP| S\n  S <-->|A2A / MCP| H\n  H <-->|A2A / MCP| SV"
       },
       "last_updated": "2026-05-20"
     },
@@ -818,8 +818,8 @@
       ],
       "category": "multi-agent",
       "intent": "Have multiple agents argue different positions on a question and converge through structured exchange.",
-      "context": "The answer is contested or the user wants the strongest case for and against.",
-      "problem": "Single-agent answers hide reasoning blind spots; the same model giving both answer and critique reinforces them.",
+      "context": "A team is using agents on questions whose answers are genuinely contested or where the user explicitly wants to see the strongest case both for and against — should this firm adopt a particular open-source library, is this regulatory interpretation defensible, does this design choice hold up under scrutiny. The cost of a confidently wrong single answer is high enough to justify spending extra model calls.",
+      "problem": "A single agent answering directly tends to hide its own reasoning blind spots: whatever case it considered first becomes the answer, and the counter-arguments never get articulated. Asking the same model to critique its own answer reinforces the original framing rather than challenging it, because both passes share the same priors. Without an explicit opposing voice, the team gets a confident answer with no view of what it might be missing.",
       "forces": [
         "Genuinely independent positions are hard to engineer with one model.",
         "Debate length must be bounded.",
@@ -928,8 +928,8 @@
       ],
       "category": "multi-agent",
       "intent": "Generate the agent team — role descriptions and instances — at run time based on the specific task, then adjust team composition between iterations based on evaluation feedback.",
-      "context": "The task arrives without a known type; a fixed pool of pre-assigned roles either over-provisions (expensive, noisy) or under-covers (missing the right specialist).",
-      "problem": "Hard-coded role lists are brittle: the right team for \"draft a regulatory filing\" is not the right team for \"refactor a Python module\"; both tasks share an entry point.",
+      "context": "A multi-agent platform accepts a wide range of tasks through one entry point — drafting a regulatory filing, refactoring a Python module, planning a marketing campaign — and the right team of specialists varies sharply from one task to the next. The platform cannot know the task type in advance and cannot afford to keep one large fixed crew always running.",
+      "problem": "A hard-coded role list is brittle: the team that suits a legal filing is not the team that suits a code refactor, and the writer-reviewer-editor lineup that helped the first request is dead weight for the second. Over-provisioning a large fixed pool wastes tokens and creates noise. Under-provisioning misses the specialist the task actually needed. Without a way to assemble the team at run time, every workflow either drags around unnecessary roles or quietly skips work that should have happened.",
       "forces": [
         "Pre-specified roles are stable but mis-fit;",
         "Run-time generation costs an extra LLM call before any work begins;",
@@ -1043,8 +1043,8 @@
       ],
       "category": "multi-agent",
       "intent": "Place a dedicated manager between the participants of a multi-agent group chat that decides which participant speaks next on each turn.",
-      "context": "Multi-agent systems where several specialist agents share a conversation context and only one should speak per turn; without a chair, everyone speaks at once or nobody speaks.",
-      "problem": "Free-for-all turn-taking either talks over itself (every agent emits every turn) or stalls (no agent picks itself); per-pair hand-offs do not generalise past three agents.",
+      "context": "A team is running three or more specialist agents — a planner, a coder, a reviewer, a tester — that all share one conversation transcript and need to take turns sensibly. Only one agent should speak per turn, the transcript needs to stay coherent, and the conversation has to end when the work is done rather than running forever.",
+      "problem": "If every agent decides for itself whether to speak, the result is either chatter (each agent emits a turn on every step) or paralysis (no agent picks itself and the conversation stalls). Wiring up per-pair hand-offs — agent A always passes to B, B to C — works for two or three agents but does not generalise as the cast grows, and gives no central place to decide when the conversation is finished. The team needs a single component that allocates turns, watches for termination, and leaves an audit trail.",
       "forces": [
         "Turn allocation must be explicit when more than two agents share a thread.",
         "A round-robin chair is simple but blind to relevance; an LLM-based chair is relevance-aware but adds a model call per turn.",
@@ -1173,8 +1173,8 @@
       ],
       "category": "multi-agent",
       "intent": "Transfer the active conversation from one agent to another, carrying context across the switch.",
-      "context": "A specialist agent realises it is the wrong agent for the current request and needs to pass control to another specialist.",
-      "problem": "Without a handoff primitive, mid-conversation reroutes either restart context or stay stuck with the wrong specialist.",
+      "context": "An agent system has several specialised agents — tier-1 support, billing, technical, sales — and one of them is mid-conversation with a user when it realises the request actually belongs to a different specialist. The user has already explained their situation, and forcing them to start over with a new agent would be a poor experience.",
+      "problem": "Without an explicit way to transfer the conversation, the team is stuck choosing between two bad options: keep the wrong agent on the line and let it bluff through territory it cannot really handle, or restart the conversation with a new agent and make the user repeat themselves. A naive transfer that just changes which agent is responding loses the context that has accumulated in the transcript. Worse, repeated transfers can ping-pong between agents that each think the other is the right one, with nothing detecting the loop.",
       "forces": [
         "Context transfer is lossy; what travels?",
         "Handoff loops (A→B→A→B) are a real failure.",
@@ -1266,8 +1266,8 @@
       ],
       "category": "multi-agent",
       "intent": "Organise agents in a tree where higher-level agents decompose tasks for lower-level agents, recursively.",
-      "context": "Tasks decomposable across multiple levels of granularity (project → epic → ticket → step); a flat supervisor would have too many direct reports.",
-      "problem": "Flat supervisor patterns scale poorly: one supervisor with N specialists has prompt complexity that grows with N.",
+      "context": "A team is working with tasks that decompose recursively across several levels — a market research project breaks into vertical-specific research, each vertical breaks into specific information-gathering steps; a software project breaks into epics, tickets, and individual edits. At each level the right next step is different in kind, not just in detail. A single supervisor cannot meaningfully reason about every leaf at once.",
+      "problem": "A flat supervisor pattern, where one coordinating agent dispatches to a list of specialists, scales poorly as the list grows. The supervisor's prompt grows with the number of specialists, recall on which specialist to call drops, and any new vertical forces an edit to the root prompt. The supervisor ends up trying to think simultaneously at the level of the whole project and the level of individual specialist tasks, which neither it nor any other agent does well.",
       "forces": [
         "Tree depth trades latency for clarity.",
         "Inter-level communication needs a contract.",
@@ -1354,8 +1354,8 @@
       ],
       "category": "multi-agent",
       "intent": "Run one model under several distinct personas (executor, critic, planner) within a single agent loop.",
-      "context": "The agent benefits from review or planning split off from execution, but spinning up genuine separate model instances is overkill.",
-      "problem": "Mono-persona prompts conflate roles and produce muddled outputs that are neither plans nor critiques nor execution.",
+      "context": "A team is running a single agent on a task where planning, executing, and critiquing the result all matter — a coding agent that should think through a change, write the patch, and then check the patch against the requirements. Standing up two or three separate agents with their own model instances is more machinery than the task needs, but doing all three roles in one prompt is producing muddled output.",
+      "problem": "When one prompt is asked to plan, execute, and self-critique at the same time, the model conflates the roles and emits something that is partly a plan, partly an attempt, and partly a half-hearted critique that mostly agrees with the attempt. The plan never gets sharp, the execution never gets focused, and the critique never seriously challenges anything. Without explicit role separation, the team gets the cost of a complex agent and the quality of a confused one.",
       "forces": [
         "Persona switching costs a prompt and a context reset.",
         "The model has the same blind spots in each persona; true diversity is limited.",
@@ -1400,6 +1400,10 @@
         {
           "pattern": "parallel-voice-proposer",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "personality-variant-overlay",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1432,7 +1436,7 @@
         "type": "sequence",
         "mermaid": "sequenceDiagram\n  participant L as Loop\n  participant Pl as Planner persona\n  participant Ex as Executor persona\n  participant Cr as Critic persona\n  L->>Pl: produce plan\n  Pl-->>L: plan\n  L->>Ex: execute step\n  Ex-->>L: result\n  L->>Cr: review\n  Cr-->>L: critique\n  L->>Pl: revise plan if needed"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "inter-agent-communication",
@@ -1443,8 +1447,8 @@
       ],
       "category": "multi-agent",
       "intent": "Define a protocol for agents to exchange tasks, capabilities, and results across process or vendor boundaries.",
-      "context": "Agents from different teams or vendors need to cooperate but speak different internal shapes.",
-      "problem": "Bespoke point-to-point integrations do not scale; each new agent pair requires fresh glue.",
+      "context": "An organisation has agents built by different teams or bought from different vendors — a legal review agent from one supplier, an HR agent from another, an internal IT agent — and they need to cooperate on workflows that cross their boundaries. Each agent speaks a different internal shape: different request envelopes, different result formats, different auth.",
+      "problem": "Wiring each pair of agents together with bespoke integration code does not scale. Every new agent forces fresh glue against every other agent it might talk to, and every change to one side breaks the others. There is no shared catalogue of what each agent can do, no shared auth story, and no shared way to version the request envelopes. The cost of adding the fourth or fifth agent becomes prohibitive long before the organisation has the agent population it wanted.",
       "forces": [
         "Capability discovery: how does agent A know what agent B can do?",
         "Auth and trust across organisational boundaries.",
@@ -1549,8 +1553,8 @@
       ],
       "category": "multi-agent",
       "intent": "A lead agent writes a research plan and dispatches parallel sub-agents that fan out for breadth-first information gathering, then merges results.",
-      "context": "Open-ended research tasks where breadth-first exploration across many sources beats depth-first single-thread reasoning.",
-      "problem": "Single-agent research is bottlenecked on serial token generation; generic orchestrator-workers under-specifies how to handle research-shaped tasks (parallelism, source diversity, synthesis).",
+      "context": "A team is using an agent to handle open-ended research tasks — write a market brief on a niche industry, gather competitive intelligence, prepare a literature review. The work benefits from breadth-first exploration across many sources rather than depth-first reasoning along one thread, and there is a deadline measured in hours, not days.",
+      "problem": "A single agent doing the research serially is bottlenecked on its own token generation: it can only search and read one source at a time, and by the time it has visited ten sources the deadline has passed or its context window is exhausted. A generic orchestrator-workers pattern handles parallel sub-tasks but does not say anything about how to plan research questions, how to keep sub-agents from overlapping, or how to synthesise findings into a coherent answer. The team needs a structure shaped specifically for research, not a generic dispatcher.",
       "forces": [
         "Sub-agent count vs cost.",
         "Synthesis quality bounded by lead agent's reasoning over fragmented results.",
@@ -1645,8 +1649,8 @@
       ],
       "category": "multi-agent",
       "intent": "An orchestrator dynamically breaks a task into subtasks at runtime and delegates each to a worker LLM, then synthesises results.",
-      "context": "The subtasks needed are not known in advance and depend on the task; coding tasks where the number of files to change varies are the canonical example. Distinct from supervisor: orchestrator-workers does *dynamic* decomposition into ad-hoc subtasks per request; supervisor routes work to a *fixed* set of pre-existing specialist agents.",
-      "problem": "Static decomposition (Plan-and-Execute, Prompt Chaining) cannot handle tasks whose shape is data-dependent.",
+      "context": "A team is handling tasks where the right decomposition cannot be known in advance and depends on the input. A coding agent asked to audit a repository does not know how many languages or services it will find; a research agent does not know how many sub-questions a brief will need until it reads the brief. The number and shape of sub-tasks is data-dependent. This is distinct from supervisor, which routes work to a fixed set of pre-existing specialist agents; orchestrator-workers decides the sub-tasks at run time.",
+      "problem": "A static decomposition — a fixed plan-and-execute pipeline or a hard-coded prompt chain — cannot handle tasks whose shape depends on the input. Trying to enumerate every possible sub-task in the prompt produces a sprawling system that still misses the cases the team did not anticipate. Picking the wrong decomposition at design time forces every request through it, even the ones it does not fit. The team needs decomposition to happen after the task arrives, not before.",
       "forces": [
         "The orchestrator must reason at a higher level than any worker.",
         "Workers should not have to know they are workers.",
@@ -1770,6 +1774,111 @@
       "last_updated": "2026-05-20"
     },
     {
+      "id": "personality-variant-overlay",
+      "name": "Personality Variant Overlay",
+      "aliases": [
+        "Voice Overlay",
+        "Facet Voicing",
+        "Persona Overlay (identity-preserving)"
+      ],
+      "category": "multi-agent",
+      "intent": "Let one agent speak in several named voices that overlay the base identity rather than replacing it, so the agent can shift register without losing identity continuity or splitting into separate personas.",
+      "context": "A team is building a long-lived agent with an explicit base personality (charter, name, tone). Different conversational situations want different registers — teacherly, terse-and-operational, playful, gravely serious — and the team does not want to ship them as separate agents that each lose continuity with the others. The team also does not want the agent to vanish behind a persona it then has to drop, because identity continuity is the whole point. The need is for several labelled voices that are visibly the same agent.",
+      "problem": "Forcing every register into one neutral voice flattens the agent and makes some moves impossible (a teacherly explanation in the same flat tone as a deadpan technical note). Spinning up separate personas as different agents preserves register but breaks continuity — each persona has its own short memory, and the user is now talking to a stranger when the register shifts. A jailbreak-style 'now act as X' overlay loses identity entirely because the base personality is overwritten rather than overlaid. None of these match the situation where the agent should still be itself, but speaking in a particular voice.",
+      "forces": [
+        "Identity continuity matters more than register variety: the base name and personality must remain visible.",
+        "Some moves genuinely need a different register; uniform tone forecloses them.",
+        "Variants must be a finite labelled set, not free-form impersonation.",
+        "The overlay must be reversible and visible: caller must know which variant is active.",
+        "Memory and tools stay shared across variants; the agent does not forget itself when shifting."
+      ],
+      "therefore": "Therefore: define a finite set of named variants, each as an additive overlay that appends a 'speaking in the voice of <name>' instruction to the base system prompt rather than replacing it, and route situational selection through that overlay, so the agent retains one identity, one memory, and one toolset while gaining a labelled set of registers it can speak in.",
+      "solution": "Maintain a small registry of named variants (e.g. 'teacher', 'operator', 'caring-coach', 'archivist'). Each variant is a short overlay block — a few sentences describing tone, pacing, vocabulary — that is concatenated onto the base system prompt at turn time, never replacing it. The agent (or an upstream selector) chooses a variant per turn. The chosen variant is visible in telemetry and may be visible to the user. Memory, tools, charter, and name are shared across all variants. Variant overlays must not contradict the base charter: the registry is curated, not user-supplied.",
+      "consequences": {
+        "benefits": [
+          "Register can shift without identity loss.",
+          "A finite labelled set is auditable; user and operators can see which voice is active.",
+          "Memory and tools are shared, so the agent does not forget itself when the voice changes."
+        ],
+        "liabilities": [
+          "Variants drift toward parody if the overlay is too thick.",
+          "Selection logic becomes another small policy to maintain.",
+          "Users may interpret a variant shift as inauthenticity if it isn't announced."
+        ]
+      },
+      "constrains": "Variant overlays cannot override the base charter or change the agent's name and core personality; replacement-style persona swaps that erase the base identity are forbidden.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "inner-committee",
+          "relation": "alternative-to",
+          "note": "Inner-committee runs several voices internally and emits one; variant-overlay emits one voice that is one of several labelled options."
+        },
+        {
+          "pattern": "role-assignment",
+          "relation": "alternative-to",
+          "note": "Role-assignment splits roles across agents; variant-overlay keeps roles inside one agent."
+        },
+        {
+          "pattern": "role-typed-subagents",
+          "relation": "alternative-to",
+          "note": "Role-typed-subagents is the anti-pattern of splitting prematurely; variant-overlay is its identity-preserving inverse."
+        },
+        {
+          "pattern": "constitutional-charter",
+          "relation": "complements",
+          "note": "The charter is what variants must not overwrite."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Personas as a Way to Model Truthfulness in Language Models",
+          "authors": "Joshi et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2310.18168"
+        },
+        {
+          "type": "paper",
+          "title": "Role Play with Large Language Models",
+          "authors": "Murray Shanahan, Kyle McDonell, Laria Reynolds",
+          "year": 2023,
+          "url": "https://www.nature.com/articles/s41586-023-06647-8"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "multi-agent",
+        "persona",
+        "identity",
+        "voice"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has an explicit base personality the team wants to preserve.",
+          "Different situations call for different registers without losing continuity.",
+          "Selection is from a finite, curated set rather than free-form impersonation."
+        ],
+        "do_not_use_when": [
+          "Persona switching needs to fully replace identity (e.g. red-team simulation).",
+          "Variants would diverge enough to warrant separate agents with their own memories.",
+          "There is no shared charter for the overlays to leave untouched."
+        ]
+      },
+      "example_scenario": "A long-running personal agent normally answers in a neutral register. When the user asks for help understanding a paper, the selector activates the 'teacher' variant: the overlay appends a few sentences about pacing, scaffolding, and example-first explanation. When the user asks for incident triage, the 'operator' variant is selected: short imperative sentences, no scaffolding. Across both, the agent's name, charter, and memory are unchanged; the user sees a banner indicating which variant is active. The same memory of yesterday's conversation is available in both voices.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Base[Base system prompt<br/>name + charter + tools]\n  Variants[(Variant registry<br/>teacher, operator, coach, ...)]\n  Selector[Selector]\n  Turn[Turn prompt]\n  Base --> Concat\n  Selector --> Variants\n  Variants -->|active overlay| Concat\n  Concat[Concatenate: base + overlay] --> Turn\n  Turn --> Model[Model]",
+        "caption": "Variant overlay is appended onto the base prompt; selector picks one per turn, identity stays invariant."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "rl-conductor-orchestrator",
       "name": "RL-Trained Conductor Orchestrator",
       "aliases": [
@@ -1780,8 +1889,8 @@
       ],
       "category": "multi-agent",
       "intent": "Train a small meta-model with reinforcement learning to dispatch sub-tasks across a pool of frontier LLM workers, learning the communication topology end-to-end and allowing the conductor to recursively invoke itself as a worker.",
-      "context": "Production multi-agent stacks that route sub-tasks to a heterogeneous pool of frontier models (different vendors, sizes, specialisations) plus tools. The routing logic is usually a tree of hand-written rules and prompt-time hints. Tasks span many domains, and no single hand-coded routing tree generalises well across them.",
-      "problem": "Hand-coded orchestrator logic does not generalise. Static heuristics for which model gets which sub-task miss task-specific signals and grow stale as the worker pool changes. A frontier model used as the orchestrator is expensive on every step and still does not learn from the reward signal of finished tasks. There is no obvious place for the system to improve its own decomposition strategy from experience.",
+      "context": "A team operates a production multi-agent stack that dispatches sub-tasks across a heterogeneous pool of frontier large language models from different vendors — one strong at long-context summarisation, one at code synthesis, one at image understanding — plus a set of tools. The routing logic between them is usually a hand-written tree of if-this-then-that rules with prompt-time hints. Tasks span many domains and the pool of workers keeps changing as vendors release and deprecate models.",
+      "problem": "Hand-coded orchestrator logic does not generalise across the breadth of incoming tasks: static heuristics for which model gets which sub-task miss the task-specific signals that actually predict the right routing, and the rules grow stale every time the worker pool changes. Using a frontier model itself as the orchestrator is expensive on every dispatch step and still does not learn from the reward signal that finished tasks provide. There is no obvious place for the system to improve its own decomposition strategy from experience, so every gain in routing quality requires another round of human rule editing.",
       "forces": [
         "Routing decisions are task-dependent and the right worker for a sub-task is not knowable from static rules alone.",
         "Frontier models are expensive to use as the always-on orchestrator on every dispatch step.",
@@ -1897,8 +2006,8 @@
       ],
       "category": "multi-agent",
       "intent": "Assign each agent a named role (researcher, writer, critic, planner) with a role-specific prompt, tool palette, and acceptance criteria.",
-      "context": "Multi-agent systems where personas need to be distinct enough that the user (and the system) can reason about who did what.",
-      "problem": "Generic agents drift toward similarity; without explicit roles, contributions blur and review becomes hard.",
+      "context": "A team is running several agents that contribute to a shared workflow — a content pipeline with a researcher, a writer, and a critic; a coding crew with a planner, a coder, and a reviewer — and the user, the reviewer, and the team itself need to know who produced what. Each role has its own work to do and its own definition of done.",
+      "problem": "When the agents share a generic prompt and an open tool palette, they drift toward sameness: the researcher starts writing prose, the writer starts critiquing, the critic starts proposing rewrites, and the outputs all sound alike. Contributions blur together in the transcript, review cannot focus on the right thing, and disagreement between roles — which is the signal the team wanted — never surfaces because every agent agrees with every other agent. Without explicit roles backed by scoped prompts, tools, and acceptance criteria, the multi-agent setup gives no benefit over a single agent.",
       "forces": [
         "Role definitions can ossify into bureaucracy.",
         "Cross-role handoffs need typed contracts.",
@@ -1977,6 +2086,10 @@
         {
           "pattern": "role-typed-subagents",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "personality-variant-overlay",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2015,7 +2128,7 @@
         "type": "class",
         "mermaid": "classDiagram\n  class Role {\n    +name\n    +system_prompt\n    +tool_palette\n    +acceptance_criteria\n  }\n  class Researcher\n  class Writer\n  class Critic\n  class Planner\n  Role <|-- Researcher\n  Role <|-- Writer\n  Role <|-- Critic\n  Role <|-- Planner"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "sop-encoded-multi-agent",
@@ -2027,8 +2140,8 @@
       ],
       "category": "multi-agent",
       "intent": "Encode a human Standard Operating Procedure (roles, ordered phases, standardised hand-off artefacts) into a multi-agent pipeline so that agents communicate through structured documents rather than free-form chat.",
-      "context": "A complex, repeatable task (software development, document production, regulatory submission) already has a well-known human procedure with named roles and defined deliverables between them.",
-      "problem": "Free-form multi-agent chat hallucinates context, drifts off-task, and produces no auditable trail; without a procedure, agents redo each other's work or skip steps.",
+      "context": "A team is automating a complex, repeatable task — software development, document production, a regulatory submission — that already has a well-known human Standard Operating Procedure (SOP). The SOP names specific roles (product manager, architect, engineer, quality assurance) and specifies the deliverables that pass between them: a requirements document, then a design, then code, then a test report. The shape of the work is already understood; what is being automated is the execution.",
+      "problem": "If the agents simply chat freely, they hallucinate context the SOP would have pinned down, drift off-task between roles, and produce no auditable trail of which agent did what. Without typed hand-off deliverables, agents redo each other's work or quietly skip steps, and ambiguity that the SOP would catch at a phase boundary propagates to the end. The team ends up with a multi-agent system that looks lively in the transcript but produces worse artefacts than a single human following the same procedure would.",
       "forces": [
         "The model is good at playing a role; it is bad at inventing the workflow that connects roles.",
         "Free chat between agents is cheap to write but expensive to debug.",
@@ -2136,7 +2249,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  PM[Product role] -->|PRD| Arch[Architect role]\n  Arch -->|design doc| Dev[Developer role]\n  Dev -->|code| QA[QA role]\n  QA -->|test plan| Doc[Tech-writer role]\n  Doc -->|user manual| Done[Release]\n  Pool[(Shared message pool<br/>+ subscription filter)] -.routes.-> PM\n  Pool -.routes.-> Arch\n  Pool -.routes.-> Dev\n  Pool -.routes.-> QA"
+        "mermaid": "flowchart TD\n  PM[Product role] -->|PRD| Arch[Architect role]\n  Arch -->|design doc| Dev[Developer role]\n  Dev -->|code| QA[QA role]\n  QA -->|test plan| Doc[Tech-writer role]\n  Doc -->|user manual| Done[Release]\n  Pool[(Shared message pool<br/>+ subscription filter)] -.routes.-> PM\n  Pool -.routes.-> Arch\n  Pool -.routes.-> Dev\n  Pool -.routes.-> QA"
       },
       "last_updated": "2026-05-20"
     },
@@ -2150,8 +2263,8 @@
       ],
       "category": "multi-agent",
       "intent": "Run subagents in isolated workspaces so their writes do not collide and parallelism is safe.",
-      "context": "Coding agents that delegate to multiple subagents for parallel work; without isolation, subagents fight over the same files.",
-      "problem": "Subagents writing to the same workspace race each other; one's edits are clobbered by another's.",
+      "context": "A coding agent — or any agent that edits files, runs commands, or mutates a workspace — delegates to several sub-agents that should work in parallel. Each sub-agent has its own bounded task: one refactors a module, another updates tests, a third writes documentation. They all want to touch the same repository at the same time.",
+      "problem": "If the sub-agents share one working directory, their edits race each other: one sub-agent's commit clobbers another's uncommitted changes, two sub-agents edit the same file with incompatible diffs, and a failure in one leaves the workspace in a state that breaks the others. Serialising them removes the parallelism that was the point of spawning sub-agents in the first place. Without isolated workspaces, the team has to choose between racing writes and giving up on parallel execution.",
       "forces": [
         "Isolation has setup cost (new worktree, branch, container).",
         "Reconciling work back to the main workspace is its own problem.",
@@ -2281,8 +2394,8 @@
       ],
       "category": "multi-agent",
       "intent": "Place a coordinating agent above a set of specialised agents and route work to them.",
-      "context": "Different request types benefit from different system prompts, tool palettes, and models; routing alone is too coarse because the lanes themselves want their own loop. Distinct from orchestrator-workers: supervisor routes work to a *fixed* set of pre-existing specialist agents; orchestrator-workers dynamically *decomposes* a task into ad-hoc subtasks per request.",
-      "problem": "A single agent that handles everything has either too few tools (limiting capability) or too many (confusing the model).",
+      "context": "A team is handling a mix of request types — billing questions, technical support, sales enquiries — and each type benefits from its own system prompt, its own tool palette, and possibly its own model. Each type is itself a multi-step interaction, not a single response, so routing alone is too coarse: the lanes want their own inner agent loop. This is distinct from orchestrator-workers, which dynamically decomposes a task into ad-hoc sub-tasks per request; supervisor routes work to a fixed set of pre-existing specialist agents.",
+      "problem": "A single agent trying to handle every request type has either too few tools — which limits what it can actually do — or too many, in which case the model gets confused about which tool fits which request, the prompt balloons, and recall drops. The team cannot tune the agent for billing without making it worse at sales. A flat router that just dispatches to a one-shot specialist does not give each lane the multi-step loop it needs. Some coordinating layer above the specialists has to own dispatch and aggregation.",
       "forces": [
         "Adding a supervisor layer adds a model call.",
         "Inter-agent communication needs a protocol.",
@@ -2435,8 +2548,8 @@
       ],
       "category": "multi-agent",
       "intent": "Run many peer agents that interact directly without a central supervisor, achieving emergent coordination.",
-      "context": "Tasks where centralised coordination is a bottleneck or where the problem benefits from many independent attempts (simulation, exploration).",
-      "problem": "Centralised supervisors become bottlenecks at scale; some tasks (negotiation, simulation, exploration) need agent-to-agent dynamics.",
+      "context": "A team is working on a task where many independent attempts or interactions matter more than a single coordinated plan — a negotiation simulation with many parties, a market simulation, an exploration of a large state space, a generative-agents experiment populating a small world. Centralised coordination would either bottleneck the system or impose a single policy on agents that need to behave differently from each other.",
+      "problem": "A central supervisor scales poorly to dozens or hundreds of agents: it becomes the bottleneck, and forcing every interaction through it removes the agent-to-agent dynamics that the task actually depends on. A negotiation in which every party speaks only through the chair is not a negotiation. At the same time, dropping the supervisor entirely raises new problems: how do agents find each other, how does the system terminate, and how does anyone debug emergent behaviour when nobody is in charge.",
       "forces": [
         "Emergent behaviour can surprise designers; debugging is hard.",
         "Communication topology (broadcast? gossip? pub/sub?) is a design choice.",
@@ -2512,7 +2625,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]\n  A2[Peer agent 2] <--> Bus\n  A3[Peer agent 3] <--> Bus\n  A4[Peer agent N] <--> Bus\n  Bus --> Term{Env-level termination<br/>time / consensus / trigger}\n  Term --> Out[Emergent outcome]"
+        "mermaid": "flowchart TD\n  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]\n  A2[Peer agent 2] <--> Bus\n  A3[Peer agent 3] <--> Bus\n  A4[Peer agent N] <--> Bus\n  Bus --> Term{Env-level termination<br/>time / consensus / trigger}\n  Term --> Out[Emergent outcome]"
       },
       "last_updated": "2026-05-20"
     },
@@ -2526,8 +2639,8 @@
       ],
       "category": "multi-agent",
       "intent": "Route inter-agent messages through named topics that agents subscribe to, instead of having senders address each other by id.",
-      "context": "Multi-agent systems where the sender does not know — and should not know — which agents are interested in a given message; new subscribers should be able to join without changing the sender.",
-      "problem": "Direct agent-to-agent addressing creates a dense web of senders that know about receivers; adding a new participant requires editing every sender that should reach it.",
+      "context": "A team is building a multi-agent system in which a message produced by one agent is potentially of interest to several others, and the set of interested agents may change over time. The sender does not know — and should not need to know — exactly which agents will care about its message, and new subscribers should be able to join the system without forcing changes to anyone who is already publishing.",
+      "problem": "Direct agent-to-agent addressing, where a sender names each receiver explicitly, creates a dense web of dependencies in which every sender carries knowledge about every receiver it might want to reach. Adding a new participant then requires editing every sender that should be able to reach it, and removing one leaves dangling references everywhere. The team needs a routing mechanism where senders publish to named topics and interested agents subscribe to those topics, so that sender and receiver are decoupled and the wiring can change without touching either end.",
       "forces": [
         "Decoupling sender from receiver is the central benefit of pub/sub.",
         "Topic semantics — wildcards, ordering guarantees, durability — change the failure modes substantially.",
@@ -2615,7 +2728,7 @@
       "example_scenario": "An incident-response platform has many agents. A monitor agent publishes to `telemetry.alert`; a triage agent subscribes to it and may publish to `incident.opened`; an audit agent subscribes to both topics; a paging agent subscribes only to `incident.opened`. Adding a new compliance-export agent that needs every incident is a one-line subscription on `incident.opened` — none of the existing publishers change. Topic schemas are versioned (`incident.opened.v1`) and subscribers declare which versions they accept.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  P1[Monitor agent] -->|publish| T1[(telemetry.alert)]\n  T1 --> S1[Triage agent]\n  T1 --> S2[Audit agent]\n  S1 -->|publish| T2[(incident.opened)]\n  T2 --> S3[Paging agent]\n  T2 --> S2\n  T2 --> S4[Compliance export agent<br/>added later — no sender changes]"
+        "mermaid": "flowchart TD\n  P1[Monitor agent] -->|publish| T1[(telemetry.alert)]\n  T1 --> S1[Triage agent]\n  T1 --> S2[Audit agent]\n  S1 -->|publish| T2[(incident.opened)]\n  T2 --> S3[Paging agent]\n  T2 --> S2\n  T2 --> S4[Compliance export agent<br/>added later — no sender changes]"
       },
       "last_updated": "2026-05-20"
     },
@@ -2629,8 +2742,8 @@
       ],
       "category": "multi-agent",
       "intent": "Finalise a decision across multiple agents by collecting and tallying their votes on candidate options, so the joint output reflects collective rather than single-agent judgement.",
-      "context": "A multi-agent system in which several agents — possibly with different models, prompts, or perspectives — produce candidate answers or evaluations on the same task, and a single decision must be returned.",
-      "problem": "Picking one agent's output as the final answer wastes the diversity of the others; running an unstructured debate may not converge. How can different agents' opinions be combined fairly and accountably?",
+      "context": "A team is running a multi-agent system in which several agents — possibly using different models, different prompts, or different perspectives — produce candidate answers or evaluations on the same task. The system needs to return a single decision, but the agents do not necessarily agree, and the team wants the combined answer to reflect the group rather than whoever happens to speak first.",
+      "problem": "Picking any one agent's output as the final answer throws away the diversity of the rest, which was the whole reason for running several agents in the first place. Running an unstructured debate between the agents may not converge within a reasonable budget and offers no clean record of how the final decision was reached. The team needs an explicit procedure that aggregates the agents' opinions fairly, terminates predictably, and leaves an auditable trace showing which agent voted for which option.",
       "forces": [
         "Diversity: agents may disagree on a plan or solution; that diversity is the value.",
         "Fairness: the procedure must respect each participating agent's standing.",
@@ -2741,7 +2854,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U[User] --> C[Coordinator agent]\n  C -->|ballot| V1[Voter agent 1]\n  C -->|ballot| V2[Voter agent 2]\n  C -->|ballot| V3[Voter agent 3]\n  V1 -->|vote| C\n  V2 -->|vote| C\n  V3 -->|vote| C\n  C -->|winning option| U\n",
+        "mermaid": "flowchart TD\n  U[User] --> C[Coordinator agent]\n  C -->|ballot| V1[Voter agent 1]\n  C -->|ballot| V2[Voter agent 2]\n  C -->|ballot| V3[Voter agent 3]\n  V1 -->|vote| C\n  V2 -->|vote| C\n  V3 -->|vote| C\n  C -->|winning option| U\n",
         "caption": "A coordinator collects votes from agent voters and returns the winning option."
       },
       "last_updated": "2026-05-20"

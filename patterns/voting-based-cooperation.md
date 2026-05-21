@@ -11,11 +11,11 @@ Finalise a decision across multiple agents by collecting and tallying their vote
 
 ## Context
 
-A multi-agent system in which several agents — possibly with different models, prompts, or perspectives — produce candidate answers or evaluations on the same task, and a single decision must be returned.
+A team is running a multi-agent system in which several agents — possibly using different models, different prompts, or different perspectives — produce candidate answers or evaluations on the same task. The system needs to return a single decision, but the agents do not necessarily agree, and the team wants the combined answer to reflect the group rather than whoever happens to speak first.
 
 ## Problem
 
-Picking one agent's output as the final answer wastes the diversity of the others; running an unstructured debate may not converge. How can different agents' opinions be combined fairly and accountably?
+Picking any one agent's output as the final answer throws away the diversity of the rest, which was the whole reason for running several agents in the first place. Running an unstructured debate between the agents may not converge within a reasonable budget and offers no clean record of how the final decision was reached. The team needs an explicit procedure that aggregates the agents' opinions fairly, terminates predictably, and leaves an auditable trace showing which agent voted for which option.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A medical-triage system runs three specialist agents (cardiology, neurology, pul
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User] --> C[Coordinator agent]
   C -->|ballot| V1[Voter agent 1]
   C -->|ballot| V2[Voter agent 2]

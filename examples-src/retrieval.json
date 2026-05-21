@@ -1,0 +1,326 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "retrieval",
+  "label": "Retrieval & RAG",
+  "patterns": [
+    {
+      "pattern_id": "agentic-rag",
+      "intent": "Show the agent-decides-to-retrieve loop in pseudo-code and in three Python frameworks that ship the pattern as a first-class building block.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton of the agent-decides-to-retrieve loop, bounded by a step budget.",
+          "code": "function answer(question):\n    messages = [system_prompt, user(question)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(\n            messages=messages,\n            tools=[retrieve_vector, retrieve_graph, retrieve_web],\n        )\n        messages.append(reply)\n\n        if not reply.tool_calls:\n            return reply.content              # agent answered\n\n        for call in reply.tool_calls:\n            evidence = dispatch(call.name, call.args)\n            messages.append(tool_result(call.id, evidence))\n        # next iteration: agent sees evidence and either answers,\n        # reformulates the query, or picks a different retriever.\n\n    return abort(\"step budget exhausted\")     # bounded by MAX_STEPS",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Retrieval as a @tool; create_agent owns the agent loop and streaming.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/rag",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.chat_models import init_chat_model\nfrom langchain.tools import tool\n\nvector_store = ...  # built once at startup\n\n\n@tool(response_format=\"content_and_artifact\")\ndef retrieve_context(query: str):\n    \"\"\"Retrieve information to help answer a query.\"\"\"\n    docs = vector_store.similarity_search(query, k=2)\n    serialized = \"\\n\\n\".join(\n        f\"Source: {d.metadata}\\nContent: {d.page_content}\" for d in docs\n    )\n    return serialized, docs\n\n\nmodel = init_chat_model(\"gpt-4o-mini\")\nagent = create_agent(\n    model,\n    tools=[retrieve_context],\n    system_prompt=(\n        \"You have access to a tool that retrieves context. Use it when \"\n        \"answering needs grounding; if retrieval returns nothing useful, \"\n        \"say you don't know.\"\n    ),\n)\n\nfor event in agent.stream(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"What is task decomposition?\"}]},\n    stream_mode=\"values\",\n):\n    event[\"messages\"][-1].pretty_print()",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from langchain.agents import create_agent; from langchain.chat_models import init_chat_model; from langchain.tools import tool; @tool(response_format=\"content_and_artifact\"); create_agent(model, tools=[...], system_prompt=...); agent.stream({\"messages\": [...]}, stream_mode=\"values\"); vector_store.similarity_search(query, k=2); doc.metadata and doc.page_content. Source: https://docs.langchain.com/oss/python/langchain/rag."
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "FunctionAgent + a docstring-described retrieval tool; the agent loop decides when to call it.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/agent/agent_workflow_basic/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import FunctionAgent\nfrom llama_index.llms.openai import OpenAI\n\n# `search_index` is your project's async retrieval helper — back it\n# with whatever you like (a LlamaIndex retriever, a vector DB client,\n# an HTTP search service). The agent only sees the docstring.\nfrom my_search_backend import search_index  # async def search_index(query: str) -> str\n\n\nasync def search_corpus(query: str) -> str:\n    \"\"\"Search the indexed corpus for passages relevant to the query.\n\n    The agent calls this only when it judges retrieval is needed; the\n    docstring is what the LLM reads to decide.\n    \"\"\"\n    return await search_index(query)\n\n\nagent = FunctionAgent(\n    tools=[search_corpus],\n    llm=OpenAI(model=\"gpt-4o-mini\"),\n    system_prompt=(\n        \"You are a helpful assistant. Use search_corpus when the user's \"\n        \"question needs information you do not already have.\"\n    ),\n)\n\n\nasync def main():\n    response = await agent.run(user_msg=\"What is task decomposition?\")\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed at https://developers.llamaindex.ai/python/examples/agent/agent_workflow_basic/: from llama_index.core.agent.workflow import FunctionAgent; from llama_index.llms.openai import OpenAI; async def tool(query: str) -> str pattern with docstring (mirrors the page's async def search_web(query: str) -> str example that awaits an external async helper); FunctionAgent(tools=[...], llm=OpenAI(model=\"gpt-4o-mini\"), system_prompt=...); response = await agent.run(user_msg=...). Code no longer uses any retriever API not documented at this URL; the actual retrieval helper is opaque and project-supplied, matching the page's own pattern of awaiting an external client inside the tool body."
+        },
+        {
+          "framework": "haystack",
+          "framework_label": "Haystack",
+          "language": "python",
+          "intent": "Haystack 2.x Agent component with a @tool-wrapped retrieval Pipeline; Agent.run drives the loop.",
+          "source_url": "https://docs.haystack.deepset.ai/docs/agent",
+          "sdk_version": "haystack-ai>=2.0",
+          "code": "from typing import Annotated\nfrom haystack.components.agents import Agent\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage\nfrom haystack.tools import tool\n\nretrieval_pipeline = ...  # built once at startup\n\n\n@tool\ndef retrieve_documents(query: Annotated[str, \"Search query\"]) -> str:\n    \"\"\"Retrieve documents relevant to the query.\n\n    The Agent calls this only when the user's message needs grounding\n    in the indexed corpus.\n    \"\"\"\n    result = retrieval_pipeline.run({\"query\": query})\n    return \"\\n\\n\".join(d.content for d in result[\"documents\"])\n\n\nagent = Agent(\n    chat_generator=OpenAIChatGenerator(model=\"gpt-4o-mini\"),\n    tools=[retrieve_documents],\n    system_prompt=(\n        \"You are a helpful assistant. Use retrieve_documents when the \"\n        \"user's question needs information from the indexed corpus.\"\n    ),\n)\n\nresponse = agent.run(\n    messages=[ChatMessage.from_user(\"What is task decomposition?\")]\n)\nprint(response[\"last_message\"].text)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from haystack.components.agents import Agent; from haystack.components.generators.chat import OpenAIChatGenerator; from haystack.dataclasses import ChatMessage; from haystack.tools import tool; @tool decorator on a function; Annotated[str, \"...\"] tool param hints; Agent(chat_generator=..., tools=[...], system_prompt=...); agent.run(messages=[ChatMessage.from_user(...)]); response[\"last_message\"].text. Source: https://docs.haystack.deepset.ai/docs/agent."
+        }
+      ]
+    },
+    {
+      "pattern_id": "citation-attribution",
+      "intent": "Bind each generated claim to the retrieved chunks that support it so the binding survives all the way to the user.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Stable source-ids on retrieval, structured claims-with-supporting-ids on generation, post-hoc validation against the registry.",
+          "code": "function answer_with_citations(question):\n    chunks   = retrieve(question, k=10)\n    registry = { c.id: c for c in chunks }                # stable ids for this turn\n\n    prompt = render(\n        question = question,\n        sources  = [(c.id, c.text) for c in chunks],\n        schema   = { claims: [ { text, supporting_chunk_ids: [str] } ] },\n    )\n    draft = llm.generate(prompt, response_format=\"json_schema\")\n\n    # validate: every cited id must have been retrieved this turn\n    for claim in draft.claims:\n        claim.supporting_chunk_ids = [\n            sid for sid in claim.supporting_chunk_ids if sid in registry\n        ]\n        if not claim.supporting_chunk_ids:\n            claim.warning = \"unsupported_claim\"\n\n    return {\n        \"claims\":  draft.claims,\n        \"sources\": [registry[sid] for sid in cited_ids(draft)],\n    }",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "contextual-retrieval",
+      "intent": "Prepend an LLM-generated situating description to each chunk before embedding so the chunk carries its parent-document context.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "For each chunk, ask an LLM for a short situating description with the whole document in scope, prepend it, then index.",
+          "code": "CONTEXT_PROMPT = \"\"\"\\\n<document>{document}</document>\nHere is the chunk we want to situate within the whole document:\n<chunk>{chunk}</chunk>\nGive a short, succinct context to situate this chunk within the overall\ndocument for the purposes of improving search retrieval. Answer only with\nthe succinct context and nothing else.\"\"\"\n\nfunction index_corpus(docs):\n    enriched_chunks = []\n    for doc in docs:\n        for chunk in split(doc):\n            ctx = llm.generate(\n                CONTEXT_PROMPT.format(document=doc.text, chunk=chunk.text)\n            )\n            chunk.text = ctx + \"\\n\\n\" + chunk.text       # prepend, then embed\n            chunk.embedding = embed(chunk.text)\n            enriched_chunks.append(chunk)\n    bm25_index.add(enriched_chunks)                      # Contextual BM25\n    vector_index.add(enriched_chunks)                    # Contextual Embeddings\n    return enriched_chunks",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "Walk nodes, ask the LLM to situate each chunk inside its parent document, write the result into node metadata so the embedding captures it.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/cookbooks/contextual_retrieval",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import copy\nfrom llama_index.core import VectorStoreIndex\nfrom llama_index.core.node_parser import SentenceSplitter\nfrom llama_index.llms.anthropic import Anthropic\n\nllm = Anthropic(model=\"claude-3-5-sonnet-latest\")\n\nCONTEXT_PROMPT = (\n    \"<document>{document}</document>\\n\"\n    \"Here is the chunk we want to situate within the whole document:\\n\"\n    \"<chunk>{chunk}</chunk>\\n\"\n    \"Give a short, succinct context to situate this chunk within the overall \"\n    \"document for the purposes of improving search retrieval. Answer only \"\n    \"with the succinct context and nothing else.\"\n)\n\n\ndef create_contextual_nodes(nodes, whole_document: str):\n    \"\"\"Prepend an LLM-generated situating context to each node.\"\"\"\n    enriched = []\n    for node in nodes:\n        new_node = copy.deepcopy(node)\n        ctx = llm.complete(\n            CONTEXT_PROMPT.format(\n                document=whole_document, chunk=node.get_content()\n            )\n        ).text\n        new_node.metadata[\"context\"] = ctx\n        new_node.set_content(ctx + \"\\n\\n\" + node.get_content())\n        enriched.append(new_node)\n    return enriched\n\n\nnodes = SentenceSplitter().get_nodes_from_documents(documents)\ncontextual_nodes = create_contextual_nodes(nodes, documents[0].text)\nindex = VectorStoreIndex(contextual_nodes)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex contextual retrieval cookbook (source_url) and one-hop API references. Confirmed: `from llama_index.core import VectorStoreIndex`, `from llama_index.core.node_parser import SentenceSplitter` (with `get_nodes_from_documents`), `from llama_index.llms.anthropic import Anthropic` with `Anthropic(model=...)` constructor — all appear verbatim in the cookbook. `llm.complete(prompt).text` confirmed via the Anthropic LLM API reference (`complete()` returns AnthropicCompletionResponse with `.text`). `node.get_content()`, `node.set_content()`, and `node.metadata` confirmed on BaseNode/TextNode in the framework schema API reference. `VectorStoreIndex(nodes)` constructor form is documented (cookbook uses `VectorStoreIndex(nodes_)`).",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "crag",
+      "intent": "Grade each retrieved document; trigger corrective web search when retrieval is poor; pass the corrected document set to the generator.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Lightweight evaluator labels each retrieved doc; correct/ambiguous keep, incorrect trigger a web-search fallback.",
+          "code": "function crag(query):\n    docs   = retrieve(query, k=5)\n    graded = [(d, evaluator.grade(query, d)) for d in docs]\n        # grade in {Correct, Ambiguous, Incorrect}\n\n    keep      = [d for d, g in graded if g == \"Correct\"]\n    ambiguous = [d for d, g in graded if g == \"Ambiguous\"]\n    bad       = [d for d, g in graded if g == \"Incorrect\"]\n\n    if ambiguous or bad:\n        rewritten = llm.rewrite(query)\n        web_docs  = web_search(rewritten, k=5)\n    else:\n        web_docs = []\n\n    final_docs = keep + ambiguous + web_docs              # drop `bad`\n    return llm.generate(question=query, context=final_docs)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "CorrectiveRAGWorkflow: retrieve, LLM-grade relevance, transform query and call Tavily web-search when any doc is judged irrelevant.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/workflow/corrective_rag_pack",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core.workflow import (\n    Workflow, step, Context, StartEvent, StopEvent, Event,\n)\nfrom llama_index.core import VectorStoreIndex, SummaryIndex, Document\nfrom llama_index.llms.openai import OpenAI\nfrom llama_index.tools.tavily_research.base import TavilyToolSpec\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\nRELEVANCE_PROMPT = (\n    \"Given the query: {query}\\nAnd the document: {doc}\\n\"\n    \"Is this document relevant? Answer 'yes' or 'no'.\"\n)\n\n\nclass RetrievedEvent(Event):\n    nodes: list\n\n\nclass CorrectiveRAGWorkflow(Workflow):\n    @step\n    async def retrieve(\n        self, ctx: Context, ev: StartEvent\n    ) -> RetrievedEvent:\n        index: VectorStoreIndex = ev.index\n        await ctx.store.set(\"query\", ev.query)\n        nodes = index.as_retriever(similarity_top_k=5).retrieve(ev.query)\n        return RetrievedEvent(nodes=nodes)\n\n    @step\n    async def grade_and_answer(\n        self, ctx: Context, ev: RetrievedEvent\n    ) -> StopEvent:\n        query = await ctx.store.get(\"query\")\n        grades = [\n            llm.complete(\n                RELEVANCE_PROMPT.format(query=query, doc=n.get_content())\n            ).text.strip().lower()\n            for n in ev.nodes\n        ]\n        relevant = [n for n, g in zip(ev.nodes, grades) if g.startswith(\"yes\")]\n        if any(g.startswith(\"no\") for g in grades):\n            tavily = TavilyToolSpec(api_key=\"YOUR_TAVILY_KEY\")\n            web_docs = tavily.search(query, max_results=5)\n            relevant += [Document(text=d.text) for d in web_docs]\n        answer = SummaryIndex.from_documents(\n            [Document(text=n.get_content()) for n in relevant]\n        ).as_query_engine(llm=llm).query(query)\n        return StopEvent(result=str(answer))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against the LlamaIndex Corrective RAG workflow cookbook (source_url). Confirmed: `from llama_index.core.workflow import Workflow, step, Context, StartEvent, StopEvent, Event`, `VectorStoreIndex`/`SummaryIndex`/`Document` from `llama_index.core`, `OpenAI` from `llama_index.llms.openai`, `TavilyToolSpec` from `llama_index.tools.tavily_research.base`, `@step` decorator, `index.as_retriever(similarity_top_k=...).retrieve(...)`, `SummaryIndex.from_documents(...).as_query_engine(llm=...).query(...)`, `tavily.search(query, max_results=5)`, `n.get_content()` (BaseNode/TextNode). Wave 5 fix: replaced top-level `await ctx.get(\"query\")` with the documented `await ctx.store.get(\"query\")` / `await ctx.store.set(\"query\", ...)` pattern from the upstream cookbook (workflows-py Context state lives behind the `.store` property).",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cross-encoder-reranking",
+      "intent": "After a cheap first-stage retrieve (BM25, dense, or hybrid), rescore the top-N with a cross-encoder that jointly attends over (query, candidate).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two-stage retrieval: cheap retrieve N, cross-encode each (query, candidate) pair, keep top-K.",
+          "code": "function retrieve_and_rerank(query, N=50, K=5):\n    candidates = cheap_retrieve(query, k=N)               # BM25 / dense / hybrid\n\n    pairs  = [(query, c.text) for c in candidates]\n    scores = cross_encoder.predict(pairs)                 # joint attention over (q, c)\n\n    reranked = sort_desc(zip(candidates, scores), by=score)\n    return reranked[:K]                                   # K << N",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "CrossEncoderReranker wrapped in a ContextualCompressionRetriever on top of a base vector retriever.",
+          "source_url": "https://docs.langchain.com/oss/python/integrations/document_transformers/cross_encoder_reranker/",
+          "sdk_version": "langchain>=1.0, langchain-classic, langchain-community",
+          "code": "from langchain_classic.retrievers.contextual_compression import (\n    ContextualCompressionRetriever,\n)\nfrom langchain_classic.retrievers.document_compressors import CrossEncoderReranker\nfrom langchain_community.cross_encoders import HuggingFaceCrossEncoder\n\nbase_retriever = vector_store.as_retriever(search_kwargs={\"k\": 20})\n\ncross_encoder = HuggingFaceCrossEncoder(model_name=\"BAAI/bge-reranker-v2-m3\")\nreranker = CrossEncoderReranker(model=cross_encoder, top_n=3)\n\ncompression_retriever = ContextualCompressionRetriever(\n    base_compressor=reranker,\n    base_retriever=base_retriever,\n)\n\ndocs = compression_retriever.invoke(\"What is task decomposition?\")\nfor d in docs:\n    print(d.page_content[:200])",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://docs.langchain.com/oss/python/integrations/document_transformers/cross_encoder_reranker/: imports `from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever`, `from langchain_classic.retrievers.document_compressors import CrossEncoderReranker`, `from langchain_community.cross_encoders import HuggingFaceCrossEncoder` all shown verbatim. Constructor patterns `CrossEncoderReranker(model=cross_encoder, top_n=3)` and `ContextualCompressionRetriever(base_compressor=..., base_retriever=...)` documented, as is `compression_retriever.invoke(...)`. `HuggingFaceCrossEncoder(model_name=...)` and `vector_store.as_retriever(search_kwargs={...})` are standard LangChain APIs on the same page.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "SentenceTransformerRerank as a node_postprocessor on the query engine; first-stage retrieve fans wide, postprocessor rescores.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/module_guides/querying/node_postprocessors/node_postprocessors",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core import VectorStoreIndex\nfrom llama_index.core.postprocessor import SentenceTransformerRerank\n\nindex = VectorStoreIndex.from_documents(documents)\n\nreranker = SentenceTransformerRerank(\n    model=\"cross-encoder/ms-marco-MiniLM-L-2-v2\",\n    top_n=3,\n)\n\nquery_engine = index.as_query_engine(\n    similarity_top_k=20,                # first-stage retrieve N=20\n    node_postprocessors=[reranker],     # cross-encoder narrows to top_n=3\n)\n\nresponse = query_engine.query(\"What is task decomposition?\")\nprint(response)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the cited node_postprocessors index page and one-hop linked pages: `from llama_index.core.postprocessor import SentenceTransformerRerank` and `SentenceTransformerRerank(model=\"cross-encoder/ms-marco-MiniLM-L-2-v2\", top_n=3)` shown verbatim on the cited page. `from llama_index.core import VectorStoreIndex` and `VectorStoreIndex.from_documents(documents)` confirmed at the linked VectorStoreIndex module guide. The exact usage `query_engine = index.as_query_engine(similarity_top_k=..., node_postprocessors=[rerank])` plus `query_engine.query(...)` is documented in the SentenceTransformerRerank example notebook linked from the postprocessors page.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "graphrag",
+      "intent": "Extract an entity-and-relation knowledge graph plus hierarchical community summaries; route queries through graph-aware retrieval.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Index time: extract triples, build graph, cluster, summarise communities. Query time: route local vs global.",
+          "code": "function index(docs):\n    triples = []\n    for chunk in flat_map(split, docs):\n        triples += llm.extract_entities_and_relations(chunk)\n    graph        = build_graph(triples)\n    communities  = hierarchical_cluster(graph)            # Leiden / similar\n    summaries    = { c.id: llm.summarise(c.nodes) for c in communities }\n    return graph, summaries\n\nfunction query(q, graph, summaries):\n    kind = llm.classify(q, [\"local\", \"global\"])\n    if kind == \"local\":\n        seeds = match_entities(q, graph)\n        ctx   = graph.neighbourhood(seeds, depth=2)\n        return llm.generate(question=q, context=ctx)\n    else:                                                 # global\n        partials = [llm.answer(q, s) for s in summaries.values()]  # map\n        return llm.reduce(q, partials)                              # reduce",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "PropertyGraphIndex with SimpleLLMPathExtractor builds an entity-relation graph that you query through a graph-aware retriever.",
+          "source_url": "https://www.llamaindex.ai/blog/introducing-the-property-graph-index-a-powerful-new-way-to-build-knowledge-graphs-with-llms",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core import PropertyGraphIndex, SimpleDirectoryReader\nfrom llama_index.core.indices.property_graph import SimpleLLMPathExtractor\nfrom llama_index.llms.openai import OpenAI\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\ndocuments = SimpleDirectoryReader(\"./data\").load_data()\n\nkg_extractor = SimpleLLMPathExtractor(\n    llm=llm,\n    max_paths_per_chunk=10,\n)\n\nindex = PropertyGraphIndex.from_documents(\n    documents,\n    kg_extractors=[kg_extractor],\n    llm=llm,\n)\n\nretriever = index.as_retriever(include_text=True)\nnodes = retriever.retrieve(\"How are entities A and B related?\")\nfor n in nodes:\n    print(n.get_content()[:200])",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex Property Graph Index announcement blog (source_url) and one-hop API references / module guide. Confirmed in the blog: `from llama_index.core import PropertyGraphIndex`, `from llama_index.core.indices.property_graph import SimpleLLMPathExtractor`, `index.as_retriever(...)`. Confirmed in the lpg_index_guide module guide: `SimpleLLMPathExtractor(llm=llm, max_paths_per_chunk=10, ...)`, `PropertyGraphIndex.from_documents(documents, kg_extractors=[...])`, `as_retriever(include_text=True, similarity_top_k=2)`. `llm` is a documented kwarg on `PropertyGraphIndex.__init__` (forwarded by `from_documents`). `SimpleDirectoryReader(...).load_data()` and `from llama_index.llms.openai import OpenAI` are documented in the LlamaIndex starter example. `retriever.retrieve(...)` and `BaseNode.get_content()` are documented core APIs.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hybrid-search",
+      "intent": "Combine sparse lexical (BM25) and dense vector retrieval; fuse with rank-based or score-normalised aggregation, never raw scores.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two retrievers, rank-based fusion (RRF) so BM25 and dense scores never get mixed on raw scales.",
+          "code": "function hybrid_search(query, k=10):\n    bm25_hits  = bm25_index.search(query, k=k)\n    dense_hits = vector_index.search(embed(query), k=k)\n\n    # Reciprocal Rank Fusion — rank-based, scale-free\n    scores = {}\n    C = 60                                                # standard RRF constant\n    for rank, doc in enumerate(bm25_hits):\n        scores[doc.id] = scores.get(doc.id, 0) + 1 / (C + rank)\n    for rank, doc in enumerate(dense_hits):\n        scores[doc.id] = scores.get(doc.id, 0) + 1 / (C + rank)\n\n    fused = sort_desc(scores.items(), by=value)\n    return [docs[doc_id] for doc_id, _ in fused[:k]]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "QueryFusionRetriever combines a vector retriever and BM25Retriever with relative-score fusion.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/retrievers/relative_score_dist_fusion",
+          "sdk_version": "llama-index>=0.12, llama-index-retrievers-bm25",
+          "code": "from llama_index.core import VectorStoreIndex\nfrom llama_index.core.retrievers import QueryFusionRetriever\nfrom llama_index.retrievers.bm25 import BM25Retriever\n\nindex = VectorStoreIndex.from_documents(documents)\n\nvector_retriever = index.as_retriever(similarity_top_k=5)\nbm25_retriever = BM25Retriever.from_defaults(\n    docstore=index.docstore,\n    similarity_top_k=10,\n)\n\nretriever = QueryFusionRetriever(\n    [vector_retriever, bm25_retriever],\n    retriever_weights=[0.6, 0.4],\n    similarity_top_k=10,\n    mode=\"relative_score\",\n    use_async=True,\n)\n\nnodes = retriever.retrieve(\"What is task decomposition?\")",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from llama_index.core import VectorStoreIndex; from llama_index.core.retrievers import QueryFusionRetriever; from llama_index.retrievers.bm25 import BM25Retriever; VectorStoreIndex.from_documents(documents); index.as_retriever(similarity_top_k=5); BM25Retriever.from_defaults(docstore=index.docstore, similarity_top_k=10); QueryFusionRetriever([...], retriever_weights=[...], similarity_top_k=10, mode=\"relative_score\", use_async=True); retriever.retrieve(\"...\"). Source: https://developers.llamaindex.ai/python/examples/retrievers/relative_score_dist_fusion."
+        },
+        {
+          "framework": "haystack",
+          "framework_label": "Haystack",
+          "language": "python",
+          "intent": "WeaviateHybridRetriever runs BM25 and vector search inside Weaviate; `alpha` tunes the BM25/vector blend.",
+          "source_url": "https://docs.haystack.deepset.ai/docs/weaviatehybridretriever",
+          "sdk_version": "haystack-ai>=2.0, weaviate-haystack",
+          "code": "from haystack_integrations.document_stores.weaviate.document_store import (\n    WeaviateDocumentStore,\n)\nfrom haystack_integrations.components.retrievers.weaviate import (\n    WeaviateHybridRetriever,\n)\n\ndocument_store = WeaviateDocumentStore(url=\"http://localhost:8080\")\nretriever = WeaviateHybridRetriever(\n    document_store=document_store,\n    top_k=10,\n    alpha=0.5,                                  # 0 = pure BM25, 1 = pure vector\n)\n\nresult = retriever.run(\n    query=\"What is task decomposition?\",\n    query_embedding=[0.0] * 768,                # supply your real embedding here\n)\nfor d in result[\"documents\"]:\n    print(d.content[:200])",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore; from haystack_integrations.components.retrievers.weaviate import WeaviateHybridRetriever; WeaviateDocumentStore(url=\"...\"); WeaviateHybridRetriever(document_store=..., top_k=..., alpha=0.5); retriever.run(query=..., query_embedding=[...]); alpha semantics (0=BM25, 1=vector); result[\"documents\"] (page also shows pipeline-wrapped result[\"retriever\"][\"documents\"]). Source: https://docs.haystack.deepset.ai/docs/weaviatehybridretriever."
+        }
+      ]
+    },
+    {
+      "pattern_id": "hyde",
+      "intent": "Ask the LLM to draft a hypothetical answer document; embed that draft; retrieve against its embedding rather than the raw query.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Hypothetical Document Embeddings: the LLM writes an answer-shaped query, then we embed and retrieve.",
+          "code": "HYDE_PROMPT = \"\"\"\\\nWrite a short passage that answers the following question. The passage\nwill be used to find similar passages in a corpus; do not hedge, do not\nsay you don't know — write as if you knew the answer.\nQuestion: {question}\"\"\"\n\nfunction hyde_retrieve(question, k=5):\n    hypothetical = llm.generate(HYDE_PROMPT.format(question=question))\n    query_vec    = embed(hypothetical)                    # NOT embed(question)\n    return vector_index.search(query_vec, k=k)\n\nfunction answer(question):\n    chunks = hyde_retrieve(question)\n    return llm.generate(\n        prompt=\"Answer using the context below.\",\n        question=question,\n        context=chunks,\n    )",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "naive-rag",
+      "intent": "The textbook RAG pipeline: chunk, embed, retrieve top-k, stuff into prompt, generate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Bare RAG: no agent loop, no router, no rerank — just retrieve-then-generate.",
+          "code": "# Index time (run once)\nfunction build_index(docs):\n    chunks = [c for d in docs for c in split(d)]\n    for c in chunks:\n        c.embedding = embed(c.text)\n    return vector_index.add(chunks)\n\n# Query time\nfunction answer(question, k=4):\n    query_vec = embed(question)\n    chunks    = vector_index.search(query_vec, k=k)\n    prompt    = f\"Answer using only the context.\\n\\nContext:\\n{join(chunks)}\\n\\nQuestion: {question}\"\n    return llm.generate(prompt)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "The canonical five-line RAG: load, index, query.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/understanding/rag/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core import SimpleDirectoryReader, VectorStoreIndex\n\n# Load\ndocuments = SimpleDirectoryReader(\"./data\").load_data()\n\n# Index (chunks, embeds, stores)\nindex = VectorStoreIndex.from_documents(documents)\n\n# Query (retrieves top-k, prepends to prompt, generates)\nquery_engine = index.as_query_engine()\nresponse = query_engine.query(\"What is task decomposition?\")\nprint(response)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex Understanding-RAG page (source_url) and the one-hop starter example. Confirmed verbatim in the starter tutorial: `from llama_index.core import VectorStoreIndex, SimpleDirectoryReader`, `SimpleDirectoryReader(\"data\").load_data()`, `VectorStoreIndex.from_documents(documents)`, `index.as_query_engine()`, and `query_engine.query(...)`. All five named APIs in the snippet are documented; the snippet matches the canonical five-line RAG tutorial.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "raft",
+      "intent": "Fine-tune the generator to cite oracle documents and ignore distractors in a domain-specific RAG setting.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Build training mixtures of oracle + distractor documents; supervise CoT that cites the oracle and ignores distractors.",
+          "code": "# Training-data construction (offline)\nfunction make_raft_example(question, oracle_doc, distractor_pool):\n    distractors = sample(distractor_pool, n=4)\n    docs        = shuffle([oracle_doc] + distractors)\n\n    cot_answer = llm.generate(                            # used as supervision\n        prompt=\"Answer the question. Quote the oracle document with \" +\n               \"##begin_quote## ... ##end_quote##. Ignore irrelevant docs.\",\n        question=question,\n        context=docs,\n        oracle=oracle_doc,\n    )\n    return { \"prompt\": render(question, docs), \"target\": cot_answer }\n\n# Some fraction P of examples are built with NO oracle present, teaching\n# the model to fall back on parametric knowledge when retrieval misses.\nfunction build_dataset(qa_pairs, P=0.2):\n    return [\n        make_raft_example(q, a, pool) if random() > P\n        else make_raft_example(q, None, pool)\n        for q, a in qa_pairs\n    ]\n\n# Then: fine-tune base_model on dataset. At inference, run normal RAG —\n# the trained model has learned to ignore distractors.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-rag",
+      "intent": "A generator fine-tuned to emit reflection tokens that decide when to retrieve, judge relevance, and self-assess support.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Host enforces the [Retrieve]/[IsRel]/[IsSup]/[IsUse] grammar; flow control comes from the tokens themselves.",
+          "code": "# Self-RAG inference loop (the model has been fine-tuned to emit\n# reflection tokens; the host reads them and dispatches accordingly).\n\nfunction self_rag_answer(question):\n    state = { \"messages\": [user(question)], \"output\": [] }\n\n    while True:\n        tok = model.generate_one_token(state.messages)\n\n        if tok == \"[Retrieve=Yes]\":\n            chunks = retrieve(state.current_query())\n            for c in chunks:\n                # ask the model to label relevance for each chunk\n                rel = model.generate(state.messages + [c.as_context()])\n                if rel == \"[IsRel=Relevant]\":\n                    draft = model.generate_until([\"[IsSup\", \"</s>\"],\n                                                 state.messages + [c.as_context()])\n                    sup  = model.generate(draft + [\"[IsSup?\"])\n                    use  = model.generate(draft + [\"[IsUse?\"])\n                    state.output.append((draft, c, sup, use))\n            best = argmax(state.output, by=lambda o: score(o.sup, o.use))\n            return best.draft\n\n        if tok == \"[Retrieve=No]\":\n            return model.generate_until_stop(state.messages)\n\n        state.messages.append(tok)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

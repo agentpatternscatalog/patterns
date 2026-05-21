@@ -11,11 +11,11 @@ Maintain a small set of mid-term, affect-tagged concerns that persist across day
 
 ## Context
 
-Long-running agents that hold a single working focus and a long-term insight store but nothing in between. Without an intermediate tier, the things the agent is currently 'chewing on' either dominate focus or vanish entirely between sessions.
+A team is running a long-lived agent whose memory has two extremes: a single 'current focus' slot that names what the agent is working on right now, and a long-term insight store that holds distilled lessons across months. Between those there is no place for the handful of things the agent is genuinely chewing on across days — an ongoing worry about a project, an anticipation, a curiosity it keeps returning to.
 
 ## Problem
 
-Working focus holds one item; insights are too distilled. Between them there is a missing tier — the things the agent is chewing on across days — and without it concerns either crowd out the active focus or fall off the back of the window before they resolve.
+Because nothing represents the middle tier explicitly, mid-term concerns leak into one extreme or the other. They either crowd out the single focus slot and starve the immediate task of attention, or they drop off the back of the prompt window and quietly disappear before they resolve. The agent gives a misleading impression of either being singly focused on the wrong thing or having no continuity at all about what is really weighing on it.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent has a 'current focus' slot that holds one item and
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   E[Events / thoughts] --> U[Update preoccupations]
   U --> L[(List, cap 5-8<br/>topic, intensity, affect)]
   L -->|7-day half-life| Decay[Decay]

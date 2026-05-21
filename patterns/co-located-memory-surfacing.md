@@ -11,11 +11,11 @@ Surface relevant persistent memories proactively when the human mentions a concr
 
 ## Context
 
-Agents with searchable persistent memory (thoughts, notes, insights, project files) talking to a human whose memory of past sessions is fuzzy or absent.
+An agent has a searchable persistent memory store — thoughts, notes, insights, project files, prior session transcripts — and is in conversation with a human whose own memory of past sessions is fuzzy or absent. The agent can search its own memory in milliseconds; the human cannot search into the agent's memory at all. They share a goal but not a workspace.
 
 ## Problem
 
-The agent's memory is searchable but the human can't search into it. If the human names something the agent knows, the burden of recalling 'this came up before' falls on the human. The map only becomes shared if the agent pushes; if it waits to be asked, most relevant context is lost.
+Because the human cannot see into the agent's memory, the burden of recognising 'this came up before' falls entirely on the human. If the human does not happen to name the right thing, the agent will not retrieve the relevant prior context, and the conversation proceeds as if those past sessions never happened. The shared map between human and agent only becomes truly shared if the agent proactively surfaces what it knows; if it waits to be asked, most of the relevant context is silently lost.
 
 ## Forces
 

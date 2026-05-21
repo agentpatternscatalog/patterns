@@ -1,0 +1,513 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "memory",
+  "label": "Memory",
+  "patterns": [
+    {
+      "pattern_id": "append-only-thought-stream",
+      "intent": "Show that thought entries are append-only \u2014 the agent has no API to mutate or delete history; compaction emits new files at higher tiers.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Append-only log with no delete/edit tools exposed to the agent; redaction is an out-of-band operator path.",
+          "code": "# The agent's tool surface only contains `append`. Edit and delete\n# are NOT exposed \u2014 they live on a separate operator interface.\n\nclass ThoughtLog:\n    def __init__(self, path):\n        self.path = path  # file is opened append-only at the OS level\n\n    def append(self, entry):\n        line = json.dumps({\"ts\": now(), \"entry\": entry})\n        with open(self.path, \"a\") as f:    # O_APPEND, no seek/truncate\n            f.write(line + \"\\n\")\n\n    # No `edit`, no `delete`. The agent literally cannot rewrite history.\n\ndef compact(log_path, summary_path):\n    # Compaction reads originals and WRITES A NEW FILE at a higher tier.\n    # Originals are never touched.\n    entries = [json.loads(l) for l in open(log_path)]\n    summary = llm.summarise(entries)\n    with open(summary_path, \"a\") as f:\n        f.write(json.dumps({\"ts\": now(), \"summary\": summary}) + \"\\n\")\n\n# Redaction (GDPR, leaked secret) goes through a privileged operator tool,\n# never the agent loop. The agent has no permission to call it.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "co-located-memory-surfacing",
+      "intent": "Show how proper-noun extraction on the user's turn triggers a memory probe that surfaces relevant prior fragments inline.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each user turn: extract entities, probe persistent memory, surface up to two relevant fragments inline before replying.",
+          "code": "function handle_turn(user_message):\n    # 1. Extract entities the user just mentioned.\n    entities = extract_proper_nouns(user_message) + named_phrases(user_message)\n\n    # 2. Probe persistent memory for prior knowledge of those entities.\n    hits = []\n    for ent in entities:\n        hits += memory.grep(ent) + memory.embedding_search(ent, k=2)\n    hits = rerank(hits, by=relevance_to(user_message))[:2]\n\n    # 3. If hits look genuinely relevant, surface them \u2014 briefly, time-stamped.\n    surface = \"\"\n    for h in hits:\n        if not feels_like_lecture(h, user_message):\n            surface += f\"\\n(I remember from {h.ts}: {h.fragment})\"\n\n    # 4. Reply \u2014 surfaced fragments arrive *before* the rest of the answer,\n    #    so the human can steer rather than discover the recall mid-reply.\n    reply = llm.generate(\n        messages=[system_prompt, user(user_message)],\n        prefix=surface,\n    )\n    return surface + reply",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "context-window-packing",
+      "intent": "Show how a packing policy budgets the context window across system + history + retrieval + state under a fixed token cap.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Token-budgeted packer: reserve overhead, allocate the remainder across compressed history, reranked retrieval, and current state.",
+          "code": "BUDGET = 128_000   # model context window\nRESERVE = 8_000    # system + tools + response headroom\n\nfunction pack(system, tools, history, retrieved, state, user_msg):\n    overhead = tokens(system) + tokens(tools) + RESERVE\n    available = BUDGET - overhead - tokens(user_msg) - tokens(state)\n    if available <= 0: raise BudgetExceeded\n\n    # Split remaining budget; tune ratios per app.\n    hist_budget = int(available * 0.4)\n    retr_budget = available - hist_budget\n\n    history_packed   = summarise_until_fits(history, hist_budget)\n    retrieved_packed = rerank_topk_until_fits(retrieved, retr_budget)\n\n    messages = [system, *history_packed, *retrieved_packed, state, user_msg]\n    assert tokens(messages) + RESERVE <= BUDGET     # audit before send\n    return messages",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "SummarizationMiddleware triggers at a token threshold and summarises older messages, keeping the tail \u2014 a packing policy implemented as middleware.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.agents.middleware import SummarizationMiddleware\nfrom langgraph.checkpoint.memory import InMemorySaver\n\n# Packing policy: when the message thread crosses 4000 tokens,\n# summarise everything except the last 20 messages. The summary\n# replaces the older slice so the next turn fits the model window.\nagent = create_agent(\n    model=\"gpt-4o-mini\",\n    tools=[],\n    middleware=[\n        SummarizationMiddleware(\n            model=\"gpt-4o-mini\",\n            trigger=(\"tokens\", 4000),  # budget threshold\n            keep=(\"messages\", 20),       # tail to preserve verbatim\n        )\n    ],\n    checkpointer=InMemorySaver(),\n)\n\nconfig = {\"configurable\": {\"thread_id\": \"t-1\"}}\nfor i in range(50):\n    agent.invoke({\"messages\": [{\"role\": \"user\",\n                                \"content\": f\"turn {i}: tell me a fact\"}]},\n                 config)\n# The middleware keeps the rolling thread inside the budget without\n# the application code ever counting tokens manually.",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from langchain.agents import create_agent`; `from langchain.agents.middleware import SummarizationMiddleware`; `from langgraph.checkpoint.memory import InMemorySaver`. `SummarizationMiddleware` constructor is shown verbatim with `model=`, `trigger=(\"tokens\", 4000)`, `keep=(\"messages\", 20)` kwargs. `create_agent(...)` accepts `model`, `tools`, `middleware`, `checkpointer` kwargs. `agent.invoke({\"messages\": [...]}, config)` with `config = {\"configurable\": {\"thread_id\": \"1\"}}` shape is documented. Source: https://docs.langchain.com/oss/python/langchain/short-term-memory.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openhands",
+          "framework_label": "OpenHands",
+          "language": "yaml",
+          "intent": "Keyword-triggered SKILL.md with YAML front-matter \u2014 only loaded into the context window when a trigger keyword matches, so the budget is spent on relevant guidance.",
+          "source_url": "https://docs.openhands.dev/sdk/guides/skill",
+          "sdk_version": "openhands>=0.20",
+          "code": "---\n# .agents/skills/postgres/SKILL.md\n# Loaded into context ONLY when the user message contains one of the\n# trigger keywords \u2014 keeps the prompt small for unrelated turns.\nname: postgres-guidance\ndescription: >\n  Repository conventions for working with Postgres: connection string\n  location, migrations workflow, safety rules, and diagnosis tips.\ntriggers:\n  - postgres\n  - postgresql\n  - psql\n---\n\n# Postgres guidance\n\nWhen working with Postgres in this repo:\n\n- Connection string is in `.env` as `DATABASE_URL`.\n- Migrations live in `db/migrations/` and run via `make migrate`.\n- Never drop tables in production scripts; emit `RAISE NOTICE` and exit.\n- Prefer `EXPLAIN (ANALYZE, BUFFERS)` when diagnosing slow queries.\n\n# Packing implication: the agent's effective context for a Postgres turn\n# = system prompt + this skill + recent messages + retrieval.\n# For a non-Postgres turn this file contributes 0 tokens.",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (SDK Skills Guide): the SKILL.md front-matter schema documents required `name` (string, lowercase + hyphens) and `description` (string), plus the optional `triggers` array (OpenHands extension) for keyword auto-activation. The example mirrors the verbatim upstream schema. The recommended on-disk path is `.agents/skills/<skill>/SKILL.md` (the legacy `.openhands/microagents/` path is documented as deprecated; this example uses the recommended location). Source: https://docs.openhands.dev/sdk/guides/skill.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cross-session-memory",
+      "intent": "Show how a per-user store of distilled facts is written, read, and surfaced into a new session in pseudo-code and in three frameworks that ship cross-session memory as a first-class building block.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton of the per-user memory store with explicit add/forget tools and per-session loading.",
+          "code": "store = UserMemoryStore()  # keyed by user_id, durable across sessions\n\nfunction handle_turn(user_id, message):\n    # 1. Load the slice of memory relevant to this user + message.\n    facts = store.load_relevant(user_id, message, k=8)\n\n    # 2. Prepend distilled facts to the session context.\n    messages = [\n        system_prompt(facts=facts),\n        user(message),\n    ]\n\n    # 3. Agent answers; declared tools are the *only* way memory mutates.\n    reply = llm.generate(\n        messages=messages,\n        tools=[remember_fact, forget_fact],\n    )\n    for call in reply.tool_calls:\n        if call.name == \"remember_fact\":\n            store.add(user_id, call.args.fact)\n        elif call.name == \"forget_fact\":\n            store.forget(user_id, call.args.fact_id)\n\n    return reply.content\n\n# Deletion and inspection live outside the agent loop:\n#   store.list(user_id)       # user-facing inspector\n#   store.delete_all(user_id) # GDPR-style erasure",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "InMemoryStore namespaced by user_id holds distilled facts across threads; the graph reads via runtime.store.asearch at the start of each turn and writes via runtime.store.aput.",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/add-memory",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from dataclasses import dataclass\n\nfrom langchain.chat_models import init_chat_model\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.graph import MessagesState, START, StateGraph\nfrom langgraph.runtime import Runtime\nfrom langgraph.store.memory import InMemoryStore\n\nmodel = init_chat_model(model=\"gpt-4o-mini\")\nstore = InMemoryStore()         # cross-thread, per-user namespace\ncheckpointer = InMemorySaver()  # per-thread short-term memory\n\n\n@dataclass\nclass Context:\n    user_id: str\n\n\nasync def call_model(state: MessagesState, runtime: Runtime[Context]):\n    user_id = runtime.context.user_id\n    namespace = (\"memories\", user_id)\n\n    # Load relevant facts for this user into context.\n    items = await runtime.store.asearch(\n        namespace, query=str(state[\"messages\"][-1].content), limit=3\n    )\n    facts = [item.value for item in items]\n    system = {\"role\": \"system\", \"content\": f\"Known user facts: {facts}\"}\n    reply = await model.ainvoke([system, *state[\"messages\"]])\n\n    # Persist a new fact across sessions (in practice: a tool call decides).\n    await runtime.store.aput(\n        namespace,\n        key=f\"turn-{len(state['messages'])}\",\n        value={\"fact\": reply.content[:200]},\n    )\n    return {\"messages\": [reply]}\n\n\nbuilder = StateGraph(MessagesState, context_schema=Context)\nbuilder.add_node(call_model)\nbuilder.add_edge(START, \"call_model\")\ngraph = builder.compile(checkpointer=checkpointer, store=store)\n\ngraph.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"My pet's name is Mochi.\"}]},\n    {\"configurable\": {\"thread_id\": \"t-1\"}},\n    context=Context(user_id=\"alice\"),\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from langgraph.runtime import Runtime`; `from langgraph.store.memory import InMemoryStore`; `from langgraph.checkpoint.memory import InMemorySaver`; `from langgraph.graph import StateGraph, MessagesState, START`; `from langchain.chat_models import init_chat_model`; init_chat_model(model=...) call; dataclass-based Context with user_id; node signature `async def call_model(state: MessagesState, runtime: Runtime[Context])` with `runtime.context.user_id`; namespace tuple of the form `(\"memories\", user_id)`; `await runtime.store.asearch(namespace, query=..., limit=...)`; `await runtime.store.aput(namespace, ...)`; `StateGraph(MessagesState, context_schema=Context)`; `builder.add_node(call_model)`, `builder.add_edge(START, \"call_model\")`; `builder.compile(checkpointer=checkpointer, store=store)`; `graph.invoke({...}, {\"configurable\": {\"thread_id\": ...}}, context=Context(user_id=...))`. Source: https://docs.langchain.com/oss/python/langgraph/add-memory.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "mem0",
+          "framework_label": "Mem0",
+          "language": "python",
+          "intent": "Memory().add infers and stores per-user facts; search retrieves the relevant slice for the next session keyed by user_id.",
+          "source_url": "https://docs.mem0.ai/core-concepts/memory-operations",
+          "sdk_version": "mem0ai>=0.1",
+          "code": "from mem0 import Memory\nfrom openai import OpenAI\n\nm = Memory()\nllm = OpenAI()\n\n\ndef chat(user_id: str, user_message: str) -> str:\n    # Retrieve the relevant slice of this user's persistent memory.\n    hits = m.search(query=user_message, user_id=user_id, limit=5)\n    facts = \"\\n\".join(h[\"memory\"] for h in hits.get(\"results\", []))\n\n    messages = [\n        {\"role\": \"system\",\n         \"content\": f\"You remember the user. Known facts:\\n{facts}\"},\n        {\"role\": \"user\", \"content\": user_message},\n    ]\n    reply = llm.chat.completions.create(\n        model=\"gpt-4o-mini\", messages=messages\n    ).choices[0].message.content\n\n    # Distil and store new facts under this user's namespace.\n    m.add(\n        [{\"role\": \"user\", \"content\": user_message},\n         {\"role\": \"assistant\", \"content\": reply}],\n        user_id=user_id,\n    )\n    return reply\n\n\n# Session 1 (Monday)\nchat(\"alice\", \"I'm allergic to peanuts.\")\n# Session 2 (Friday, brand-new thread) \u2014 mem0 carries the fact across.\nprint(chat(\"alice\", \"Recommend a snack for me.\"))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: from mem0 import Memory; Memory() constructor; m.add(messages, user_id=...) signature with conversation-turn list and user_id namespace; m.search(query=..., user_id=..., limit=...) signature; search response shape `{\"results\": [{\"memory\": str, \"score\": float, ...}]}` (response shape verified via the linked /api-reference/memory/search-memories page one hop from the source URL, which the source page directly names as the reference for full response details). The OpenAI client usage is standard openai-python, not a mem0 API element. Source: https://docs.mem0.ai/core-concepts/memory-operations.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "letta",
+          "framework_label": "Letta",
+          "language": "python",
+          "intent": "Letta memory blocks (human, persona, custom) persist as part of the agent and are always visible to subsequent sessions without re-loading.",
+          "source_url": "https://docs.letta.com/guides/agents/memory-blocks",
+          "sdk_version": "letta-client>=0.1",
+          "code": "import os\nfrom letta_client import Letta\n\nclient = Letta(api_key=os.getenv(\"LETTA_API_KEY\"))\n\n# Create the agent once; blocks persist across every future session.\nagent = client.agents.create(\n    model=\"openai/gpt-4o-mini\",\n    memory_blocks=[\n        {\"label\": \"human\",\n         \"value\": \"Name: Alice. Pet: Mochi. Allergic to peanuts.\",\n         \"limit\": 5000},\n        {\"label\": \"persona\",\n         \"value\": \"I am a helpful assistant who remembers Alice across sessions.\",\n         \"limit\": 5000},\n    ],\n)\n\n# Session 1\nclient.agents.messages.create(\n    agent_id=agent.id,\n    messages=[{\"role\": \"user\", \"content\": \"What snack can I have?\"}],\n)\n\n# Session 2 \u2014 new conversation, same agent_id. Blocks are still in scope;\n# the agent can autonomously update them via its core_memory tools.\nclient.agents.messages.create(\n    agent_id=agent.id,\n    messages=[{\"role\": \"user\", \"content\": \"Remind me what you know about me.\"}],\n)\n\n# Inspect / edit persisted blocks out-of-band.\nhuman = client.agents.blocks.retrieve(\n    agent_id=agent.id, block_label=\"human\"\n)\nprint(human.value)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url and quickstart (one hop): `from letta_client import Letta`; `Letta(api_key=os.getenv(\"LETTA_API_KEY\"))` constructor; `client.agents.create(model=..., memory_blocks=[{\"label\":..., \"value\":..., \"limit\":...}])`; memory_blocks shape with labels \"human\" and \"persona\" and integer `limit`; `client.agents.messages.create(agent_id=..., messages=[{\"role\":..., \"content\":...}])`; `client.agents.blocks.retrieve(agent_id=..., block_label=...)` and the returned block exposing `.value`. The constructor keyword is `api_key=`, matching upstream README and quickstart (https://docs.letta.com/quickstart). Source: https://docs.letta.com/guides/agents/memory-blocks.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "bedrock-agents",
+          "framework_label": "Amazon Bedrock Agents",
+          "language": "python",
+          "intent": "Enable memory on a Bedrock agent and invoke with a stable memoryId per user so session summaries carry across separate sessionIds.",
+          "source_url": "https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-agent-runtime/client/invoke_agent.html",
+          "sdk_version": "boto3>=1.34",
+          "code": "import boto3\n\nruntime = boto3.client(\"bedrock-agent-runtime\")\n\nAGENT_ID = \"AGENT123\"\nAGENT_ALIAS_ID = \"ALIAS456\"\n\n\ndef invoke(user_id: str, session_id: str, prompt: str, end_session=False):\n    # memoryId must be stable per user; sessionId rotates per conversation.\n    response = runtime.invoke_agent(\n        agentId=AGENT_ID,\n        agentAliasId=AGENT_ALIAS_ID,\n        memoryId=user_id,         # persists across sessionIds for this user\n        sessionId=session_id,\n        endSession=end_session,    # summary lands in memory when session ends\n        inputText=prompt,\n    )\n    return b\"\".join(\n        event[\"chunk\"][\"bytes\"]\n        for event in response[\"completion\"]\n        if \"chunk\" in event\n    ).decode()\n\n\n# Session 1 \u2014 end it so Bedrock summarises it into long-term memory.\ninvoke(\"alice\", \"sess-mon\", \"My pet's name is Mochi.\", end_session=True)\n\n# Session 2 \u2014 new sessionId, same memoryId; Bedrock loads the prior summary.\nprint(invoke(\"alice\", \"sess-fri\", \"What's my pet's name?\"))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: boto3 client for the `bedrock-agent-runtime` service exposes `invoke_agent` with parameters `agentId` (required), `agentAliasId` (required), `sessionId` (required), `inputText`, `memoryId`, and `endSession`. The response is an EventStream under `response[\"completion\"]` yielding events that include a `chunk` dictionary with a `bytes` field \u2014 exactly the shape iterated by the catalog code. Source: https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-agent-runtime/client/invoke_agent.html.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "episodic-summaries",
+      "intent": "Show how episodic summaries are produced on a schedule, stored at a higher tier, and consulted before originals at read time.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Threshold-triggered summariser writes compact episodes to a higher tier and archives the originals; reads check summaries first.",
+          "code": "def maybe_summarise(thread):\n    block = thread.unsummarised_messages()\n    if tokens(block) < SUMMARY_THRESHOLD:\n        return                                 # not enough material yet\n\n    summary = llm.summarise(\n        block,\n        instructions=\"Preserve gist: decisions, facts, open questions.\"\n    )\n    summary_store.append({\n        \"thread\": thread.id,\n        \"range\": (block[0].id, block[-1].id),\n        \"text\": summary,\n        \"ts\": now(),\n    })\n    archive.move(block)                        # originals go cold, not deleted\n\ndef load_for_turn(thread):\n    # Reads always consult the summary tier first.\n    summaries = summary_store.recent(thread.id, k=5)\n    recent    = thread.tail(n=10)\n    return [system_prompt(history_summary=summaries), *recent]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "mem0",
+          "framework_label": "Mem0",
+          "language": "python",
+          "intent": "Mem0 distils conversation turns into episodic memories per user; search returns the summaries, not the raw transcript.",
+          "source_url": "https://docs.mem0.ai/core-concepts/memory-types",
+          "sdk_version": "mem0ai>=0.1",
+          "code": "from mem0 import Memory\n\nm = Memory()\n\n# Each .add call lets Mem0 extract a compact episodic summary from the\n# raw turn pair, storing the *distilled* version under the user's namespace.\nm.add(\n    [\n        {\"role\": \"user\",\n         \"content\": \"I'm planning a trip to Kyoto in November.\"},\n        {\"role\": \"assistant\",\n         \"content\": \"Got it \u2014 autumn foliage season; book ryokans early.\"},\n    ],\n    user_id=\"alice\",\n    run_id=\"trip-2026\",  # session/episode scope\n)\n\nm.add(\n    [\n        {\"role\": \"user\",\n         \"content\": \"Make it a 5-day trip, avoid temples in the morning.\"},\n        {\"role\": \"assistant\",\n         \"content\": \"Noted: 5 days, temples scheduled afternoon-only.\"},\n    ],\n    user_id=\"alice\",\n    run_id=\"trip-2026\",\n)\n\n# Reads return the *episodic summary*, not the verbatim transcript.\nfor hit in m.search(\"What did Alice want for Kyoto?\",\n                    user_id=\"alice\").get(\"results\", []):\n    print(hit[\"memory\"])",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (memory-types) which describes episodic memory as 'summaries of past interactions or completed tasks' (distilled, not raw transcripts) and shows verbatim examples of `memory.add([...], user_id=..., run_id=...)` and `memory.search('...', user_id=..., run_id=...)` \u2014 including the `run_id` kwarg for session/episode scope and the positional query in `.search`. `from mem0 import Memory` and `Memory()` constructor confirmed on the same page. Response shape `{\"results\": [{\"memory\": str, \"score\": float, ...}]}` confirmed one hop away at the /api-reference/memory/search-memories page (the page explicitly documents results as a list whose items include `memory` and `score`). Source: https://docs.mem0.ai/core-concepts/memory-types.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "zep",
+          "framework_label": "Zep",
+          "language": "python",
+          "intent": "Zep ingests thread messages into a per-user knowledge graph; get_user_context returns the distilled context block (summary + relevant facts), not raw history.",
+          "source_url": "https://help.getzep.com/adding-messages",
+          "sdk_version": "zep-cloud>=2.0",
+          "code": "import os\nfrom zep_cloud.client import Zep\n\nclient = Zep(api_key=os.environ[\"ZEP_API_KEY\"])\n\n# Ensure user + thread exist.\nclient.user.add(user_id=\"alice\")\nthread = client.thread.create(thread_id=\"trip-2026\", user_id=\"alice\")\n\n# Append turns \u2014 Zep ingests them into Alice's graph and produces\n# episodic summaries asynchronously.\nclient.thread.add_messages(\n    thread_id=\"trip-2026\",\n    messages=[\n        {\"role\": \"user\",\n         \"content\": \"I'm planning a trip to Kyoto in November.\"},\n        {\"role\": \"assistant\",\n         \"content\": \"Book ryokans early \u2014 autumn foliage peak.\"},\n    ],\n)\n\n# At read time, fetch the *context block* \u2014 summary + relevant facts.\n# Raw messages are still on disk; we just don't pay tokens for them.\nctx = client.thread.get_user_context(thread_id=\"trip-2026\")\nprint(ctx.context)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (adding-messages) and /concepts + /retrieving-context: `from zep_cloud.client import Zep`; `Zep(api_key=...)` constructor; `client.user.add(user_id=...)`; `client.thread.create(thread_id=..., user_id=...)`; `client.thread.add_messages(thread_id, messages=[...])` with message dicts whose documented fields are `role` (one of \"user\", \"assistant\", \"tool\"), `content`, and the optional `name`/`created_at`/`metadata`; `client.thread.get_user_context(thread_id=...)` returning an object with `.context`. The previously-used `role_type` field has been removed \u2014 current Zep docs document only `role`. Source: https://help.getzep.com/adding-messages; https://help.getzep.com/concepts.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "five-tier-memory-cascade",
+      "intent": "Show five named tiers (sensory, working, short-term, episodic, long-term) with promotion and decay between them.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Five named tiers with scheduled compaction that promotes upward and decay that archives downward; rehearsal pulls archived items back when re-attended.",
+          "code": "class Cascade:\n    sensory   = RingBuffer(ttl=\"1 tick\")    # raw input\n    working   = TopN(n=7)                     # active focus (GWT cap)\n    short     = Buffer(ttl=\"7 days\")          # recent verbatim\n    episodic  = Store()                        # compressed summaries (~5-10x)\n    longterm  = Store()                        # distilled rules + insights\n\n    def tick(self, input):\n        self.sensory.write(input)\n        self.working.update_from(self.sensory, score=salience)\n\n    def compact(self):  # scheduled job: promote upward\n        if self.short.size_over_threshold():\n            self.episodic.add(llm.summarise(self.short.flush_old()))\n        if self.episodic.size_over_threshold():\n            self.longterm.add(llm.distil(self.episodic.flush_old()))\n\n    def rehearse(self, query):  # archived -> short when re-attended\n        for item in self.episodic.search(query) + self.longterm.search(query):\n            self.short.lift(item)             # archive copy untouched",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "letta",
+          "framework_label": "Letta",
+          "language": "python",
+          "intent": "Letta exposes named memory blocks (working tier) plus archival passages (long-term tier); the agent can rewrite blocks and insert/search passages as tools.",
+          "source_url": "https://docs.letta.com/guides/agents/archival-memory",
+          "sdk_version": "letta-client>=0.1",
+          "code": "import os\nfrom letta_client import Letta\n\nclient = Letta(api_key=os.getenv(\"LETTA_API_KEY\"))\n\n# Working/short-term tiers: always-visible memory blocks.\nagent = client.agents.create(\n    model=\"openai/gpt-4o-mini\",\n    memory_blocks=[\n        {\"label\": \"human\",   \"value\": \"Alice. Kyoto trip Nov 2026.\",\n         \"limit\": 2000},\n        {\"label\": \"persona\", \"value\": \"Travel planner; concise.\",\n         \"limit\": 2000},\n        {\"label\": \"episode\", \"value\": \"\",\n         \"limit\": 4000},   # rolling episode summary\n    ],\n)\n\n# Long-term tier: archival passages, retrieved on demand by the agent.\nclient.agents.passages.insert(\n    agent_id=agent.id,\n    content=\"Alice prefers ryokans over hotels and avoids temples before 11am.\",\n    tags=[\"profile\", \"travel\"],\n)\n\n# Promotion: agent reads its block, distils, writes archival passage.\nclient.agents.messages.create(\n    agent_id=agent.id,\n    messages=[{\"role\": \"user\",\n               \"content\": \"Save what you know about my Kyoto preferences.\"}],\n)\n\n# Rehearsal: archival search lifts a passage back into the prompt.\nhits = client.agents.passages.search(\n    agent_id=agent.id, query=\"Kyoto preferences\"\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (archival-memory) and quickstart (one hop): `from letta_client import Letta`; `Letta(api_key=os.getenv(\"LETTA_API_KEY\"))` constructor (api_key kwarg, no token kwarg in docs); `client.agents.create(model=..., memory_blocks=[{\"label\":..., \"value\":..., \"limit\":...}])` — the embedding kwarg is not documented and has been removed; `client.agents.passages.insert(agent_id=..., content=..., tags=[...])` with `content=` (not `text=`) verbatim; `client.agents.passages.search(agent_id=..., query=..., tags=[...])`; `client.agents.messages.create(agent_id=..., messages=[{\"role\":..., \"content\":...}])`. Source: https://docs.letta.com/guides/agents/archival-memory; https://docs.letta.com/quickstart; https://docs.letta.com/guides/agents/memory-blocks.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "zep",
+          "framework_label": "Zep",
+          "language": "python",
+          "intent": "Zep layers raw messages -> entity graph -> user context block, approximating the short/episodic/long-term tiers behind a single API.",
+          "source_url": "https://help.getzep.com/searching-the-graph",
+          "sdk_version": "zep-cloud>=2.0",
+          "code": "import os\nfrom zep_cloud.client import Zep\n\nclient = Zep(api_key=os.environ[\"ZEP_API_KEY\"])\nclient.user.add(user_id=\"alice\")\nclient.thread.create(thread_id=\"sess-1\", user_id=\"alice\")\n\n# Short-term tier: raw turns appended to a thread.\nclient.thread.add_messages(\n    thread_id=\"sess-1\",\n    messages=[\n        {\"role\": \"user\",\n         \"content\": \"I prefer ryokans over hotels.\"},\n    ],\n)\n\n# Episodic + long-term tiers: Zep ingests turns into the user's knowledge\n# graph asynchronously, building entity/relation summaries.\n# Read-time call returns the *cascade-collapsed* context block:\nctx = client.thread.get_user_context(thread_id=\"sess-1\")\nprint(ctx.context)   # summary + relevant facts, not raw history\n\n# Direct graph query (long-term tier, addressable by entity).\nresults = client.graph.search(\n    user_id=\"alice\", query=\"accommodation preferences\", limit=5\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (searching-the-graph) and /concepts + /adding-messages + /retrieving-context: `from zep_cloud.client import Zep`; `Zep(api_key=...)`; `client.user.add(user_id=...)`; `client.thread.create(thread_id=..., user_id=...)`; `client.thread.add_messages(thread_id=..., messages=[...])` with message dicts using only documented fields `role`/`content` (the previously-used `role_type` was removed because it is not in the current Zep schema); `client.thread.get_user_context(thread_id=...)` returning an object with `.context`; `client.graph.search(user_id=..., query=..., limit=...)`. Source: https://help.getzep.com/searching-the-graph; https://help.getzep.com/concepts; https://help.getzep.com/adding-messages.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hippocampal-rehearsal",
+      "intent": "Show how a salience match against an archived item reactivates it into short-term memory without disturbing the archive.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Salience match against archive triggers a non-destructive lift: a copy moves into short-term; the archive record stays put.",
+          "code": "function on_tick(current_focus, archive, short_term):\n    # Score every archived item against what we're currently attending to.\n    for item in archive.iter():\n        score = (\n            embedding_sim(item.vec, current_focus.vec) * 0.6\n            + keyword_overlap(item.text, current_focus.text) * 0.3\n            + (1.0 if item.id in current_focus.refs else 0.0) * 0.1\n        )\n        if score >= REHEARSAL_THRESHOLD:\n            # Lift a COPY into short-term, with a reactivation timestamp.\n            short_term.add(\n                item.copy_with(reactivated_at=now(), source_id=item.id),\n                ttl_cycles=REHEARSAL_TTL,\n            )\n            # archive.record is NOT modified \u2014 original stays untouched.\n            log.append(f\"rehearsed {item.id} (score={score:.2f})\")\n\n# Decay: rehearsed copies in short-term expire after TTL unless re-attended,\n# at which point they extend (same archive item, fresh copy).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "knowledge-graph-memory",
+      "intent": "Show how observations become entities + relations in a graph store, queryable by path and neighbour, with hybrid vector entry.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Extract entities/relations from each observation, write to a graph store, and serve queries by traversal (with vector as the entry point).",
+          "code": "function ingest(observation):\n    # 1. Extract typed entities and relations.\n    triples = llm.extract(\n        observation,\n        schema=\"(:Entity {id, type, name}) -[:REL {type}]-> (:Entity ...)\"\n    )\n    # 2. Upsert into the graph store.\n    for (h, r, t) in triples:\n        graph.merge_node(h); graph.merge_node(t)\n        graph.merge_edge(h, r, t)\n        vector_index.add(h.id, embed(h.name))   # entry-point embedding\n\nfunction query(question):\n    # Vector finds plausible entry points; graph traverses from there.\n    seeds = vector_index.search(embed(question), k=3)\n    subgraph = graph.expand(seeds, depth=2)\n    return llm.answer(question, evidence=subgraph)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "zep",
+          "framework_label": "Zep",
+          "language": "python",
+          "intent": "Zep ingests messages into a per-user temporal knowledge graph; graph.search returns entity/relation hits that can be traversed.",
+          "source_url": "https://help.getzep.com/concepts",
+          "sdk_version": "zep-cloud>=2.0",
+          "code": "import os\nfrom zep_cloud.client import Zep\n\nclient = Zep(api_key=os.environ[\"ZEP_API_KEY\"])\nclient.user.add(user_id=\"alice\")\nclient.thread.create(thread_id=\"sess-1\", user_id=\"alice\")\n\n# Each message is ingested into Alice's temporal knowledge graph: Zep\n# extracts entities (Alice, Mochi, Kyoto, ryokan) and relations.\nclient.thread.add_messages(\n    thread_id=\"sess-1\",\n    messages=[\n        {\"role\": \"user\",\n         \"content\": \"My pet Mochi is a Shiba and we're flying to Kyoto.\"},\n    ],\n)\n\n# Graph query: symbolic search over entities/relations, not just vectors.\nedges = client.graph.search(\n    user_id=\"alice\",\n    query=\"Mochi\",\n    scope=\"edges\",     # relation-level hits\n    limit=10,\n)\nfor e in edges.edges or []:\n    print(e.source_node_uuid, e.name, e.target_node_uuid, \"-\", e.fact)\n\n# Node-level entry points for traversal.\nnodes = client.graph.search(user_id=\"alice\", query=\"pets\", scope=\"nodes\")",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url and one-hop docs (/adding-messages, /searching-the-graph): `from zep_cloud.client import Zep`; `Zep(api_key=...)` constructor; `client.user.add(user_id=...)`; `client.thread.create(thread_id=..., user_id=...)`; `client.thread.add_messages(thread_id=..., messages=[...])` where each message has `role` and `content`; `client.graph.search(user_id=..., query=..., scope=..., limit=...)` with documented `scope` values including \"edges\" and \"nodes\"; response shape `GraphSearchResults` with `.edges` array whose items expose `source_node_uuid`, `target_node_uuid`, `name`, and `fact`. The legacy `role_type` message field has been removed in wave 5 to match the current Zep schema. Source: https://help.getzep.com/concepts; https://help.getzep.com/adding-messages; https://help.getzep.com/searching-the-graph.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "memgpt-paging",
+      "intent": "Show the RAM/disk analogy: main context as RAM, archival store as disk, with model-issued page-in tool calls.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two tiers + three tools (read_recall, write_archival, search_archival); the model decides when to page in or out.",
+          "code": "# Main context (RAM): system prompt + working set + recent messages.\n# External: recall (raw history) + archival (vector store).\n\ntools = {\n    \"read_recall\":       lambda offset, limit: recall.slice(offset, limit),\n    \"write_archival\":    lambda text: archival.insert(text),\n    \"search_archival\":   lambda query: archival.search(query, k=5),\n}\n\nfunction run_turn(user_msg):\n    main_ctx = build_main_context(system, working_set, recent)\n    while True:\n        reply = llm.generate(messages=main_ctx + [user(user_msg)], tools=tools)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            # The MODEL decides to page in: it sees an archive search will\n            # likely return relevant material it cannot fit in RAM.\n            result = tools[call.name](**call.args)\n            main_ctx.append(tool_result(call.id, result))\n        # Evict to keep RAM within budget; the model may have summarised\n        # and written to archival before asking for new pages.\n        main_ctx = evict_oldest_if_over_budget(main_ctx)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "letta",
+          "framework_label": "Letta",
+          "language": "python",
+          "intent": "Letta (the MemGPT reference implementation) exposes core (RAM) memory blocks and archival (disk) passages; the agent calls insert/search tools to page.",
+          "source_url": "https://www.letta.com/research",
+          "sdk_version": "letta-client>=0.1",
+          "code": "import os\nfrom letta_client import Letta\n\nclient = Letta(api_key=os.getenv(\"LETTA_API_KEY\"))\n\n# RAM tier: small, always-in-context memory blocks the model can rewrite.\n# Disk tier: archival passages, paged in only via tool calls.\nagent = client.agents.create(\n    model=\"openai/gpt-4o-mini\",\n    memory_blocks=[\n        {\"label\": \"human\",   \"value\": \"Alice, building a travel app.\",\n         \"limit\": 2000},\n        {\"label\": \"persona\", \"value\": \"I am a memory-augmented agent.\",\n         \"limit\": 2000},\n    ],\n)\n\n# Disk write: agent (or operator) appends to archival.\nclient.agents.passages.insert(\n    agent_id=agent.id,\n    content=\"Alice's app uses Postgres + pgvector; deploy target is Fly.io.\",\n)\n\n# At runtime, the agent autonomously decides when to page in. The model\n# emits an archival_memory_search tool call when its core blocks lack the\n# answer; Letta returns matching passages and they enter main context.\nresp = client.agents.messages.create(\n    agent_id=agent.id,\n    messages=[{\"role\": \"user\",\n               \"content\": \"Remind me where we host the prod database.\"}],\n)\nfor msg in resp.messages:\n    print(msg)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (Letta research page describes MemGPT lineage and core/archival memory tiers) and one-hop docs (https://docs.letta.com/quickstart, https://docs.letta.com/guides/agents/memory-blocks, https://docs.letta.com/guides/agents/archival-memory): `from letta_client import Letta`; `Letta(api_key=...)` constructor; `client.agents.create(model=..., memory_blocks=[{\"label\":..., \"value\":..., \"limit\":...}])`; `client.agents.passages.insert(agent_id=..., content=...)` (archival-memory docs use `content=`); `client.agents.messages.create(agent_id=..., messages=[{\"role\":..., \"content\":...}])`. Wave 5: replaced `Letta(token=...)` with `Letta(api_key=...)`, dropped undocumented `embedding=` kwarg on agents.create, and renamed `passages.insert(text=...)` to `passages.insert(content=...)` to match the documented archival-memory API. Source: https://www.letta.com/research; https://docs.letta.com/quickstart; https://docs.letta.com/guides/agents/memory-blocks; https://docs.letta.com/guides/agents/archival-memory.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "now-anchoring",
+      "intent": "Show how a ## NOW block (ISO local, UTC, weekday, week, season, moon) is computed and injected into the system prompt every turn.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Compute a small temporal block on every prompt assembly and inject near the top of the system prompt; cost is microseconds.",
+          "code": "from datetime import datetime, timezone\nimport ephem  # moon phase\n\ndef now_block(tz, hemisphere=\"N\"):\n    local = datetime.now(tz)\n    utc   = datetime.now(timezone.utc)\n    iso_week = local.isocalendar()\n    season = season_for(local.month, hemisphere)\n    moon = ephem.Moon(); moon.compute(local)\n    return (\n        \"## NOW\\n\"\n        f\"- local:   {local.isoformat()} ({local.tzname()})\\n\"\n        f\"- utc:     {utc.isoformat()}\\n\"\n        f\"- weekday: {local.strftime('%A')}\\n\"\n        f\"- doy:     {local.timetuple().tm_yday}\\n\"\n        f\"- iso_wk:  {iso_week.year}-W{iso_week.week:02d}-{iso_week.weekday}\\n\"\n        f\"- season:  {season}\\n\"\n        f\"- moon:    {moon.phase:.0f}% illuminated\\n\"\n    )\n\ndef assemble_prompt(system, user_msg, tz):\n    return [\n        {\"role\": \"system\", \"content\": now_block(tz) + \"\\n\" + system},\n        {\"role\": \"user\",   \"content\": user_msg},\n    ]\n\n# Every turn pays microseconds and gets an implicitly time-aware model.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "reasoning-trace-carry-forward",
+      "intent": "Show how reasoning_content is preserved within a tool-call episode but dropped at the next user turn.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Within one episode (user-turn -> next user-turn), keep assistant reasoning_content alongside tool calls; strip it at the next user-turn boundary.",
+          "code": "# Episode = [user_turn, (assistant + tool_calls + tool_results)*, assistant_final]\n# Reasoning trace is episode-scoped.\n\ndef build_context(history):\n    out = []\n    # 1. Find the start of the CURRENT episode = index of the last user msg.\n    last_user = max(i for i, m in enumerate(history) if m.role == \"user\")\n\n    for i, msg in enumerate(history):\n        if msg.role == \"assistant\":\n            if i >= last_user:\n                # Inside current episode \u2014 preserve reasoning_content so the\n                # model can chain its own thinking across tool round-trips.\n                out.append(msg)              # includes reasoning_content\n            else:\n                # Past episode \u2014 strip reasoning, keep only user-visible text.\n                out.append(msg.without_reasoning())\n        else:\n            out.append(msg)                  # user / tool messages unchanged\n    return out\n\n# At the next user turn the previous reasoning_content silently drops; the\n# API would reject or ignore stale reasoning blocks across episodes anyway.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "salience-attention-mechanism",
+      "intent": "Show a weighted salience score over candidate memory items, including a fatigue term that breaks rumination.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Score every candidate with the documented weighted sum, take top-k into the working set, and persist the weights so reflection can tune them.",
+          "code": "# Weights are persisted in a config so a reflection pass can adjust them.\nweights = load_yaml(\"salience.yaml\")  # alpha, beta, gamma, delta, epsilon\n\ndef salience(item, goal, ctx):\n    return (\n        weights[\"alpha\"]   * novelty(item, ctx.recent_attended)\n      + weights[\"beta\"]    * goal_relevance(item, goal)\n      + weights[\"gamma\"]   * recency(item, now())\n      + weights[\"delta\"]   * prediction_error(item, ctx.last_prediction)\n      - weights[\"epsilon\"] * fatigue(item, ctx.attention_log)\n        # fatigue penalises items attended N times in the recent window;\n        # this is what breaks rumination loops on the same memory.\n    )\n\ndef select_working_set(candidates, goal, ctx, k=7):\n    scored = [(salience(c, goal, ctx), c) for c in candidates]\n    scored.sort(reverse=True)\n    chosen = [c for _, c in scored[:k]]\n    for c in chosen:\n        ctx.attention_log.record(c.id, now())   # feeds future fatigue term\n    return chosen",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "scratchpad",
+      "intent": "Show a writable scratch space the agent reads/writes across turns, separate from the user-visible response, purged at task completion.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A session-scoped scratchpad with read/write tools; contents inform later turns; contents never appear in the user-facing reply.",
+          "code": "class Scratchpad:\n    def __init__(self): self._lines = []\n    def read(self):    return \"\\n\".join(self._lines)\n    def write(self, line): self._lines.append(line)\n    def clear(self):   self._lines = []\n\nscratch = Scratchpad()\n\ntools = [\n    Tool(\"scratch_read\",  lambda: scratch.read()),\n    Tool(\"scratch_write\", lambda line: scratch.write(line)),\n]\n\nfunction handle_turn(user_msg):\n    messages = [\n        system_prompt(\n            \"You have a scratchpad. Use scratch_write for intermediate \"\n            \"notes that should NOT appear in your reply. Read it whenever \"\n            \"you need to recall something you wrote earlier.\"\n        ),\n        {\"role\": \"system\", \"content\": f\"Scratchpad:\\n{scratch.read()}\"},\n        user(user_msg),\n    ]\n    reply = agent_loop(messages, tools)\n    return reply.content    # scratchpad contents never leak into the reply\n\non_task_complete(lambda: scratch.clear())   # purge at completion",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "session-isolation",
+      "intent": "Show how per-user identity scopes every read and write so one user's session state and memory cannot surface inside another user's agent.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: identity travels end-to-end and every state read/write is keyed by the authenticated subject.",
+          "code": "function handle_request(http_request):\n    # 1. Authenticate. The subject is the only identity that scopes state.\n    subject = verify_jwt(http_request.authorization).sub\n    if not subject:\n        return 401\n\n    # 2. Scope every backend by subject. No global / shared keys.\n    state   = state_store.for_user(subject)         # thread state\n    memory  = memory_store.for_user(subject)        # long-term facts\n    cache   = prompt_cache.for_user(subject)        # prompt-prefix cache\n    vectors = vector_store.with_filter(user=subject) # retrieval partition\n\n    # 3. Agent loop only ever sees this user's slice.\n    facts   = memory.load_relevant(http_request.body.text)\n    history = state.history()\n    reply   = agent.run(\n        messages=[system(facts), *history, user(http_request.body.text)],\n        retriever=vectors,\n        cache=cache,\n    )\n\n    # 4. Writes carry the same subject. A bug that drops it must fail closed.\n    state.append(user(http_request.body.text), reply)\n    return reply\n\n# Invariant audited in CI: no code path reads/writes state without `subject`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "create_agent with a checkpointer; thread_id derived from the authenticated user keeps each tenant's short-term memory unreachable from any other.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langgraph.checkpoint.memory import InMemorySaver\n\nagent = create_agent(\n    \"gpt-4o-mini\",\n    tools=[],\n    checkpointer=InMemorySaver(),  # short-term memory, keyed by thread_id\n)\n\n\ndef chat(subject: str, conversation_id: str, message: str):\n    # The thread_id MUST embed the authenticated subject. A shared or\n    # guessable thread_id would let user B resume user A's conversation.\n    thread_id = f\"{subject}::{conversation_id}\"\n    return agent.invoke(\n        {\"messages\": [{\"role\": \"user\", \"content\": message}]},\n        {\"configurable\": {\"thread_id\": thread_id}},\n    )\n\n\n# Alice's thread.\nchat(\"alice\", \"c-1\", \"My name is Alice.\")\n# Bob, same conversation_id \u2014 DIFFERENT thread because subject is in the key.\n# Bob cannot see Alice's history; the checkpointer namespace does not match.\nchat(\"bob\", \"c-1\", \"What's my name?\")",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: from langchain.agents import create_agent; from langgraph.checkpoint.memory import InMemorySaver; create_agent(model, tools=[], checkpointer=...) parameter signature; agent.invoke({\"messages\": [...]}, {\"configurable\": {\"thread_id\": ...}}) call shape with thread-level persistence. The doc states explicitly that the thread_id parameter enables thread-level persistence so threads can be resumed at any time, which is the basis of the subject-keyed isolation in this example. Source: https://docs.langchain.com/oss/python/langchain/short-term-memory.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "Checkpointer scopes per-thread state; the Store namespace tuple embeds user_id so cross-thread memory is also partitioned per tenant.",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/add-memory",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from dataclasses import dataclass\n\nfrom langchain.chat_models import init_chat_model\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.graph import MessagesState, START, StateGraph\nfrom langgraph.runtime import Runtime\nfrom langgraph.store.memory import InMemoryStore\n\nmodel = init_chat_model(model=\"gpt-4o-mini\")\nstore = InMemoryStore()\ncheckpointer = InMemorySaver()\n\n\n@dataclass\nclass Context:\n    user_id: str\n\n\nasync def call_model(state: MessagesState, runtime: Runtime[Context]):\n    user_id = runtime.context.user_id\n    # Namespace tuple ALWAYS embeds user_id; no cross-tenant key shape.\n    namespace = (\"memories\", user_id)\n    items = await runtime.store.asearch(\n        namespace, query=str(state[\"messages\"][-1].content), limit=3\n    )\n    facts = [item.value for item in items]\n    system = {\"role\": \"system\", \"content\": f\"User facts: {facts}\"}\n    reply = await model.ainvoke([system, *state[\"messages\"]])\n    return {\"messages\": [reply]}\n\n\nbuilder = StateGraph(MessagesState, context_schema=Context)\nbuilder.add_node(call_model)\nbuilder.add_edge(START, \"call_model\")\ngraph = builder.compile(checkpointer=checkpointer, store=store)\n\n# Two users, same conversation label, fully isolated state AND memory:\ngraph.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Hi, I'm Alice.\"}]},\n    {\"configurable\": {\"thread_id\": \"alice::c1\"}},\n    context=Context(user_id=\"alice\"),\n)\ngraph.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Who am I?\"}]},\n    {\"configurable\": {\"thread_id\": \"bob::c1\"}},\n    context=Context(user_id=\"bob\"),\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from langgraph.runtime import Runtime`; `from langgraph.store.memory import InMemoryStore`; `from langgraph.checkpoint.memory import InMemorySaver`; `from langgraph.graph import StateGraph, MessagesState, START`; `from langchain.chat_models import init_chat_model`; init_chat_model(model=...) call; dataclass Context with user_id; node signature `async def call_model(state: MessagesState, runtime: Runtime[Context])` with `runtime.context.user_id`; namespace tuple of the form `(\"memories\", user_id)`; `await runtime.store.asearch(namespace, query=..., limit=...)`; `StateGraph(MessagesState, context_schema=Context)`; `builder.add_node(call_model)`; `builder.add_edge(START, \"call_model\")`; `builder.compile(checkpointer=checkpointer, store=store)`; `graph.invoke({...}, {\"configurable\": {\"thread_id\": ...}}, context=Context(user_id=...))`. Source: https://docs.langchain.com/oss/python/langgraph/add-memory.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "A fresh Context per user gives each session an isolated state container; one user's Context is never shared with another's agent run.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/understanding/agent/state/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\n\nfrom llama_index.core.workflow import Context\n\n# `workflow` is any LlamaIndex workflow/agent (e.g. an AgentWorkflow built\n# elsewhere); the session-isolation point is about Context, not how the\n# workflow itself is constructed.\nworkflow = build_workflow()  # opaque to this example\n\n# Per-user Context cache. The KEY is the authenticated subject.\n_contexts: dict[str, Context] = {}\n\n\ndef context_for(subject: str) -> Context:\n    # A subject-keyed lookup is the ONLY way to obtain a Context. There is\n    # no shared / default Context; missing subject -> KeyError, fail closed.\n    if subject not in _contexts:\n        _contexts[subject] = Context(workflow)\n    return _contexts[subject]\n\n\nasync def chat(subject: str, message: str) -> str:\n    response = await workflow.run(user_msg=message, ctx=context_for(subject))\n    return str(response)\n\n\nasync def main():\n    await chat(\"alice\", \"My name is Alice.\")\n    # Bob gets his own Context; Alice's state is unreachable from his run.\n    print(await chat(\"bob\", \"What's my name?\"))\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from llama_index.core.workflow import Context`; the `Context(workflow)` constructor pattern that scopes state to a passed-in workflow/agent; the call shape `await workflow.run(user_msg=..., ctx=ctx)` where reusing the same Context preserves state across runs. The example only names the Context API; `workflow` is an opaque placeholder so no other API surface needs verification. Source: https://developers.llamaindex.ai/python/framework/understanding/agent/state/.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "mem0",
+          "framework_label": "Mem0",
+          "language": "python",
+          "intent": "Every Memory call carries user_id; a missing or wrong user_id returns the wrong (or empty) slice, making cross-tenant reads structurally impossible.",
+          "source_url": "https://docs.mem0.ai/core-concepts/memory-operations",
+          "sdk_version": "mem0ai>=0.1",
+          "code": "from mem0 import Memory\n\nm = Memory()\n\n\ndef remember(subject: str, messages: list[dict]) -> None:\n    if not subject:\n        raise PermissionError(\"unauthenticated write rejected\")\n    # user_id IS the tenancy boundary; no call shape exists that omits it.\n    m.add(messages, user_id=subject)\n\n\ndef recall(subject: str, query: str) -> list[str]:\n    if not subject:\n        raise PermissionError(\"unauthenticated read rejected\")\n    hits = m.search(query=query, user_id=subject, limit=5)\n    return [h[\"memory\"] for h in hits.get(\"results\", [])]\n\n\n# Alice's memory.\nremember(\"alice\", [\n    {\"role\": \"user\", \"content\": \"I'm allergic to peanuts.\"},\n])\n\n# Bob asks the same question. He gets HIS slice, which does not contain\n# Alice's allergy \u2014 the user_id partition is enforced inside the store.\nassert recall(\"bob\", \"any allergies?\") == []\nassert recall(\"alice\", \"any allergies?\")  # non-empty",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: from mem0 import Memory; Memory() constructor; m.add(messages, user_id=...) signature; m.search(query=..., user_id=..., limit=...) signature; search response shape `{\"results\": [{\"memory\": str, \"score\": float, ...}]}` (response shape verified via the /api-reference/memory/search-memories page, one hop from the source URL which names the API reference for the full response shape). user_id is documented as the tenancy/namespace key on both add and search. Source: https://docs.mem0.ai/core-concepts/memory-operations.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "short-term-memory",
+      "intent": "Show a typed per-thread state with TTL: load on next turn, expire and reset on TTL.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Typed thread state (messages + active plan + screen) persisted with a TTL; reload on next turn, reset on expiry.",
+          "code": "@dataclass\nclass ThreadState:\n    messages:    list\n    active_plan: dict | None\n    screen:      str | None\n    agent_step:  int\n    updated_at:  float\n\nstore = KV()  # any TTL-aware KV: Redis, DynamoDB w/ TTL, etc.\nTTL = 24 * 3600\n\ndef load(thread_id) -> ThreadState:\n    raw = store.get(thread_id)\n    if not raw or now() - raw[\"updated_at\"] > TTL:\n        return ThreadState(messages=[], active_plan=None,\n                           screen=None, agent_step=0,\n                           updated_at=now())   # expired -> reset\n    return ThreadState(**raw)\n\ndef save(thread_id, st: ThreadState):\n    st.updated_at = now()\n    store.put(thread_id, asdict(st), ttl=TTL)\n\nfunction handle_turn(thread_id, user_msg):\n    st = load(thread_id)\n    st.messages.append(user(user_msg))\n    reply = llm.generate(messages=st.messages, state=st)\n    st.messages.append(reply); st.agent_step += 1\n    save(thread_id, st)\n    return reply.content",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "sleep-time-compute",
+      "intent": "Show offline distillation and speculative pre-answering against the user's standing context, with test-time cache lookup and invalidation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Idle worker distils the corpus and pre-answers likely queries against embeddings; test-time path checks the speculative cache first.",
+          "code": "# --- Offline (run while the user is idle) -----------------------------\ndef sleep_pass(user):\n    # 1. Distillation: structured summaries for things queries will hit.\n    for doc in user.corpus.changed_since(user.last_distill):\n        user.summaries[doc.id] = llm.summarise(doc, schema=DISTIL_SCHEMA)\n\n    # 2. Speculative pre-answering of likely next queries.\n    candidates = predict_next_queries(\n        history=user.query_log, context=user.standing_context\n    )\n    for q in candidates:\n        emb = embed(q)\n        if not user.spec_cache.near(emb):\n            answer = llm.answer(q, evidence=user.summaries)\n            user.spec_cache.put(emb, q, answer, source_ids=answer.cites)\n    user.last_distill = now()\n\n# --- Test-time (when the user actually asks) --------------------------\ndef answer(user, question):\n    hit = user.spec_cache.nearest(embed(question), threshold=0.92)\n    if hit:\n        return llm.adapt(hit.answer, question)        # cheap path\n    fresh = llm.answer(question, evidence=user.summaries)\n    user.query_log.append(question)                    # feeds next prediction\n    return fresh\n\n# Invalidation: when a source document changes, drop spec_cache entries\n# whose source_ids include it.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "vector-memory",
+      "intent": "Show how items are embedded and indexed, then retrieved by similarity (with optional decay/salience reweighting).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Embed every memory at write; at read, embed the query, fetch top-k, and apply an optional recency/salience reweighting.",
+          "code": "def remember(text, meta):\n    vec = embed(text)\n    index.add(id=uuid(), vector=vec, payload={\"text\": text,\n                                              \"ts\": now(), **meta})\n\ndef recall(query, k=5, decay_half_life_days=30):\n    q = embed(query)\n    hits = index.search(q, k=k * 3)             # over-fetch for reranking\n    for h in hits:\n        age_days = (now() - h.payload[\"ts\"]) / 86400\n        # Older items decay; salience boost from caller-provided meta.\n        h.score *= 0.5 ** (age_days / decay_half_life_days)\n        h.score *= h.payload.get(\"salience\", 1.0)\n    hits.sort(key=lambda h: h.score, reverse=True)\n    return [h.payload[\"text\"] for h in hits[:k]]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "mem0",
+          "framework_label": "Mem0",
+          "language": "python",
+          "intent": "Memory.add embeds and indexes; Memory.search returns the top-k semantically similar items for the user namespace.",
+          "source_url": "https://docs.mem0.ai/core-concepts/memory-operations",
+          "sdk_version": "mem0ai>=0.1",
+          "code": "from mem0 import Memory\n\nm = Memory()  # default: local vector store + LLM-driven distillation\n\n# Each .add embeds the distilled fact and writes it into Alice's vector\n# namespace. The raw turn is summarised first, then indexed.\nm.add(\n    [\n        {\"role\": \"user\",      \"content\": \"I'm allergic to peanuts.\"},\n        {\"role\": \"assistant\", \"content\": \"Noted.\"},\n    ],\n    user_id=\"alice\",\n)\nm.add(\n    [\n        {\"role\": \"user\",      \"content\": \"My favourite cuisine is Thai.\"},\n        {\"role\": \"assistant\", \"content\": \"Got it.\"},\n    ],\n    user_id=\"alice\",\n)\n\n# Semantic recall \u2014 the query embedding finds the allergy note even\n# though the user phrased it differently.\nresults = m.search(\"any food restrictions?\", user_id=\"alice\", limit=3)\nfor hit in results.get(\"results\", []):\n    print(hit[\"score\"], hit[\"memory\"])",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (memory-operations): `from mem0 import Memory`; `Memory()` default constructor; `m.add(messages, user_id=...)` with conversation-turn dicts `{\"role\":..., \"content\":...}` and `user_id` as the namespace key; `m.search(query, user_id=..., limit=...)` with positional query string and `limit` kwarg. The search response shape `{\"results\": [{\"memory\": str, \"score\": float, ...}]}` \u2014 including the `memory` and `score` keys iterated by this example \u2014 is confirmed one hop away at /api-reference/memory/search-memories (the page documents results as a list of items containing `memory`, `score`, and metadata). Source: https://docs.mem0.ai/core-concepts/memory-operations.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "letta",
+          "framework_label": "Letta",
+          "language": "python",
+          "intent": "Letta's archival passages are a vector store keyed to an agent; passages.insert embeds + indexes, passages.search returns top-k.",
+          "source_url": "https://docs.letta.com/guides/agents/archival-memory",
+          "sdk_version": "letta-client>=0.1",
+          "code": "import os\nfrom letta_client import Letta\n\nclient = Letta(api_key=os.getenv(\"LETTA_API_KEY\"))\n\nagent = client.agents.create(\n    model=\"openai/gpt-4o-mini\",\n    memory_blocks=[\n        {\"label\": \"persona\", \"value\": \"travel planner\", \"limit\": 1000},\n    ],\n)\n\n# Write: each passage is embedded with the agent's configured embedding\n# model and stored in the archival vector index.\nclient.agents.passages.insert(\n    agent_id=agent.id,\n    content=\"Alice is allergic to peanuts.\",\n    tags=[\"profile\", \"diet\"],\n)\nclient.agents.passages.insert(\n    agent_id=agent.id,\n    content=\"Alice's favourite cuisine is Thai.\",\n    tags=[\"profile\", \"diet\"],\n)\n\n# Read: vector search over the archival index, optionally filtered by tag.\nhits = client.agents.passages.search(\n    agent_id=agent.id,\n    query=\"food restrictions\",\n    tags=[\"diet\"],\n)\nfor p in hits:\n    print(p.content)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (archival-memory) and quickstart (one hop): `from letta_client import Letta`; `Letta(api_key=os.getenv(\"LETTA_API_KEY\"))` — api_key kwarg documented (no token kwarg); `client.agents.create(model=..., memory_blocks=[{\"label\":..., \"value\":..., \"limit\":...}])` — the undocumented `embedding` kwarg has been removed; `client.agents.passages.insert(agent_id=..., content=..., tags=[...])` documented verbatim with `content=` (not `text=`); `client.agents.passages.search(agent_id=..., query=..., tags=[...])` documented verbatim. The passage body attribute mirrors the insert kwarg (`content`), aligning with upstream usage. Source: https://docs.letta.com/guides/agents/archival-memory; https://docs.letta.com/quickstart.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

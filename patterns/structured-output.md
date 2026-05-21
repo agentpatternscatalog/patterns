@@ -11,11 +11,11 @@ Constrain the model's output to conform to a JSON Schema (or similar typed shape
 
 ## Context
 
-Downstream code needs typed data; free-form text breaks parsers and propagates errors.
+A team has a pipeline where downstream code expects typed data — a JSON object with known fields, the input to a function call, the body of an API request. The language model is asked to produce that object, and the code that consumes it cannot work with prose. The team needs the model's output to validate against a schema, not just look like it does.
 
 ## Problem
 
-Free-form output requires fragile post-hoc parsing; the model produces near-JSON that fails strict parsers in surprising ways.
+When the model is asked to emit JSON via natural-language instructions alone, the output is close but not quite right in inventive ways: smart quotes instead of straight ones, a stray sentence of explanation before the opening brace, a trailing comma, an extra field the schema does not allow. Strict parsers reject this; permissive parsers smuggle bugs forward. Writing post-hoc fixers turns into a tar pit of regular expressions chasing each new failure mode, and the application picks up a class of "flaky model" bugs that are really shape bugs the team has no clean way to prevent at decode time.
 
 ## Forces
 

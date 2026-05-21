@@ -11,11 +11,11 @@ Anti-pattern: stuff every capability into one agent with one giant prompt.
 
 ## Context
 
-An agent product grows; new capabilities are added by appending to the system prompt and the tool palette of a single agent.
+A team has a single agent that started small and is winning use cases. Each new capability — calendar handling, email, research, file editing — is added by appending more instructions to the system prompt and more entries to the tool list of that same agent. Splitting into specialists feels like premature optimisation, so the one agent keeps absorbing scope, often crossing a thousand prompt lines and dozens of registered tools.
 
 ## Problem
 
-The agent's prompt becomes a monolith. Tools conflict. The model is confused about which path to take. Cheap requests pay expensive prices.
+Past a certain size the single agent stops behaving like one coherent assistant and starts behaving like a confused junior who has been handed every job in the company. The model picks the wrong tool when two tools overlap, follows the wrong section of the prompt because two sections contradict each other, and the smallest user request now pays for the full giant prompt on every call. Latency, cost, and quality all regress together, and debugging which prompt fragment caused which behaviour becomes archaeological work.
 
 ## Forces
 

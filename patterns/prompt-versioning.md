@@ -11,11 +11,11 @@ Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and
 
 ## Context
 
-Production agents where prompt changes drive quality changes; ad-hoc prompt edits introduce silent regressions.
+A team runs an agent where the system prompt and task prompts are major levers on quality. Multiple engineers edit those prompts, sometimes inline in code, sometimes through a prompt-management tool. The team needs to know exactly which prompt text was live at any given time, to be able to roll back a bad prompt cleanly, and to tie evaluation results to the specific prompt being scored.
 
 ## Problem
 
-Prompts edited inline in code are hard to audit; rolling back a prompt means rolling back a deployment; comparison across versions is bespoke.
+When prompts live as plain strings inside the application code, a wording change becomes a code change: rolling back the prompt requires reverting a deployment, comparing two prompt versions side by side requires diffing branches, and there is no clean way to say which prompt produced last week's outputs. Evaluation runs cannot be tied back to specific prompt text once that text has been edited in place. The team is forced to choose between treating every prompt edit as a full code release or losing the ability to audit and revert prompts precisely.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A team rolls a small wording change into a prompt at 14:00 and by 16:00 the agen
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Ed[Author edits prompt] --> H[Hash + semver tag]
   H --> Reg[(Prompt registry<br/>immutable, signed)]
   Code[Application code] -->|name + version| Reg

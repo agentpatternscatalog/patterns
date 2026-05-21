@@ -11,11 +11,11 @@ Have the model review its own output and produce a revised version in one or mor
 
 ## Context
 
-First-pass model outputs contain mistakes a second look would catch; the cost of an extra pass is acceptable.
+A team runs a large language model on a generation task (drafting an email, writing a function, composing a press release) where the first-pass output usually contains errors that a careful second read would catch: a missing edge case, a clumsy phrase, a factual slip. Latency and cost budgets allow at least one extra model call per output. The team is not asking for deep correctness verification, just a 'look it over' pass before shipping.
 
 ## Problem
 
-One-shot generation underuses the model; a second pass focused on critique often fixes errors at modest cost.
+One-shot generation underuses the model in a specific way: the model has the ability to spot its own surface errors when it is asked to look at a finished draft, but in a single forward pass it commits to tokens without the opportunity to review what it has written. Without a separate critique step, obvious local mistakes ship even when the model could have caught them. A naive free-form critique pass helps a little but invents new criteria on each call, so reviews are inconsistent, and after one or two iterations the same model just starts approving its own work. The team needs structure around the critique step to make it actually catch errors instead of rubber-stamping.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A drafting agent writes a press release in one shot; legal flags two compliance 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Task] --> P[Producer pass]
   P --> O1[Output v1]
   O1 --> Cr[Critic pass]

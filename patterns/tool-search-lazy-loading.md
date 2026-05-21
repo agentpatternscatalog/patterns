@@ -11,11 +11,11 @@ Defer loading tool schemas into the context window until a search step shows the
 
 ## Context
 
-Agents that connect to many tool servers (MCP, plugins, API gateways) where preloading every tool definition would consume a large fraction of the context window before any task has begun.
+A team is running an agent connected to many Model Context Protocol (MCP) servers, plugin endpoints, or API gateways, where the combined tool catalogue holds fifty or more tools. The full set of tool schemas, if loaded eagerly into the system prompt, would consume a substantial fraction of the context window before the user has even spoken.
 
 ## Problem
 
-Eagerly injecting all available tool definitions into the system prompt burns tokens that could be used for the task, slows every request, and forces the model to pick a relevant tool out of a long catalogue of irrelevant ones.
+Injecting every available tool definition into the system prompt up front spends tokens on tools that will never be used in this session, slows every request through the larger prompt, and forces the model to pick a relevant tool out of a long list of mostly irrelevant ones. Static per-request loadouts can help but require choosing the subset before the user's intent is fully known. There is no way to keep a large catalogue discoverable without paying for all of it on every call.
 
 ## Forces
 

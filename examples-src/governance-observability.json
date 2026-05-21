@@ -1,0 +1,464 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "governance-observability",
+  "label": "Governance & Observability",
+  "patterns": [
+    {
+      "pattern_id": "agent-as-judge",
+      "intent": "Score an agent's full trajectory (steps, tool calls, intermediate states) rather than only its final output, using a separate judge agent that emits a structured verdict against a rubric.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: feed the candidate's entire trajectory plus rubric into a judge model and parse a structured verdict.",
+          "code": "function judge_trajectory(rubric, trajectory):\n    # trajectory = [{thought, tool_call, observation, ...}, ..., final_answer]\n    prompt = build_judge_prompt(\n        rubric=rubric,\n        steps=trajectory.steps,        # not just final output\n        tool_calls=trajectory.tool_calls,\n        observations=trajectory.observations,\n        final=trajectory.final_answer,\n    )\n    raw = llm.generate(prompt, response_format=VerdictSchema)\n    verdict = parse(raw)              # {correctness, efficiency,\n                                      #  process_quality, rationale}\n    return verdict\n\nfunction run_with_judge(task):\n    trajectory = candidate_agent.run(task, record=True)\n    verdict = judge_trajectory(RUBRIC, trajectory)\n    log(task, trajectory, verdict)\n    return trajectory.final_answer, verdict",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-resumption",
+      "intent": "Show durable agent state in pseudo-code and in four Python frameworks that ship resumption as a first-class building block: thread-keyed checkpoints, session stores, or workflow-step checkpoints.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language- and framework-agnostic skeleton: persist after each side-effect under an idempotent key, reload on restart.",
+          "code": "function run_agent(thread_id, input):\n    state = store.load(thread_id) or initial_state(input)\n\n    while not state.done:\n        step = agent.next_step(state)\n\n        if step.is_side_effect:\n            # idempotency_key lets the downstream system dedupe a\n            # replay that crashed between effect and log.\n            result = step.execute(idempotency_key=f\"{thread_id}:{step.id}\")\n        else:\n            result = step.execute()\n\n        state = state.apply(step, result)\n        store.save(thread_id, state)        # checkpoint\n\n    return state.output\n\n# On restart with the same thread_id, run_agent picks up\n# wherever store.save last persisted; completed side-effects\n# are skipped because their results are already in state.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "Compile the graph with a checkpointer; the same thread_id resumes state across invocations.",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from operator import add\nfrom typing import Annotated\nfrom typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\n\n\nclass State(TypedDict):\n    foo: str\n    bar: Annotated[list[str], add]\n\n\ndef node_a(state: State):\n    return {\"foo\": \"a\", \"bar\": [\"a\"]}\n\n\ndef node_b(state: State):\n    return {\"foo\": \"b\", \"bar\": [\"b\"]}\n\n\nworkflow = StateGraph(State)\nworkflow.add_node(node_a)\nworkflow.add_node(node_b)\nworkflow.add_edge(START, \"node_a\")\nworkflow.add_edge(\"node_a\", \"node_b\")\nworkflow.add_edge(\"node_b\", END)\n\ngraph = workflow.compile(checkpointer=InMemorySaver())\n\nconfig = {\"configurable\": {\"thread_id\": \"user-123\"}}\ngraph.invoke({\"foo\": \"\", \"bar\": []}, config)\n\n# Process restart: same thread_id, state is restored from the checkpointer.\nstate = graph.get_state(config)\nprint(state.values)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: langgraph.graph imports (StateGraph, START, END), langgraph.checkpoint.memory.InMemorySaver, workflow.add_node / add_edge, workflow.compile(checkpointer=...), config = {'configurable': {'thread_id': ...}}, graph.invoke(state, config), graph.get_state(config). Source: https://docs.langchain.com/oss/python/langgraph/persistence",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "SQLiteSession persists turns to disk; the same session id resumes context across processes.",
+          "source_url": "https://openai.github.io/openai-agents-python/sessions/",
+          "sdk_version": "openai-agents>=0.1",
+          "code": "import asyncio\nfrom agents import Agent, Runner, SQLiteSession\n\nagent = Agent(name=\"Assistant\", instructions=\"Reply very concisely.\")\n\n# Same (session_id, db path) on a later run resumes the conversation.\nsession = SQLiteSession(\"conversation_123\", \"conversations.db\")\n\n\nasync def main():\n    # First turn — context is written to conversations.db.\n    r1 = await Runner.run(\n        agent,\n        \"What city is the Golden Gate Bridge in?\",\n        session=session,\n    )\n    print(r1.final_output)\n\n    # Second turn — runner auto-prepends prior turns from the session.\n    r2 = await Runner.run(\n        agent,\n        \"What state is it in?\",\n        session=session,\n    )\n    print(r2.final_output)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from agents import Agent, Runner, SQLiteSession`, Agent(name=..., instructions=...), SQLiteSession(session_id, db_path) with positional id and optional db path, await Runner.run(agent, input_str, session=session). Source: https://openai.github.io/openai-agents-python/sessions/",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Capture session_id from the first run's ResultMessage, then pass it as resume= on a later query() to continue the conversation.",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/sessions",
+          "sdk_version": "claude-agent-sdk>=0.3",
+          "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n\nasync def first_run() -> str | None:\n    session_id = None\n    async for message in query(\n        prompt=\"Analyze the auth module and suggest improvements.\",\n        options=ClaudeAgentOptions(allowed_tools=[\"Read\", \"Glob\", \"Grep\"]),\n    ):\n        if isinstance(message, ResultMessage):\n            session_id = message.session_id\n    return session_id\n\n\nasync def resume(session_id: str):\n    # Same cwd as the first run; transcript is on disk under ~/.claude/projects.\n    async for message in query(\n        prompt=\"Now implement the refactoring you suggested.\",\n        options=ClaudeAgentOptions(\n            resume=session_id,\n            allowed_tools=[\"Read\", \"Edit\", \"Write\", \"Glob\", \"Grep\"],\n        ),\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasync def main():\n    sid = await first_run()\n    if sid:\n        await resume(sid)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage`, async for message in query(prompt=..., options=ClaudeAgentOptions(allowed_tools=[...])), ClaudeAgentOptions(resume=session_id, allowed_tools=[...]), ResultMessage with .session_id, .subtype == 'success', and .result attributes. Page docs show the exact two-stage capture-then-resume pattern in Python code samples. Source: https://code.claude.com/docs/en/agent-sdk/sessions (final URL after redirect chain from docs.claude.com -> platform.claude.com -> code.claude.com).",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "Wrap a Workflow in WorkflowCheckpointer; each completed step is captured and a later run_from(checkpoint) resumes from that point.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/workflow/checkpointing_workflows/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom llama_index.core.workflow import (\n    Workflow,\n    step,\n    StartEvent,\n    StopEvent,\n    Event,\n)\nfrom llama_index.core.workflow.checkpointer import WorkflowCheckpointer\nfrom llama_index.llms.openai import OpenAI\n\n\nclass JokeEvent(Event):\n    joke: str\n\n\nclass JokeFlow(Workflow):\n    llm = OpenAI(model=\"gpt-4o-mini\")\n\n    @step\n    async def generate_joke(self, ev: StartEvent) -> JokeEvent:\n        resp = await self.llm.acomplete(f\"Write a joke about {ev.topic}\")\n        return JokeEvent(joke=str(resp))\n\n    @step\n    async def critique_joke(self, ev: JokeEvent) -> StopEvent:\n        resp = await self.llm.acomplete(f\"Critique: {ev.joke}\")\n        return StopEvent(result=str(resp))\n\n\nasync def main():\n    checkpointer = WorkflowCheckpointer(workflow=JokeFlow())\n    await checkpointer.run(topic=\"chemistry\")\n\n    # Pick any checkpoint and resume — e.g. just after generate_joke.\n    after_gen = checkpointer.filter_checkpoints(\n        last_completed_step=\"generate_joke\"\n    )[0]\n    await checkpointer.run_from(checkpoint=after_gen)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports from llama_index.core.workflow (Workflow, step, StartEvent, StopEvent, Event), WorkflowCheckpointer from llama_index.core.workflow.checkpointer with workflow= kwarg, OpenAI from llama_index.llms.openai, @step decorator on async methods, checkpointer.run(topic=...), checkpointer.filter_checkpoints(last_completed_step=...), checkpointer.run_from(checkpoint=...). Source: https://developers.llamaindex.ai/python/examples/workflow/checkpointing_workflows/",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "attention-manipulation-explainability",
+      "intent": "Per-token attribution by structured attention perturbation: suppress each token's attention contribution across all layers and measure the resulting drop in output probability.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of the perturbation-based attribution pass; runs on the inference side, no self-explanation prose.",
+          "code": "function attribution_map(model, prompt, output_token):\n    base_logp = model.token_logprob(prompt, output_token)\n    scores = []\n\n    for i, tok in enumerate(prompt.tokens):\n        # Patch all attention layers so that attention TO token i\n        # is zeroed (or replaced with a neutral baseline).\n        with model.patch_attention(suppress_index=i):\n            patched_logp = model.token_logprob(prompt, output_token)\n        relevance = base_logp - patched_logp   # bigger => more relevant\n        scores.append((tok, relevance))\n\n    return normalize(scores)        # surface as heat-map alongside answer\n\n# Note: do NOT ask the model 'why did you say that?' — that yields\n# plausible-sounding prose uncorrelated with actual causal tokens.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cost-observability",
+      "intent": "Tag every model and tool call with feature, route, user, and model id, stream the spend records to telemetry, and alert on per-feature anomalies.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: wrap every LLM/tool call in a cost record, stream to telemetry, aggregate by dimension.",
+          "code": "function tagged_llm_call(prompt, *, feature, route, user_id, model):\n    start = now()\n    response = llm.generate(prompt, model=model)\n    record = {\n        ts: start,\n        feature: feature,\n        route: route,\n        user: hash(user_id),                # anonymised\n        model: model,\n        input_tokens: response.usage.input,\n        output_tokens: response.usage.output,\n        cost_usd: price(model, response.usage),\n    }\n    telemetry.emit(\"agent.spend\", record)  # OTel / Datadog / etc.\n    return response\n\n# Dashboards group by (feature, model, hour); alerts fire when\n# rolling cost-per-feature jumps > N sigma above its baseline.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "burr",
+          "framework_label": "Burr",
+          "language": "python",
+          "intent": "Burr Action results carry usage metadata; the LocalTrackingClient streams every step (including model and token counts) to the Burr UI for cost dashboards.",
+          "source_url": "https://burr.dagworks.io",
+          "sdk_version": "burr>=0.30",
+          "code": "from burr.core import action, ApplicationBuilder, State\nfrom burr.tracking import LocalTrackingClient\n\n\n@action(reads=[\"prompt\"], writes=[\"answer\", \"usage\"])\ndef call_llm(state: State, feature: str, model: str) -> State:\n    # llm_client returns response with .usage{input, output} and price()\n    resp = llm_client.complete(state[\"prompt\"], model=model)\n    return state.update(\n        answer=resp.text,\n        usage={\n            \"feature\": feature,\n            \"model\": model,\n            \"input_tokens\": resp.usage.input,\n            \"output_tokens\": resp.usage.output,\n            \"cost_usd\": price(model, resp.usage),\n        },\n    )\n\n\ntracker = LocalTrackingClient(project=\"agent-cost-obs\")\napp = (\n    ApplicationBuilder()\n    .with_actions(call_llm)\n    .with_transitions((\"call_llm\", \"call_llm\"))\n    .with_entrypoint(\"call_llm\")\n    .with_state(prompt=\"hello\")\n    .with_tracker(tracker)            # each step + usage shipped to UI\n    .with_identifiers(app_id=\"user-42\")\n    .build()\n)\napp.run(halt_after=[\"call_llm\"], inputs={\"feature\": \"chat\", \"model\": \"gpt-4o-mini\"})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (one hop to /reference/tracking/ and /reference/application/): `from burr.tracking import LocalTrackingClient` with constructor LocalTrackingClient(project: str, storage_dir='~/.burr', serde_kwargs=None); `from burr.core import action, ApplicationBuilder, State`; @action decorator with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker() accepts a tracker object directly (docs explicitly state LocalTrackingClient is used 'through/in conjunction with ApplicationBuilder.with_tracker()'); with_identifiers(app_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io (+ /reference/tracking/, /reference/application/)",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "decision-log",
+      "intent": "Persist the agent's reasoning trace alongside its actions so post-hoc review can answer 'why' — indexed by request id and joinable to the provenance ledger.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: record (request_id, step, rationale, action) for every meaningful decision.",
+          "code": "function record_decision(request_id, step_id, rationale, action):\n    entry = {\n        request_id: request_id,\n        step_id: step_id,\n        ts: now(),\n        rationale: rationale,        # chain-of-thought or summary\n        action: action,              # what the agent then did\n    }\n    decision_log.append(entry)       # append-only store\n    return entry.id\n\nfunction step(state, request_id):\n    thought = agent.deliberate(state)\n    action  = agent.pick_action(thought)\n    record_decision(request_id, state.step_id, thought, action)\n    return execute(action)\n\n# Provenance ledger links each output back via decision_log.entry_id.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "burr",
+          "framework_label": "Burr",
+          "language": "python",
+          "intent": "Each Burr Action persists its inputs, state writes, and rationale through the built-in local tracker; the resulting per-step records are the decision log.",
+          "source_url": "https://burr.dagworks.io/reference/application/",
+          "sdk_version": "burr>=0.30",
+          "code": "from burr.core import action, ApplicationBuilder, State\n\n\n@action(reads=[\"question\"], writes=[\"rationale\", \"action\"])\ndef deliberate(state: State) -> State:\n    thought = llm.think(state[\"question\"])      # chain-of-thought\n    return state.update(rationale=thought.text, action=thought.next_action)\n\n\n@action(reads=[\"action\"], writes=[\"result\"])\ndef execute(state: State) -> State:\n    return state.update(result=run_tool(state[\"action\"]))\n\n\napp = (\n    ApplicationBuilder()\n    .with_actions(deliberate, execute)\n    .with_transitions((\"deliberate\", \"execute\"))\n    .with_entrypoint(\"deliberate\")\n    .with_state(question=\"summarise the deal\")\n    .with_tracker(\"local\", project=\"decision-log\")   # rationale + action both indexed\n    .with_identifiers(app_id=\"req-987\")\n    .build()\n)\napp.run(halt_after=[\"execute\"], inputs={})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core import action, ApplicationBuilder, State` (Core Imports section lists action, State, ApplicationBuilder from burr.core); @action with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker(tracker='local', project='default', ...) signature with 'local' string default; with_identifiers(app_id=..., partition_key=..., sequence_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io/reference/application/",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "hamilton",
+          "framework_label": "Hamilton",
+          "language": "python",
+          "intent": "Hamilton functions are the decision steps; HamiltonTracker ships each node's inputs, outputs, and timing to the catalog so the DAG run is itself the decision log.",
+          "source_url": "https://github.com/DAGWorks-Inc/hamilton",
+          "sdk_version": "sf-hamilton>=1.80",
+          "code": "# decision_dag.py — functions are nodes; their args declare dependencies.\ndef rationale(question: str) -> str:\n    return llm.think(question).text\n\n\ndef action(rationale: str) -> dict:\n    return llm.pick_action(rationale)\n\n\ndef result(action: dict) -> str:\n    return run_tool(action)\n\n\n# driver.py\nfrom hamilton import driver\nfrom hamilton_sdk.adapters import HamiltonTracker\nimport decision_dag\n\ntracker = HamiltonTracker(\n    username=\"ops\",\n    project_id=1,\n    dag_name=\"agent-decision-log\",\n)\ndr = (\n    driver.Builder()\n    .with_modules(decision_dag)\n    .with_adapters(tracker)             # every node's IO is logged\n    .build()\n)\ndr.execute([\"result\"], inputs={\"question\": \"summarise the deal\"})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from hamilton import driver`, `from hamilton_sdk.adapters import HamiltonTracker`, HamiltonTracker(username=..., project_id=..., dag_name=...) constructor kwargs, driver.Builder().with_modules(...).with_adapters(tracker).build() chain, dr.execute([...], inputs={...}). README contains the literal pattern. Module-level functions whose args declare dependencies is Hamilton's documented core idiom. Source: https://github.com/DAGWorks-Inc/hamilton",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "durable-workflow-snapshot",
+      "intent": "Treat the workflow runtime as a state machine whose state is fully serialisable; persist snapshots at every checkpoint to a pluggable store so a run can resume across process restarts and host crashes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: at each checkpoint write {step_index, local_state, awaited_signals, history} to a versioned snapshot store.",
+          "code": "function run_workflow(run_id, store, input):\n    snap = store.load(run_id)\n    if snap and snap.schema_version != CURRENT_SCHEMA:\n        raise IncompatibleSnapshot(snap.schema_version)\n\n    state = snap.local_state if snap else initial(input)\n    history = snap.history if snap else []\n    step_index = snap.step_index if snap else 0\n\n    while not state.done:\n        step = STEPS[step_index]\n        result = step.execute(state)\n        history.append({step: step.name, result: result})\n        state = state.apply(result)\n        step_index += 1\n\n        store.write(run_id, {\n            schema_version: CURRENT_SCHEMA,\n            step_index: step_index,\n            local_state: state,\n            awaited_signals: state.awaited_signals,\n            history: history,\n        })                              # checkpoint\n\n    return state.output",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "temporal",
+          "framework_label": "Temporal",
+          "language": "python",
+          "intent": "Temporal records every workflow step in an Event History; on worker restart the history is replayed to deterministically rebuild local state.",
+          "source_url": "https://learn.temporal.io/getting_started/python/hello_world_in_python/",
+          "sdk_version": "temporalio>=1.5",
+          "code": "from datetime import timedelta\nfrom temporalio import workflow, activity\nfrom temporalio.client import Client\nfrom temporalio.worker import Worker\n\n\n@activity.defn\nasync def fetch(url: str) -> str:\n    return http.get(url).text\n\n\n@workflow.defn\nclass ResearchWorkflow:\n    @workflow.run\n    async def run(self, topic: str) -> str:\n        # Local variables ARE the snapshot — Temporal replays\n        # the event history on restart to rebuild them.\n        page = await workflow.execute_activity(\n            fetch,\n            f\"https://example.com/?q={topic}\",\n            start_to_close_timeout=timedelta(seconds=30),\n        )\n        summary = await workflow.execute_activity(\n            \"summarise\",\n            page,\n            start_to_close_timeout=timedelta(seconds=60),\n        )\n        return summary\n\n\nasync def main():\n    client = await Client.connect(\"localhost:7233\")\n    async with Worker(client, task_queue=\"agents\", workflows=[ResearchWorkflow], activities=[fetch]):\n        result = await client.execute_workflow(\n            ResearchWorkflow.run,\n            \"persistent agents\",\n            id=\"research-2026-05-21-001\",\n            task_queue=\"agents\",\n        )\n        print(result)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: tutorial shows full Python SDK code with `from temporalio import workflow`, `from temporalio import activity`, `from temporalio.client import Client`, `from temporalio.worker import Worker`, `@workflow.defn` class decorator, `@workflow.run` method decorator, `@activity.defn` function decorator, `workflow.execute_activity(say_hello, name, start_to_close_timeout=timedelta(seconds=5))` with start_to_close_timeout kwarg, `Client.connect(\"localhost:7233\")`, `Worker(client, task_queue=..., workflows=[...], activities=[...])`, and `client.execute_workflow(SayHello.run, \"Temporal\", id=\"hello-workflow\", task_queue=\"hello-task-queue\")` with id= and task_queue= kwargs. Every named API element in the example matches the tutorial's code samples verbatim. Source: https://learn.temporal.io/getting_started/python/hello_world_in_python/",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "restack",
+          "framework_label": "Restack",
+          "language": "python",
+          "intent": "Restack wraps Temporal: @workflow.defn / @function.defn produce a durable workflow whose state survives restarts via the underlying engine's snapshots.",
+          "source_url": "https://docs.restack.io/libraries/python/workflows",
+          "sdk_version": "restack-ai>=0.1",
+          "code": "from datetime import timedelta\nfrom pydantic import BaseModel\nfrom restack_ai.workflow import workflow, import_functions\n\nwith import_functions():\n    from src.workflows.functions import fetch, summarise\n\n\nclass ResearchInput(BaseModel):\n    topic: str\n\n\n@workflow.defn()\nclass ResearchWorkflow:\n    @workflow.run\n    async def run(self, workflow_input: ResearchInput) -> str:\n        # Each workflow.step is a durable checkpoint; the engine\n        # snapshots workflow state between steps so a crash mid-flow\n        # resumes at the next awaited step rather than restarting.\n        page = await workflow.step(\n            fetch,\n            workflow_input,\n            start_to_close_timeout=timedelta(seconds=30),\n        )\n        return await workflow.step(\n            summarise,\n            page,\n            start_to_close_timeout=timedelta(seconds=60),\n        )",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: imports `from restack_ai.workflow import workflow, import_functions`; `with import_functions(): from src.workflows.functions import ...` context manager pattern; Pydantic BaseModel for workflow input; `@workflow.defn()` class decorator; `@workflow.run` method decorator; `await workflow.step(fn, input, start_to_close_timeout=timedelta(...))` with start_to_close_timeout kwarg. Every named API element matches the documented AutomatedWorkflow example on the page. Source: https://docs.restack.io/libraries/python/workflows",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "eval-as-contract",
+      "intent": "Wire a tiered eval suite into CI: blocking evals must pass for release, advisory evals are tracked. Treat eval changes as architectural changes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: split evals into blocking/advisory tiers, run both, fail the release on any blocking miss.",
+          "code": "function release_gate(version, evals):\n    blocking = [e for e in evals if e.tier == \"blocking\"]\n    advisory = [e for e in evals if e.tier == \"advisory\"]\n\n    blocking_results = run_evals(version, blocking)\n    advisory_results = run_evals(version, advisory)\n\n    publish_dashboard(version, blocking_results, advisory_results)\n\n    failed_blocking = [r for r in blocking_results if not r.passed]\n    if failed_blocking:\n        return Reject(failed_blocking)        # CI exits non-zero\n    return Approve(version)\n\n# Editing an eval rubric is a reviewed PR (CODEOWNERS on /evals/),\n# same as touching production code.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "eval-harness",
+      "intent": "Run a golden dataset against champion vs challenger agent versions, score both, and promote only on quality lift (not regression).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: load golden (input, expected) pairs, run both versions, compute per-metric deltas.",
+          "code": "function run_eval_harness(champion, challenger, dataset, scorers):\n    results = {champion: [], challenger: []}\n    for example in dataset:                # (input, expected)\n        for version in [champion, challenger]:\n            output = version.run(example.input)\n            scored = {s.name: s(output, example.expected) for s in scorers}\n            results[version].append({example: example, scored: scored})\n\n    deltas = compare(results[champion], results[challenger])\n    decision = promote if all_lifts_non_negative(deltas) else block\n    return {results: results, deltas: deltas, decision: decision}\n\n# Triggered on every meaningful change: prompt edit, model bump,\n# tool added, retrieval index rebuilt.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "incident-response-runbook",
+      "intent": "Pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) wired to detection alerts.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton of an alert handler that dispatches into the runbook step-by-step.",
+          "code": "RUNBOOK = {\n    \"pii_leak\":          { severity: \"P0\", steps: [\"kill_switch\", \"pin_traces\", \"notify_legal\", \"customer_comms\", \"regulator_notify\"] },\n    \"tool_exploit\":      { severity: \"P0\", steps: [\"revoke_credential\", \"reroute_traffic\", \"pin_traces\", \"notify_security\"] },\n    \"mass_false_action\": { severity: \"P1\", steps: [\"kill_switch\", \"compensate_actions\", \"customer_comms\"] },\n}\n\nfunction handle_alert(alert):\n    entry = RUNBOOK[alert.type]\n    page_oncall(entry.severity, alert)\n    incident_id = open_incident(alert, entry)\n\n    for step in entry.steps:\n        outcome = execute_runbook_step(step, alert, incident_id)\n        log(incident_id, step, outcome)    # forensic trail\n        if outcome.requires_human:\n            pause_for_oncall(incident_id, step)\n\n    schedule_postmortem(incident_id, template=\"agent-postmortem.md\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "lineage-tracking",
+      "intent": "Tag every agent output with the prompt template hash, model id, tool versions, retrieved-document ids, and decision-log id; store in a queryable lineage store joinable to the output store.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: build a lineage record alongside each output and write it to a join-friendly store.",
+          "code": "function answer_with_lineage(question, prompt_template, model, tools):\n    retrieved = retriever.search(question)\n    prompt    = prompt_template.render(question=question, docs=retrieved)\n    decision_id = decision_log.record(question, prompt)\n\n    output = llm.generate(prompt, model=model, tools=tools)\n\n    lineage_store.write({\n        output_id:        output.id,\n        prompt_hash:      sha256(prompt_template.source),\n        prompt_version:   prompt_template.version,\n        model:            model.id, model_version: model.version,\n        tool_versions:    {t.name: t.version for t in tools},\n        retrieved_ids:    [d.id for d in retrieved],\n        decision_log_id:  decision_id,\n        ts:               now(),\n    })\n    return output",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "burr",
+          "framework_label": "Burr",
+          "language": "python",
+          "intent": "Each Burr Action writes the fields that constitute the lineage record into state; the built-in local tracker streams them keyed by app_id so the run history IS the lineage table.",
+          "source_url": "https://burr.dagworks.io/reference/application/",
+          "sdk_version": "burr>=0.30",
+          "code": "from hashlib import sha256\nfrom burr.core import action, ApplicationBuilder, State\n\n\n@action(reads=[\"question\"], writes=[\"docs\", \"retrieved_ids\"])\ndef retrieve(state: State) -> State:\n    docs = retriever.search(state[\"question\"])\n    return state.update(docs=docs, retrieved_ids=[d.id for d in docs])\n\n\n@action(reads=[\"question\", \"docs\"], writes=[\"answer\", \"lineage\"])\ndef answer(state: State, prompt_tpl: str, model: str) -> State:\n    prompt = prompt_tpl.format(q=state[\"question\"], docs=state[\"docs\"])\n    resp = llm.complete(prompt, model=model)\n    return state.update(\n        answer=resp.text,\n        lineage={\n            \"prompt_hash\": sha256(prompt_tpl.encode()).hexdigest(),\n            \"model\": model,\n            \"retrieved_ids\": state[\"retrieved_ids\"],\n        },\n    )\n\n\napp = (\n    ApplicationBuilder()\n    .with_actions(retrieve, answer)\n    .with_transitions((\"retrieve\", \"answer\"))\n    .with_entrypoint(\"retrieve\")\n    .with_state(question=\"What changed in v2?\")\n    .with_tracker(\"local\", project=\"lineage\")\n    .with_identifiers(app_id=\"req-2026-05-21-001\")   # join key\n    .build()\n)\napp.run(halt_after=[\"answer\"], inputs={\"prompt_tpl\": \"Q: {q}\\nDocs: {docs}\", \"model\": \"gpt-4o-mini\"})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core import action, ApplicationBuilder, State` (Core Imports section); @action with reads= and writes= kwargs; State and state.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker(tracker='local', project='default', ...) signature documents the 'local' string form with project= kwarg; with_identifiers(app_id=..., partition_key=..., sequence_id=...) accepts app_id; Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io/reference/application/",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "hamilton",
+          "framework_label": "Hamilton",
+          "language": "python",
+          "intent": "Hamilton's tracker records every node's inputs and outputs; declaring `prompt_hash`, `model_id`, `retrieved_ids` as nodes makes them first-class lineage columns.",
+          "source_url": "https://github.com/DAGWorks-Inc/hamilton",
+          "sdk_version": "sf-hamilton>=1.80",
+          "code": "# lineage_dag.py — each fact becomes a node, so each fact is tracked.\nfrom hashlib import sha256\n\n\ndef prompt_hash(prompt_template: str) -> str:\n    return sha256(prompt_template.encode()).hexdigest()\n\n\ndef retrieved(question: str) -> list:\n    return retriever.search(question)\n\n\ndef retrieved_ids(retrieved: list) -> list:\n    return [d.id for d in retrieved]\n\n\ndef answer(question: str, retrieved: list, model_id: str) -> str:\n    return llm.complete(format_prompt(question, retrieved), model=model_id).text\n\n\n# driver.py\nfrom hamilton import driver\nfrom hamilton_sdk.adapters import HamiltonTracker\nimport lineage_dag\n\ndr = (\n    driver.Builder()\n    .with_modules(lineage_dag)\n    .with_adapters(HamiltonTracker(username=\"ops\", project_id=1, dag_name=\"lineage\"))\n    .build()\n)\ndr.execute(\n    [\"answer\", \"prompt_hash\", \"retrieved_ids\"],\n    inputs={\"question\": \"What changed in v2?\", \"prompt_template\": \"Q: {q}\", \"model_id\": \"gpt-4o-mini\"},\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from hamilton import driver`, `from hamilton_sdk.adapters import HamiltonTracker`, HamiltonTracker(username=..., project_id=..., dag_name=...) constructor kwargs, driver.Builder().with_modules(...).with_adapters(tracker).build() chain, dr.execute([nodes], inputs={...}). Module-level functions whose parameter names declare dependencies is the documented Hamilton idiom. Source: https://github.com/DAGWorks-Inc/hamilton",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "llm-as-judge",
+      "intent": "Score open-ended outputs against a rubric by prompting a separate judge model; structured score + rationale, calibrated periodically against human-graded samples.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: rubric-driven judge prompt, structured response, periodic human calibration.",
+          "code": "RUBRIC = [\n    {name: \"correctness\",  scale: 1..5},\n    {name: \"completeness\", scale: 1..5},\n    {name: \"faithfulness\", scale: 1..5},\n]\n\nfunction llm_judge(input, output, rubric=RUBRIC):\n    prompt = render(JUDGE_TEMPLATE, input=input, output=output, rubric=rubric)\n    verdict = judge_model.generate(           # different family vs candidate\n        prompt,\n        response_format=schema_of(rubric + [\"rationale\"]),\n    )\n    return parse(verdict)\n\nfunction calibrate(judge, human_graded_samples, threshold=0.8):\n    scores = [llm_judge(s.input, s.output) for s in human_graded_samples]\n    rho = correlation(scores, [s.human_score for s in human_graded_samples])\n    if rho < threshold:\n        alert(\"judge drifted; retune rubric or swap model\")\n    return rho",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "model-card",
+      "intent": "Versioned markdown document describing the agent's intended use, limitations, evaluation results, and risks; kept at a known path and updated alongside the agent.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton model card structure — markdown at a known repo path, versioned with the agent code.",
+          "code": "# MODEL_CARD.md  (lives next to the agent code, versioned in git)\n\nmodel_card:\n  name:    agent-name\n  version: 1.4.2\n  owner:   team@example.com\n\n  intended_use:\n    - <what this agent is for>\n  out_of_scope:\n    - <what it must not be used for>\n\n  data_and_training:\n    base_model:  <id and version>\n    fine_tuning: <yes/no + dataset summary + date>\n    prompts:     <link to prompt-registry version>\n\n  evaluation:\n    blocking_evals:  <link to dashboard + pass rates>\n    advisory_evals:  <link>\n    last_run:        <date>\n\n  limitations:\n    - <known weakness>\n  risks:\n    - <safety / fairness / compliance risk + mitigation>\n\n  contact: <on-call, security, regulator-of-record>\n\n# Treat edits to this file as architectural changes (CODEOWNERS).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-versioning",
+      "intent": "Prompts as immutable, hashed, semver'd artefacts in a registry; code pins by name+version, deploys and rolls back like code.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: registry-backed prompts retrieved by name+version, hashed on write, signable.",
+          "code": "# Registry semantics — backing store can be filesystem, S3, db, etc.\nfunction register(name, semver, source):\n    artefact = {\n        name:    name,\n        version: semver,             # \"1.4.0\"\n        hash:    sha256(source),\n        source:  source,\n        signed:  sign(source, key),  # optional provenance\n        created_at: now(),\n    }\n    if registry.exists(name, semver):\n        raise Immutable(name, semver)   # versions never change\n    registry.put(name, semver, artefact)\n    return artefact\n\nfunction get(name, semver):\n    return registry.get(name, semver)\n\n# Usage in code (no inline strings):\nPROMPT = get(\"answer-prompt\", \"1.4.0\")\nresponse = llm.generate(PROMPT.source.format(q=question))\n# Eval harness reports metric outcomes keyed by (name, version).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "provenance-ledger",
+      "intent": "Append-only log of every agent decision and state change, with enough metadata (actor, action, target, justification, diff hash) to explain or reverse it later.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: append-only ledger with required fields, rollback by id, schema-enforced writes.",
+          "code": "REQUIRED_FIELDS = [\"ts\", \"actor\", \"action\", \"target\",\n                   \"justification\", \"diff_hash\"]\n\nfunction append_event(event):\n    for f in REQUIRED_FIELDS:\n        if f not in event:\n            raise IncompleteEvent(missing=f)\n    event.id = monotonic_id()\n    ledger.append_immutable(event)         # append-only store\n    return event.id\n\nfunction rollback(event_id):\n    event = ledger.get(event_id)\n    inverse = compute_inverse(event)       # uses diff_hash + target\n    return append_event({\n        ts: now(),\n        actor: \"system:rollback\",\n        action: inverse.action,\n        target: event.target,\n        justification: f\"rollback of {event_id}\",\n        diff_hash: inverse.diff_hash,\n    })",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "replay-time-travel",
+      "intent": "Re-run a past agent trace from any step with modified inputs/prompts/tools to debug or branch. Per-step inputs and outputs are captured, and a replay tool re-runs forward from step N.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: load a trace, pick step N, override the input/prompt/tool, re-run forward, branch the result.",
+          "code": "function replay(trace_id, from_step, overrides={}):\n    trace = store.load(trace_id)\n    state = trace.steps[from_step].input_state\n    branch = new_trace(parent=trace_id, fork_at=from_step)\n\n    for i in from_step..len(trace.steps):\n        original = trace.steps[i]\n        step = apply_overrides(original, overrides.get(i))\n        # overrides may swap: model, prompt, tool result, etc.\n        result = step.execute(state)\n        branch.record(i, step, result)\n        state = state.apply(result)\n\n    return branch                      # stored alongside original for diff",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "Compile with a checkpointer; get_state_history lists all checkpoints, and invoking with a specific checkpoint_id re-runs forward (skipping prior nodes).",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from operator import add\nfrom typing import Annotated\nfrom typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\n\n\nclass S(TypedDict):\n    foo: str\n    bar: Annotated[list[str], add]\n\n\ndef node_a(state: S):\n    return {\"foo\": \"a\", \"bar\": [\"a\"]}\n\n\ndef node_b(state: S):\n    return {\"foo\": \"b\", \"bar\": [\"b\"]}\n\n\ng = StateGraph(S)\ng.add_node(node_a); g.add_node(node_b)\ng.add_edge(START, \"node_a\"); g.add_edge(\"node_a\", \"node_b\"); g.add_edge(\"node_b\", END)\ngraph = g.compile(checkpointer=InMemorySaver())\n\ncfg = {\"configurable\": {\"thread_id\": \"t-1\"}}\ngraph.invoke({\"foo\": \"\", \"bar\": []}, cfg)\n\n# Time-travel: list checkpoints, pick one before node_b, replay forward.\nhistory = list(graph.get_state_history(cfg))\nbefore_b = next(s for s in history if s.next == (\"node_b\",))\n\nbranch_cfg = {\n    \"configurable\": {\n        \"thread_id\": \"t-1\",\n        \"checkpoint_id\": before_b.config[\"configurable\"][\"checkpoint_id\"],\n    }\n}\ngraph.invoke(None, branch_cfg)        # re-runs node_b only",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: imports `from langgraph.graph import StateGraph, START, END`, `from langgraph.checkpoint.memory import InMemorySaver`, `from operator import add`, `from typing import Annotated`, `from typing_extensions import TypedDict`; TypedDict state with `Annotated[list[str], add]` reducer; workflow.add_node / add_edge; workflow.compile(checkpointer=InMemorySaver()); config = {'configurable': {'thread_id': ...}}; graph.invoke(state, config); graph.get_state_history(config) returning StateSnapshot objects with .next and .config; replay via {'configurable': {'thread_id': ..., 'checkpoint_id': ...}}; graph.invoke(None, branch_cfg) to re-run from a checkpoint. All elements documented on the cited page. Source: https://docs.langchain.com/oss/python/langgraph/persistence",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "burr",
+          "framework_label": "Burr",
+          "language": "python",
+          "intent": "Burr persists each application step via SQLLitePersister; initialize_from with fork_from_app_id and fork_from_sequence_id replays from a chosen point.",
+          "source_url": "https://burr.dagworks.io/concepts/state-persistence/",
+          "sdk_version": "burr>=0.30",
+          "code": "from burr.core import action, ApplicationBuilder, State\nfrom burr.core.persistence import SQLLitePersister\n\n\n@action(reads=[\"history\"], writes=[\"history\"])\ndef step(state: State) -> State:\n    return state.update(history=state[\"history\"] + [llm.next_thought()])\n\n\npersister = SQLLitePersister.from_values(db_path=\".burr.db\", table_name=\"runs\")\npersister.initialize()\n\n# Original run.\noriginal_id = \"run-A\"\napp = (\n    ApplicationBuilder()\n    .with_actions(step)\n    .with_transitions((\"step\", \"step\"))\n    .with_entrypoint(\"step\")\n    .with_state(history=[])\n    .with_state_persister(persister)\n    .with_identifiers(app_id=original_id)\n    .build()\n)\nfor _ in range(3):\n    app.step()\n\n# Replay: fork from run-A at sequence 1, re-run forward as run-B.\nbranch = (\n    ApplicationBuilder()\n    .with_actions(step)\n    .with_transitions((\"step\", \"step\"))\n    .initialize_from(\n        persister,\n        resume_at_next_action=True,\n        default_entrypoint=\"step\",\n        default_state={\"history\": []},\n        fork_from_app_id=original_id,\n        fork_from_sequence_id=1,\n    )\n    .with_state_persister(persister)\n    .with_identifiers(app_id=\"run-B\")\n    .build()\n)\nfor _ in range(3):\n    branch.step()",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core.persistence import SQLLitePersister` (double-L spelling, matching docs); SQLLitePersister.from_values(db_path=..., table_name=...); persister.initialize(); ApplicationBuilder().with_state_persister(state_persister); ApplicationBuilder().initialize_from(state_persister, resume_at_next_action=True, default_state={...}, default_entrypoint=...); fork_from_app_id and fork_from_sequence_id parameters documented as identifying the application and sequence to fork from. @action(reads=, writes=), state.update(...), with_actions/with_transitions/with_entrypoint/with_state/with_identifiers/build are standard Burr API used consistently with the persistence concept page's chatbot example. Source: https://burr.dagworks.io/concepts/state-persistence/",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "sandbox-escape-monitoring",
+      "intent": "Treat sandbox boundary violations as telemetry: log syscalls outside the allowed set, network egress off the allowlist, and filesystem writes outside the working directory; alert on threshold breaches.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: instrumented sandbox hooks classify each event, emit telemetry, halt on confirmed breach.",
+          "code": "ALLOWED_SYSCALLS = {\"read\", \"write\", \"openat\", \"close\", \"stat\"}\nEGRESS_ALLOWLIST = {\"api.openai.com\", \"127.0.0.1\"}\nWORKDIR          = \"/sandbox/agent-42\"\n\nfunction on_syscall(event):\n    if event.name not in ALLOWED_SYSCALLS:\n        emit(\"sandbox.escape\", {kind: \"syscall\", event: event})\n        breach_counter.inc()\n\nfunction on_network(event):\n    if event.host not in EGRESS_ALLOWLIST:\n        emit(\"sandbox.escape\", {kind: \"egress\", event: event})\n        breach_counter.inc()\n\nfunction on_fs_write(event):\n    if not event.path.starts_with(WORKDIR):\n        emit(\"sandbox.escape\", {kind: \"fs_write\", event: event})\n        breach_counter.inc()\n\nfunction alert_loop():\n    if breach_counter.value_in_window(\"1m\") > THRESHOLD:\n        kill_switch.trigger(reason=\"sandbox escape confirmed\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "scorer-live-monitoring",
+      "intent": "Score agent outputs asynchronously in production via non-blocking scorers that observe, alert, and log but do not regenerate the output.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: after responding, publish to a scoring stream; independent workers consume, score, and emit records — never regenerate in the user's path.",
+          "code": "function handle_request(request):\n    output = agent.run(request.input)\n    respond(request, output)              # user receives output here\n    scoring_stream.publish({\n        request_id: request.id,\n        input:      request.input,\n        output:     output,\n        context:    request.context,\n    })                                    # async, fire-and-forget\n\n# --- runs out-of-band ---\nfunction scorer_worker(scorers):\n    for msg in scoring_stream.consume():\n        for s in scorers:                 # judge LLM, regex, embedding-sim, ...\n            score = s.score(msg.input, msg.output, msg.context)\n            score_store.write({\n                request_id: msg.request_id,\n                scorer:     s.name,\n                score:      score.value,\n                evidence:   score.evidence,\n            })\n            if score.value < s.low_threshold:\n                review_queue.enqueue(msg.request_id)  # NOT regenerate",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "shadow-canary",
+      "intent": "Run a candidate agent version in shadow alongside champion; champion's output reaches the user, challenger's is only logged and diffed.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: dual-run with one user-visible path, async diff on metrics, promotion only on lift.",
+          "code": "function handle_request(request, champion, challenger, sample_rate=0.05):\n    champ_out = champion.run(request.input)\n    respond(request, champ_out)              # user sees ONLY champion\n\n    if rand() < sample_rate:\n        # run shadow off the user's critical path\n        spawn(async () -> {\n            chall_out = challenger.run(request.input)\n            diff = {\n                request_id: request.id,\n                judge_score: llm_judge(request.input, chall_out, champ_out),\n                tool_match:  champ_out.tool_calls == chall_out.tool_calls,\n                latency_d:   chall_out.latency - champ_out.latency,\n                cost_d:      chall_out.cost    - champ_out.cost,\n            }\n            shadow_metrics.write(diff)\n        })\n\nfunction promotion_decision(window):\n    m = shadow_metrics.aggregate(window)\n    return \"promote\" if m.judge_lift > 0 and m.cost_d <= 0 else \"hold\"",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

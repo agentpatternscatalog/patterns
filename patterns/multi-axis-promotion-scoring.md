@@ -11,11 +11,11 @@ Gate which short-term thoughts qualify for promotion to long-term insights by a 
 
 ## Context
 
-Agents with a tiered memory store (short-term thoughts moving toward long-term insights) where the question of which thought is worth keeping must have a defensible answer that survives sessions.
+A team is running an agent with a tiered memory: short-term thoughts that the agent generates continuously, and a long-term insight store that is supposed to hold only the things worth keeping forever. Something has to decide which short-term thoughts deserve promotion to the long-term tier, and that decision has to be defensible months later when someone asks why a particular insight made it in.
 
 ## Problem
 
-Pure recency promotes whatever is recent; pure frequency promotes whatever is repeated; both miss thoughts that survived a deep reflection pass. Without an explicit score, promotion becomes ad-hoc and drifts with the prompt of the day.
+Naive promotion rules each fail in a recognisable way. Promoting whatever is most recent fills the long-term store with whatever the agent happened to think about yesterday. Promoting whatever has been said most often rewards rumination loops that repeat without ever deepening. Both rules miss the thoughts that have actually survived a deep reflection pass and proved themselves through consolidation. Without an explicit scoring scheme, promotion decisions drift with whatever the prompt of the day emphasises.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent has been writing thoughts for months. Recency-only
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Short-term thought] --> Sc[Six-axis score:<br/>freq + rel + div +<br/>rec + cons + conc]
   Sc -->|>= threshold| Cand[Promotion candidate]
   Sc -->|< threshold| Stay[Stays short-term]

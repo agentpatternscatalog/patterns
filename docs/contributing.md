@@ -25,6 +25,16 @@ The `constrains` slot is required-by-convention even though the schema marks it 
 - "Step budget halts the loop after N tool calls regardless of progress."
 - "Frozen rubric forbids the reviewer model from inventing new finding categories."
 
+## 4. Every pattern is renderable as the 10-section reader view
+
+The Pages site renders every pattern as a fixed 10-section view with plain, numbered headers (Pattern Name, Problem, When to Use, When Not to Use, Architecture Diagram, Components, Tools, Guardrails, Failure Modes, Evaluation Metrics). The JSON keeps the canonical GoF/POSA slot names; the reader view projects them under plainer titles so anyone can scan any pattern the same way.
+
+Hard requirements (lint A16 fails the build): `intent`, `example_scenario`, `context`, `problem`, `applicability.use_when`, `applicability.do_not_use_when`, `diagram` (with `mermaid` source), `constrains`, and at least one entry between `consequences.liabilities` and `failure_modes`.
+
+Backfill in progress: `components`, `tools`, `evaluation_metrics`. New patterns should include these where applicable; A16 reports the catalog-wide gap as a single count line per missing section.
+
+See [`docs/schema.md`](schema.md#reader-view-10-section-template) for the slot-to-section mapping.
+
 ## Where catalog state lives
 
 Four files (or directories) hold all contributor-editable state. Pick the one that matches what you are doing.
@@ -32,10 +42,11 @@ Four files (or directories) hold all contributor-editable state. Pick the one th
 - `patterns-src/` — one JSON shard per category. Source of truth for every pattern. Validated against [`schema.json`](../schema.json).
 - `patterns/<id>.md` — one Markdown page per pattern, generated alongside the JSON entry.
 - `compositions-src/` — one JSON shard per composition family. Holds both `kind: recipe` (abstract design templates) and `kind: framework` (real shipping software, with per-pattern evidence). Validated against [`compositions.schema.json`](../compositions.schema.json).
+- `examples-src/` — one JSON shard per category. Source of truth for per-pattern code examples (pseudo-code + one entry per supporting framework). Code is embedded inline as a string; there are no separate `.py` / `.ts` files on disk. Validated against [`examples.schema.json`](../examples.schema.json). The HTML site renders each pattern's examples as a tabbed code panel.
 - `pattern-todo.json` — proposed pattern candidates that have not yet been authored. Validated against [`pattern-todo.schema.json`](../pattern-todo.schema.json).
 - `verification-todo.json` — per-aspect verification status for every pattern and composition. Validated against [`verification-todo.schema.json`](../verification-todo.schema.json).
 
-The built artefacts (`patterns.json`, `INDEX.md`, `patterns.graph.json`) are derived from `patterns-src/` and should not be hand-edited.
+The built artefacts (`patterns.json`, `examples.json`, `INDEX.md`, `patterns.graph.json`) are derived from `patterns-src/` and `examples-src/` and should not be hand-edited.
 
 ## Four ways to contribute
 
@@ -51,6 +62,23 @@ The built artefacts (`patterns.json`, `INDEX.md`, `patterns.graph.json`) are der
 ### B. Amend an existing pattern or composition
 
 PRs welcome for prose tightening, new Known Uses, corrected references, additional related-pattern edges, and added variants. Branch, commit, PR. Schema changes and category renames go through an issue first.
+
+### B'. Add or amend a code example
+
+Per-pattern code examples live in `examples-src/<category>.json` (mirrors `patterns-src/`). Each entry attaches a list of examples to a `pattern_id` that resolves in `patterns-src/`. Each example carries:
+
+- `framework` — `pseudo` for the language-agnostic skeleton, or a framework id that matches a `kind: framework` composition in `compositions-src/`.
+- `language`, `code`, `intent`, `source_url`, `sdk_version`.
+- `verified` — starts at `false`. Flip to `true` only after a human or CI has run/inspected the example against `source_url` at `sdk_version`, recording `verified_date` and (optionally) `verified_notes`.
+
+Authoring rules:
+
+- The `source_url` must be the canonical upstream doc the example mirrors — usually the same URL that already appears in `compositions-src/<…>.json` as the framework's evidence for this pattern.
+- Keep examples compact. One pattern per example, no composition. Composition belongs in `compositions-src/`.
+- Do not invent API shapes. If you cannot reach the linked source, do not ship the example.
+- No secrets. Placeholder strings (`"sk-..."`) for keys.
+
+The HTML site renders these as a tabbed Code Examples section on each pattern page; the markdown page renders them as sequential fenced blocks.
 
 ### C. Suggest a pattern without authoring it yet
 

@@ -11,11 +11,11 @@ Stream every model token to a tmp-plus-atomic-replace partial file so crashes mi
 
 ## Context
 
-Long-running agents on hardware that can crash (OOM kills, watchdog SIGKILL, deploys) where a lost mid-stream thought is hours of context. Agent-resumption handles process state; this handles the in-flight token stream itself.
+A team is running a long-lived agent on hardware that occasionally crashes: the out-of-memory killer takes the process, a watchdog timer issues a hard kill signal, a deploy restarts the container mid-stream. Per-call inference is long enough that losing a stream halfway through represents minutes of model time and meaningful context. Separately the agent already has a resumption pattern for process state, but that pattern only restores what was durably written before the crash, not the tokens that were streaming when it landed.
 
 ## Problem
 
-A SIGKILL during model streaming leaves the partial output in in-process memory only — total loss of seconds or minutes of inference. The next run has no idea anything was happening. Worse, the agent may later return to the topic with no awareness that a prior attempt died mid-sentence.
+When a hard kill arrives mid-stream, the partial output exists only in in-process memory and is lost completely. The next run sees no record that anything was happening, so it neither finishes the work nor warns the user about the gap. Worse, the agent may later return to the same topic with no awareness that a prior attempt died mid-sentence, and confidently begin again with no acknowledgement that a partial result might exist somewhere. Per-chunk fsync would solve durability but is too expensive to do on every token.
 
 ## Forces
 

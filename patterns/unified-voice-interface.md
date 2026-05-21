@@ -11,11 +11,11 @@ Expose text-to-speech, speech-to-text, and real-time speech-to-speech through a 
 
 ## Context
 
-Voice agents built on a fast-moving provider landscape (OpenAI realtime, Google, ElevenLabs, Deepgram, Azure, AWS, on-device) where capability and price shift faster than application code can be rewritten.
+A team is building a voice agent at a moment when the provider landscape is moving fast: OpenAI's realtime API, Google's voice models, ElevenLabs for text-to-speech (TTS), Deepgram for speech-to-text (STT), Azure, Amazon Web Services, and a growing set of on-device options. The agent needs some combination of three voice capabilities: TTS, which turns text into audio; STT, which turns audio into text; and real-time speech-to-speech (STS), which takes audio in and produces audio out without the round-trip through text. Capability, price, and quality shift between providers faster than the team can rewrite application code.
 
 ## Problem
 
-Per-provider voice SDKs differ in streaming chunk format, audio framing, lifecycle events, and TTS/STT versus realtime STS shape; coding the agent loop against one SDK ties the application to that vendor and forecloses cost or quality switches.
+Each provider ships its own software development kit, with its own streaming chunk format, its own audio framing, its own lifecycle events for things like "the user started talking" or "partial transcript ready", and its own way of exposing real-time speech-to-speech versus the older text-to-speech and speech-to-text shapes. Writing the agent loop directly against one of those kits binds the entire application to that vendor's release cadence and pricing, and forecloses a switch for cost, quality, latency, or feature reasons. The team needs one interface that spans all three modes and treats the provider as a configuration choice.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A consumer voice assistant team wants to ship realtime speech-to-speech on iOS, 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   L[Agent loop] --> V[Voice interface]
   V --> Cap[Capability flags<br/>tts / stt / sts]
   V --> A1[OpenAI realtime adapter]

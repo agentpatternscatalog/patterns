@@ -11,11 +11,11 @@ Anti-pattern: run the agent loop without a step budget and let model self-termin
 
 ## Context
 
-An agent is implemented as 'while not done' where 'done' is whatever the model says. The model rarely says done.
+A team has implemented an agent loop as 'keep iterating while the model says it is not done', with no external counter, timer, or cost cap to interrupt the loop from outside. The implicit assumption is that the model will say 'done' when the work is complete, and that this self-termination signal is reliable enough to drive the loop's exit.
 
 ## Problem
 
-The agent wanders, retries, or loops on errors. Cost is unbounded. User waits.
+In practice the model rarely declares itself done on hard tasks: it wanders into related questions, retries failed actions, or loops on errors without recognising that it is looping. With no external bound on iterations, total cost, or wall-clock time, the loop can run for hours and burn through significant budget before anyone notices. The user is left waiting while the agent grinds. Picking an exact cap is empirical and feels arbitrary, but no cap at all is worse: the agent will eventually be put in a state where it never terminates on its own, and unbounded cost is the result.
 
 ## Forces
 

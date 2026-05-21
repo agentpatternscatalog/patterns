@@ -11,11 +11,11 @@ Score agent outputs asynchronously in production with non-blocking scorers that 
 
 ## Context
 
-Production agent and workflow deployments where quality must be tracked on live traffic, but blocking the user response on a scoring call is unacceptable for latency or cost reasons.
+A team runs an agent that handles real user traffic and wants a continuous read on output quality, not just a snapshot at release time. The product has a tight latency budget — users will notice if every reply waits an extra second on a scoring model. Quality matters across several dimensions at once: helpfulness judged by another model, forbidden phrases checked programmatically, similarity to a curated reference, and rubric-based checks.
 
 ## Problem
 
-Pre-release evals (see eval-harness) cover known distributions, not live traffic; closed-loop evaluator-optimizer adds latency and re-runs the model on every request. There is no cheap way to keep a continuous read on production quality without either of those costs.
+Pre-release evaluations on a fixed held-out dataset only cover distributions the team thought of in advance and say nothing about what real traffic looks like today. Closed-loop approaches that re-run the model whenever a score is low double latency and cost for every request, even though most outputs are fine. The team is forced to choose between flying blind on live quality, paying the latency tax of inline scoring, or running expensive batch analyses long after the bad reply has already reached the user.
 
 ## Forces
 
@@ -58,7 +58,7 @@ A customer-support agent serves thousands of replies per hour. The team wants a 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Req[User request] --> Ag[Agent]
   Ag --> Reply[Reply to user]
   Ag --> Pub[(Scoring stream)]

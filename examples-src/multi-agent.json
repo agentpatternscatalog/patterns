@@ -1,0 +1,706 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "multi-agent",
+  "label": "Multi-Agent",
+  "patterns": [
+    {
+      "pattern_id": "actor-model-agents",
+      "intent": "Show each agent as an isolated actor with its own mailbox and local state, communicating only via message passing.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each actor owns a mailbox, runs messages in receive order, and never shares mutable state with peers.",
+          "code": "actor Agent(id, behaviour):\n    mailbox = Queue()           # private; only the runtime writes here\n    state   = behaviour.initial_state()\n\n    loop:\n        msg = mailbox.take()    # one message at a time, in receive order\n        match msg:\n            case Stop:\n                return\n            case _:\n                state = behaviour.handle(msg, state, send=send_to)\n        # peers cannot touch `state`; only handle() mutates it\n\nfunction send_to(target_id, msg):\n    runtime.deliver(target_id, msg)   # cross-process / cross-machine ok\n\n# supervision: on crash the runtime restarts the actor\n# with a fresh state but the same id and mailbox binding",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-as-tool-embedding",
+      "intent": "Show a sub-agent wrapped behind a function-shaped tool signature so the parent calls it like any other tool and never sees its internal turns.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: the sub-agent is a function the parent invokes as a tool; only its structured return crosses the boundary.",
+          "code": "function sub_agent(task: str) -> Result:\n    # fresh context, own model, own tool palette\n    messages = [system_prompt_for_role(\"researcher\")]\n    messages.append(user(task))\n    for step in 1..SUB_MAX_STEPS:\n        reply = sub_llm.generate(messages=messages, tools=SUB_TOOLS)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return Result(ok=True, value=reply.content)\n        for call in reply.tool_calls:\n            messages.append(tool_result(call.id, dispatch(call, SUB_TOOLS)))\n    return Result(ok=False, error=\"step budget exhausted\")\n\n# Parent exposes the sub-agent as just another tool\nparent = Agent(\n    prompt=PARENT_PROMPT,\n    tools=[search_web, sub_agent],   # <-- sub-agent IS a tool\n)\nparent.run(user_task)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "smolagents",
+          "framework_label": "smolagents",
+          "language": "python",
+          "intent": "managed_agents= wires a sub-agent as a callable team-member tool; the parent CodeAgent invokes it like any other function.",
+          "code": "from smolagents import CodeAgent, ToolCallingAgent, WebSearchTool, InferenceClientModel\n\nmodel = InferenceClientModel()\n\n# Sub-agent: its own model, prompt, and tool palette.\nresearch_agent = ToolCallingAgent(\n    tools=[WebSearchTool()],\n    model=model,\n    name=\"web_research_agent\",\n    description=(\n        \"Runs focused web research on a single question and returns a \"\n        \"compact summary. Call with a precise task string.\"\n    ),\n)\n\n# Parent: receives the sub-agent through managed_agents and calls it\n# exactly like a tool. The sub-agent's intermediate steps stay inside\n# its own run; only the returned summary is appended to parent context.\nmanager = CodeAgent(\n    tools=[],\n    model=model,\n    managed_agents=[research_agent],\n)\n\nmanager.run(\n    \"Find three recent papers on agentic patterns and list their titles.\"\n)",
+          "source_url": "https://huggingface.co/docs/smolagents/tutorials/building_good_agents",
+          "sdk_version": "smolagents>=1.0",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against docs.huggingface.co/docs/smolagents/tutorials/building_good_agents and the one-hop linked reference at docs.huggingface.co/docs/smolagents/v1.25.0/en/reference/agents: imports `from smolagents import CodeAgent, ToolCallingAgent, WebSearchTool, InferenceClientModel` all named on building_good_agents page (CodeAgent + InferenceClientModel + WebSearchTool shown in code samples; ToolCallingAgent linked); MultiStepAgent constructor (parent of CodeAgent and ToolCallingAgent) documents kwargs `tools`, `model`, `managed_agents`, `name`, `description` (the latter two `Necessary for a managed agent only`); CodeAgent/ToolCallingAgent inherit these via **kwargs per reference page; system prompt template explicitly iterates over `managed_agents.values()` and references `agent.name` and `agent.description` of each managed agent.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "autogen-conversational",
+      "intent": "Show two agents conversing turn by turn until a completion criterion fires; the conversation manager drives selection.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a manager picks the next speaker, the chosen agent emits a turn, and the loop runs until a termination predicate fires.",
+          "code": "agents = [assistant, user_proxy]   # each has prompt + allowed actions\ntranscript = [seed_message]\n\nfor turn in 1..MAX_TURNS:\n    speaker = manager.select_next(transcript, agents)   # round-robin /\n                                                        # rule / LLM-decided\n    reply   = speaker.respond(transcript)\n    transcript.append(reply)\n\n    if terminated(reply):                 # task complete, explicit STOP,\n        return finalise(transcript)       # or handoff back to human\n\nreturn finalise(transcript)               # bounded by MAX_TURNS",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen (0.2)",
+          "language": "python",
+          "intent": "AssistantAgent + UserProxyAgent driven by initiate_chat; the user proxy executes code, the assistant emits next turns, until termination.",
+          "code": "import os\nfrom autogen import AssistantAgent, UserProxyAgent\nfrom autogen.coding import DockerCommandLineCodeExecutor\n\nconfig_list = [{\"model\": \"gpt-4\", \"api_key\": os.environ[\"OPENAI_API_KEY\"]}]\n\nassistant = AssistantAgent(\n    name=\"assistant\",\n    llm_config={\"config_list\": config_list},\n)\n\ncode_executor = DockerCommandLineCodeExecutor()\nuser_proxy = UserProxyAgent(\n    name=\"user_proxy\",\n    code_execution_config={\"executor\": code_executor},\n)\n\n# Turn-by-turn conversation; AutoGen's manager decides who speaks next.\n# The chat ends on the configured termination message or max turns.\nuser_proxy.initiate_chat(\n    assistant,\n    message=(\n        \"What is today's date? Which big tech stock has the largest \"\n        \"year-to-date gain this year? How much is the gain?\"\n    ),\n)",
+          "source_url": "https://microsoft.github.io/autogen/0.2/docs/Use-Cases/agent_chat",
+          "sdk_version": "pyautogen>=0.2",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against microsoft.github.io/autogen/0.2/docs/Use-Cases/agent_chat: imports `from autogen import AssistantAgent, UserProxyAgent` and `from autogen.coding import DockerCommandLineCodeExecutor` confirmed; AssistantAgent(name=, llm_config={'config_list': ...}) signature confirmed; UserProxyAgent(name=, code_execution_config={'executor': code_executor}) signature confirmed; DockerCommandLineCodeExecutor() constructor confirmed; user_proxy.initiate_chat(assistant, message=...) method signature confirmed on page in the same example.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "blackboard",
+      "intent": "Show a shared, structured workspace that multiple agents read from and write to under typed keys.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a shared keyed store with optional event notification; each agent reads its slice and writes its contribution.",
+          "code": "blackboard = Store()              # file / DB / in-memory; keyed by panel\n\nfunction agent_loop(role, panels_read, panel_write, policy):\n    subscribe(panels_read, on_change=wake)\n    while not done:\n        wait_for_wake_or_tick()\n        inputs = {p: blackboard.read(p) for p in panels_read}\n        contribution = role.think(inputs)\n        if contribution is not None:\n            blackboard.write(\n                key=panel_write,\n                value=contribution,\n                policy=policy,          # last-write-wins / version-vector\n            )                           # / append-only\n\n# multiple agents run agent_loop concurrently, coordinating only\n# through reads and writes on the shared blackboard\nspawn(agent_loop(\"parser\",   [\"raw\"],       \"facts\",     APPEND_ONLY))\nspawn(agent_loop(\"planner\",  [\"facts\"],     \"plan\",      LWW))\nspawn(agent_loop(\"executor\", [\"plan\"],      \"results\",   APPEND_ONLY))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "camel-role-playing",
+      "intent": "Show two agents — an AI-User and an AI-Assistant — role-playing a task with fixed inception prompts until the task is done.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: two role-fixed agents converse; the assistant message at termination is the output.",
+          "code": "ai_user      = Agent(prompt=inception_user(role=\"product_manager\",\n                                          task=TASK))\nai_assistant = Agent(prompt=inception_assistant(role=\"python_programmer\",\n                                                 task=TASK))\n\ntranscript = []\nmessage    = ai_user.first_instruction(TASK)\n\nfor turn in 1..MAX_TURNS:\n    reply = ai_assistant.respond(message, transcript)\n    transcript.append((ai_assistant, reply))\n    if task_done(reply):\n        return reply                         # final assistant message wins\n\n    message = ai_user.next_instruction(reply, transcript)\n    transcript.append((ai_user, message))\n    if task_done(message):\n        return last_assistant_message(transcript)\n\nreturn abort(\"budget exhausted\")            # bounded by MAX_TURNS",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "camel-ai",
+          "framework_label": "CAMEL",
+          "language": "python",
+          "intent": "RolePlaying ties an AI-User and AI-Assistant to fixed roles and a task; the loop steps each side until termination.",
+          "code": "from camel.societies import RolePlaying\nfrom camel.types import TaskType\n\nrole_play = RolePlaying(\n    assistant_role_name=\"Python Programmer\",\n    user_role_name=\"Stock Trader\",\n    task_prompt=\"Develop a trading bot for the stock market.\",\n    with_task_specify=True,\n    task_type=TaskType.AI_SOCIETY,\n)\n\ninput_msg = role_play.init_chat()\n\nfor turn in range(20):\n    assistant_response, user_response = role_play.step(input_msg)\n    if assistant_response.terminated or user_response.terminated:\n        break\n    if \"CAMEL_TASK_DONE\" in user_response.msg.content:\n        break\n    input_msg = assistant_response.msg\n\nprint(assistant_response.msg.content)",
+          "source_url": "https://github.com/camel-ai/camel",
+          "sdk_version": "camel-ai>=0.2",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against source at github.com/camel-ai/camel/blob/master/camel/societies/role_playing.py (linked from README): class RolePlaying with kwargs assistant_role_name, user_role_name, task_prompt, with_task_specify, task_type confirmed; methods init_chat() and step() returning Tuple[ChatAgentResponse, ChatAgentResponse] confirmed; ChatAgentResponse has .terminated bool and .msg property (returns single msg when msgs has length 1) at camel/responses/agent_responses.py; TaskType import from camel.types confirmed at line 17 of role_playing.py."
+        },
+        {
+          "framework": "crewai",
+          "framework_label": "CrewAI",
+          "language": "python",
+          "intent": "Two role-paired Agents share a Task; the framework runs them turn-by-turn until the expected_output is met.",
+          "code": "from crewai import Agent, Crew, Task\n\nai_user = Agent(\n    role=\"Stock Trader\",\n    goal=\"Specify exactly what the trading bot must do, one step at a time.\",\n    backstory=\"You are a seasoned trader who wants a Python bot built for you.\",\n    allow_delegation=False,\n)\n\nai_assistant = Agent(\n    role=\"Python Programmer\",\n    goal=\"Implement what the trader asks for, asking clarifications only when blocked.\",\n    backstory=\"You are a senior Python engineer fluent in trading libraries.\",\n    allow_delegation=False,\n)\n\nbuild_bot = Task(\n    description=(\n        \"Role-play a trader-and-programmer collaboration to build a stock \"\n        \"trading bot. The trader instructs; the programmer implements.\"\n    ),\n    expected_output=\"A runnable Python trading bot, with brief comments.\",\n    agent=ai_assistant,\n)\n\ncrew = Crew(agents=[ai_user, ai_assistant], tasks=[build_bot])\nresult = crew.kickoff()\nprint(result)",
+          "source_url": "https://github.com/crewAIInc/crewAI",
+          "sdk_version": "crewai>=0.80",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/crewAIInc/crewAI: `from crewai import Agent, Crew, Task` confirmed; Agent kwargs role, goal, backstory, allow_delegation, tools confirmed in README examples; Task kwargs description, expected_output, agent confirmed; Crew(agents=, tasks=) and crew.kickoff() confirmed in main.py example."
+        }
+      ]
+    },
+    {
+      "pattern_id": "chat-chain",
+      "intent": "Show an ordered chain of phases; each phase pairs two roles in a chat until a phase-completion predicate fires, passing a typed artefact downstream.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: phases are macro-control, paired-role chats are micro-control; each phase emits a typed artefact for the next.",
+          "code": "phases = [\n    Phase(\"design\",   pair=(designer, coder),  done=design_signed_off,\n          artefact=\"design.md\"),\n    Phase(\"code\",     pair=(coder, tester),    done=tests_pass,\n          artefact=\"src/\"),\n    Phase(\"docs\",     pair=(writer, reviewer), done=review_signed_off,\n          artefact=\"README.md\"),\n]\n\nartefact = initial_brief\nfor phase in phases:\n    transcript = []\n    a, b = phase.pair\n    for turn in 1..PHASE_MAX_TURNS:\n        msg_a = a.respond(artefact, transcript);  transcript.append(msg_a)\n        msg_b = b.respond(artefact, transcript);  transcript.append(msg_b)\n        if phase.done(transcript):\n            break\n    artefact = extract_artefact(transcript, phase.artefact)   # typed output\n\nreturn artefact",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "communicative-dehallucination",
+      "intent": "Show an assistant that, when its instruction is missing deciding context, reverses roles and asks the instructor for the missing detail before answering.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: detect missing context, reverse roles to ask one focused question, then answer; bound by reversal depth.",
+          "code": "function answer(instruction, instructor, depth=0):\n    plan = assistant.analyse(instruction)\n\n    if plan.is_missing_deciding_context() and depth < MAX_REVERSALS:\n        # role reversal: assistant becomes the asker\n        question = assistant.formulate_one_question(plan.gap)\n        clarification = instructor.answer(question)\n\n        # recurse with augmented instruction, capped by depth\n        return answer(\n            instruction=instruction + clarification,\n            instructor=instructor,\n            depth=depth + 1,\n        )\n\n    # either no gap, or depth budget reached; commit to an answer\n    return assistant.produce_conclusion(instruction, plan)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cross-domain-agent-network",
+      "intent": "Show domain-specialised agents (each grounded in its own system of record) exchanging typed artefacts through a standardised inter-agent protocol.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: one specialised agent per domain, routing via a standardised protocol envelope with typed payloads.",
+          "code": "domain_agents = {\n    \"finance\":      Agent(prompt=FIN_PROMPT,      tools=erp_tools),\n    \"supply_chain\": Agent(prompt=SCM_PROMPT,      tools=wms_tools),\n    \"hr\":           Agent(prompt=HR_PROMPT,       tools=hris_tools),\n    \"service\":      Agent(prompt=SERVICE_PROMPT,  tools=ticketing_tools),\n}\n\nfunction dispatch(envelope):\n    # envelope = {from, to, intent, payload_schema, payload, trace_id}\n    target = domain_agents[envelope.to]\n    validate(envelope.payload, envelope.payload_schema)   # A2A / MCP-style\n    return target.handle(envelope)\n\nfunction router(user_request):\n    entry_domain = classify_domain(user_request)\n    artefact = domain_agents[entry_domain].handle(\n        Envelope(to=entry_domain, intent=\"answer\", payload=user_request))\n    while artefact.requires_handoff:\n        artefact = dispatch(artefact.next_envelope)\n    return artefact.value",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "debate",
+      "intent": "Show multiple agents arguing distinct positions over N rounds; a judge agent or tie-break rule selects or synthesises the final answer.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: assign positions, run N exchange rounds, then let a judge pick or synthesise.",
+          "code": "debaters = [\n    Agent(prompt=position_prompt(\"PRO\",     question)),\n    Agent(prompt=position_prompt(\"CON\",     question)),\n    Agent(prompt=position_prompt(\"NUANCE\",  question)),    # optional\n]\njudge = Agent(prompt=JUDGE_PROMPT)\n\ntranscript = []\nfor round in 1..N_ROUNDS:\n    for d in debaters:\n        turn = d.argue(question, transcript)\n        transcript.append((d.position, turn))\n\nverdict = judge.decide(question, transcript)   # pick or synthesise\nreturn verdict.answer, verdict.rationale",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dynamic-expert-recruitment",
+      "intent": "Show a recruiter agent generating the team at run time, the team executing, and the recruiter mutating composition between iterations based on evaluation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: draft team for this task, execute, evaluate, mutate team for the next iteration; recruiter is the only meta-agent that mutates composition.",
+          "code": "recruiter = Agent(prompt=RECRUITER_PROMPT)\nreviewer  = Agent(prompt=REVIEWER_PROMPT)\n\nteam = recruiter.draft_team(goal)            # roles invented for THIS goal\nplan = recruiter.draft_plan(goal, team)\n\nfor iteration in 1..MAX_ITERATIONS:\n    artefacts = execute(plan, team)\n    review    = reviewer.score(goal, artefacts)\n\n    if review.is_satisfactory:\n        return finalise(artefacts)\n\n    # recruiter is the ONLY meta-agent that mutates team composition\n    team, plan = recruiter.adjust(\n        team=team,\n        plan=plan,\n        review=review,                       # add / remove / replace roles\n    )\n\nreturn escalate(\"recruitment budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "group-chat-manager",
+      "intent": "Show a manager that owns the transcript and decides which participant speaks next on each turn; it also enforces termination.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: manager appends each new message, calls select_next, invokes the chosen participant, and enforces a termination predicate.",
+          "code": "class Manager:\n    transcript = []\n    participants = [...]\n\n    function select_next(transcript, participants) -> Participant:\n        # variants: round-robin, rule-based, model-decided\n        ...\n\n    function run(seed_message):\n        transcript.append(seed_message)\n        for turn in 1..TURN_CAP:\n            speaker = select_next(transcript, participants)\n            reply   = speaker.respond(transcript)\n            transcript.append(reply)\n\n            if reply == STOP or content_predicate(reply):\n                return finalise(transcript)\n\n        return finalise(transcript)        # enforced turn cap",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "handoff",
+      "intent": "Show one agent transferring the active conversation to another with a carried context summary, plus a loop-detection guard.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a handoff tool transfers control plus a context summary; the new agent continues; thrash is bounded.",
+          "code": "function handoff(target_agent, summary, original_messages):\n    return Handoff(\n        next=target_agent,\n        carry=summary + original_messages,\n    )\n\nactive = entry_agent\nseen_chain = []                       # for loop detection\n\nfor step in 1..MAX_HOPS:\n    reply = active.step(carry)\n    if isinstance(reply, Handoff):\n        if reply.next in seen_chain[-LOOP_WINDOW:]:\n            return escalate(\"handoff loop detected\")\n        seen_chain.append(active)\n        active = reply.next\n        carry  = reply.carry\n        continue\n\n    if reply.is_final:\n        return reply.content\n\nreturn escalate(\"hop budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Agent.handoffs= declares targets; the SDK exposes them to the LLM as transfer_to_<agent> tool calls.",
+          "code": "import asyncio\nfrom agents import Agent, Runner, handoff\n\nbilling_agent = Agent(\n    name=\"Billing agent\",\n    instructions=\"Resolve billing questions; ask for invoice id if missing.\",\n)\n\nrefund_agent = Agent(\n    name=\"Refund agent\",\n    instructions=\"Process refund requests against the latest invoice.\",\n)\n\n# handoffs= takes Agent instances or handoff(...) objects;\n# the SDK turns them into transfer_to_<agent_name> tool calls.\ntriage_agent = Agent(\n    name=\"Triage agent\",\n    instructions=(\n        \"Classify the user's request and hand off to billing or refund. \"\n        \"Do not answer billing or refund questions directly.\"\n    ),\n    handoffs=[billing_agent, handoff(refund_agent)],\n)\n\n\nasync def main():\n    result = await Runner.run(\n        triage_agent,\n        \"I was charged twice and want a refund for the duplicate.\",\n    )\n    print(result.final_output)\n\n\nasyncio.run(main())",
+          "source_url": "https://openai.github.io/openai-agents-python/handoffs/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: `from agents import Agent, handoff` imports, Agent(name=, instructions=, handoffs=[...]) with handoffs accepting both Agent instances and handoff(...) objects (verbatim example on page: `handoffs=[billing_agent, handoff(refund_agent)]`), Runner.run referenced in page text, result.final_output reachable via one-hop link to the Results page named in the handoff page navigation. Source: https://openai.github.io/openai-agents-python/handoffs/",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "A transfer_to_<agent> @tool returns a Command that updates messages and routes to the target node; Command.PARENT scopes the goto to the parent graph.",
+          "code": "from langchain.tools import tool, ToolRuntime\nfrom langchain.messages import ToolMessage\nfrom langgraph.types import Command\n\n\n@tool\ndef transfer_to_specialist(runtime: ToolRuntime) -> Command:\n    \"\"\"Transfer the conversation to the specialist agent.\"\"\"\n    # Pair the tool call with a ToolMessage so message history stays valid.\n    ack = ToolMessage(\n        content=\"Transferred to specialist\",\n        tool_call_id=runtime.tool_call_id,\n    )\n    return Command(\n        goto=\"specialist\",\n        update={\"messages\": [ack], \"current_step\": \"specialist\"},\n        graph=Command.PARENT,\n    )\n\n# The generalist exposes the handoff as a tool. When the LLM calls it,\n# LangGraph routes to the specialist node carrying the message history.\n# Loop detection lives in the supervising graph (turn cap on the loop).",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs",
+          "sdk_version": "langchain>=1.0, langgraph>=0.3",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from langchain.tools import tool, ToolRuntime`, `from langchain.messages import ToolMessage`, `from langgraph.types import Command`; @tool decorator on a function with `runtime: ToolRuntime` parameter returning Command; Command(goto=..., update={...}, graph=Command.PARENT); runtime.tool_call_id used in ToolMessage(tool_call_id=...); update dict carries messages list. All verbatim in the page's multi-agent handoff example. Source: https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen (Swarm)",
+          "language": "python",
+          "intent": "AssistantAgent.handoffs= lists target names; Swarm + HandoffTermination drive transfer until a handoff back to the user.",
+          "code": "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_agentchat.conditions import HandoffTermination, TextMentionTermination\nfrom autogen_agentchat.teams import Swarm\nfrom autogen_agentchat.ui import Console\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\n\n\ndef refund_flight(flight_id: str) -> str:\n    return f\"refunded {flight_id}\"\n\n\nasync def main():\n    model_client = OpenAIChatCompletionClient(model=\"gpt-4o\")\n\n    travel_agent = AssistantAgent(\n        \"travel_agent\",\n        model_client=model_client,\n        handoffs=[\"flights_refunder\", \"user\"],\n        system_message=\"You triage travel issues; hand off to refunds or user.\",\n    )\n    flights_refunder = AssistantAgent(\n        \"flights_refunder\",\n        model_client=model_client,\n        handoffs=[\"travel_agent\", \"user\"],\n        tools=[refund_flight],\n        system_message=\"Specialised in refunding flights.\",\n    )\n\n    termination = (\n        HandoffTermination(target=\"user\") | TextMentionTermination(\"TERMINATE\")\n    )\n    team = Swarm(\n        [travel_agent, flights_refunder],\n        termination_condition=termination,\n    )\n    await Console(team.run_stream(task=\"I need to refund my flight.\"))\n    await model_client.close()\n\n\nasyncio.run(main())",
+          "source_url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/swarm.html",
+          "sdk_version": "autogen-agentchat>=0.4",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from autogen_agentchat.agents import AssistantAgent`, `from autogen_agentchat.conditions import HandoffTermination, TextMentionTermination`, `from autogen_agentchat.teams import Swarm`, `from autogen_agentchat.ui import Console`, `from autogen_ext.models.openai import OpenAIChatCompletionClient`; AssistantAgent(name, model_client=, handoffs=[...], tools=[...], system_message=); HandoffTermination(target=\"user\") composed via `|` with TextMentionTermination(\"TERMINATE\"); Swarm([...], termination_condition=); `await Console(team.run_stream(task=...))`; `await model_client.close()`. All verbatim on page. Source: https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/swarm.html",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hierarchical-agents",
+      "intent": "Show a tree of agents where managers decompose tasks for children (specialists or further managers) and results bubble up; depth and breadth are bounded.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each non-leaf decomposes and dispatches; leaves do work; results bubble up to the parent; depth and breadth are capped.",
+          "code": "function run_agent(node, task, depth=0):\n    if depth >= MAX_DEPTH or node.is_leaf:\n        return node.do_work(task)\n\n    subtasks = node.decompose(task)            # manager LLM call\n    if len(subtasks) > MAX_BREADTH:\n        subtasks = subtasks[:MAX_BREADTH]\n\n    children_results = []\n    for sub in subtasks:\n        child = pick_child(node.children, sub.role)\n        result = run_agent(child, sub.task, depth + 1)\n        children_results.append(result)\n\n    return node.synthesise(task, children_results)   # manager aggregates\n\nrun_agent(root_manager, user_task)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph (langgraph-supervisor)",
+          "language": "python",
+          "intent": "A supervisor whose children are themselves supervisors creates a two-level hierarchy; each layer decomposes and dispatches downward.",
+          "code": "from langchain_openai import ChatOpenAI\nfrom langgraph.prebuilt import create_react_agent\nfrom langgraph_supervisor import create_supervisor\n\nmodel = ChatOpenAI(model=\"gpt-4o\")\n\n\ndef search(query: str) -> str:\n    \"\"\"Web search.\"\"\"\n    ...\n\n\ndef summarise(text: str) -> str:\n    \"\"\"Compress to a section.\"\"\"\n    ...\n\n# Leaf workers.\nsearcher = create_react_agent(\n    model=model, tools=[search], name=\"searcher\",\n    prompt=\"You run one focused search and return findings.\",\n)\nwriter = create_react_agent(\n    model=model, tools=[summarise], name=\"writer\",\n    prompt=\"You compress findings into a section.\",\n)\n\n# Mid-level manager: owns the research team.\nresearch_team = create_supervisor(\n    [searcher, writer], model=model,\n    prompt=\"You manage the research team. Decompose and dispatch.\",\n).compile(name=\"research_team\")\n\n# Top-level manager: dispatches to the research team (and could dispatch\n# to a sibling team). Hierarchy = supervisor of supervisors.\ntop = create_supervisor(\n    [research_team], model=model,\n    prompt=\"You are the top-level manager. Delegate to research_team.\",\n)\napp = top.compile()",
+          "source_url": "https://github.com/langchain-ai/langgraph-supervisor-py",
+          "sdk_version": "langgraph-supervisor>=0.0.10",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/langchain-ai/langgraph-supervisor-py: imports `from langchain_openai import ChatOpenAI`, `from langgraph.prebuilt import create_react_agent`, `from langgraph_supervisor import create_supervisor` all in quickstart; create_react_agent(model=, tools=, name=, prompt=) signature confirmed; create_supervisor([agents], model=, prompt=) confirmed; the README explicitly demonstrates the hierarchical (supervisor-of-supervisors) pattern via `research_team = create_supervisor([...]).compile(name='research_team')` then `top_level_supervisor = create_supervisor([research_team, ...])`; `.compile(name=...)` kwarg confirmed in that hierarchical example.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "inner-committee",
+      "intent": "Show a single agent loop stepping through distinct personas (planner, executor, critic), each seeing only the inputs its role needs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: one model, multiple personas; the loop rotates personas at fixed points with scoped inputs per role.",
+          "code": "personas = {\n    \"planner\":  SystemPrompt(PLANNER),\n    \"executor\": SystemPrompt(EXECUTOR),\n    \"critic\":   SystemPrompt(CRITIC),\n}\n\nstate = {\"task\": user_task}\n\nfor step in 1..MAX_STEPS:\n    plan   = llm.complete(personas[\"planner\"],\n                          inputs={\"task\": state[\"task\"]})\n    action = llm.complete(personas[\"executor\"],\n                          inputs={\"plan\": plan, \"obs\": state.get(\"obs\")})\n    obs    = environment.step(action)\n    state[\"obs\"] = obs\n\n    verdict = llm.complete(personas[\"critic\"],\n                           inputs={\"action\": action, \"obs\": obs})\n    if verdict.is_done:\n        return synthesise(state)\n    if verdict.requires_replan:\n        state[\"task\"] = verdict.refined_task\n\nreturn abort(\"committee budget exhausted\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "inter-agent-communication",
+      "intent": "Show agents exchanging typed messages across process or vendor boundaries via a standardised protocol — capability advertisement, delegation, result return.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: capability registry, typed envelope (intent + payload + auth), and a delegate/return cycle.",
+          "code": "registry = CapabilityRegistry()\nregistry.advertise(\"finance.invoice.lookup\", agent_id=\"finance-1\",\n                   schema=InvoiceLookupSchema, auth=ScopeBilling)\nregistry.advertise(\"shipping.eta.lookup\", agent_id=\"shipping-1\",\n                   schema=ETALookupSchema, auth=ScopeShipping)\n\nfunction delegate(intent, payload, caller_token):\n    target = registry.lookup(intent)\n    envelope = Envelope(\n        intent=intent, payload=payload,\n        schema=target.schema, auth=caller_token,\n    )\n    validate(envelope)\n    return target.send(envelope).await_response()\n\n# caller agent\nresult = delegate(\n    intent=\"finance.invoice.lookup\",\n    payload={\"invoice_id\": \"INV-42\"},\n    caller_token=current_user_token,\n)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "metagpt",
+          "framework_label": "MetaGPT",
+          "language": "python",
+          "intent": "Roles subscribe via _watch() and publish via env.publish_message(); cause_by routes a message to interested subscribers.",
+          "code": "from metagpt.actions import Action, UserRequirement\nfrom metagpt.environment import Environment\nfrom metagpt.roles import Role\nfrom metagpt.schema import Message\n\n\nclass SplitTask(Action):\n    async def run(self, with_messages, **kwargs):\n        return [\"subtask-a\", \"subtask-b\"]\n\n\nclass DoSubtask(Action):\n    async def run(self, with_messages, **kwargs):\n        return f\"done: {with_messages[-1].content}\"\n\n\nclass Planner(Role):\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n        self.set_actions([SplitTask])\n        self._watch({UserRequirement})              # subscribe\n\n    async def _act(self) -> Message:\n        subtasks = await self.rc.todo.run(self.rc.history)\n        for s in subtasks:\n            self.rc.env.publish_message(           # publish\n                Message(content=s, cause_by=SplitTask)\n            )\n        return Message(content=\"dispatched\")\n\n\nclass Worker(Role):\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n        self.set_actions([DoSubtask])\n        self._watch({SplitTask})                    # subscribes by cause_by\n\n\nenv = Environment()\nenv.add_roles([Planner(), Worker()])\nenv.publish_message(Message(content=\"build a 2048 game\"))",
+          "source_url": "https://docs.deepwisdom.ai/main/en/guide/in_depth_guides/agent_communication.html",
+          "sdk_version": "metagpt>=0.8",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against docs.deepwisdom.ai/main/en/guide/in_depth_guides/agent_communication.html: imports metagpt.actions.Action, metagpt.actions.UserRequirement, metagpt.environment.Environment, metagpt.roles.Role, metagpt.schema.Message all named on page; Action.run signature with `with_messages: List[Message]=None, **kwargs` confirmed for AgentA/B/C/DAction; Role.set_actions(), Role._watch(), Environment.add_roles(), Environment.publish_message() confirmed; Message(content=, cause_by=) shown in code samples."
+        },
+        {
+          "framework": "pocketflow",
+          "framework_label": "PocketFlow",
+          "language": "python",
+          "intent": "AsyncNode agents share an asyncio.Queue passed through params; senders put, receivers get — peers communicate only through the queue.",
+          "code": "import asyncio\nfrom pocketflow import AsyncNode, AsyncFlow\n\n\nclass AgentNode(AsyncNode):\n    async def prep_async(self, _):\n        message_queue = self.params[\"messages\"]\n        message = await message_queue.get()\n        print(f\"agent received: {message}\")\n        return message\n\n\nasync def send_system_messages(queue):\n    counter = 0\n    msgs = [\"status: ok\", \"memory: normal\", \"network: stable\"]\n    while True:\n        await queue.put(f\"{msgs[counter % len(msgs)]} | t={counter}\")\n        counter += 1\n        await asyncio.sleep(1)\n\n\nasync def main():\n    agent = AgentNode()\n    agent >> agent                                 # loop back to self\n    flow = AsyncFlow(start=agent)\n\n    queue = asyncio.Queue()\n    flow.set_params({\"messages\": queue})\n\n    await asyncio.gather(\n        flow.run_async({}),\n        send_system_messages(queue),\n    )\n\n\nasyncio.run(main())",
+          "source_url": "https://the-pocket.github.io/PocketFlow/design_pattern/multi_agent.html",
+          "sdk_version": "pocketflow>=0.0.2",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against the-pocket.github.io/PocketFlow/design_pattern/multi_agent.html: `from pocketflow import AsyncNode, AsyncFlow` confirmed; AsyncNode subclass with async prep_async(self, _) and self.params['messages'] usage shown; AsyncFlow(start=agent) and flow.set_params({...}) and flow.run_async(shared) confirmed; self-loop `agent >> agent  # connect to self` operator explicitly shown."
+        }
+      ]
+    },
+    {
+      "pattern_id": "lead-researcher",
+      "intent": "Show a lead agent planning parallel research questions, dispatching sub-agents fanned out for breadth, and synthesising returned findings.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: plan parallel subqueries, fan out to sub-agents, synthesise; spawn more if synthesis reveals gaps.",
+          "code": "lead = Agent(prompt=LEAD_PROMPT)\n\nfunction lead_research(query):\n    subqueries = lead.plan_parallel_subqueries(query)\n    findings   = run_in_parallel(           # breadth-first fan-out\n        [research_subagent(sq) for sq in subqueries]\n    )\n\n    for round in 1..MAX_REPLAN_ROUNDS:\n        synthesis = lead.synthesise(query, findings)\n        if not synthesis.has_gaps:\n            return synthesis.answer\n        # gap-driven follow-up: spawn more sub-agents\n        gap_subqueries = lead.plan_gap_subqueries(synthesis.gaps)\n        findings += run_in_parallel(\n            [research_subagent(sq) for sq in gap_subqueries]\n        )\n\n    return lead.synthesise(query, findings).answer\n\nfunction research_subagent(subquery):\n    # fresh context, web tools, returns structured findings\n    return Agent(prompt=SEARCH_PROMPT, tools=web_tools).run(subquery)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "orchestrator-workers",
+      "intent": "Show an orchestrator deciding subtasks at runtime, dispatching to workers, and synthesising the returned results — distinct from a static pipeline.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: decompose at runtime, fan out to workers, then synthesise — worker count varies per input.",
+          "code": "function orchestrator(task):\n    # decomposition is decided after we see the task,\n    # not pre-baked in a static plan\n    subtasks = llm.decompose(task)          # returns list of {goal, role}\n    if not subtasks:\n        return llm.answer(task)\n\n    results = []\n    for sub in subtasks:                    # could be fan-out in parallel\n        worker = spawn_worker(role=sub.role, tools=tools_for(sub.role))\n        results.append(worker.run(sub.goal))\n\n    return llm.synthesise(task, results)    # orchestrator reconciles\n\n# workers never see the global task; only their assigned subtask\nfunction spawn_worker(role, tools):\n    return Agent(prompt=role_prompt(role), tools=tools, max_steps=15)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "crewai",
+          "framework_label": "CrewAI (hierarchical)",
+          "language": "python",
+          "intent": "Process.hierarchical with manager_llm makes the crew's manager decide subtasks at runtime and delegate to worker agents; planning=True lets it re-plan.",
+          "source_url": "https://docs.crewai.com/en/concepts/crews",
+          "sdk_version": "crewai>=0.80",
+          "code": "from crewai import Agent, Crew, Process, Task\n\nresearcher = Agent(\n    role=\"Researcher\",\n    goal=\"Gather facts the manager asks for.\",\n    backstory=\"Senior analyst, comfortable with web research.\",\n)\n\nwriter = Agent(\n    role=\"Writer\",\n    goal=\"Turn researcher findings into a section the manager asked for.\",\n    backstory=\"Technical writer.\",\n)\n\n# Tasks describe the GOAL, not the steps; the manager decomposes at runtime.\nresearch_task = Task(\n    description=\"Investigate the topic and return key findings.\",\n    expected_output=\"A bulleted list of grounded facts with sources.\",\n    agent=researcher,\n)\n\nwriting_task = Task(\n    description=\"Compose a short report from the researcher's findings.\",\n    expected_output=\"A 300-word markdown report.\",\n    agent=writer,\n)\n\ncrew = Crew(\n    agents=[researcher, writer],\n    tasks=[research_task, writing_task],\n    # Hierarchical: a manager agent (driven by manager_llm) plans subtasks\n    # at runtime and delegates to the workers above.\n    process=Process.hierarchical,\n    manager_llm=\"gpt-4o\",\n    planning=True,\n)\n\nresult = crew.kickoff(inputs={\"topic\": \"agentic patterns in 2026\"})\nprint(result)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed on the Crews concept page: Agent(role=, goal=, backstory=); Task(description=, expected_output=, agent=); Crew(agents=, tasks=, process=) with `manager_llm` and `planning` listed in the Crew attributes table; Process.hierarchical described under the execution-process section; `crew.kickoff(inputs={\"any\": \"input here\"})` shown verbatim. Source: https://docs.crewai.com/en/concepts/crews",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph (langgraph-supervisor)",
+          "language": "python",
+          "intent": "create_supervisor used as an orchestrator: workers expose narrow tool palettes, the supervisor decides who runs and synthesises the answer.",
+          "source_url": "https://github.com/langchain-ai/langgraph-supervisor-py",
+          "sdk_version": "langgraph-supervisor>=0.0.10",
+          "code": "from langchain_openai import ChatOpenAI\nfrom langgraph.prebuilt import create_react_agent\nfrom langgraph_supervisor import create_supervisor\n\nmodel = ChatOpenAI(model=\"gpt-4o\")\n\n\ndef web_search(query: str) -> str:\n    \"\"\"Search the open web for a focused subquery.\"\"\"\n    ...\n\n\ndef summarise(text: str) -> str:\n    \"\"\"Compress a worker artefact into a section.\"\"\"\n    ...\n\n\nresearcher = create_react_agent(\n    model=model,\n    tools=[web_search],\n    name=\"researcher\",\n    prompt=\"You answer ONE focused research subquery the orchestrator gives you.\",\n)\n\nwriter = create_react_agent(\n    model=model,\n    tools=[summarise],\n    name=\"writer\",\n    prompt=\"You compress findings into the section the orchestrator asked for.\",\n)\n\n# Orchestrator role: decides at runtime what subqueries to spawn and how\n# many writer passes are needed, then synthesises the final answer.\norchestrator = create_supervisor(\n    [researcher, writer],\n    model=model,\n    prompt=(\n        \"You are an orchestrator. Break the user's task into focused \"\n        \"subqueries, dispatch each to researcher or writer, and synthesise \"\n        \"a single coherent answer.\"\n    ),\n)\n\napp = orchestrator.compile()\nout = app.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Brief me on agentic patterns 2026\"}]}\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from langchain_openai import ChatOpenAI`, `from langgraph.prebuilt import create_react_agent`, `from langgraph_supervisor import create_supervisor`; create_react_agent(model=, tools=, name=, prompt=); create_supervisor([...], model=, prompt=); .compile() returns app and app.invoke({\"messages\": [...]}) all documented on the README. Source: https://github.com/langchain-ai/langgraph-supervisor-py",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "autogen",
+          "framework_label": "AutoGen (Magentic-One)",
+          "language": "python",
+          "intent": "MagenticOneGroupChat's orchestrator maintains a plan over a heterogeneous worker pool (web surfer, file surfer, coder, terminal) and dispatches per step.",
+          "source_url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/magentic-one.html",
+          "sdk_version": "autogen-agentchat>=0.4, autogen-ext[magentic-one,openai]",
+          "code": "import asyncio\nfrom autogen_agentchat.agents import CodeExecutorAgent\nfrom autogen_agentchat.teams import MagenticOneGroupChat\nfrom autogen_agentchat.ui import Console\nfrom autogen_ext.agents.file_surfer import FileSurfer\nfrom autogen_ext.agents.magentic_one import MagenticOneCoderAgent\nfrom autogen_ext.agents.web_surfer import MultimodalWebSurfer\nfrom autogen_ext.code_executors.local import LocalCommandLineCodeExecutor\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\n\n\nasync def main() -> None:\n    model_client = OpenAIChatCompletionClient(model=\"gpt-4o\")\n\n    # Heterogeneous worker pool, each with its own narrow capability.\n    web_surfer = MultimodalWebSurfer(\"WebSurfer\", model_client=model_client)\n    file_surfer = FileSurfer(\"FileSurfer\", model_client=model_client)\n    coder = MagenticOneCoderAgent(\"Coder\", model_client=model_client)\n    terminal = CodeExecutorAgent(\n        \"ComputerTerminal\",\n        code_executor=LocalCommandLineCodeExecutor(),\n    )\n\n    # The Magentic-One orchestrator owns the plan and decides which worker\n    # runs next based on what the task currently needs.\n    team = MagenticOneGroupChat(\n        [web_surfer, file_surfer, coder, terminal],\n        model_client=model_client,\n    )\n\n    await Console(team.run_stream(task=\"Find and summarise recent agent papers\"))\n    await model_client.close()\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from autogen_agentchat.agents import CodeExecutorAgent`, `from autogen_agentchat.teams import MagenticOneGroupChat`, `from autogen_agentchat.ui import Console`, `from autogen_ext.agents.file_surfer import FileSurfer`, `from autogen_ext.agents.magentic_one import MagenticOneCoderAgent`, `from autogen_ext.agents.web_surfer import MultimodalWebSurfer`, `from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor`, `from autogen_ext.models.openai import OpenAIChatCompletionClient`; constructors MagenticOneGroupChat([agents], model_client=), MultimodalWebSurfer(name, model_client=), FileSurfer(name, model_client=), MagenticOneCoderAgent(name, model_client=), CodeExecutorAgent(name, code_executor=LocalCommandLineCodeExecutor()); `await Console(team.run_stream(task=...))` and `await model_client.close()`. All confirmed on the Magentic-One page. Source: https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/magentic-one.html",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "rl-conductor-orchestrator",
+      "intent": "Show a small RL-trained conductor model dispatching sub-tasks to a pool of frontier workers, with bounded recursion (the conductor may invoke itself as a worker).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: small conductor emits (sub_task, worker_choice); worker runs; conductor decides next; reward shapes the policy.",
+          "code": "# Inference loop (the conductor has already been RL-trained)\nfunction conductor_run(task, depth=0):\n    history = [task]\n    for step in 1..STEP_BUDGET:\n        sub_task, worker_id = conductor.policy(history)   # small RL model\n\n        if worker_id == \"FINAL\":\n            return conductor.finalise(history)\n\n        if worker_id == \"CONDUCTOR\" and depth < MAX_RECURSION:\n            output = conductor_run(sub_task, depth + 1)   # self as worker\n        else:\n            output = WORKER_POOL[worker_id].run(sub_task)\n\n        history.append({\"sub_task\": sub_task,\n                        \"worker\":   worker_id,\n                        \"output\":   output})\n\n    return conductor.finalise(history)\n\n# Training (sketch): reward = task_success - cost_per_step\n#   update conductor.policy with PPO / GRPO over rollouts of conductor_run",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "role-assignment",
+      "intent": "Show each agent assigned a named role with a role-specific prompt, tool palette, and acceptance criteria for its outputs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: define roles with prompt + tool palette + acceptance criteria; assign tasks to roles; gate outputs against criteria.",
+          "code": "roles = {\n    \"researcher\": Role(\n        prompt=RESEARCH_PROMPT,\n        tools=[web_search, read_pdf],\n        accepts=lambda out: has_sources(out) and out.length > 200,\n    ),\n    \"writer\": Role(\n        prompt=WRITER_PROMPT,\n        tools=[summarise],\n        accepts=lambda out: word_count(out) in 250..400,\n    ),\n    \"critic\": Role(\n        prompt=CRITIC_PROMPT,\n        tools=[],\n        accepts=lambda out: out.verdict in {\"approve\", \"revise\"},\n    ),\n}\n\nfunction run_task(role_name, input):\n    role = roles[role_name]\n    output = Agent(prompt=role.prompt, tools=role.tools).run(input)\n    assert role.accepts(output), f\"{role_name} output failed acceptance\"\n    return output",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "crewai",
+          "framework_label": "CrewAI",
+          "language": "python",
+          "intent": "Each Agent declares role, goal, backstory, and tools; Tasks bind a role to expected_output (the acceptance criterion).",
+          "code": "from crewai import Agent, Crew, Task\nfrom crewai_tools import SerperDevTool\n\nresearcher = Agent(\n    role=\"Researcher\",\n    goal=\"Gather grounded facts for the writer.\",\n    backstory=\"Senior analyst comfortable with web research.\",\n    tools=[SerperDevTool()],\n    allow_delegation=False,\n)\n\nwriter = Agent(\n    role=\"Writer\",\n    goal=\"Compose a 300-word section from the researcher's findings.\",\n    backstory=\"Technical writer with a knack for clarity.\",\n    allow_delegation=False,\n)\n\nresearch_task = Task(\n    description=\"Investigate {topic} and return key findings with sources.\",\n    expected_output=\"A bulleted list of grounded facts with source URLs.\",\n    agent=researcher,\n)\n\nwriting_task = Task(\n    description=\"Compose a 300-word section from the researcher's findings.\",\n    expected_output=\"A 300-word markdown section, sources cited inline.\",\n    agent=writer,\n)\n\ncrew = Crew(\n    agents=[researcher, writer],\n    tasks=[research_task, writing_task],\n)\nresult = crew.kickoff(inputs={\"topic\": \"agentic patterns 2026\"})\nprint(result)",
+          "source_url": "https://github.com/crewAIInc/crewAI",
+          "sdk_version": "crewai>=0.80",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/crewAIInc/crewAI: Agent/Crew/Task imports confirmed; Agent kwargs role, goal, backstory, allow_delegation, tools=[SerperDevTool()] confirmed; `from crewai_tools import SerperDevTool` confirmed in README; Task description/expected_output/agent kwargs confirmed; Crew(agents=, tasks=).kickoff(inputs={...}) pattern confirmed."
+        },
+        {
+          "framework": "metagpt",
+          "framework_label": "MetaGPT",
+          "language": "python",
+          "intent": "Role subclasses bind a named role to its actions; the SoftwareCompany / Team assembles them into the named-role pipeline.",
+          "code": "import asyncio\nfrom metagpt.actions import Action\nfrom metagpt.roles import Role\nfrom metagpt.schema import Message\nfrom metagpt.team import Team\n\n\nclass DraftFindings(Action):\n    name: str = \"DraftFindings\"\n    async def run(self, with_messages, **kwargs):\n        topic = with_messages[-1].content\n        return f\"findings about {topic}: ...\"\n\n\nclass WriteSection(Action):\n    name: str = \"WriteSection\"\n    async def run(self, with_messages, **kwargs):\n        return f\"section drafted from: {with_messages[-1].content}\"\n\n\nclass Researcher(Role):\n    name: str = \"Researcher\"\n    profile: str = \"Senior analyst\"\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n        self.set_actions([DraftFindings])\n\n\nclass Writer(Role):\n    name: str = \"Writer\"\n    profile: str = \"Technical writer\"\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n        self.set_actions([WriteSection])\n        self._watch([DraftFindings])\n\n\nasync def main():\n    team = Team()\n    team.hire([Researcher(), Writer()])\n    team.run_project(\"agentic patterns 2026\")\n    await team.run(n_round=3)\n\n\nasyncio.run(main())",
+          "source_url": "https://github.com/geekan/MetaGPT",
+          "sdk_version": "metagpt>=0.8",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/geekan/MetaGPT and linked docs at docs.deepwisdom.ai/main/en/guide/tutorials/multi_agent_101.html (one hop from README): `from metagpt.team import Team`, Team.hire([roles]), Team.run_project(idea), await team.run(n_round=...) all documented in multi_agent_101 tutorial; Role class with `name: str` and `profile: str` attrs, set_actions(), _watch() confirmed; Action subclass with async def run() confirmed; `with_messages` parameter for Action.run confirmed at agent_communication.html (also one hop)."
+        }
+      ]
+    },
+    {
+      "pattern_id": "sop-encoded-multi-agent",
+      "intent": "Show a human SOP encoded as fixed roles, ordered phases, and typed artefacts; agents communicate through artefacts, not free-form chat.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: fixed roles, ordered phases, typed artefacts; a shared message pool with subscription filter routes only relevant context.",
+          "code": "roles = {\n    \"pm\":       Role(prompt=PM_PROMPT,       tools=PM_TOOLS),\n    \"architect\":Role(prompt=ARCH_PROMPT,     tools=ARCH_TOOLS),\n    \"engineer\": Role(prompt=ENG_PROMPT,      tools=ENG_TOOLS),\n    \"tester\":   Role(prompt=TEST_PROMPT,     tools=TEST_TOOLS),\n}\n\nphases = [\n    Phase(\"prd\",     role=\"pm\",        in_type=Idea,    out_type=PRD),\n    Phase(\"design\",  role=\"architect\", in_type=PRD,     out_type=Design),\n    Phase(\"code\",    role=\"engineer\",  in_type=Design,  out_type=Code),\n    Phase(\"test\",    role=\"tester\",    in_type=Code,    out_type=TestPlan),\n]\n\nbus = MessagePool()\nartefact = Idea(user_input)\nfor phase in phases:\n    relevant = bus.subscribe(filter=phase.in_type)   # SOP-scoped\n    artefact = roles[phase.role].run(artefact, context=relevant)\n    assert isinstance(artefact, phase.out_type)      # typed contract\n    bus.publish(artefact)\nreturn artefact",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "metagpt",
+          "framework_label": "MetaGPT",
+          "language": "python",
+          "intent": "MetaGPT's SoftwareCompany encodes PRD -> Design -> Code -> Test as a fixed SOP across named roles; the framework's tagline is Code = SOP(Team).",
+          "code": "from metagpt.software_company import generate_repo\nfrom metagpt.utils.project_repo import ProjectRepo\n\n# Code = SOP(Team): the human SOP (PM -> Architect -> Engineer -> Tester)\n# is baked into the framework. Each role consumes a typed artefact from\n# the previous phase and emits one for the next. Agents never free-form\n# chat across phase boundaries; they exchange documents.\nrepo: ProjectRepo = generate_repo(\"Create a 2048 game\")\nprint(repo)\n\n# Under the hood:\n#   ProductManager      -> PRD\n#   Architect           -> Design doc\n#   ProjectManager      -> task list\n#   Engineer            -> code\n#   QaEngineer          -> test plan\n# Each phase boundary is a typed artefact in the shared message pool.",
+          "source_url": "https://github.com/geekan/MetaGPT",
+          "sdk_version": "metagpt>=0.8",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/geekan/MetaGPT: imports `from metagpt.software_company import generate_repo` and `from metagpt.utils.project_repo import ProjectRepo` confirmed verbatim in the README quick-start; generate_repo(idea: str) -> ProjectRepo signature confirmed with the README's `repo: ProjectRepo = generate_repo(\"Create a 2048 game\"); print(repo)` example; ProjectRepo type referenced as the return type representing the generated repo structure.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "subagent-isolation",
+      "intent": "Show a sub-agent running in its own context with its own tool palette, so only its final structured result crosses the boundary back to the parent.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: the parent calls the sub-agent like a function; the sub's intermediate turns stay sealed behind the return value.",
+          "code": "function sub_agent(task, tools, max_steps):\n    # fresh context: no parent transcript leaks in\n    messages = [system_prompt_for(task)]\n    for step in 1..max_steps:\n        reply = llm.generate(messages=messages, tools=tools)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return Result(ok=True, value=reply.content)\n        for call in reply.tool_calls:\n            messages.append(tool_result(call.id, dispatch(call, tools)))\n    return Result(ok=False, error=\"step budget exhausted\")\n\nfunction parent():\n    # parent sees only the structured return; no intermediate turns\n    findings = sub_agent(\n        task=\"audit auth module for security issues\",\n        tools=[Read, Grep, Glob],            # restricted palette\n        max_steps=20,\n    )\n    return summarise(findings)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "AgentDefinition with a restricted tools list; the parent's allowed_tools must include 'Agent' so Claude delegates via the Agent tool.",
+          "source_url": "https://docs.claude.com/en/docs/agent-sdk/subagents",
+          "sdk_version": "claude-agent-sdk>=0.1",
+          "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition\n\n\nasync def main():\n    async for message in query(\n        prompt=\"Review the authentication module for security issues\",\n        options=ClaudeAgentOptions(\n            # Agent tool is required so the parent can invoke subagents\n            allowed_tools=[\"Read\", \"Grep\", \"Glob\", \"Agent\"],\n            agents={\n                \"code-reviewer\": AgentDefinition(\n                    description=(\n                        \"Expert code review specialist. Use for quality, \"\n                        \"security, and maintainability reviews.\"\n                    ),\n                    prompt=(\n                        \"You are a code review specialist. Identify \"\n                        \"vulnerabilities and suggest concrete fixes.\"\n                    ),\n                    # restricted palette: read-only, no Edit / Bash\n                    tools=[\"Read\", \"Grep\", \"Glob\"],\n                    model=\"sonnet\",\n                ),\n            },\n        ),\n    ):\n        # Only the subagent's final message returns to the parent;\n        # its intermediate tool calls never enter parent context.\n        if hasattr(message, \"result\"):\n            print(message.result)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against docs.claude.com/en/docs/agent-sdk/subagents (redirects to code.claude.com/docs/en/agent-sdk/subagents): `from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition` confirmed in Python code sample; `allowed_tools=['Read', 'Grep', 'Glob', 'Agent']` with Agent tool requirement confirmed in prose and code; `agents={'code-reviewer': AgentDefinition(description=, prompt=, tools=, model='sonnet')}` confirmed; AgentDefinition fields description (required), prompt (required), tools, model documented in configuration table; `if hasattr(message, 'result'): print(message.result)` pattern shown verbatim."
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph (handoffs)",
+          "language": "python",
+          "intent": "Command(goto=..., graph=Command.PARENT) transfers control to a named subgraph; each agent runs in its own node with its own tools.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs",
+          "sdk_version": "langchain>=1.0, langgraph>=0.3",
+          "code": "from langchain.agents import create_agent\nfrom langchain.messages import AIMessage, ToolMessage\nfrom langchain.tools import tool, ToolRuntime\nfrom langgraph.types import Command\n\n\n@tool\ndef transfer_to_research(runtime: ToolRuntime) -> Command:\n    \"\"\"Transfer control to the research subagent.\"\"\"\n    last_ai = next(\n        m for m in reversed(runtime.state[\"messages\"]) if isinstance(m, AIMessage)\n    )\n    ack = ToolMessage(\n        content=\"Transferred to research agent\",\n        tool_call_id=runtime.tool_call_id,\n    )\n    # Command.PARENT scopes the goto to the parent graph;\n    # the research node runs in isolation with its own tools.\n    return Command(\n        goto=\"research_agent\",\n        update={\"active_agent\": \"research_agent\", \"messages\": [last_ai, ack]},\n        graph=Command.PARENT,\n    )\n\n\nresearch_agent = create_agent(\n    model=\"openai:gpt-4o-mini\",\n    tools=[...],  # research-only palette\n    system_prompt=\"You are a research subagent. Return only your final findings.\",\n)\n\nsupervisor = create_agent(\n    model=\"openai:gpt-4o-mini\",\n    tools=[transfer_to_research],\n    system_prompt=\"Delegate research subtasks; never do them yourself.\",\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against docs.langchain.com/oss/python/langchain/multi-agent/handoffs: imports `from langchain.agents import create_agent`, `from langchain.messages import AIMessage, ToolMessage`, `from langchain.tools import tool, ToolRuntime`, `from langgraph.types import Command` all named on page; `Command(goto=, update=, graph=Command.PARENT)` syntax confirmed in subgraph handoff example; `@tool` decorator with `runtime: ToolRuntime` parameter pattern confirmed; ToolRuntime.tool_call_id and ToolRuntime.state documented at docs.langchain.com/oss/python/langchain/tools (one hop)."
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Handoff transfers control to a sub-agent whose tools list is restricted; the sub-agent's turns are scoped to its own run.",
+          "source_url": "https://openai.github.io/openai-agents-python/agents/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "code": "import asyncio\nfrom agents import Agent, Runner, function_tool\n\n\n@function_tool\ndef read_file(path: str) -> str:\n    \"\"\"Read a file (read-only tool exposed to the reviewer subagent only).\"\"\"\n    return open(path).read()\n\n\n# Subagent: restricted palette, isolated instructions.\ncode_reviewer = Agent(\n    name=\"CodeReviewer\",\n    instructions=(\n        \"You review code for security issues. Use only read-only tools \"\n        \"and return a concise structured finding list.\"\n    ),\n    tools=[read_file],\n)\n\n# Parent does not inherit the reviewer's tools; it can only hand off.\nparent = Agent(\n    name=\"Parent\",\n    instructions=(\n        \"For any code review request, hand off to CodeReviewer. \"\n        \"Do not attempt the review yourself.\"\n    ),\n    handoffs=[code_reviewer],\n)\n\n\nasync def main():\n    # Only the reviewer's final output crosses back into the parent's run.\n    result = await Runner.run(parent, \"Review auth.py for vulnerabilities\")\n    print(result.final_output)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against openai.github.io/openai-agents-python/agents/: imports `Agent, Runner, function_tool` from `agents` package confirmed; Agent kwargs name (required), instructions, tools, handoffs documented in constructor params list; handoffs=[sub_agent] pattern confirmed with triage_agent example; `await Runner.run(agent, input)` signature confirmed; `result.final_output` attribute shown; `@function_tool` decorator documented."
+        }
+      ]
+    },
+    {
+      "pattern_id": "supervisor",
+      "intent": "Show a coordinating agent above a fixed set of specialised lanes that own their own prompt and tools, with the supervisor doing classification, dispatch, and aggregation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: classify the request, dispatch to the matching specialist, and let the supervisor decide whether to escalate or respond.",
+          "code": "specialists = {\n    \"billing\":   Agent(prompt=BILLING_PROMPT,   tools=[lookup_invoice, issue_refund]),\n    \"technical\": Agent(prompt=TECH_PROMPT,      tools=[search_kb, open_ticket]),\n    \"sales\":     Agent(prompt=SALES_PROMPT,     tools=[quote, schedule_call]),\n}\n\nfunction supervisor(request):\n    for step in 1..MAX_HOPS:\n        lane = classify(request)               # supervisor LLM call\n        if lane == \"answer_directly\":\n            return supervisor_reply(request)\n\n        result = specialists[lane].run(request)\n        if result.is_resolved:\n            return result.message              # supervisor aggregates / forwards\n\n        request = result.followup              # supervisor may re-dispatch\n\n    return escalate_to_human(request)          # bounded by MAX_HOPS",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph (langgraph-supervisor)",
+          "language": "python",
+          "intent": "create_supervisor wires a coordinating agent above two create_react_agent specialists; the compiled graph routes messages between them.",
+          "source_url": "https://github.com/langchain-ai/langgraph-supervisor-py",
+          "sdk_version": "langgraph-supervisor>=0.0.10",
+          "code": "from langchain_openai import ChatOpenAI\nfrom langgraph.prebuilt import create_react_agent\nfrom langgraph_supervisor import create_supervisor\n\nmodel = ChatOpenAI(model=\"gpt-4o\")\n\n\ndef lookup_invoice(invoice_id: str) -> str:\n    \"\"\"Return invoice status for a billing question.\"\"\"\n    ...\n\n\ndef search_kb(query: str) -> str:\n    \"\"\"Search the technical knowledge base.\"\"\"\n    ...\n\n\nbilling_agent = create_react_agent(\n    model=model,\n    tools=[lookup_invoice],\n    name=\"billing_agent\",\n    prompt=\"You handle billing questions. Use lookup_invoice for invoice issues.\",\n)\n\ntech_agent = create_react_agent(\n    model=model,\n    tools=[search_kb],\n    name=\"tech_agent\",\n    prompt=\"You handle technical support. Use search_kb to ground answers.\",\n)\n\nworkflow = create_supervisor(\n    [billing_agent, tech_agent],\n    model=model,\n    prompt=(\n        \"You are a customer-support supervisor. Classify the request and \"\n        \"delegate to billing_agent or tech_agent. Aggregate or escalate.\"\n    ),\n)\n\napp = workflow.compile()\nresult = app.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Why was I charged twice?\"}]}\n)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/langchain-ai/langgraph-supervisor-py: `from langchain_openai import ChatOpenAI`, `from langgraph_supervisor import create_supervisor`, `from langgraph.prebuilt import create_react_agent` all confirmed in quickstart; create_react_agent(model=, tools=, name=, prompt=) signature confirmed; create_supervisor([agents], model=, prompt=) confirmed; workflow.compile() and app.invoke({'messages': [{'role': 'user', 'content': ...}]}) pattern confirmed."
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "AgentWorkflow with two FunctionAgent specialists and a root agent that classifies and hands off; can_handoff_to declares the supervisor's dispatch graph.",
+          "source_url": "https://developers.llamaindex.ai/python/framework/understanding/agent/multi_agent/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import AgentWorkflow, FunctionAgent\nfrom llama_index.llms.openai import OpenAI\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\n\nasync def lookup_invoice(invoice_id: str) -> str:\n    \"\"\"Return invoice status for a billing question.\"\"\"\n    ...\n\n\nasync def search_kb(query: str) -> str:\n    \"\"\"Search the technical knowledge base.\"\"\"\n    ...\n\n\nsupervisor = FunctionAgent(\n    name=\"Supervisor\",\n    description=\"Classifies the request and hands off to a specialist.\",\n    system_prompt=\"Route billing questions to BillingAgent, tech to TechAgent.\",\n    llm=llm,\n    tools=[],\n    can_handoff_to=[\"BillingAgent\", \"TechAgent\"],\n)\n\nbilling = FunctionAgent(\n    name=\"BillingAgent\",\n    description=\"Handles billing questions.\",\n    system_prompt=\"You handle billing. Use lookup_invoice.\",\n    llm=llm,\n    tools=[lookup_invoice],\n)\n\ntech = FunctionAgent(\n    name=\"TechAgent\",\n    description=\"Handles technical support.\",\n    system_prompt=\"You handle technical support. Use search_kb.\",\n    llm=llm,\n    tools=[search_kb],\n)\n\nworkflow = AgentWorkflow(\n    agents=[supervisor, billing, tech],\n    root_agent=supervisor.name,\n)\n\n\nasync def main():\n    response = await workflow.run(user_msg=\"Why was I charged twice?\")\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against developers.llamaindex.ai/python/framework/understanding/agent/multi_agent/: `from llama_index.core.agent.workflow import AgentWorkflow, FunctionAgent` confirmed; FunctionAgent kwargs name, description, system_prompt, llm, tools, can_handoff_to all confirmed in ResearchAgent example; AgentWorkflow(agents=[...], root_agent=...) confirmed; `await agent_workflow.run(user_msg=...)` confirmed; OpenAI llm import path shown."
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "The supervisor is an Agent whose handoffs= list names its specialists; Runner.run drives classification and dispatch.",
+          "source_url": "https://openai.github.io/openai-agents-python/agents/",
+          "sdk_version": "openai-agents>=0.0.10",
+          "code": "import asyncio\nfrom agents import Agent, Runner, function_tool\n\n\n@function_tool\ndef lookup_invoice(invoice_id: str) -> str:\n    \"\"\"Return invoice status for a billing question.\"\"\"\n    return f\"invoice {invoice_id}: paid\"\n\n\n@function_tool\ndef search_kb(query: str) -> str:\n    \"\"\"Search the technical knowledge base.\"\"\"\n    return f\"kb hits for {query}\"\n\n\nbilling_agent = Agent(\n    name=\"BillingAgent\",\n    instructions=\"Handle billing questions. Use lookup_invoice.\",\n    tools=[lookup_invoice],\n)\n\ntech_agent = Agent(\n    name=\"TechAgent\",\n    instructions=\"Handle technical support. Use search_kb.\",\n    tools=[search_kb],\n)\n\nsupervisor = Agent(\n    name=\"Supervisor\",\n    instructions=(\n        \"Classify the request and hand off to BillingAgent or TechAgent. \"\n        \"Aggregate the result; do not answer directly outside your lanes.\"\n    ),\n    handoffs=[billing_agent, tech_agent],\n)\n\n\nasync def main():\n    result = await Runner.run(supervisor, \"Why was I charged twice?\")\n    print(result.final_output)\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against openai.github.io/openai-agents-python/agents/: imports `Agent, Runner, function_tool` from `agents` confirmed; Agent kwargs name, instructions, tools, handoffs confirmed in constructor params list; @function_tool decorator documented; handoffs=[billing_agent, tech_agent] pattern matches triage_agent example shown on page; `await Runner.run(supervisor, input)` and `result.final_output` confirmed."
+        }
+      ]
+    },
+    {
+      "pattern_id": "swarm",
+      "intent": "Show peer agents interacting without a central supervisor; convergence is emergent and termination is environment-level.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: peers run on a shared bus with their own goals; no coordinator, environment-level termination.",
+          "code": "bus = MessageBus()\npeers = [Agent(prompt=PROMPTS[i], policy=POLICIES[i]) for i in range(N)]\n\nfor p in peers:\n    spawn(peer_loop(p, bus))\n\nfunction peer_loop(agent, bus):\n    while not environment.terminated():\n        msg = bus.recv(filter=agent.subscriptions)\n        action = agent.policy.decide(msg, agent.state)\n        bus.send(action)\n        agent.state = agent.policy.update(agent.state, action, msg)\n\n# termination is environment-level\nfunction environment.terminated():\n    return (time_budget_exceeded()\n            or consensus_reached(bus.recent())\n            or external_stop_signal())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph (langgraph-swarm)",
+          "language": "python",
+          "intent": "create_swarm wires peer agents that hand off to each other via create_handoff_tool; no central supervisor — control flows peer-to-peer.",
+          "code": "from langchain_openai import ChatOpenAI\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langchain.agents import create_agent\nfrom langgraph_swarm import create_handoff_tool, create_swarm\n\nmodel = ChatOpenAI(model=\"gpt-4o\")\n\nalice = create_agent(\n    model,\n    tools=[\n        create_handoff_tool(agent_name=\"Bob\", description=\"Transfer to Bob\"),\n    ],\n    system_prompt=\"You are Alice, an addition expert.\",\n    name=\"Alice\",\n)\n\nbob = create_agent(\n    model,\n    tools=[\n        create_handoff_tool(agent_name=\"Alice\", description=\"Transfer to Alice\"),\n    ],\n    system_prompt=\"You are Bob; you speak like a pirate.\",\n    name=\"Bob\",\n)\n\ncheckpointer = InMemorySaver()\nworkflow = create_swarm([alice, bob], default_active_agent=\"Alice\")\napp = workflow.compile(checkpointer=checkpointer)\n\nconfig = {\"configurable\": {\"thread_id\": \"1\"}}\nresult = app.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"I'd like to speak to Bob.\"}]},\n    config,\n)",
+          "source_url": "https://github.com/langchain-ai/langgraph-swarm-py",
+          "sdk_version": "langgraph-swarm>=0.0.5",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified 2026-05-21 against README at github.com/langchain-ai/langgraph-swarm-py: imports `from langchain_openai import ChatOpenAI`, `from langgraph.checkpoint.memory import InMemorySaver`, `from langchain.agents import create_agent`, `from langgraph_swarm import create_handoff_tool, create_swarm` all confirmed on page; create_handoff_tool(agent_name=, description=) kwargs confirmed; create_agent(model, tools=, system_prompt=, name=) signature confirmed; create_swarm([agents], default_active_agent=) signature confirmed; workflow.compile(checkpointer=) and app.invoke({'messages': [...]}, config) with thread_id pattern confirmed verbatim.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "topic-based-routing",
+      "intent": "Show inter-agent messaging routed through named topics; agents publish and subscribe by topic, not by peer id.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: typed topics; publish/subscribe by topic name; runtime fans out to subscribers and applies back-pressure.",
+          "code": "topics = {\n    \"telemetry.parsed\": Topic(schema=ParsedTelemetry,\n                              guarantee=\"at-least-once\"),\n    \"incident.opened\": Topic(schema=Incident,\n                             guarantee=\"exactly-once\"),\n    \"plan.proposed\":   Topic(schema=Plan,\n                             guarantee=\"at-most-once\"),\n}\n\nfunction publish(topic_name, msg):\n    topics[topic_name].schema.validate(msg)\n    for subscriber in topics[topic_name].subscribers:\n        subscriber.mailbox.put(msg, backpressure=topics[topic_name].guarantee)\n\nfunction subscribe(agent, topic_name):\n    topics[topic_name].subscribers.append(agent)\n\n# agents declare topic dependencies, not peer ids\nsubscribe(parser_agent,    \"telemetry.raw\")\nsubscribe(planner_agent,   \"telemetry.parsed\")\nsubscribe(executor_agent,  \"plan.proposed\")\nsubscribe(observer_agent,  \"incident.opened\")\n\nparser_agent.on_message = lambda raw: publish(\n    \"telemetry.parsed\", parse(raw)\n)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "voting-based-cooperation",
+      "intent": "Show a coordinator collecting candidate answers, presenting them as a ballot to voter agents, and tallying — majority, average, or weighted.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: workers propose candidates; voters score the ballot; coordinator tallies and finalises with an auditable record.",
+          "code": "function vote_cooperate(task):\n    # 1. Workers propose candidate answers (or reflective suggestions)\n    candidates = [\n        worker.propose(task) for worker in WORKERS\n    ]\n    ballot = dedupe_and_label(candidates)         # {id -> candidate}\n\n    # 2. Voters score the ballot. Identity is recorded for auditability.\n    votes = []\n    for voter in VOTERS:\n        ranking = voter.rank(ballot, task)        # signed ranking\n        votes.append((voter.id, ranking))\n        audit_log.append((voter.id, hash(ranking)))\n\n    # 3. Coordinator tallies\n    winner = tally(\n        votes=votes,\n        method=TALLY_METHOD,                      # majority / average /\n                                                  # role-weighted / on-chain\n    )\n    return winner, audit_log",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

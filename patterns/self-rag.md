@@ -11,11 +11,11 @@ Fine-tune the model to emit reflection tokens that decide when to retrieve, eval
 
 ## Context
 
-Retrieval-augmented generation where the model needs to reason about whether to retrieve, whether retrieved evidence is relevant, and whether the generation is supported.
+A team is building a retrieval-augmented system where retrieval is not always the right thing to do. Some queries are easy and can be answered from the model's parametric knowledge; others genuinely require fresh evidence from the corpus. Even when retrieval happens, the chunks returned may not be relevant, and even when they are relevant, the final generation may not actually be supported by them. The team needs the model itself to reason about each of these decisions per request, instead of forcing every query through the same fixed pipeline.
 
 ## Problem
 
-Static retrieve-then-generate retrieves regardless of need and generates regardless of evidence quality; both wastes calls and admits hallucination.
+Static retrieve-then-generate pipelines retrieve regardless of whether retrieval is needed, and they generate regardless of whether the retrieved evidence is actually relevant or whether the generation is grounded in it. Cheap queries that did not need retrieval still pay for it. Bad retrievals still feed the generator. Ungrounded generations still ship to the user. Without explicit reflective steps where the model decides whether to retrieve, judges the relevance of what it retrieved, and checks whether its own draft is supported by the evidence, the system both wastes calls and quietly admits hallucinations into production.
 
 ## Forces
 

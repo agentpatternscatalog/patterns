@@ -11,11 +11,11 @@ Insert a typed boundary between the agent's clean domain model and a messy or le
 
 ## Context
 
-The agent wants to reason in one shape (the domain it cares about); the data lives in another (vendor schemas, legacy APIs, third-party formats).
+A team is building an agent that needs to reason in one shape — a clean domain model that matches the concepts the agent works with — while the underlying data lives in another shape entirely. The real data sits in vendor-specific schemas, legacy APIs with awkward field names, or third-party formats whose structure was decided years ago by another team for entirely different reasons.
 
 ## Problem
 
-Letting vendor shapes leak into the agent's context wastes tokens and ties the agent's reasoning to upstream churn.
+If the agent sees the raw vendor shape, every prompt fills with field names and structure that have nothing to do with the agent's actual task. Tokens are wasted on irrelevant fields, the model's reasoning gets contaminated by vendor-specific terminology, and any churn in the upstream schema ripples directly into the agent's behaviour. The team needs a typed boundary that translates between the agent-friendly domain model and the vendor shape on each call, so that the agent reasons in clean concepts while the storage layer keeps its existing format.
 
 ## Forces
 
@@ -54,7 +54,7 @@ An agent integrates with a legacy ERP whose API returns 47-field nested objects 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Agent[Agent / tool palette] -->|domain shape| TL[Translation layer]
   TL -->|signed vendor call| API[Vendor / legacy API]
   API -->|vendor JSON| TL

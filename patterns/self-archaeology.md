@@ -35,7 +35,7 @@ Periodically (e.g. every N ticks, or on demand) run a compaction pass that group
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Th[(Past thoughts)] --> Comp[Periodic compaction pass]
   Comp --> P1[Period 1: held A]
   Comp --> P2[Period 2: revised to B<br/>because Z]

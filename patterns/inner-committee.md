@@ -11,11 +11,11 @@ Run one model under several distinct personas (executor, critic, planner) within
 
 ## Context
 
-The agent benefits from review or planning split off from execution, but spinning up genuine separate model instances is overkill.
+A team is running a single agent on a task where planning, executing, and critiquing the result all matter — a coding agent that should think through a change, write the patch, and then check the patch against the requirements. Standing up two or three separate agents with their own model instances is more machinery than the task needs, but doing all three roles in one prompt is producing muddled output.
 
 ## Problem
 
-Mono-persona prompts conflate roles and produce muddled outputs that are neither plans nor critiques nor execution.
+When one prompt is asked to plan, execute, and self-critique at the same time, the model conflates the roles and emits something that is partly a plan, partly an attempt, and partly a half-hearted critique that mostly agrees with the attempt. The plan never gets sharp, the execution never gets focused, and the critique never seriously challenges anything. Without explicit role separation, the team gets the cost of a complex agent and the quality of a confused one.
 
 ## Forces
 

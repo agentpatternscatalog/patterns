@@ -11,8 +11,8 @@
       ],
       "category": "governance-observability",
       "intent": "Evaluate an agent's full trajectory (steps, tool calls, intermediate states) by another agent rather than scoring only the final output.",
-      "context": "Agent evaluations (SWE-Bench, agentic benchmarks) where the final output is one signal among many and the trajectory contains evaluable structure.",
-      "problem": "LLM-as-judge evaluates only the final answer; agentic tasks succeed or fail along the trajectory in ways the final answer hides.",
+      "context": "A team is evaluating an agent that solves multi-step tasks, such as fixing a bug in a real codebase or completing a chain of tool calls to answer a question. The agent emits a full trajectory: each intermediate thought, every tool call it issued, every observation it received, and a final answer. The team wants to know not just whether the final answer is right, but whether the agent got there through reasonable steps.",
+      "problem": "A simple grader that looks only at the final answer cannot tell two agents apart when one solved the task cleanly and the other thrashed through twenty redundant tool calls, made a write outside its workspace, or stumbled into the right answer by luck. Process failures such as wasted spend, unsafe actions, or fragile reasoning are completely invisible to answer-only scoring. The team is forced to choose between cheap-but-shallow grading and expensive manual review of every run.",
       "forces": [
         "Trajectory evaluation is more expensive than answer-only judging.",
         "Judge agents have their own biases and failure modes.",
@@ -115,8 +115,8 @@
       ],
       "category": "governance-observability",
       "intent": "Persist agent execution state so a long-running run survives restarts, deploys, or user disconnects.",
-      "context": "Production agents that run for minutes to hours; users need the work to survive disconnects and ops events.",
-      "problem": "Agents that lose state on restart lose hours of work; users distrust long-running agents.",
+      "context": "A team runs an agent in production that takes minutes or hours to finish a single task, for example scraping and summarising a long list of pages, or driving a multi-step migration. During that time the worker process may be restarted by a deploy, killed by a host failure, or disconnected from the user's session. Operators and end users both expect work in flight to survive these everyday events rather than being thrown away.",
+      "problem": "If the agent keeps all of its state in memory and the process dies, the run is gone and the user has to start over, sometimes after waiting forty minutes for nothing. Naively retrying from scratch repeats every side effect that already ran, so emails get sent twice, charges get doubled, and external systems see the same write multiple times. The team is forced to choose between fragile long-running agents and giving up on long-running agents altogether.",
       "forces": [
         "Checkpoint frequency vs cost.",
         "What to persist; what to recompute.",
@@ -246,8 +246,8 @@
       ],
       "category": "governance-observability",
       "intent": "Surface which input tokens caused a given output by perturbing attention across all transformer layers and measuring the resulting change in output probability, producing a per-token relevance map alongside the model's response.",
-      "context": "Regulated or high-stakes deployments where the operator must explain to an auditor or end-user *why* the model produced a specific output; pure post-hoc rationalisations are considered insufficient.",
-      "problem": "Free-text follow-up prompts asking the model to justify itself produce plausible but unfaithful explanations; the model confabulates a reason that does not match its actual decision.",
+      "context": "A team operates a transformer-based language model in a setting where someone — an auditor, a regulator, a clinician, a loan applicant — can demand a real explanation for any given output. The team controls inference enough to inspect the model's internal attention weights, either because the weights are open or because the provider exposes a way to perturb attention. A generated paragraph of self-justification will not satisfy the people asking, because what they want is evidence about which parts of the input actually drove the answer.",
+      "problem": "Asking the model in plain language to explain why it answered the way it did produces fluent, convincing prose that may have nothing to do with the computation that produced the answer. The model can confabulate a reason that sounds reasonable but does not reflect which input tokens actually shifted the output. The team is forced to choose between a polished but unfaithful self-explanation and saying nothing at all, neither of which is acceptable when an auditor wants input-grounded evidence.",
       "forces": [
         "Auditors want input-grounded explanations, not generated rationales.",
         "Per-token attribution must be cheap enough to run in production, not only offline.",
@@ -344,8 +344,8 @@
       ],
       "category": "governance-observability",
       "intent": "Surface per-request, per-user, and per-feature cost and token consumption to operators in near-real-time.",
-      "context": "Production agent products where cost surprises (a runaway feature, a bad routing decision) blow up bills before anyone notices.",
-      "problem": "Without per-feature cost visibility, expensive failures hide in aggregate metrics until billing arrives.",
+      "context": "A team is running an agent product in production that calls one or more paid model providers and a set of paid tools. Spend depends on which feature the user touched, which model was routed to, how long the conversation got, and how many tool calls the agent decided to make. Operators need to know in close to real time where the money is going, not weeks later when the invoice arrives.",
+      "problem": "Without per-feature, per-route, per-model attribution, an aggregate dashboard only shows that total tokens went up. A single bad routing decision, a chatty new prompt, or a runaway loop in one feature can multiply the bill for that feature ten times while the global average barely twitches. The team is forced to choose between learning about the problem from the monthly billing statement or building ad-hoc spreadsheets every time a number looks off.",
       "forces": [
         "Telemetry schema must capture which feature, which model, which user.",
         "Real-time vs daily aggregation.",
@@ -425,7 +425,7 @@
       "example_scenario": "An ops team notices the monthly LLM bill has tripled but can't say which feature drove it — the dashboard only shows total tokens. By the time billing arrives the runaway feature has been live for weeks. They add Cost Observability: every request is tagged with feature, user, and tenant, and per-feature spend rolls up in near-real-time. Within an hour of a regression the team can see which feature now costs ten times what it did yesterday.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]\n  T[Tool call] -->|tag| TS\n  TS --> D[Dashboards<br/>by feature / model / hour]\n  TS --> A[Alerts on anomalies]\n  D --> Op[Operators]\n  A --> Op"
+        "mermaid": "flowchart TD\n  M[Model call] -->|tag: feature, route, user, model| TS[(Telemetry store)]\n  T[Tool call] -->|tag| TS\n  TS --> D[Dashboards<br/>by feature / model / hour]\n  TS --> A[Alerts on anomalies]\n  D --> Op[Operators]\n  A --> Op"
       },
       "last_updated": "2026-05-20"
     },
@@ -438,8 +438,8 @@
       ],
       "category": "governance-observability",
       "intent": "Persist the agent's reasoning trace alongside its actions so post-hoc review can explain why.",
-      "context": "Audit and debugging both need access to what the agent considered, not just what it did.",
-      "problem": "Action-only logs answer 'what' but not 'why'; debugging a wrong action requires the reasoning chain.",
+      "context": "A team runs an agent that makes consequential choices in production, for example a trading agent that opens positions or a support agent that takes refund actions. When something goes wrong days or weeks later, an engineer, auditor, or compliance reviewer wants to understand not only which action the agent took but the reasoning the agent considered at the time. The team already keeps a log of actions taken; what is missing is the thinking that produced each action.",
+      "problem": "An action-only log can tell the reviewer that the agent shorted a position at 14:32, but not which signals it weighed or which alternatives it rejected. Debugging a wrong action degenerates into guessing what the model might have been thinking, and user-facing explanations become impossible to provide truthfully. The team is forced to choose between piecing the reasoning back together from incomplete clues or accepting that some agent decisions are simply unexplainable after the fact.",
       "forces": [
         "Reasoning traces are large.",
         "Sensitive content in reasoning may need redaction.",
@@ -512,6 +512,14 @@
         {
           "pattern": "errors-swept-under-the-rug",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "typed-refusal-codes",
+          "relation": "complements"
+        },
+        {
+          "pattern": "commitment-tracking",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -564,9 +572,9 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  A[Agent action] --> P[(Provenance ledger)]\n  A --> R[Reasoning trace]\n  R --> L[(Decision log<br/>indexed by request id + time)]\n  P -->|link| L\n  Rev[Post-hoc reviewer] -->|query| L"
+        "mermaid": "flowchart TD\n  A[Agent action] --> P[(Provenance ledger)]\n  A --> R[Reasoning trace]\n  R --> L[(Decision log<br/>indexed by request id + time)]\n  P -->|link| L\n  Rev[Post-hoc reviewer] -->|query| L"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "durable-workflow-snapshot",
@@ -578,8 +586,8 @@
       ],
       "category": "governance-observability",
       "intent": "Capture workflow execution state as a snapshot in a pluggable storage provider so a paused run can resume across deployments, process restarts, and host crashes.",
-      "context": "Long-running agentic workflows that span minutes to hours, must survive ops events, and may be paused waiting on external signals (human approval, slow API, scheduled wake-up).",
-      "problem": "In-process resumption (see agent-resumption) survives crashes within one process but not deployments or host loss; without external durable storage of the entire workflow state, paused runs are lost on restart.",
+      "context": "A team builds workflows that may run for hours or days and that frequently pause waiting on external signals: a human approving a loan, a slow third-party API returning a result, or a scheduled wake-up the next morning. These workflows have to keep running across application deploys, restarts of the worker processes, and the loss of individual hosts. The team has access to durable storage such as a Postgres database, an object store, or a vendor-managed snapshot service.",
+      "problem": "Keeping the workflow state only in process memory is enough to survive a single crash that the same process recovers from, but not deploys that replace the binary, host failures that move work elsewhere, or pauses long enough that the original worker is gone. Without writing the full state out to durable storage at known checkpoints, every deploy or host loss vaporises in-flight runs and the work restarts from zero. The team is forced to choose between short workflows that fit in one process lifetime or accepting that long-running workflows will routinely lose hours of progress.",
       "forces": [
         "Workflow state grows with run length and must be serialisable to durable storage.",
         "Storage providers vary in latency, cost, and consistency guarantees.",
@@ -693,8 +701,8 @@
       ],
       "category": "governance-observability",
       "intent": "Treat the eval suite as the contract the agent must satisfy; releases ship only if evals pass.",
-      "context": "Production agents where 'works on my prompt' is insufficient and stakeholders need a quality bar to depend on.",
-      "problem": "Without a release gate tied to evals, quality regressions slip through; the eval suite becomes documentation rather than enforcement.",
+      "context": "A team ships an agent to real users and is expected to keep a stable quality bar release after release. They have an evaluation suite — a held-out set of inputs paired with expected outputs or rubric checks — that already gives them a numeric read on quality. Stakeholders such as product, customers, and compliance depend on that bar holding from one release to the next.",
+      "problem": "If the eval suite is something the team runs by hand and looks at when they remember to, regressions slip through silently: a prompt tweak goes out on Tuesday, the eval suite is not run, and by Thursday quality has dropped without anyone noticing. The suite turns into aspirational documentation rather than an actual constraint on releases. The team is forced to choose between trusting vibes between deploys or treating the eval suite the way they would treat a failing unit test.",
       "forces": [
         "Contract authoring is up-front work.",
         "Eval-suite drift if not maintained.",
@@ -783,8 +791,8 @@
       ],
       "category": "governance-observability",
       "intent": "Run a held-out dataset against agent versions to detect regressions and measure improvement.",
-      "context": "Agents are non-deterministic and prompt-sensitive; without an eval harness, every change is a guess.",
-      "problem": "A change that 'feels better' often isn't; without measurement, the system regresses silently.",
+      "context": "A team is iterating on an agent whose outputs depend on a prompt, a model version, retrieval choices, and tool wiring — none of which is deterministic in the way a normal function is. Small changes anywhere in that stack can shift behaviour in ways that are not obvious from a few hand-tested examples. The team needs a way to compare a proposed version against the current one on a fixed, representative set of inputs.",
+      "problem": "When the team relies on intuition or a handful of spot checks, a change that 'feels better' on three examples can quietly regress on the dozens of cases nobody re-ran. Open-ended outputs cannot be checked with simple exact-match assertions, so without a deliberate scoring approach there is no shared yardstick. The team is forced to choose between shipping by feel and reading user complaints, or running ad-hoc one-off comparisons that never accumulate into a baseline.",
       "forces": [
         "Dataset construction is expensive and ages.",
         "Judging open-ended outputs needs a metric or judge.",
@@ -900,8 +908,8 @@
       ],
       "category": "governance-observability",
       "intent": "Maintain pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) so detected incidents trigger known steps.",
-      "context": "Production agents at organisations with safety controls (kill-switch, sandbox-escape-monitoring, provenance-ledger) that detect events nobody knows how to respond to.",
-      "problem": "Without a runbook, detection produces alerts that wake the on-call but do not lead to coordinated containment, compensation, communication, or post-mortem.",
+      "context": "A team runs an agent in production where things can go badly wrong: leaking personally identifiable information across tenants, exploiting a tool with side effects in the real world, or triggering a large number of incorrect actions before anyone notices. The platform already has detection mechanisms such as a kill-switch, monitoring on sandbox-boundary violations, and a provenance ledger of actions. There may also be regulatory clocks attached, for example a 72-hour breach notification window under GDPR or a serious-incident report under the EU AI Act.",
+      "problem": "When an alert fires at 02:14 with no pre-written procedure, the on-call engineer wakes up to arguments about whether to kill the service, no clear path to preserve forensic traces beyond normal retention, no template for telling affected customers, and no idea who notifies the regulator. The first hour of the incident vanishes into improvisation while damage continues. The team is forced to choose between writing the runbook calmly in advance or writing it under pressure during the worst possible moment.",
       "forces": [
         "Severity classification must be agreed upfront.",
         "Containment vs forensic preservation tension.",
@@ -946,6 +954,10 @@
         {
           "pattern": "compensating-action",
           "relation": "uses"
+        },
+        {
+          "pattern": "typed-refusal-codes",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -985,7 +997,7 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Alert[Alert: kill-switch / sandbox-escape / cost spike] --> Sev{Severity}\n  Sev --> OnCall[Page on-call]\n  OnCall --> Cont[Containment: kill-switch / reroute]\n  Cont --> Pres[Pin traces beyond retention]\n  Pres --> Comp[Compensating actions]\n  Comp --> Comm[Customer + regulator comms]\n  Comm --> PM[Post-mortem]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "lineage-tracking",
@@ -996,8 +1008,8 @@
       ],
       "category": "governance-observability",
       "intent": "Track which prompt version, model version, and data sources produced each agent output.",
-      "context": "Long-lived production agents where outputs are referenced months later and stakeholders ask 'which version produced this?'.",
-      "problem": "Without lineage, output disputes are unanswerable; rolling back to a known-good state is guesswork.",
+      "context": "A team runs an agent whose outputs may be referenced weeks or months after they were produced — an underwriting decision, a generated contract clause, a research summary cited in another document. Over that time the prompts evolve, the model is upgraded, the tool set changes, and the retrieval index is rebuilt. When a customer or auditor surfaces a specific past output and asks how it was produced, the team needs to be able to answer precisely.",
+      "problem": "Without recording which prompt template, which model version, which tool versions, and which retrieved documents produced each output, the team cannot reconstruct what happened six weeks ago. Disputes become unanswerable and rollbacks become guesswork, because there is no record of which combination of ingredients was even live at that time. The team is forced to choose between manual reconstruction from incomplete clues or accepting that the system effectively forgets why it said what it said.",
       "forces": [
         "Lineage metadata adds storage.",
         "Schema evolution of lineage is itself a problem.",
@@ -1102,8 +1114,8 @@
       ],
       "category": "governance-observability",
       "intent": "Use an LLM to score open-ended outputs against rubric criteria when no exact-match metric applies.",
-      "context": "Free-form outputs (summaries, code, prose) defy exact-match scoring; human grading is too slow for CI.",
-      "problem": "Without an automated grader, regression detection on free-form outputs requires human eyes on every run.",
+      "context": "A team is evaluating an agent whose outputs are free-form text — summaries, generated code, long-form prose, support replies — where no single reference answer is uniquely correct. They want regression detection automated enough to run on every release or pull request, not paced by how many summaries a human can grade in a week. They are willing to write down what good looks like in the form of a rubric.",
+      "problem": "Exact-match scoring fails on free-form outputs because there are many acceptable answers, and similarity metrics on raw text miss the qualities the team actually cares about such as faithfulness, completeness, or tone. Pure human grading is too slow to gate a CI pipeline that runs many times per day. The team is forced to choose between cheap-but-blind metrics that miss real regressions and expensive human review that does not scale.",
       "forces": [
         "Judges have biases (length, position, model-family preference).",
         "Calibration against human judgement is its own dataset.",
@@ -1200,8 +1212,8 @@
       ],
       "category": "governance-observability",
       "intent": "Maintain a structured document describing the model/agent's intended use, limitations, evaluation results, and risks.",
-      "context": "Regulated, high-stakes, or public-facing agents where stakeholders (legal, compliance, users) need to understand what the system does and where it fails.",
-      "problem": "Agent capabilities and limitations are tribal knowledge; without a card, every stakeholder reinvents understanding.",
+      "context": "A team operates an agent in a setting where multiple stakeholders need a shared understanding of what it actually does: legal teams reviewing deployment, compliance officers preparing for a regulator visit, customers reading documentation, or new engineers joining the project. Examples include underwriting agents at a bank, medical-information agents in healthcare, and public-facing assistants subject to EU regulatory transparency obligations. There is enough institutional knowledge about intended use, known limitations, and evaluation results to write down.",
+      "problem": "When the team's understanding lives in three engineers' heads and a Slack thread, every new stakeholder asks the same questions from scratch, marketing claims drift away from actual capability, and a regulator request becomes a multi-week archaeology project. Limitations that the team knows about never surface to the people who need them. The team is forced to choose between rewriting the same explanation by hand for every audience or producing a single authoritative document that everyone can reference.",
       "forces": [
         "Cards age fast in fast-moving systems.",
         "Truthful disclosure conflicts with marketing pressure.",
@@ -1303,8 +1315,8 @@
       ],
       "category": "governance-observability",
       "intent": "Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.",
-      "context": "Production agents where prompt changes drive quality changes; ad-hoc prompt edits introduce silent regressions.",
-      "problem": "Prompts edited inline in code are hard to audit; rolling back a prompt means rolling back a deployment; comparison across versions is bespoke.",
+      "context": "A team runs an agent where the system prompt and task prompts are major levers on quality. Multiple engineers edit those prompts, sometimes inline in code, sometimes through a prompt-management tool. The team needs to know exactly which prompt text was live at any given time, to be able to roll back a bad prompt cleanly, and to tie evaluation results to the specific prompt being scored.",
+      "problem": "When prompts live as plain strings inside the application code, a wording change becomes a code change: rolling back the prompt requires reverting a deployment, comparing two prompt versions side by side requires diffing branches, and there is no clean way to say which prompt produced last week's outputs. Evaluation runs cannot be tied back to specific prompt text once that text has been edited in place. The team is forced to choose between treating every prompt edit as a full code release or losing the ability to audit and revert prompts precisely.",
       "forces": [
         "Registry adds infrastructure.",
         "Prompt versioning must integrate with eval harness.",
@@ -1405,7 +1417,7 @@
       "example_scenario": "A team rolls a small wording change into a prompt at 14:00 and by 16:00 the agent's behaviour has shifted in ways nobody predicted. There is no clean rollback short of redeploying the entire service from a prior commit. They adopt prompt-versioning: prompts live in a registry as immutable, hashed, semver-tagged artefacts; code references them by name plus version; deployments pin a specific version; rollback is a one-line config change. Eval-harness metrics tie to prompt versions. The next bad-prompt incident is reverted in under a minute.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Ed[Author edits prompt] --> H[Hash + semver tag]\n  H --> Reg[(Prompt registry<br/>immutable, signed)]\n  Code[Application code] -->|name + version| Reg\n  Reg --> Dep[Deployment]\n  Dep --> Eval[Eval harness]\n  Eval -.ties metrics to.-> Reg"
+        "mermaid": "flowchart TD\n  Ed[Author edits prompt] --> H[Hash + semver tag]\n  H --> Reg[(Prompt registry<br/>immutable, signed)]\n  Code[Application code] -->|name + version| Reg\n  Reg --> Dep[Deployment]\n  Dep --> Eval[Eval harness]\n  Eval -.ties metrics to.-> Reg"
       },
       "last_updated": "2026-05-20"
     },
@@ -1418,8 +1430,8 @@
       ],
       "category": "governance-observability",
       "intent": "Log every agent decision and state change with enough metadata to explain or reverse it later.",
-      "context": "Long-running or regulated agents need to answer 'why did the agent do X on day Y?' months later.",
-      "problem": "Without provenance, agent behaviour is post-hoc inscrutable; audit and rollback become impossible.",
+      "context": "A team runs an agent that takes consequential actions in the real world: approving or rejecting insurance claims, modifying production records, sending money. Sometimes weeks or months later, a regulator, a customer, or an internal auditor asks why the agent did what it did on a specific date. Answering that question requires both the action and the chain of reasoning, retrieved evidence, and model version that surrounded it.",
+      "problem": "Without an immutable, append-only record of every decision and state change tied to a justification, agent behaviour becomes inscrutable after the fact. Rolling back a specific bad action is impossible because there is no event identifier to reverse, and patterns of failure across time are invisible because the trail is not queryable. The team is forced to choose between trusting that nothing will ever be questioned or attempting to reconstruct months-old behaviour from logs that were never designed for audit.",
       "forces": [
         "Auditability vs storage cost of every event.",
         "Schema rigidity vs evolvability over the agent's lifetime.",
@@ -1535,7 +1547,7 @@
       "example_scenario": "A regulator asks an insurance-claims agent why it rejected a specific claim three months ago. The team can show the final decision but not the chain of reasoning, the retrieved policy clauses, or which model version answered — the audit trail is partial. They add a provenance-ledger: every decision and state change appends an immutable event with timestamp, actor, action, target, justification link, and diff hash. Rollback by event id becomes trivial; the next regulator question is answered with a full reconstruction.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Act[Agent action / state change] --> V[Validator: required fields?]\n  V -->|reject| Err[Error]\n  V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]\n  L --> Audit[Audit / explain]\n  L --> RB[Rollback by id]"
+        "mermaid": "flowchart TD\n  Act[Agent action / state change] --> V[Validator: required fields?]\n  V -->|reject| Err[Error]\n  V -->|accept| L[(Append-only ledger<br/>ts, actor, action,<br/>target, justification, diff)]\n  L --> Audit[Audit / explain]\n  L --> RB[Rollback by id]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1549,8 +1561,8 @@
       ],
       "category": "governance-observability",
       "intent": "Re-run a past agent trace from any step with modified inputs/prompts/tools to debug or branch.",
-      "context": "Agent debugging and experimentation; production incidents that need reproduction.",
-      "problem": "Agent runs are non-deterministic and state-laden; without replay, debugging is reproduction-by-prayer.",
+      "context": "A team supports an agent in production where users occasionally hit weird, hard-to-reproduce behaviour: a strange reply, an unexpected tool call, a wrong answer on an input that worked yesterday. Engineers want to load the exact past run, jump to a specific step, swap in a different prompt or model, and see whether the alternative would have done better. The system already captures per-step inputs, outputs, prompts, model identifiers, and tool calls in a trace store.",
+      "problem": "Agent runs depend on non-deterministic model outputs, accumulated conversation state, and external tool results that may not be the same on the next call. Trying to reproduce a three-day-old bug locally usually fails because too much has changed, and engineers end up debugging by re-running the user's prompt and hoping the model behaves the same way. The team is forced to choose between spending hours on guess-and-check reproduction or shrugging off intermittent bugs that they cannot deterministically trigger.",
       "forces": [
         "Captured state must be complete enough to re-run.",
         "Storage of full traces is expensive.",
@@ -1634,7 +1646,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]\n  Tr --> Sel[Pick step N]\n  Sel --> Mod[Modify prompt /<br/>model / tool result]\n  Mod --> Rep[Replay forward]\n  Rep --> Br[(Branch trace)]\n  Br --> Cmp[Compare branches]"
+        "mermaid": "flowchart TD\n  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]\n  Tr --> Sel[Pick step N]\n  Sel --> Mod[Modify prompt /<br/>model / tool result]\n  Mod --> Rep[Replay forward]\n  Rep --> Br[(Branch trace)]\n  Br --> Cmp[Compare branches]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1647,8 +1659,8 @@
       ],
       "category": "governance-observability",
       "intent": "Treat sandbox boundary violations as telemetry; alert on syscalls, network egress, or filesystem writes outside expected scope.",
-      "context": "Agents executing code or operating filesystems where sandbox-isolation is in place; sandboxes have known escape vulnerabilities.",
-      "problem": "Sandbox-isolation is preventive only; without monitoring, a successful escape (or even an attempt) is invisible until damage is done.",
+      "context": "A team runs an agent that executes generated code or manipulates files on behalf of users, inside an isolation boundary such as a container, microVM, or syscall-filtered sandbox. The boundary is designed to confine what the agent can read, write, and reach over the network. Real-world sandboxes have known escape vectors and zero-day vulnerabilities; isolation is necessary but not by itself sufficient.",
+      "problem": "Treating the sandbox as a pure prevention mechanism means a successful escape, or even repeated escape attempts, can happen without anyone seeing them. A blocked network egress, an unexpected syscall, or a write outside the working directory will silently fail or succeed without any alert. The team is forced to choose between assuming the sandbox is impenetrable, which it is not, or learning about boundary violations from the downstream damage they cause.",
       "forces": [
         "Telemetry granularity vs cost.",
         "False positives on legitimate boundary-pushing operations.",
@@ -1720,7 +1732,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]\n  S -->|net egress not on allowlist| Tel\n  S -->|fs write outside workdir| Tel\n  Tel --> Det[Threshold detector]\n  Det -->|alert| Op[Operators]\n  Det -->|confirmed escape| KS[Kill-switch]"
+        "mermaid": "flowchart TD\n  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]\n  S -->|net egress not on allowlist| Tel\n  S -->|fs write outside workdir| Tel\n  Tel --> Det[Threshold detector]\n  Det -->|alert| Op[Operators]\n  Det -->|confirmed escape| KS[Kill-switch]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1734,8 +1746,8 @@
       ],
       "category": "governance-observability",
       "intent": "Score agent outputs asynchronously in production with non-blocking scorers that observe, alert, and log but do not regenerate the output.",
-      "context": "Production agent and workflow deployments where quality must be tracked on live traffic, but blocking the user response on a scoring call is unacceptable for latency or cost reasons.",
-      "problem": "Pre-release evals (see eval-harness) cover known distributions, not live traffic; closed-loop evaluator-optimizer adds latency and re-runs the model on every request. There is no cheap way to keep a continuous read on production quality without either of those costs.",
+      "context": "A team runs an agent that handles real user traffic and wants a continuous read on output quality, not just a snapshot at release time. The product has a tight latency budget — users will notice if every reply waits an extra second on a scoring model. Quality matters across several dimensions at once: helpfulness judged by another model, forbidden phrases checked programmatically, similarity to a curated reference, and rubric-based checks.",
+      "problem": "Pre-release evaluations on a fixed held-out dataset only cover distributions the team thought of in advance and say nothing about what real traffic looks like today. Closed-loop approaches that re-run the model whenever a score is low double latency and cost for every request, even though most outputs are fine. The team is forced to choose between flying blind on live quality, paying the latency tax of inline scoring, or running expensive batch analyses long after the bad reply has already reached the user.",
       "forces": [
         "Live quality data is the only honest signal that production matches lab.",
         "Blocking the response on a judge model doubles latency and cost.",
@@ -1827,7 +1839,7 @@
       "example_scenario": "A customer-support agent serves thousands of replies per hour. The team wants a continuous read on reply quality but cannot afford to block each reply on a judge model. They emit every reply onto a scoring stream that three workers consume: an LLM-judge scorer for helpfulness, a programmatic scorer for forbidden phrases, and an embedding-similarity scorer against a curated reference set. Scores populate a dashboard with rolling p50/p95; replies below threshold flow into a human-review queue but the user has already seen the reply. When the LLM-judge score drops sharply after a model swap, the team rolls back before the next deploy.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Req[User request] --> Ag[Agent]\n  Ag --> Reply[Reply to user]\n  Ag --> Pub[(Scoring stream)]\n  Pub --> S1[LLM-judge scorer]\n  Pub --> S2[Programmatic checks]\n  Pub --> S3[Embedding similarity]\n  S1 --> Store[(Score store)]\n  S2 --> Store\n  S3 --> Store\n  Store --> Dash[Dashboards / alerts]\n  Store --> Q[Low-score review queue]"
+        "mermaid": "flowchart TD\n  Req[User request] --> Ag[Agent]\n  Ag --> Reply[Reply to user]\n  Ag --> Pub[(Scoring stream)]\n  Pub --> S1[LLM-judge scorer]\n  Pub --> S2[Programmatic checks]\n  Pub --> S3[Embedding similarity]\n  S1 --> Store[(Score store)]\n  S2 --> Store\n  S3 --> Store\n  Store --> Dash[Dashboards / alerts]\n  Store --> Q[Low-score review queue]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1840,8 +1852,8 @@
       ],
       "category": "governance-observability",
       "intent": "Run a candidate agent version in shadow alongside the champion, comparing outputs without affecting users.",
-      "context": "Agent changes are non-deterministic and prompt-sensitive; CI tests cover correctness, not field behaviour.",
-      "problem": "Releases without field comparison miss regressions visible only on real traffic.",
+      "context": "A team wants to roll out a new model, a tweaked prompt, or a reworked tool wiring to an agent already serving real users. They have an existing version (the champion) that they trust on live traffic and a candidate version (the challenger) they want to validate before promoting. The traffic distribution in production includes long-tail queries that no pre-release evaluation set fully captures.",
+      "problem": "Pre-release evaluations cover the distributions the team thought to put in the test set, not the surprising ones that show up in real usage. Releasing the challenger directly to a fraction of users exposes those users to whatever regressions it has. The team is forced to choose between launching blind and hoping nothing breaks, or building a separate evaluation set so comprehensive that it never actually matches live behaviour.",
       "forces": [
         "Shadow runs cost money for output never shown.",
         "Comparison logic for free-form outputs is non-trivial.",
@@ -1922,7 +1934,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  U[User request] --> Split[Traffic split]\n  Split --> Champ[Champion agent]\n  Split --> Chall[Challenger agent]\n  Champ --> Resp[User response]\n  Chall --> Log[Shadow log]\n  Champ --> Diff[Diff metrics:<br/>judge / exact-match / latency / cost]\n  Log --> Diff\n  Diff --> Gate{Lift?}\n  Gate -- yes --> Promote[Promote challenger]\n  Gate -- regression --> Revert[Revert]"
+        "mermaid": "flowchart TD\n  U[User request] --> Split[Traffic split]\n  Split --> Champ[Champion agent]\n  Split --> Chall[Challenger agent]\n  Champ --> Resp[User response]\n  Chall --> Log[Shadow log]\n  Champ --> Diff[Diff metrics:<br/>judge / exact-match / latency / cost]\n  Log --> Diff\n  Diff --> Gate{Lift?}\n  Gate -- yes --> Promote[Promote challenger]\n  Gate -- regression --> Revert[Revert]"
       },
       "last_updated": "2026-05-20"
     }

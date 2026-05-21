@@ -11,11 +11,11 @@ Order prompts so the unchanging prefix can be cached by the provider, cutting pe
 
 ## Context
 
-Agents that call the model many times with mostly-stable system prompts (charters, rules, motivations) and variable suffixes (tick input, user message).
+A team is running an agent that calls the same large language model many times per session. Most of each prompt is a stable prefix that does not change between calls (system prompt, tool definitions, charter, code-style rules) and only a small suffix varies (the current user message, the latest tool result). The provider's API exposes a prompt cache keyed on byte-identical prefixes.
 
 ## Problem
 
-Re-sending an identical 10k-token prefix on every call wastes compute; vendor caches exist but only if the prefix is byte-stable.
+Re-sending an identical 10,000-token prefix on every call burns input tokens that the provider would otherwise serve from a warm cache, and it adds time-to-first-token latency for content the model has already seen. Cache hits are silent — a single accidental mutation in the prefix (a timestamp in the system prompt, a tool list reordered by JSON object iteration, a per-call correlation ID) invalidates the cache without any error, so the team can spend months overpaying without realising the cache never warmed.
 
 ## Forces
 
@@ -52,7 +52,7 @@ A coding agent ships a 12k-token system prompt that includes tool schemas, chart
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   SP[Stable: system + tools + charter] -->|cache breakpoint| CB[(Cached prefix)]
   CB --> V[Variable: state + user message]
   V --> LLM[LLM call]

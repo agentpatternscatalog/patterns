@@ -11,11 +11,11 @@ Search over a tree of partial reasoning states with explicit lookahead, evaluati
 
 ## Context
 
-The problem benefits from exploring alternatives (puzzles, planning, creative writing) and committing to a single chain leads to dead ends.
+A team is solving problems where it pays to consider several candidate next moves before committing to one: small puzzles such as Game of 24 or crosswords, short-horizon planning tasks, or creative writing where opening choices constrain everything that follows. They have already tried plain chain-of-thought and observed that once an early step is wrong, the rest of the chain compounds the mistake instead of recovering.
 
 ## Problem
 
-Chain-of-Thought commits to a single trace; if an early step is wrong the model cannot recover or compare alternatives.
+Chain-of-thought produces a single linear reasoning trace and never reconsiders. If the first decision is wrong, the model has no machinery to back up, compare that decision against alternatives, or prune dead-end branches. It cannot weigh several candidate moves against each other at any node, which is exactly what is needed on tasks where the best opening is not obvious. The team needs explicit search vocabulary — lookahead, evaluation, backtracking — layered on top of reasoning so the model can recover from wrong commitments.
 
 ## Forces
 

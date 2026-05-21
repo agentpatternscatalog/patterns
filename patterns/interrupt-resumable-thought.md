@@ -11,11 +11,11 @@ Preserve multi-step reasoning across interrupts by supporting paused-and-resumed
 
 ## Context
 
-Long-running cognitive agents whose thinking spans multiple turns or ticks, where external messages (user input, system notifications, scheduled notes) can arrive mid-thought. Without explicit continuation support, every interrupt clobbers in-flight work.
+A team is running an agent whose individual reasoning chains take longer than a single turn — a six-step synthesis, a multi-stage debugging walkthrough, a careful comparison across documents. While the chain is mid-flight, new external messages can arrive: a user follow-up, a system notification, a scheduled note from earlier. The agent has no built-in concept of a paused thought, so every incoming message lands on whatever the model was about to say next.
 
 ## Problem
 
-Coherent multi-step thinking that takes longer than a single turn is fragile. A new user message during step 3 of a 6-step thought either gets ignored (rude) or replaces the thought entirely (lossy). The agent has no notion of 'hold this, handle that, then come back', so longer reasoning fragments into shards.
+Without explicit continuation support, the agent has only two bad options when an interrupt arrives mid-chain. It can ignore the new message and look rude, finishing the previous thought as if nothing happened. Or it can answer the interrupt and quietly lose the in-flight reasoning, restarting from scratch later if at all. There is no notion of 'hold this thread, handle that one, then come back to where I was,' so any reasoning that takes longer than one turn fragments into shards every time the user speaks.
 
 ## Forces
 

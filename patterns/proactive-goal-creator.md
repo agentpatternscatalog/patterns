@@ -11,11 +11,11 @@ Anticipate the user's goal by capturing surrounding multimodal context (gestures
 
 ## Context
 
-The agent operates in a setting where the user's articulated prompt alone is too thin — accessibility needs, embodied/physical interaction, ambient assistance — and where cameras, microphones, screen capture, or other sensors can supply the missing context.
+A team builds an agent for a setting where the user cannot or will not articulate the full context in text — an accessibility tool used by someone with limited speech, an ambient home assistant, an embodied robot, a screen-aware coding helper. Cameras, microphones, screen capture, or other sensors are available and can supply context the user does not state. The team has the operational and privacy approvals to capture and process that data.
 
 ## Problem
 
-Dialogue alone underspecifies the goal in embodied or accessibility-driven settings. The agent needs to actively capture context that the user may not articulate at all.
+If the agent only listens to the user's typed or spoken prompt, it misses the gesture pointing at the object, the screen state the user is looking at, the ambient activity the user assumes is obvious. The user is then forced either to over-articulate (typing what they are already pointing at) or to accept wrong answers. Naively piping raw sensor streams into the planner overwhelms downstream components with multimodal data they cannot use directly. The team needs a component that captures and synthesises the relevant non-verbal context into a structured goal before planning begins.
 
 ## Forces
 
@@ -51,7 +51,7 @@ A user points at an object on their desk and says "can you order another one of 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User] -->|prompt| D[Dialogue interface]
   E[Environment] -->|capture| Det[Detector / sensors]
   D --> P[Proactive goal creator]

@@ -11,11 +11,11 @@ Drive a smartphone end-to-end through a small, touch-native action vocabulary (t
 
 ## Context
 
-The user task lives in a mobile app whose data and behaviour are not exposed via a public API or web frontend; only the touch UI is available.
+A team needs an agent to operate a mobile app on a real or emulated phone: a ride-hailing app, a food delivery app, a banking app, a Chinese super-app. The app exposes no public API and no clean web frontend that mirrors its functionality, so the only surface available is the touch user interface itself.
 
 ## Problem
 
-Desktop Computer Use action sets (mouse, keyboard, scroll wheel) and Browser Agent abstractions (DOM, accessibility tree) are wrong shape for a touch UI; pixel-level control without an action vocabulary is too low-level to reason over.
+Mouse-and-keyboard action sets borrowed from desktop Computer Use do not match how phones are operated, and the DOM / accessibility tree abstractions used by browser agents do not exist for native mobile apps. Driving the phone purely as pixel coordinates without a touch-shaped action vocabulary leaves the agent reasoning one click at a time over coordinates, which is too low-level to plan with and brittle to screen size, theme, and locale changes.
 
 ## Forces
 

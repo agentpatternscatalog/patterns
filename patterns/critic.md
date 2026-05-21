@@ -11,11 +11,11 @@ Self-correct LLM outputs by interactively critiquing them with external tools (s
 
 ## Context
 
-Generation tasks where errors can be detected and corrected by grounded checks (factual claims by search, code by execution, math by calculator).
+A team runs a large language model on a generation task where mistakes can in principle be caught by an external check: factual claims could be verified by a web search, generated code could be verified by actually running it, and arithmetic could be verified with a calculator. The agent has access to those tools but currently uses them only during drafting, not during review. After producing a draft the model is asked to self-critique, but the critique is itself a model call with no grounding outside the model's own beliefs.
 
 ## Problem
 
-Self-critique without external tools recycles the model's blind spots; tools provide grounded ground-truth signals.
+When self-critique is done by the same model that produced the draft and is not allowed to consult any external tool, the critique recycles the same blind spots that produced the original error. The model that confidently asserted a wrong fact will confidently agree with itself when asked to review the assertion. Without a way to compare the draft against an outside source of truth, the iterative loop is a model talking to itself and slowly converging on whatever it believed at the start. The team needs the critic to be able to actually test claims, not just re-read them.
 
 ## Forces
 

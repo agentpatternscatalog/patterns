@@ -11,11 +11,11 @@ Wrap a sub-agent (with its own loop, prompt, and tool palette) behind a single f
 
 ## Context
 
-A parent agent that benefits from delegating bounded sub-tasks ("search the web for X and summarise", "plan a multi-day itinerary") to a specialised loop without inheriting the sub-agent's turn-level context.
+A parent agent is handling an overall goal and runs into a bounded sub-task — search the web for a topic and summarise the findings, plan a multi-day itinerary, audit a directory of files — that deserves its own focused loop with its own model, tool palette, and step budget. The parent does not need to watch the sub-task being solved; it only needs the answer.
 
 ## Problem
 
-Letting the parent observe the sub-agent's turns either bloats parent context or couples parent reasoning to sub-agent intermediate state. Hand-rolled multi-agent broadcast bus is over-engineering for this case.
+If the parent watches every turn the sub-agent takes, the parent's context window fills up with intermediate searches and tool calls that have nothing to do with the parent's own job, and the parent's reasoning starts to entangle with the sub-agent's internals. Building a full multi-agent broadcast bus to coordinate the two is far more machinery than the situation needs. Without a clean boundary, the team ends up choosing between bloated parent context and over-engineered coordination.
 
 ## Forces
 

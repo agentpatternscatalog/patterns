@@ -11,11 +11,11 @@ Anti-pattern: let the model emit citations as free text and trust them.
 
 ## Context
 
-An agent answers with citations but the citation pipeline is the model itself; no source-id discipline.
+A team builds a research, legal, medical, or general question-answering assistant that should back its claims with sources, and the easiest way to add citations is to ask the model to include them in its free-text answer. There is no retrieval pipeline that returns documents by stable identifier, or there is one but its results are not bound to the citations the model emits. Whatever URL, paper title, or case name the model writes in its answer is shipped to the user as-is.
 
 ## Problem
 
-The model invents URLs, paper titles, and author names. Hallucinated citations look authoritative until clicked.
+Language models trained on academic and legal text are particularly fluent at producing authoritative-looking references that do not exist — invented authors, plausible but wrong digital object identifiers, real-sounding case names that no court ever decided. The citations look correct until somebody clicks them, and end users routinely do not click. In regulated domains like law and medicine, a single hallucinated citation that reaches a customer can trigger sanctions, retractions, or loss of trust the product never recovers from.
 
 ## Forces
 

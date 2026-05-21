@@ -11,11 +11,11 @@ Build schemas that evolve without breaking old clients via reserved namespaces a
 
 ## Context
 
-Long-lived data formats accumulate fields; rigid schemas force breaking changes that cascade through clients.
+A team owns a data format that lives for years and is read by clients of different ages — exported files, API payloads, event records in a queue. New fields show up regularly because the product evolves, and the team cannot reasonably upgrade every client at the same moment a new field is added. They need a way to add fields, and to let vendors add their own extensions, without forcing a coordinated release.
 
 ## Problem
 
-Rigid schemas break when fields are added; permissive schemas become incoherent.
+A rigid schema that lists exactly which fields are allowed will reject any payload that contains a new field, which means every addition becomes a breaking change for every existing client. The obvious workaround — accepting anything and validating nothing — turns the schema into mush, lets typos through, and makes it impossible to tell deliberate extensions apart from accidents. The team has to choose between cascading breaking changes and losing the schema's value as a contract, and neither is acceptable for a long-lived format.
 
 ## Forces
 

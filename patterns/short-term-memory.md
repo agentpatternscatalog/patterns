@@ -11,11 +11,11 @@ Carry the relevant slice of conversation context across turns within a session.
 
 ## Context
 
-A multi-turn agent needs continuity (the user's most recent screen, the active plan, prior tool results) but does not need it forever.
+A multi-turn agent needs continuity across recent turns — what screen the user is currently on, what the active plan looks like, what tools have been called and what they returned — but it does not need this information forever. The next few turns will use it; the next conversation almost certainly will not.
 
 ## Problem
 
-Replaying the entire conversation every turn is expensive and pollutes context with stale facts.
+Replaying the entire conversation history on every turn becomes expensive quickly and pollutes the context with stale facts that no longer matter. On the other hand, throwing away history between turns breaks continuity: the agent forgets what it was just doing, the user has to re-state their goal, and tool results disappear before the agent has a chance to use them. The team needs a bounded, recent slice of state that survives turn-to-turn within a session and is bounded by something other than 'everything that has ever been said'.
 
 ## Forces
 

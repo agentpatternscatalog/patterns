@@ -11,11 +11,11 @@ Select the model and provider for a request through a single namespaced string (
 
 ## Context
 
-Applications that need to swap between dozens of providers and hundreds of models on a per-request basis, where embedding a typed provider object hierarchy would bind application code to a specific SDK shape.
+A team is building an application that needs to talk to several language-model providers and many model variants — OpenAI, Anthropic, Google, xAI, OpenRouter, and others — possibly choosing between them on a per-request basis for cost lanes, experiments, or tenant-specific routing. The application is otherwise model-agnostic; it does not need to depend on the typed object hierarchy of any one provider's software development kit. The team controls the call sites where each model invocation happens.
 
 ## Problem
 
-A typed `OpenAI(...)` / `Anthropic(...)` object hierarchy makes the provider part of the application's source code; switching providers per request, per tenant, or per experiment requires conditional construction. A single namespaced string lets the same call site address any provider/model combination.
+When the call site is written as a typed provider object such as `OpenAI(...)` or `Anthropic(...)`, the provider becomes part of the application's source code and switching between them requires conditional construction at every call site. Per-request, per-tenant, or per-experiment routing across providers turns into a tangle of imports and adapter classes, and adding a new provider means another typed branch wherever models are invoked. The application ends up coupled to provider SDK shapes that have no business in its core logic.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A team builds an agent that should route easy tasks to a cheap small model, hard
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   CS[Call site] -->|provider/model string| REG[Provider registry]
   REG --> A[OpenAI adapter]
   REG --> B[Anthropic adapter]

@@ -11,11 +11,11 @@ At runtime, transform user inputs and model outputs into standardised, template-
 
 ## Context
 
-An agent must accept free-form prompts and emit responses that other components (other agents, tools, UI) consume; without standardisation, each consumer parses its own way and the agent's behaviour drifts as wording changes.
+A team is running an agent that sits between free-form human input on one side and a chain of downstream consumers on the other — other agents, tool calls, and user-interface components that each expect a particular shape. Users write whatever they want, in whatever phrasing they want, and downstream code expects predictable structure. The team needs a place to standardise both ends without asking either side to change its habits.
 
 ## Problem
 
-Free-form prompts vary in structure and format; responses vary in shape; both lead to inconsistent agent behaviour and brittle downstream integrations.
+If user prompts go straight to the model and the model's free-form output goes straight to consumers, two things drift in parallel. The model's behaviour changes with every small wording variation in how users phrase the same intent, and each downstream consumer ends up writing its own ad-hoc parser to extract what it needs from prose, with parsers that disagree on edge cases. Over time the agent's behaviour becomes hard to reproduce and downstream integrations become brittle, because there is no single contract that both the model and the consumers are held to.
 
 ## Forces
 
@@ -52,7 +52,7 @@ An onboarding agent accepts any free-form question from a new employee. A prompt
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User input] --> PO[Prompt optimiser]
   PO <-->|template| T[Template registry]
   PO -->|refined prompt| FM[Foundation model]

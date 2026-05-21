@@ -11,11 +11,11 @@ Run agent-emitted code or actions in a contained environment with restricted fil
 
 ## Context
 
-Agents that execute code or operate the filesystem; ungated execution is a security and stability hazard.
+A team is running an agent that executes model-generated code, runs shell commands, or operates the host filesystem as part of its action loop. The agent is exposed to user inputs, retrieved documents, or tool outputs that may be hostile or simply mistaken, and the host machine holds developer files, credentials, or shared infrastructure.
 
 ## Problem
 
-An agent with full host access can damage the host (delete files, exfiltrate data, install malware) intentionally or accidentally.
+An agent with full host access can damage the host either deliberately (a prompt-injection payload tells it to delete a directory or exfiltrate a secret) or accidentally (the model emits a destructive command targeting the wrong path). Once a wrong rm -rf, curl-piped-to-shell, or rogue tool call has run on the host, no amount of in-loop reasoning can undo it; the blast radius is whatever the host process can reach.
 
 ## Forces
 

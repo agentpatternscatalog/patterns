@@ -11,11 +11,11 @@ Anti-pattern: add or remove tool definitions during a running task so the tool s
 
 ## Context
 
-Agent frameworks that grow their tool palette dynamically — exposing new MCP servers mid-run, removing tools as conditions change, or swapping the registry between iterations.
+A team is using an agent framework that grows or shrinks its tool palette dynamically during a run — exposing new MCP (Model Context Protocol) servers as the task moves into new territory, removing tools as conditions change, or swapping the registry between iterations of the loop. From the framework's perspective this looks like good hygiene against tool-explosion: only show the agent the tools it currently needs.
 
 ## Problem
 
-Mutating tool definitions mid-run invalidates the KV-cache for everything after the change and leaves the model uncertain which tools it can still call; recent turns may reference tools no longer present, or tools the model has not yet been told about, causing hallucinated calls and broken composition.
+Mutating tool definitions in the middle of a running task invalidates the prefix key-value cache for everything in the conversation that came after the change, because the model conditions on the original system message and tool list. The agent then becomes uncertain which tools it can still call: recent turns may reference tools that have just been removed, or tools the model has not yet been told about, leading to hallucinated calls and broken composition between steps. The cost of the cache invalidation also shows up as a latency spike on the very next turn. Hot-swapping the loadout mid-run trades a small inventory benefit for serious correctness and performance damage.
 
 ## Forces
 

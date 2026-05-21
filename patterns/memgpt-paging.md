@@ -11,11 +11,11 @@ Treat the LLM context window as RAM and external storage as disk, with the model
 
 ## Context
 
-Long-running agents whose conversation or document state exceeds the context window; naive truncation loses state unpredictably.
+A long-running agent's conversation or document state grows past the model's context window. The team needs to keep the agent useful over interactions that may span thousands of turns, or over documents that are larger than any window the provider offers.
 
 ## Problem
 
-Fixed context windows force a choice between losing state and stuffing irrelevant content; both degrade quality.
+A fixed context window forces a hard choice between losing state and stuffing irrelevant content. Naive truncation drops whatever happens to be at the boundary, which may be exactly the information the next turn needs. Stuffing the window with potentially-relevant content from the past inflates cost and dilutes the model's attention on the actually-relevant pieces. Neither option scales; both degrade quality. The team needs a paging discipline — the way an operating system pages between main memory and disk — where the model itself can decide what to load in and what to swap out as the task evolves.
 
 ## Forces
 

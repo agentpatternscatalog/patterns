@@ -11,11 +11,11 @@ Anti-pattern: expose every available tool in every request and watch function-ca
 
 ## Context
 
-MCP and plugin ecosystems make hundreds of tools easy to register; teams expose them all.
+A team is building an agent on a platform where registering new tools is essentially free: MCP (Model Context Protocol) servers, plugin ecosystems, and tool registries make it trivial to expose dozens or hundreds of tools to the model at once. The path of least resistance is to expose them all so that the model can in principle reach for anything that exists.
 
 ## Problem
 
-Past about 20 tools, model selection accuracy drops sharply; the agent picks wrong tools or invents wrong arguments.
+Past roughly twenty tools in a single request, function-calling accuracy drops sharply for almost every current model. The agent starts picking the wrong tool for a task, invents wrong arguments, or fails to call any tool when one is needed. Adding more tools feels free because each individual registration is cheap, but the cost is paid invisibly on every request as a degraded selection. The exact threshold drifts with model capability, which makes it tempting to ignore — until the agent starts misbehaving in production with no obvious change to blame.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Persist agent execution state so a long-running run survives restarts, deploys, 
 
 ## Context
 
-Production agents that run for minutes to hours; users need the work to survive disconnects and ops events.
+A team runs an agent in production that takes minutes or hours to finish a single task, for example scraping and summarising a long list of pages, or driving a multi-step migration. During that time the worker process may be restarted by a deploy, killed by a host failure, or disconnected from the user's session. Operators and end users both expect work in flight to survive these everyday events rather than being thrown away.
 
 ## Problem
 
-Agents that lose state on restart lose hours of work; users distrust long-running agents.
+If the agent keeps all of its state in memory and the process dies, the run is gone and the user has to start over, sometimes after waiting forty minutes for nothing. Naively retrying from scratch repeats every side effect that already ran, so emails get sent twice, charges get doubled, and external systems see the same write multiple times. The team is forced to choose between fragile long-running agents and giving up on long-running agents altogether.
 
 ## Forces
 

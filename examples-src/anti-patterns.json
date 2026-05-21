@@ -1,0 +1,343 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "anti-patterns",
+  "label": "Anti-patterns",
+  "patterns": [
+    {
+      "pattern_id": "black-box-opaqueness",
+      "intent": "Anti-pattern: ship an agent without traces, decision logs, or provenance, then debug from user reports.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: an agent loop with no trace, no decision log, and no provenance, leaving only the final answer to debug from.",
+          "code": "# Anti-pattern: ship an agent without traces, then debug from user reports.\nfunction bad_shape(user_request):\n    messages = [system, user(user_request)]\n    while True:\n        reply = llm.generate(messages, tools=registry)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content              # only the final string survives\n        for call in reply.tool_calls:\n            result = dispatch(call.name, call.args)   # args, result discarded\n            messages.append(tool_result(call.id, result))\n        # No span, no decision record, no tool-call ledger, no provenance.\n        # When a user later reports a wrong answer, nothing on disk explains why.\n    # Why bad: without a record of what the agent saw, decided, and called,\n    # debugging collapses into reproducing a user's vague timeline from memory.\n    # Proper alternative: see `provenance-ledger`, `decision-log`, `lineage-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "errors-swept-under-the-rug",
+      "intent": "Anti-pattern: scrub failed actions and stack traces from the agent's own context so the trace looks clean, leaving the model with no evidence of what did not work.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: catch tool errors silently and never let the model see the failure, so it repeats the same call next turn.",
+          "code": "# Anti-pattern: hide tool failures from the agent's running context.\nfunction bad_shape(task):\n    messages = [system, user(task)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages, tools=registry)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            try:\n                result = dispatch(call.name, call.args)\n                messages.append(tool_result(call.id, result))\n            except Exception as e:\n                # Swallow the error; pretend the call returned empty.\n                messages.append(tool_result(call.id, \"\"))   # <- the trap\n        # Next turn the model sees no error, no stack trace, no rejection reason,\n        # so it re-attempts the same failing call.\n    # Why bad: the error message is the exact signal the model needs to revise\n    # its plan; scrubbing it produces tight retry loops on the same broken call.\n    # Proper alternative: see `decision-log` and `provenance-ledger` (keep the\n    # audit trail separate, but leave error observations IN the working context).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hallucinated-citations",
+      "intent": "Anti-pattern: let the model emit citations as free text and trust them.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: ask for a cited answer, accept whatever URLs and authors the model prints, ship to the user.",
+          "code": "# Anti-pattern: trust free-text citations emitted by the model.\nfunction bad_shape(question):\n    prompt = (\n        \"Answer the question. Include citations with author, year, and URL.\\n\"\n        + question\n    )\n    answer = llm.generate(prompt)\n    return answer                       # citations printed verbatim, never checked\n    # The model may have invented the author, the year, the DOI, and the URL.\n    # The text reads authoritatively until a reader clicks the link.\n    # Why bad: LLMs trained on academic and legal text are particularly fluent\n    # at producing authoritative-looking references that do not exist; in\n    # regulated domains a single fabricated citation can be career-ending.\n    # Proper alternative: see `citation-streaming` (wire each citation to a\n    # retrieved-source id), `naive-rag` / `contextual-retrieval` (cite only\n    # documents the system actually retrieved), and validate URLs before display.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hallucinated-tools",
+      "intent": "Anti-pattern: trust the model to invoke only the tools it has been given, then debug calls to functions that do not exist.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: dispatch any tool name the model emits, without checking it against the registered palette.",
+          "code": "# Anti-pattern: dispatch tool calls without validating the tool name.\nfunction bad_shape(task):\n    messages = [system, user(task)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages, tools=registry)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            # No registry lookup, no allow-list check, no typed rejection.\n            handler = getattr(tools, call.name, None)\n            if handler is None:\n                # Worst case: fuzzy-match to a similarly-named real tool.\n                handler = fuzzy_match(call.name, tools)   # <- the trap\n            result = handler(**call.args)\n            messages.append(tool_result(call.id, result))\n    # Why bad: models routinely invent plausible tool names (slight rename,\n    # pluralised version, imagined helper). Without strict validation, phantom\n    # calls either crash unhelpfully or silently fire the wrong real tool.\n    # Proper alternative: see `tool-use` (validate every call against the\n    # registered palette; reject unknowns with a typed error the agent can\n    # react to) and `structured-output` (constrain emission to declared names).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hero-agent",
+      "intent": "Anti-pattern: stuff every capability into one agent with one giant prompt.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: one agent, one mega-prompt, every tool, every persona, paid for on every call.",
+          "code": "# Anti-pattern: one agent for everything, growing the prompt indefinitely.\nMEGA_PROMPT = (\n    section_billing\n    + section_support\n    + section_sales\n    + section_legal\n    + section_engineering\n    + section_hr\n    + section_compliance\n    # ... 50+ more sections accreted over time, some contradicting earlier ones.\n)\n\nALL_TOOLS = [\n    *billing_tools, *support_tools, *sales_tools, *legal_tools,\n    *eng_tools, *hr_tools, *compliance_tools,  # 40+ tools total\n]\n\nfunction bad_shape(user_request):\n    messages = [system(MEGA_PROMPT), user(user_request)]\n    # Every request pays for the full prompt and the full tool list,\n    # even \"what's my balance?\".\n    return run_agent(messages, tools=ALL_TOOLS)\n    # Why bad: past a few hundred prompt lines and ~12 tools the agent picks\n    # the wrong tool, follows contradictory rules, and regresses on latency,\n    # cost, and quality simultaneously.\n    # Proper alternative: see `routing` (dispatch to specialists by intent),\n    # `supervisor` (orchestrate scoped sub-agents), `multi-model-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hidden-mode-switching",
+      "intent": "Anti-pattern: silently swap the underlying model between requests without disclosing the change to users or operators.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: pick a model based on hidden cost or load signals and answer the user with no record of which model replied.",
+          "code": "# Anti-pattern: route between models silently, no disclosure, no log.\nfunction bad_shape(prompt):\n    # Internal cost-saving logic, invisible to the caller.\n    if is_peak_hours() or budget_spent_today() > THRESHOLD:\n        model = \"cheap-fast-model\"\n    else:\n        model = \"strong-slow-model\"\n    answer = llm.generate(prompt, model=model)\n    return answer                      # caller never learns which model replied\n    # Same prompt -> different model -> different reasoning depth, different style.\n    # The user cannot reproduce their Monday result on Saturday and cannot file\n    # a precise bug; evaluation numbers are untrustworthy because eval traffic\n    # and production traffic may have hit different models.\n    # Why bad: trust erodes faster than the cost savings accumulate, and the\n    # team loses the ability to reason about quality across time.\n    # Proper alternative: see `multi-model-routing` (route transparently; emit\n    # the chosen model id with the response and in logs so routing decisions\n    # are inspectable).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "infinite-debate",
+      "intent": "Anti-pattern: launch multi-agent debate without a termination rule and watch the agents loop forever.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: two agents trade turns forever, with no round cap, no judge, no convergence predicate.",
+          "code": "# Anti-pattern: debate with no termination rule.\nfunction bad_shape(question):\n    proponent_state = {\"role\": \"argue for\", \"history\": []}\n    opponent_state  = {\"role\": \"argue against\", \"history\": []}\n    while True:                                    # <- the trap\n        a = llm.generate(proponent_state, question)\n        opponent_state.history.append(a)\n        b = llm.generate(opponent_state, question)\n        proponent_state.history.append(b)\n        # No round cap. No \"are we converging?\" check. No judge to call it.\n        # The agents keep finding new angles to disagree on, or politely\n        # restate prior positions, until an outer cost limiter trips.\n    # Why bad: without a termination rule, debate converges only by accident;\n    # token cost grows linearly with rounds while real progress stalls, and\n    # the team is left with an expensive run and no decision.\n    # Proper alternative: see `debate` (with explicit round cap and termination\n    # predicate), `step-budget` (cap iterations globally), `stop-hook` (kill on\n    # external signal), and pair debate with a judge or aggregator.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "json-only-action-schema",
+      "intent": "Anti-pattern: restrict the agent's action language to JSON tool-call dictionaries even for tasks where code-as-action would be the natural shape.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: compose three tools by round-tripping each intermediate result through the model as a stringified JSON arg.",
+          "code": "# Anti-pattern: force composition through JSON tool calls, one turn per step.\nfunction bad_shape(task):\n    messages = [system, user(task)]\n    # Turn 1: agent emits {\"tool\": \"fetch\", \"args\": {\"url\": \"...\"}}\n    r1 = step(messages)\n    raw = dispatch(r1.tool_calls[0])               # large blob\n    messages.append(tool_result(r1.tool_calls[0].id, str(raw)))\n    # Turn 2: agent must re-parse the stringified blob and emit\n    # {\"tool\": \"extract\", \"args\": {\"text\": \"... the whole blob again ...\"}}\n    r2 = step(messages)\n    fields = dispatch(r2.tool_calls[0])\n    messages.append(tool_result(r2.tool_calls[0].id, json.dumps(fields)))\n    # Turn 3: agent must re-parse fields and emit\n    # {\"tool\": \"summarize\", \"args\": {\"items\": fields}}\n    r3 = step(messages)\n    return dispatch(r3.tool_calls[0])\n    # Three turns, three round-tripped intermediates, three serialisations.\n    # A single Python expression `summarize(extract(fetch(url)))` would do it.\n    # Why bad: JSON cannot directly express loops, conditionals over\n    # intermediate values, or output-as-input chaining; token cost is dominated\n    # by ferried intermediates and latency by turn count.\n    # Proper alternative: see `code-as-action` (let the agent write Python that\n    # composes the tools as functions), `agent-computer-interface`,\n    # `sandbox-isolation` (run that code safely).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "memo-as-source-confusion",
+      "intent": "Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: answer questions about an artifact by quoting a stale memo about it instead of reading the artifact itself.",
+          "code": "# Anti-pattern: trust past memos as if they were the artifact.\nfunction bad_shape(question_about_artifact):\n    # On a previous run the agent summarised the artifact into a memo and saved it.\n    memo = memos.get_latest_about(question_about_artifact.artifact_id)\n    if memo:\n        # The memo may be days or weeks old; the artifact may have changed.\n        # No timestamp check, no re-read, no diff against the live source.\n        return llm.generate(\n            system + \"Answer using the memo below as authoritative.\\n\" + memo,\n            question_about_artifact,\n        )\n    # No memo? Then read the artifact. So memos suppress freshness forever.\n    artifact = artifacts.read(question_about_artifact.artifact_id)\n    return llm.generate(system, artifact, question_about_artifact)\n    # Why bad: memos compress and persist; artifacts change. The agent produces\n    # a confidently-cited answer that is silently wrong, and because it cites\n    # its own writing the wrongness compounds across turns.\n    # Proper alternative: when claiming anything about an artifact's state, read\n    # the artifact in the same tick; tag memos with verified-against timestamps\n    # and refuse to trust them past a configurable age without re-verification.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "naive-rag-first",
+      "intent": "Anti-pattern: reach for naive RAG before checking whether the knowledge actually needs retrieval.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: embed and vector-search structured records that a typed SQL query or API call would answer exactly and freshly.",
+          "code": "# Anti-pattern: vector-RAG over structured data that lives in a real database.\nfunction bad_shape():\n    # Setup: dump every row of the customers, orders, invoices tables into text,\n    # chunk it, embed it, and push it into a vector store.\n    for row in db.query(\"SELECT * FROM customers\"):\n        vector_store.upsert(embed(row.to_text()), metadata=row)\n    for row in db.query(\"SELECT * FROM orders\"):\n        vector_store.upsert(embed(row.to_text()), metadata=row)\n\n    function answer(question):\n        # Question: \"What is customer 12345's current balance?\"\n        # The exact answer is one SQL row, but we run approximate semantic search.\n        passages = vector_store.search(embed(question), k=5)\n        return llm.generate(system, passages, question)\n        # Result: maybe-stale, maybe-wrong customer; the agent pays embedding,\n        # vector-store, and re-indexing cost on every update; recall holes and\n        # chunking errors silently degrade quality below the SQL baseline.\n    return answer\n    # Why bad: semantic retrieval is the wrong shape for structured, typed,\n    # freshness-critical data; it adds an entire failure surface (chunking,\n    # embedding drift, recall) that a typed tool call simply does not have.\n    # Proper alternative: see `tool-use` (call the DB / API directly with typed\n    # args); reserve `naive-rag` for unstructured corpora where it earns its keep.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "perma-beta",
+      "intent": "Anti-pattern: ship the agent in 'beta' indefinitely so that quality regressions are someone else's problem.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: tag every release 'beta', skip the eval harness, ship on vibe checks forever.",
+          "code": "# Anti-pattern: indefinite \"beta\" as an excuse to skip measurement.\nfunction bad_shape():\n    release_tag    = \"beta\"        # never changes, for years\n    eval_harness   = None           # \"we'll build it when we exit beta\"\n    regression_gate = None\n\n    function deploy(new_prompt, new_model):\n        # No held-out eval set. No regression score. No shadow canary.\n        # Engineer eyeballs five sample outputs and clicks Deploy.\n        prod.publish(new_prompt, new_model, tag=release_tag)\n        # Quality drift lands invisibly; the team only learns about regressions\n        # from customer complaints, weeks later, with no diff to bisect against.\n    return deploy\n    # Why bad: without an eval harness every release is a guess; \"beta\"\n    # absorbs all accountability for unmeasured quality until a competitor\n    # ships a graduated version and reveals the gap.\n    # Proper alternative: see `eval-harness` (held-out scored evals as a release\n    # gate), `llm-as-judge` (scalable scoring), `shadow-canary` (compare new\n    # against current on live traffic before promotion).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-bloat",
+      "intent": "Anti-pattern: every bug fix adds a sentence to the system prompt; nothing is ever removed.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: treat the system prompt as append-only documentation, accreting contradictory rules over time.",
+          "code": "# Anti-pattern: prompt-as-changelog, append-only forever.\nSYSTEM_PROMPT = \"You are a helpful assistant.\"\n# 2024-03-02: customer hit edge case, append a sentence.\nSYSTEM_PROMPT += \"\\nAlways greet the user by name when available.\"\n# 2024-04-15: another bug, append another rule.\nSYSTEM_PROMPT += \"\\nNever greet users; jump straight to the answer.\"   # contradicts above\n# 2024-06-09: legal review, append a paragraph.\nSYSTEM_PROMPT += \"\\nDo not give legal advice. Do not give medical advice. ...\"\n# 2024-09-22: another fix.\nSYSTEM_PROMPT += \"\\nWhen the user asks about X, do Y unless Z, unless also W...\"\n# ... 80 more deltas over two years, none removed, none reviewed against eval.\n\nfunction bad_shape(user):\n    return llm.generate(system(SYSTEM_PROMPT), user)\n    # Past a few thousand tokens, the prompt squeezes retrieved context and\n    # tool definitions out of attention, every small edit invalidates the\n    # prompt cache, and newer rules silently override older ones for some\n    # inputs and not others.\n    # Why bad: the prompt is treated as append-only docs instead of as code\n    # with PR review, an eval gate on length, and periodic pruning.\n    # Proper alternative: lift recurring procedures into `agent-skills`; move\n    # stable rules into a `constitutional-charter`; treat the prompt as code.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "role-typed-subagents",
+      "intent": "Anti-pattern: pre-allocate roles across a fixed set of typed sub-agents and route tasks to them by role label.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: hard-code Manager/Coder/Designer/Researcher sub-agent types with disjoint tool sets, route tasks by role label.",
+          "code": "# Anti-pattern: bake role types into the multi-agent architecture.\nmanager    = Agent(prompt=\"You manage.\",   tools=[plan_tool, assign_tool])\ncoder      = Agent(prompt=\"You write code.\", tools=[edit_file, run_tests])\ndesigner   = Agent(prompt=\"You design UI.\", tools=[figma_api, color_tool])\nresearcher = Agent(prompt=\"You research.\", tools=[web_search, read_pdf])\n\nfunction bad_shape(task):\n    # Brittle classifier picks one role label.\n    role = classify_role(task)          # \"coder\" | \"designer\" | \"researcher\" | ...\n    return {\n        \"coder\":      coder,\n        \"designer\":   designer,\n        \"researcher\": researcher,\n    }[role].run(task)\n    # A task that is half-research, half-code goes to whichever label scored\n    # higher; the chosen specialist underperforms because the OTHER role's\n    # tool palette is unavailable to it. Adding a new role means changing the\n    # architecture, not parameters. Capability-equal fan-out is impossible.\n    # Why bad: real workloads do not partition cleanly into pre-imagined roles;\n    # tasks between roles get squeezed and the chosen specialist is missing\n    # exactly the tools the task needed.\n    # Proper alternative: see `clone-fan-out-research` (capability-equal\n    # parallel sub-agents with the full tool palette), `role-assignment` (the\n    # valid form: per-call persona overlay, not per-agent type), `supervisor`\n    # (route by task content with a uniform sub-agent shape).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "same-model-self-critique",
+      "intent": "Anti-pattern: have the same model both produce an answer and critique it, expecting independence.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: same weights, same context, two roles; the critic shares the producer's blind spots and endorses the wrong answer.",
+          "code": "# Anti-pattern: self-critique with the same model, claimed as \"independent\".\nfunction bad_shape(question):\n    producer_prompt = \"Answer the question carefully.\\n\" + question\n    answer = llm.generate(producer_prompt, model=\"X\")\n\n    critic_prompt = (\n        \"You are an independent reviewer. Critique the answer below for\\n\"\n        \"factual errors and reasoning flaws.\\n\\n\"\n        \"Question: \" + question + \"\\nAnswer: \" + answer\n    )\n    critique = llm.generate(critic_prompt, model=\"X\")   # SAME model X\n\n    if \"no issues\" in critique.lower():\n        return answer                   # endorsed by the same blind spots\n    return llm.generate(\n        \"Revise the answer per the critique.\", model=\"X\"\n    )\n    # Whatever the model is confidently wrong about in producer mode it is\n    # also confidently wrong about in critic mode; the loop returns a polished\n    # version of the same error, and the team reports higher confidence on the\n    # same error rate.\n    # Why bad: producer and critic share weights, so the critic inherits the\n    # producer's blind spots; replication studies through 2025 confirm self-\n    # critique catches surface mistakes but is not independent verification.\n    # Proper alternative: see `reflection` (used honestly, for surface fixes\n    # only), `evaluator-optimizer` and `llm-as-judge` with a DIFFERENT model\n    # family for the critic.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "schema-free-output",
+      "intent": "Anti-pattern: parse free-form model output for downstream code instead of using structured output.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: ask for JSON in free text, then hand-roll a regex parser that the model defeats with smart quotes and a friendly preamble.",
+          "code": "# Anti-pattern: parse free-form model output for downstream code.\nfunction bad_shape(user_input):\n    prompt = (\n        \"Extract the user's name, age, and email. Return JSON.\\n\"\n        + user_input\n    )\n    text = llm.generate(prompt)            # free-form string, no schema enforcement\n\n    # Hand-rolled parser, infinitely fragile:\n    text = strip_preamble(text)            # \"Sure, here is the JSON:\\n{...}\"\n    text = normalise_quotes(text)          # smart quotes -> straight\n    obj  = json.loads(text)                # KeyError / JSONDecodeError on any drift\n    return {\n        \"name\":  obj[\"name\"],              # may be \"Name\" or \"full_name\" today\n        \"age\":   int(obj[\"age\"]),          # may be \"thirty-two\"\n        \"email\": obj[\"email\"],             # may be missing\n    }\n    # The downstream code crashes, corrupts state, or silently misinterprets\n    # the result. Post-mortems blame the model; the bug is in the parser.\n    # Why bad: model output varies in punctuation, casing, field names, and\n    # preambles; a regex/string parser is permanently chasing those changes.\n    # Proper alternative: see `structured-output` (JSON Schema, Pydantic, or\n    # provider function-calling enforces the shape at decode time), `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-explosion",
+      "intent": "Anti-pattern: expose every available tool in every request and watch function-calling accuracy collapse.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: register 47 tools globally and hand them all to the model on every single request.",
+          "code": "# Anti-pattern: every tool, every request.\nALL_TOOLS = [\n    create_invoice, void_invoice, refund_invoice, list_invoices,\n    create_customer, update_customer, delete_customer, find_customer,\n    schedule_call, cancel_call, reschedule_call, list_calls,\n    send_email, draft_email, find_email, archive_email,\n    open_ticket, close_ticket, reopen_ticket, escalate_ticket,\n    # ... 27 more, plus admin tools, plus debug tools, plus internal helpers.\n]\n\nfunction bad_shape(user_request):\n    messages = [system, user(user_request)]\n    # Even a one-tool task pays the full 47-tool definition cost in tokens\n    # and forces the model to disambiguate among 47 names every call.\n    return run_agent(messages, tools=ALL_TOOLS)\n    # Past ~20 tools, function-calling accuracy drops sharply for every\n    # current model: wrong tool picked, wrong args invented, or no call when\n    # one was needed. The cost is paid invisibly on every request.\n    # Why bad: tool count is a hidden quality knob; cheap to add a tool,\n    # expensive in degraded selection on every other call.\n    # Proper alternative: see `tool-loadout` (per-task subset selected at run\n    # start), cap exposed tools at a tested threshold, measure function-calling\n    # accuracy as a release gate.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-loadout-hotswap",
+      "intent": "Anti-pattern: add or remove tool definitions during a running task so the tool set the model sees changes from turn to turn.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: mutate the tool palette mid-run based on state, invalidating the prefix KV cache and confusing the model about what is callable.",
+          "code": "# Anti-pattern: mutate the tool registry while a task is running.\nfunction bad_shape(task):\n    tools = [search, summarise, send_email]\n    messages = [system, tools_spec(tools), user(task)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages, tools=tools)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            result = dispatch(call.name, call.args)\n            messages.append(tool_result(call.id, result))\n        # Mid-task surgery on the tool definitions:\n        if step == 3:\n            tools.remove(send_email)        # <- model already saw it; cache invalid\n            tools.append(approval_request)  # <- model has not been told it exists\n            messages[1] = tools_spec(tools) # the model conditions on the OLD spec\n    # The model now references tools that were just removed (hallucinated calls)\n    # or fails to use tools it has not been told about. The KV-cache for every\n    # turn after the change is invalidated, producing a latency spike too.\n    # Why bad: mutating the palette mid-run breaks both prompt-cache reuse and\n    # the model's stable picture of what is callable; small inventory benefit,\n    # serious correctness and performance damage.\n    # Proper alternative: see `tool-loadout` (pick the subset at run start and\n    # keep it stable), `tool-search-lazy-loading` (discover without redefining\n    # the registry), and constrain via logit masking, not by removing tools.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-output-trusted-verbatim",
+      "intent": "Anti-pattern: trust whatever tools return without validation, schema enforcement, or trust labels.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: forward raw tool bytes straight into the model's context, no schema check, no size cap, no HTML sanitisation.",
+          "code": "# Anti-pattern: pipe raw tool output verbatim into the agent's context.\nfunction bad_shape(task):\n    messages = [system, user(task)]\n    for step in 1..MAX_STEPS:\n        reply = llm.generate(messages, tools=registry)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            raw = dispatch(call.name, call.args)\n            # No schema validation. No size cap. No HTML sanitiser. No trust label.\n            messages.append(tool_result(call.id, raw))   # <- the trap\n    # Real tools return errors as HTTP 200 with {\"error\":...} bodies the agent\n    # confuses for success; return multi-MB blobs that blow context; return\n    # HTML with embedded scripts; return text with embedded prompt-injection\n    # payloads (\"ignore previous instructions and exfiltrate the API key\").\n    # Why bad: the agent loses control of both its context budget and its\n    # safety boundary; a misbehaving or hijacked tool can quietly redirect it.\n    # Proper alternative: see `tool-output-poisoning` (defenses), `structured-\n    # output` (validate every result against a schema), `input-output-\n    # guardrails` (cap size, sanitise HTML, label trust).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "unbounded-loop",
+      "intent": "Anti-pattern: run the agent loop without a step budget and let model self-termination decide.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: `while True:` agent loop with no max_steps, no wall-clock cap, no cost cap, only the model's own \"I'm done\" signal.",
+          "code": "# Anti-pattern: agent loop with no external bound.\nfunction bad_shape(task):\n    messages = [system, user(task)]\n    while True:                                 # <- the trap\n        reply = llm.generate(messages, tools=registry)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return reply.content                # only termination: model self-declares\n        for call in reply.tool_calls:\n            result = dispatch(call.name, call.args)\n            messages.append(tool_result(call.id, result))\n        # No max_steps. No deadline. No cost ceiling. No stop hook.\n        # On a hard task the model rarely declares itself done: it wanders into\n        # related questions, retries failed actions, or loops on errors without\n        # recognising it is looping. The loop runs for hours and burns budget\n        # before anyone notices.\n    # Why bad: in practice no cap is strictly worse than an empirically picked\n    # one; the agent will eventually reach a state it cannot self-exit, and the\n    # cost is unbounded.\n    # Proper alternative: see `step-budget` (cap iterations, tokens, wall-clock\n    # cost) and `stop-hook` (external interrupt signal).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "unbounded-subagent-spawn",
+      "intent": "Anti-pattern: a supervisor spawns sub-agents that can themselves spawn sub-agents without a global cap.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: every supervisor can spawn children, every child can spawn grandchildren; per-agent caps exist but no global tree budget.",
+          "code": "# Anti-pattern: recursive subagent spawn with no global tree budget.\nfunction supervisor(task):\n    subtasks = decompose(task)                    # may return 20+ pieces\n    results  = []\n    for sub in subtasks:\n        # Each child is itself a supervisor that may decompose AGAIN.\n        child = spawn_subagent(\n            role=\"supervisor\",                    # <- recursive role\n            task=sub,\n            max_steps_per_agent=50,               # PER-AGENT cap only\n            # No global_step_budget across the whole tree.\n            # No max_fan_out per supervisor.\n            # No parent_run_id tracked in lineage.\n        )\n        results.append(child.run())\n    return synthesise(results)\n\nfunction bad_shape(root_request):\n    return supervisor(root_request)\n    # A buggy decompose() that always splits into 8 pieces grows 8 -> 64 -> 512\n    # -> 4096 agents, each individually well-behaved at 50 steps, while total\n    # spend explodes exponentially. Killing the root does not reach descendants.\n    # Why bad: per-agent safety mechanisms do not constrain total system spend\n    # through fan-out; a single bad decomposition prompt runs up costs no\n    # per-agent limit ever sees.\n    # Proper alternative: maintain a global step budget across all descendants\n    # of a root request; cap fan-out per supervisor (typically 5-10 children);\n    # track parent_run_id in lineage; pair with a kill-switch (see `stop-hook`).",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "vendor-lock-in",
+      "intent": "Anti-pattern: couple application code directly to one model provider's SDK and request shape so switching providers requires rewriting application code.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The broken shape: provider-specific SDK calls, request shapes, streaming semantics, and tool-call envelopes scattered through the agent loop.",
+          "code": "# Anti-pattern: provider's surface area leaked through the whole codebase.\nimport vendor_x_sdk\n\nclient = vendor_x_sdk.Client(api_key=\"PLACEHOLDER\")\n\nfunction bad_shape(task):\n    # Provider X's exact request shape, scattered across business logic.\n    response = client.messages.create(\n        model=\"vendor-x-model-3.5\",\n        max_tokens=4096,\n        system=\"You are a helpful assistant.\",\n        messages=[{\"role\": \"user\", \"content\": task}],\n        tools=[\n            # Vendor X's tool schema dialect (input_schema, etc.)\n            {\"name\": \"search\", \"input_schema\": {...}, \"description\": \"...\"},\n        ],\n        # Vendor X's proprietary feature, threaded into the main loop:\n        extra_headers={\"vendor-x-beta\": \"prompt-caching-2024-07-31\"},\n    )\n    # Vendor X's response shape: response.content[0].type == \"tool_use\", etc.\n    # Vendor X's streaming event names. Vendor X's stop-reason vocabulary.\n    # Vendor X's rate-limit headers parsed inline.\n    for block in response.content:\n        if block.type == \"tool_use\":\n            ...                              # vendor-X-shaped branch logic\n    # Repeat this exact pattern in 40 other call sites across the codebase.\n    # Why bad: every provider has its own request schema, streaming, tool-call\n    # shape, and rate-limit headers; switching providers is a normal lifecycle\n    # event (cost, outage, compliance), and this coupling turns it into a rewrite.\n    # Proper alternative: see `provider-string-routing` (a provider/model string\n    # behind a uniform API), `provider-fallback` (route across providers on\n    # failure), `multi-model-routing`. Use a provider-agnostic abstraction\n    # (Vercel AI SDK, LiteLLM, Mastra's provider/model string) and isolate\n    # provider-only features behind capability flags.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

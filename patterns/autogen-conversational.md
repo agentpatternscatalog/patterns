@@ -11,11 +11,11 @@ Have agents converse turn by turn until a completion criterion fires; agent role
 
 ## Context
 
-Tasks that benefit from back-and-forth between specialists (a coder agent and a reviewer agent; a teacher agent and a student agent).
+A team is building an agent system whose task is naturally shaped like a conversation between two or more specialists: a coder agent and a reviewer agent revising a patch together, a teacher agent and a student agent working through an explanation, a writer agent and an editor agent. The work converges through back-and-forth rather than through a single agent's monologue.
 
 ## Problem
 
-Single-agent loops cannot represent dialogue-shaped collaboration; rigid orchestration patterns over-prescribe the flow.
+A single-agent loop has nowhere to put the dialogue: there is no opposing voice to push back, and inner-monologue self-critique tends to agree with itself. A rigid orchestration pipeline that fixes the step order in advance over-prescribes the flow and removes the conversational dynamics that make the pairing valuable in the first place. Without a structure for turn-taking, the team is forced to choose between a flat solo loop and a brittle hard-coded sequence.
 
 ## Forces
 

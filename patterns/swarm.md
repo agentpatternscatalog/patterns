@@ -11,11 +11,11 @@ Run many peer agents that interact directly without a central supervisor, achiev
 
 ## Context
 
-Tasks where centralised coordination is a bottleneck or where the problem benefits from many independent attempts (simulation, exploration).
+A team is working on a task where many independent attempts or interactions matter more than a single coordinated plan — a negotiation simulation with many parties, a market simulation, an exploration of a large state space, a generative-agents experiment populating a small world. Centralised coordination would either bottleneck the system or impose a single policy on agents that need to behave differently from each other.
 
 ## Problem
 
-Centralised supervisors become bottlenecks at scale; some tasks (negotiation, simulation, exploration) need agent-to-agent dynamics.
+A central supervisor scales poorly to dozens or hundreds of agents: it becomes the bottleneck, and forcing every interaction through it removes the agent-to-agent dynamics that the task actually depends on. A negotiation in which every party speaks only through the chair is not a negotiation. At the same time, dropping the supervisor entirely raises new problems: how do agents find each other, how does the system terminate, and how does anyone debug emergent behaviour when nobody is in charge.
 
 ## Forces
 
@@ -54,7 +54,7 @@ A team simulates negotiation strategies among many parties; a centralised superv
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]
   A2[Peer agent 2] <--> Bus
   A3[Peer agent 3] <--> Bus

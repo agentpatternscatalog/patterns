@@ -11,11 +11,11 @@ Give the agent a writable scratch space for intermediate notes that informs late
 
 ## Context
 
-Long tasks where the agent benefits from writing things down (computations, plans, lists of unresolved questions) without showing the user.
+An agent is working on a long task where it benefits from writing things down as it goes — intermediate computations, plans, lists of unresolved questions, candidate options it is considering. None of this scratch work is something the user should see; it is the agent's internal working surface, the equivalent of notes on a whiteboard.
 
 ## Problem
 
-Without a scratchpad, intermediate work pollutes the response or is lost between turns.
+Without a dedicated scratchpad, the intermediate work has nowhere appropriate to live. Either it pollutes the user-visible response, so the user sees half-finished computations and the agent's running commentary, or it is held only in the conversation history and is lost the moment that history gets trimmed. Either way the agent loses the artifact that was supposed to support its own reasoning, and the user is forced to read through clutter that was never meant for them.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A research agent that has to read ten papers and answer one question keeps repea
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   T[Turn n] --> A[Agent]
   A -->|write notes| SP[(Scratchpad)]
   SP -->|read on| T2[Turn n+1]

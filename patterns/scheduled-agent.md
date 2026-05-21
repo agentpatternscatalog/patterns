@@ -11,11 +11,11 @@ Run the agent on a fixed schedule independent of user requests.
 
 ## Context
 
-Tasks that should happen periodically (overnight summaries, weekly triage, hourly health checks) regardless of user prompting.
+A team needs an agent to do work on a clock — produce an overnight summary, triage incoming issues every Monday morning, run an hourly health check, send a daily competitive-intelligence digest. The work has to happen whether or not a user remembers to ask. A scheduler (cron, a queue with delayed delivery, a managed scheduler service) and durable storage for the agent's state are available.
 
 ## Problem
 
-Request-driven agents only act when called; many useful tasks need to act on time, not on demand.
+Request-driven agents only act when someone calls them; if no user prompts the digest, the digest never goes out. Asking a human to trigger the agent every morning defeats the point of automation. Running the agent continuously in a polling loop wastes most of its budget on idle wakeups. Without persisted state between runs, each scheduled invocation starts from zero and cannot pick up where the previous one left off, so anything that needs continuity (last-seen items, in-progress investigations) is lost.
 
 ## Forces
 

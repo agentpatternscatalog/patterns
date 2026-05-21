@@ -11,11 +11,11 @@ Maintain a single queryable catalogue of both available tools and available agen
 
 ## Context
 
-An agent (or coordinator) must compose work across many tools and many specialist agents, all of which evolve independently and may be supplied by third parties. Distinct from tool-discovery: tool-agent-registry adds agent entries alongside tools and selection metadata (cost, quality, capability) so the caller can rank candidates, not just list them.
+A team runs a coordinator agent that has to pick between many tools and many specialist agents per task: three speech-to-text services with different prices and accuracies, two summariser agents with different domain strengths, several search tools with overlapping coverage. Tools and specialists evolve independently and some are supplied by third parties, so the coordinator should not be hardcoded to specific implementations.
 
 ## Problem
 
-Hardcoding tool palettes or agent endpoints couples the agent to specific implementations; treating tools and agents as different registries leads to duplicate selection logic and inconsistent metadata.
+If the coordinator's tool palette and the list of available specialist agents are hardcoded into prompts, every new capability requires a redeploy and selection logic gets duplicated everywhere. Keeping tools and agents in separate registries leads to two parallel selection paths with diverging metadata: cost, latency, capability, and quality may be tracked one way for tools and a different way for agents, so the coordinator cannot meaningfully rank candidates across the two.
 
 ## Forces
 
@@ -52,7 +52,7 @@ A coordinator agent receives a task: "transcribe a customer call and summarise t
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User] -->|task| C[Coordinator agent]
   C -->|query| R[Tool / Agent registry]
   R -->|ranked candidates| C

@@ -11,11 +11,11 @@ Build the foundational agent block as an LLM augmented with retrieval, tools, an
 
 ## Context
 
-Any agentic system. The augmented LLM is the unit of composition that every higher-level workflow or agent pattern is built from.
+A team is building any non-trivial agentic system: a support assistant, a coding agent, a research agent, an internal workflow runner. They need a uniform building block so that higher-level patterns (chaining, routing, orchestrator-worker setups, multi-agent loops) can compose it without reinventing the basics each time.
 
 ## Problem
 
-A bare LLM call cannot fetch fresh facts, take actions in external systems, or remember across turns. Wiring those capabilities differently for each pattern leads to incompatible building blocks.
+A bare large language model call cannot look up fresh facts, change state in any external system, or remember anything between turns. If each higher-level pattern wires up retrieval, tool calling, and memory in its own ad-hoc way, the building blocks stop being interoperable: a routing layer cannot drop in a worker that was built against a different memory shape, and observability has to be re-implemented per integration.
 
 ## Forces
 
@@ -51,7 +51,7 @@ A support agent is built as one augmented LLM: it can call a tool to look up the
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   U[User input] --> A[Augmented LLM]
   A <--> R[Retrieval]
   A <--> T[Tools]

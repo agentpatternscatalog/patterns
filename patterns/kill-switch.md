@@ -11,11 +11,11 @@ Provide an out-of-band control plane to halt running agent instances without red
 
 ## Context
 
-Production agents whose loop the operator may need to stop urgently (PII leak, runaway cost, mass-action error).
+A team runs production agents that the operator may suddenly need to stop — a PII leak was discovered, the agent is hammering a third-party API after a cease-and-desist, a runaway cost spike just tripped an alarm, or a mass-action error is unfolding across customer accounts. Stopping has to happen now, not at the end of the current step, and it has to apply to every running instance regardless of which tool it is in the middle of.
 
 ## Problem
 
-In-band stop hooks rely on the agent's own loop checking; if the model is wedged, infinite-looping, or running tools that ignore signals, in-band stops fail.
+An in-band stop hook that the agent's own loop checks at the start of each iteration only works if the agent's loop is still alive and cooperating. If the model is wedged inside a long tool call, infinite-looping on a degenerate state, or running tools that ignore process signals, the in-band stop never fires. Killing the operating-system process is a brutal fallback that loses provenance and any chance to run compensating actions. Without a stop primitive outside the agent's own control flow, operator authority disappears the moment the agent stops checking in.
 
 ## Forces
 

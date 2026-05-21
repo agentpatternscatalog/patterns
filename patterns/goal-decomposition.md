@@ -11,11 +11,11 @@ Decompose a goal into sub-goals recursively until each leaf is directly actionab
 
 ## Context
 
-Long-horizon tasks where the top-level goal cannot be acted on directly; intermediate scaffolding is needed.
+A team gives an agent a goal that is too large to act on in a single step — renew all cloud contracts before the next quarter, prepare a release across half a dozen repositories, plan a multi-week research investigation. The work decomposes naturally into sub-goals, and those sub-goals decompose further, until eventually each leaf is something the agent can actually do (send an email, run a query, edit one file).
 
 ## Problem
 
-Without explicit decomposition, the agent attacks the goal in one shot and produces shallow work.
+Without explicit decomposition the agent attacks the whole goal at once and produces shallow work — a three-paragraph summary instead of a finished negotiation, a partial plan instead of a release. Stuck branches deep in the work disappear into the final summary because there is no place to track them. The team is forced to choose between writing the breakdown by hand every time, which negates the agent's autonomy, or trusting a single-shot answer they cannot verify.
 
 ## Forces
 

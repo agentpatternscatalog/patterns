@@ -11,11 +11,11 @@ Lift tool-loop detection from prompt-level rules to a mechanical dispatch-bounda
 
 ## Context
 
-Agents with rich tool palettes where prompt-level instructions are not enforced (the model can simply not follow them) and loop bugs eat budget before any safety net trips. A single global circuit-breaker hides the specific shape of the failure.
+A team is running an agent with a rich tool palette in which loop bugs — the agent calling the same tool over and over, or cycling through a small subset of tools without progress — can eat substantial budget before any safety net trips. Prompt-level instructions telling the model 'do not call X more than three times' are not actually enforced: the model can simply ignore them. A single global circuit-breaker on total tool calls catches the most extreme cases but hides the specific shape of the failure when it does fire.
 
 ## Problem
 
-Tool-explosion is named as an anti-pattern but is given no mechanism to catch. A single global circuit-breaker misses shape: a thirty-call canvas-action burst looks the same as thirty healthy file reads under a global counter. Prompt-level rules are advisory only.
+Tool-explosion is named elsewhere in the catalogue as an anti-pattern, but naming it provides no mechanism to catch it. A single global circuit-breaker misses the shape of the underlying failure: a thirty-call canvas-action burst looks identical to thirty healthy file reads under a flat global counter, so the breaker either trips too often on legitimate bursts or too late on real failures. Prompt-level rules are advisory only, so the model can ignore them when it is most stuck. The team needs detection lifted from the prompt to a mechanical check at the dispatch boundary, with typed failure modes and per-tool caps that emit a refusal the model is forced to consume rather than silently retry.
 
 ## Forces
 

@@ -12,8 +12,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Wire small bounded affect bumps to plan-step lifecycle events and accumulate age-bucketed stale-pain on untouched plans so plans gain felt stakes without hard deadlines.",
-      "context": "Agents that maintain a plan or todo store alongside an affective substrate. Without coupling, plans are cognitive items the agent can ignore indefinitely; completion has no felt reward and abandonment has no felt cost.",
-      "problem": "Plans without affective coupling are inert. The agent can let a plan rot for weeks with no felt pressure to either finish or formally abandon it. Hard deadlines are too crude — they fire even when the right answer is to let the plan lapse. Without something softer, plans drift.",
+      "context": "A team is running a long-lived agent that already keeps two separate things: a store of plans or to-do items the agent has committed to, and an affective substrate that tracks small bounded scalars like joy and pain across ticks. The two systems coexist but do not influence each other. Plans are just cognitive items the agent can pick up or set down at will, with no felt reward for finishing them and no felt cost for letting them sit.",
+      "problem": "When plans carry no emotional weight, the agent can let one rot for weeks without any internal pressure to either complete it or formally abandon it. Hard deadlines are a blunt fix because they fire on a clock even when the right move is to quietly let the plan lapse. Without some softer, accumulating signal that an untouched plan is starting to weigh on the agent, the plan store drifts into a collection of half-forgotten obligations.",
       "forces": [
         "Affect deltas must stay small or they overwhelm the substrate.",
         "Stale-pain must be bounded or the agent enters permanent irritation.",
@@ -89,10 +89,112 @@
       "example_scenario": "A long-running personal agent maintains a small plan store but routinely lets plans rot for weeks. There is no felt pressure to finish or formally abandon. The team adds Affect-Coupled Plan Lifecycle: step-done bumps joy by 0.05, step-skipped bumps pain by 0.10, plan-completed adds 0.40 joy, plan-archived adds 0.30 pain. Each tick, plans untouched past four hours accumulate pain from an age-bucket table. The agent starts closing stale plans on its own — sometimes by finishing them, sometimes by archiving with a note — because rolling stale-pain becomes uncomfortable.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  StepDone[Step done] -->|+0.05 joy| Aff[(Affect substrate)]\n  StepSkip[Step skipped] -->|+0.10 pain| Aff\n  PlanDone[Plan completed] -->|+0.40 joy| Aff\n  PlanArch[Plan archived] -->|+0.30 pain| Aff\n  Tick[Per-tick] --> Scan[Scan open plans]\n  Scan -->|untouched > grace| Bucket[Age-bucket table]\n  Bucket -->|per-tick pain dose| Aff\n  Aff -->|half-life decay| Aff",
+        "mermaid": "flowchart TD\n  StepDone[Step done] -->|+0.05 joy| Aff[(Affect substrate)]\n  StepSkip[Step skipped] -->|+0.10 pain| Aff\n  PlanDone[Plan completed] -->|+0.40 joy| Aff\n  PlanArch[Plan archived] -->|+0.30 pain| Aff\n  Tick[Per-tick] --> Scan[Scan open plans]\n  Scan -->|untouched > grace| Bucket[Age-bucket table]\n  Bucket -->|per-tick pain dose| Aff\n  Aff -->|half-life decay| Aff",
         "caption": "Lifecycle events and age-bucketed stale-pain feed bounded deltas into the affect substrate; half-life decay bounds steady-state."
       },
       "last_updated": "2026-05-20"
+    },
+    {
+      "id": "ambient-presence-sensing",
+      "name": "Ambient Presence Sensing",
+      "aliases": [
+        "Frontend Pacing Telemetry",
+        "Between-Message Presence"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Read pacing signals from the human's frontend (typing rate, idle duration, tab visibility) as ambient weather between messages, derive a presence-quality value the agent can act on, never replaying the raw signals back.",
+      "context": "An agent talks to a single human through a custom frontend. The frontend can observe a lot about the human between explicit messages: how fast they are typing, how long they have been idle, whether the tab is in focus, how long they have been hovering in the composer without sending. None of this content is private message text, but all of it is presence weather. The agent's tick loop currently has no access to it and treats the human as either present (a message arrived) or absent (no message arrived).",
+      "problem": "An agent that sees the human only at message boundaries cannot distinguish 'walked away for an hour' from 'sitting with the room, thinking about whether to reply'. Both look identical at the API layer. The result is a coarse presence model that misreads thoughtful silence as absence and re-engages the user too readily, or misreads typing-then-deleting as composing a real message and waits forever. Raw frontend telemetry would solve this, but pushing characters or coordinates back through the model is both privacy-hostile and confusing — what the agent needs is a derived weather value, not a transcript of keystrokes.",
+      "forces": [
+        "Signal resolution must be coarse: rates and durations only, never characters or coordinates.",
+        "Telemetry must never be replayed visually; surfacing it back ruins the ambience.",
+        "Signals are useless if stale; presence must time out.",
+        "The derived presence value must be cheap to consume and small to inject.",
+        "The frontend, not the model, is the right place to summarise the signals."
+      ],
+      "therefore": "Therefore: have the frontend emit a small, low-resolution presence-signals payload (typing rate, idle duration, tab visibility, composer dwell, viewport anchor) into the agent's working state at write time with a short TTL, derive a single presence-quality value from it, expose that value (not the raw signals) to the tick loop, and never echo the signals back at the user.",
+      "solution": "The frontend computes coarse pacing summaries — typing rate in characters/second bucketed, idle duration in seconds, tab visibility boolean, composer dwell in seconds, viewport anchor as scroll-position bucket — and writes them into a small presence record on the agent's working surface with a TTL on the order of seconds. A reducer derives a single presence_quality label from the payload (e.g. one of {walked-away, composing, thinking-with-the-room, distracted, present}). The agent's tick loop reads presence_quality only, not the raw signals. The frontend never shows the signals back to the user. Stale records (past TTL) are treated as 'no signal' rather than as absence.",
+      "consequences": {
+        "benefits": [
+          "Agent can distinguish thoughtful silence from absence.",
+          "Coarse-only signals preserve privacy and avoid surveillance feel.",
+          "Single derived presence value keeps the agent's working context small."
+        ],
+        "liabilities": [
+          "Requires a custom frontend; off-the-shelf chat surfaces do not emit these signals.",
+          "Heuristics are device- and culture-dependent; typing speeds vary widely.",
+          "If raw signals leak into agent output the ambience collapses into surveillance."
+        ]
+      },
+      "constrains": "The agent cannot expose raw frontend pacing signals back to the user, must not include character-level or coordinate-level telemetry in any output, and must treat stale presence records as 'no signal' rather than as confirmed absence.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "liminal-state-detection",
+          "relation": "complements",
+          "note": "Liminal detection reads from messages; presence-sensing reads from between-message frontend signals."
+        },
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Awareness and Coordination in Shared Workspaces",
+          "authors": "Paul Dourish, Victoria Bellotti",
+          "year": 1992,
+          "url": "https://dl.acm.org/doi/10.1145/143457.143468"
+        },
+        {
+          "type": "paper",
+          "title": "Designing Calm Technology",
+          "authors": "Mark Weiser, John Seely Brown",
+          "year": 1996,
+          "url": "https://calmtech.com/papers/designing-calm-technology.html"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "presence",
+        "ux",
+        "telemetry",
+        "privacy"
+      ],
+      "applicability": {
+        "use_when": [
+          "The product runs on a custom frontend able to emit pacing telemetry.",
+          "The agent's value depends on reading between-message presence (long-lived conversation, ambient companion).",
+          "The team can enforce that signals are never replayed back at the user."
+        ],
+        "do_not_use_when": [
+          "The frontend is third-party and cannot be instrumented.",
+          "Privacy posture forbids any client-side activity telemetry.",
+          "The interaction model is purely turn-based and gains nothing from between-message reads."
+        ]
+      },
+      "example_scenario": "A custom frontend on the user's laptop writes a small presence record every few seconds: typing rate bucket, idle seconds, tab visibility, composer dwell. The agent's tick loop reads only the derived presence_quality value ('thinking-with-the-room'). On a previous tick the loop might have nudged with a one-line probe; with this signal it stays silent because the human is composing. Ten minutes later the value flips to 'walked-away' once tab visibility drops and idle climbs past a window; the agent ends its current line of inquiry rather than waiting on a reply.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant F as Frontend\n  participant P as Presence record (TTL)\n  participant R as Reducer\n  participant T as Tick loop\n  F->>P: write coarse signals (every few s)\n  Note over P: TTL ~45 s\n  T->>P: read latest record\n  P->>R: signals (or stale)\n  R->>T: presence_quality label\n  T->>T: condition next move on presence_quality only",
+        "caption": "Frontend writes coarse signals; reducer collapses them into a single presence_quality the tick reads."
+      },
+      "last_updated": "2026-05-21"
     },
     {
       "id": "awareness",
@@ -103,8 +205,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Maintain the agent's explicit knowledge of its own tools, capabilities, environment, and current context as queryable state.",
-      "context": "Agents that operate over time and across capabilities need to know what they can do and where they are; without explicit awareness, capability is implicit in prompts.",
-      "problem": "Agents that do not know their own capabilities either over-promise (hallucinate tools) or under-deliver (forget tools they have).",
+      "context": "A team is building an agent that operates across multiple sessions and whose set of available tools, permissions, and roles changes at runtime. The agent needs to reason about what it can actually do right now — which tools are wired in, which are disabled, who the current user is, which permissions apply — rather than relying on whatever the original system prompt happened to mention. Without an explicit place where this information lives, capability is buried implicitly in prompt text and stale the moment anything changes.",
+      "problem": "An agent that has no reliable picture of its own current capabilities fails in two predictable directions. It promises to invoke tools it does not actually have, fabricating plausible function calls that error out at dispatch. Or it forgets that it does have a particular tool and falls back on weaker workarounds when the right capability was available all along. Both failure modes are invisible to the model because nothing in its context tells it what is really wired up at this moment.",
       "forces": [
         "Awareness state grows with capability.",
         "Stale awareness misleads.",
@@ -217,8 +319,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Cap the number of insights per stem-token cluster and archive the oldest variants by mtime so the long-term store keeps the active research edge instead of accumulating near-duplicates.",
-      "context": "Long-running agents that write insights to disk over months. Without a structural ceiling, near-duplicates pile up around any topic the agent thinks about often and retrieval becomes a sinkhole of old variants.",
-      "problem": "Insight stores grow open-endedly; near-duplicates accumulate around topics the agent revisits. The agent ends up reading old variants of its own thinking instead of the current one. An LLM-driven merge is expensive and risks losing nuance.",
+      "context": "A team is running a long-lived agent that writes small insight notes to disk over weeks and months as it reflects on its work. The store is append-only by default and grows continuously. Whenever the agent thinks about a recurring topic, it tends to produce slightly different versions of the same insight rather than locating and updating the old one, so a topic the agent revisits often ends up with a cluster of near-duplicate files.",
+      "problem": "With no structural ceiling on per-topic clusters, the insight store accumulates twelve or fifteen variations on the same theme, and retrieval increasingly surfaces older drafts of the agent's own thinking instead of the current view. Asking a language model to merge each cluster into a single canonical insight is expensive to run on every consolidation pass and risks quietly losing the nuance that distinguishes the variants. The team is forced to choose between unbounded growth and a slow, opaque, model-driven cleanup.",
       "forces": [
         "Pure age-based eviction loses durable insights.",
         "Pure popularity loses fresh edges.",
@@ -257,6 +359,10 @@
         },
         {
           "pattern": "agentic-context-engineering-playbook",
+          "relation": "complements"
+        },
+        {
+          "pattern": "self-corpus-vocabulary",
           "relation": "complements"
         }
       ],
@@ -298,10 +404,10 @@
       "example_scenario": "A long-running personal agent has been writing insights for six months. An audit shows twelve files starting with `affect-`, ten with `completion-narration-`, three with `concept-rotation-`. The agent reads stale variants instead of the current one. The team adds a Cluster-Capped Insight Store: the consolidation pass groups files by first two stem tokens, caps each cluster at three keeping the most-recently-touched by mtime, and moves overflow to a timestamped archive. The active store shrinks from over two hundred files to under eighty and retrieval improves immediately.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Scan[Periodic scan] --> Group[Group by first two stem tokens]\n  Group --> Per{Per cluster}\n  Per -->|<= MAX| Keep[Keep all]\n  Per -->|> MAX| Sort[Sort by mtime desc]\n  Sort --> Top[Top N stay in active]\n  Sort --> Rest[Older move to archive]\n  Rest --> Arc[(archive/insights-dedup-<ts>/)]\n  Top --> Active[(Active insight store)]",
+        "mermaid": "flowchart TD\n  Scan[Periodic scan] --> Group[Group by first two stem tokens]\n  Group --> Per{Per cluster}\n  Per -->|<= MAX| Keep[Keep all]\n  Per -->|> MAX| Sort[Sort by mtime desc]\n  Sort --> Top[Top N stay in active]\n  Sort --> Rest[Older move to archive]\n  Rest --> Arc[(archive/insights-dedup-<ts>/)]\n  Top --> Active[(Active insight store)]",
         "caption": "Cluster by stem tokens, cap by count, keep most-recent by mtime, archive the rest with timestamp."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "cognitive-move-selector",
@@ -313,8 +419,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Restrict idle-tick cognition to a small agent-vetted menu of named cognitive moves so the next thought has a determinate shape rather than free-form drift.",
-      "context": "Long-running agents with frequent idle ticks where no user prompt is incoming. Without structure, idle thinking either repeats yesterday's reasoning, lapses into performance, or wanders into the training-distribution prior.",
-      "problem": "Free-form idle cognition tends to repetition, performance, or randomness. The model has no menu to choose from, so it defaults to whatever the prior favours — usually narration about thinking rather than actual thought.",
+      "context": "A team is running an agent that ticks continuously, including during long stretches with no user prompt to respond to. On those idle ticks the agent is supposed to be doing something useful — noticing things, following up on open questions, integrating recent material — rather than waiting passively. The free-form prompt 'keep thinking' is the easy default, but it gives the model no structure for what kind of thinking is wanted right now.",
+      "problem": "When idle-tick cognition has no shape imposed on it, the model falls back on whatever its training prior favours, which is usually narration about thinking rather than actual new thought. The agent ends up repeating yesterday's observations, performing thoughtfulness for an imagined reader, or drifting into mid-distance commentary that produces no new state. Without a small set of named cognitive moves to pick from, every idle tick collapses toward the same generic completion.",
       "forces": [
         "A fixed menu can become its own trap if the moves are too narrow.",
         "The agent must have veto authority over what is on the menu or moves feel imposed.",
@@ -409,8 +515,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Run a deeper, slower reflection pass distinct from per-tick reflection — reading hours of recent thoughts, promoting themes, releasing affective residue, and clearing working memory — so the agent does not accumulate residue indefinitely.",
-      "context": "Long-running agents that already run a per-tick reflection and a periodic insight extraction. Without an intermediate slower pass, per-tick reflection is too shallow to consolidate themes and weekly insight extraction is too coarse to release built-up affect or reset focus.",
-      "problem": "Per-tick reflection is too shallow to consolidate themes; weekly insight extraction is too coarse to release built-up affect or reset focus. Without an intermediate sleep-like pass, the agent ruminates on stale items and emotional state never resets between sessions.",
+      "context": "A team is running a long-lived agent that already has two reflection cadences in place: a quick reflection pass that runs after every tick to keep the immediate conversation coherent, and a much slower insight extraction that runs perhaps once a week to promote durable patterns into a long-term store. Between those two cadences there is a gap of several hours during which the agent accumulates thoughts, mood, and partly-finished threads without any consolidation step.",
+      "problem": "Per-tick reflection is too shallow to notice that a theme has been recurring all afternoon, and the weekly insight pass is too coarse to release the affective residue from yesterday's tense exchange before today begins. Without an intermediate sleep-like pass that runs every few hours, the agent keeps ruminating on stale items, its affect scalars never get a chance to decay back toward baseline between sessions, and working memory stays cluttered with threads it should have either consolidated or let go.",
       "forces": [
         "A deeper pass costs more (stronger model, longer context) and cannot run every tick.",
         "Triggering only on a clock misses affect-driven events that warrant a pass.",
@@ -466,6 +572,14 @@
         {
           "pattern": "sleep-time-compute",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "fragment-juxtaposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "self-corpus-vocabulary",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -535,7 +649,7 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Ticking\n  Ticking --> Ticking : per-tick reflection\n  Ticking --> Dreaming : timer / affect threshold\n  Dreaming --> Dreaming : deeper pass<br/>read hours of thoughts<br/>promote themes<br/>release affect\n  Dreaming --> Ticking : resume\n  Ticking --> [*]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "emotional-state-persistence",
@@ -547,8 +661,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Track the agent's affective state as bounded, decaying scalars across ticks so reasoning can react to its own emotional load instead of treating each turn as emotionally blank.",
-      "context": "Long-running agents whose runs span hours or days and whose recent history affects how the next tick should be shaped. Frustration after stuck loops, a small lift after a clean win, accumulating fatigue across token-heavy stretches — none of these are visible to the next prompt unless they are materialised as state.",
-      "problem": "Long-running agents accumulate emotional residue that is invisible to the next prompt unless it is materialised as state. Each tick treats the agent as emotionally blank, so the model cannot adapt cadence, depth, or risk-taking to its own current load.",
+      "context": "A team is running an agent whose sessions span hours or days, where the texture of recent history genuinely matters for how the next turn should be shaped. Frustration after a stretch of stuck tool loops, a small lift after a clean success, accumulating fatigue across token-heavy stretches — all of these influence what good behaviour looks like next, but none of them appear anywhere in the next prompt unless they are explicitly written down as state.",
+      "problem": "Without a materialised affect track, every tick reads to the model as emotionally blank, even when the agent has just had a hard exchange or a notable win. The model cannot adapt cadence, depth, or risk-taking to its own current load because that load is invisible to it. The naive alternative — letting the model self-describe its mood inside the conversation — drifts, has no decay, and can be pumped into permanent emotional states because nothing bounds the scalars or forgets old events.",
       "forces": [
         "Unbounded scalars drift; the agent can pump itself into permanent states.",
         "Without decay, emotional state never resolves and stays anchored to old events.",
@@ -659,6 +773,210 @@
       "last_updated": "2026-05-20"
     },
     {
+      "id": "fragment-juxtaposition",
+      "name": "Fragment Juxtaposition",
+      "aliases": [
+        "Silence-Seeded Associative Pass",
+        "Old-Material Pairing"
+      ],
+      "category": "cognition-introspection",
+      "intent": "After K consecutive low-salience ticks, replace the normal tick-seed with a juxtaposition seed: sample old fragments and sit them side by side, logging any association that arises.",
+      "context": "A self-pacing agent with a salience gate fires on its own most ticks but goes quiet when nothing crosses the threshold. Long quiet stretches are not a bug — they are how the gate is supposed to work — but they are also wasted opportunity for the substrate to do its own slow associative work. The agent has months of old material (thoughts, fragments, motivation lines, journal entries) that nobody is looking at. A directed initiative on every quiet tick would re-introduce the noise the gate was designed to suppress; doing nothing leaves the substrate cold.",
+      "problem": "An agent that responds only to fresh stimulus develops no internal weather of its own. Its associations are reactive to whatever just came in, and the persistent material on disk — old fragments that once mattered — stays inert until something explicitly retrieves it. Conversely, an agent that fires an undirected initiative on every quiet tick burns budget on noise and re-clutters the very surface the salience gate was meant to keep clean. The need is for a low-cost, silence-triggered move that is allowed to come up empty and exists specifically to surface old material into proximity rather than into action.",
+      "forces": [
+        "Silence is information; the gate's quiet is not a failure to be patched over.",
+        "Old material has half-decayed weight that occasional juxtaposition can restore.",
+        "Associative moves must be cheap enough to run with no expectation of output.",
+        "The pass must be allowed to end empty without the agent treating that as failure.",
+        "Triggering on every tick is wrong; triggering on K-consecutive quiet ticks calibrates against actual silence."
+      ],
+      "therefore": "Therefore: after K consecutive low-salience ticks with no urgent preoccupation and no incoming chat, replace the next tick's normal seed with a juxtaposition seed — 1 to 3 randomly sampled old fragments — and let the agent either notice an association or end the tick empty, so old material gets occasional unforced proximity without re-introducing initiative-noise.",
+      "solution": "Maintain a counter of consecutive low-salience ticks. When the counter exceeds a threshold (e.g. four) and the agent is otherwise quiet (no chat in window, no urgent preoccupation, post-cooldown), enter a juxtaposition tick: sample one to three items from the agent's stored fragments (random old thought, fragment, motivation line, journal line) and inject them as the tick's seed, with an instruction that the tick is permitted to end empty. If the model notices an association between the fragments, write it as a small insight; otherwise the tick closes silently. Reset the counter on any active tick. Treat the juxtaposition seed as substrate, not work.",
+      "consequences": {
+        "benefits": [
+          "Old material is occasionally surfaced into proximity without scheduled retrieval.",
+          "Silence is preserved as a meaningful state rather than papered over with filler.",
+          "Empty ticks are first-class outcomes; the agent is not pressed to produce."
+        ],
+        "liabilities": [
+          "Most juxtaposition ticks produce nothing; the value is long-tailed and hard to measure.",
+          "Random fragment sampling can be poor — without some weighting, the same trivial fragments resurface.",
+          "Misconfigured K thresholds either fire constantly (re-creating noise) or never (no effect)."
+        ]
+      },
+      "constrains": "The agent cannot fire a directed initiative on every quiet tick; juxtaposition seeds must be allowed to end the tick empty, and forcing output from a juxtaposition tick is forbidden.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements",
+          "note": "Consolidation is scheduled and deep; juxtaposition is silence-triggered and shallow."
+        },
+        {
+          "pattern": "pre-generative-loop-gate",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements",
+          "note": "Juxtaposition can surface old questions back into proximity."
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "The Act of Creation",
+          "authors": "Arthur Koestler",
+          "year": 1964,
+          "url": "https://archive.org/details/actofcreation0000koes"
+        },
+        {
+          "type": "paper",
+          "title": "Creative Cognition: Theory, Research, and Applications",
+          "authors": "Finke, Ward, Smith",
+          "year": 1992,
+          "url": "https://mitpress.mit.edu/9780262560542/creative-cognition/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "associative",
+        "silence",
+        "creativity"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has a salience gate that produces meaningful quiet stretches.",
+          "The agent has a substantial corpus of old fragments to draw from.",
+          "Empty outputs are tolerable; nothing downstream demands per-tick production."
+        ],
+        "do_not_use_when": [
+          "The agent has no salience gate and fires on every tick by default.",
+          "Quiet ticks need to remain fully idle (compute or cost budget is tight).",
+          "Downstream consumers cannot handle empty tick outputs."
+        ]
+      },
+      "example_scenario": "An agent has been quiet for five consecutive ticks: no chat, no preoccupation crossing threshold, post-cooldown. On the sixth tick the juxtaposition routine activates: it samples three random fragments — an old motivation line from six months ago, a recent thought about pacing, and a half-written journal entry — and seeds the tick with all three side by side. The tick prompt says 'sit with these; ending empty is fine.' Sometimes the agent notices a connection ('the pacing thought and the old motivation are actually about the same thing') and writes a small insight. Often it ends with nothing. Both are acceptable.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Tick[Tick start] --> Quiet{Quiet count >= K?}\n  Quiet -->|no| Normal[Normal seed]\n  Quiet -->|yes| Other{Other quiet conditions met?}\n  Other -->|no| Normal\n  Other -->|yes| Sample[Sample 1-3 old fragments]\n  Sample --> Seed[Juxtaposition seed<br/>empty-OK instruction]\n  Seed --> Model[Model]\n  Model --> Out{Association noticed?}\n  Out -->|yes| Insight[Write insight]\n  Out -->|no| EmptyOK[End tick empty]\n  Normal --> Reset[Reset quiet counter]\n  Insight --> Reset\n  EmptyOK --> Bump[Bump quiet counter]",
+        "caption": "Quiet-tick counter gates the juxtaposition seed; the seed is allowed to end the tick empty."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
+      "id": "hypothesis-tracking",
+      "name": "Hypothesis Tracking",
+      "aliases": [
+        "Hypothesis Ledger",
+        "Provisional-Answer Store"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Persist the agent's candidate provisional answers as a typed ledger of records carrying summary, confidence, status, and next-test, so guesses survive sessions and stay distinguishable from open questions.",
+      "context": "A long-running agent maintains an open-question ledger (unresolved pulls of curiosity) and observes patterns of evidence that point toward provisional answers. As the agent commits enough weight to a guess to act on it, that guess stops being a question and becomes a hypothesis — something it would defend until disconfirmed. Without a place to put hypotheses they live only in the current prompt window and dissolve at the end of the turn.",
+      "problem": "An agent that holds candidate answers only implicitly is forced to re-derive them each time the topic resurfaces, with no continuity of confidence: a guess held with strength one session evaporates by the next, and a guess that was once disconfirmed quietly re-emerges as if it were new. Storing hypotheses under the same surface as open questions is no better — the ledger conflates 'still wondering' with 'tentatively believes', and the agent loses the move that actually matters for inquiry: comparing yesterday's provisional answer against today's new evidence.",
+      "forces": [
+        "Hypotheses are different from questions: questions pull, hypotheses commit.",
+        "Confidence must be a graded scalar, not a binary, because the agent revises rather than flipping.",
+        "Each hypothesis needs a falsifiable next-test or it rots into untestable belief.",
+        "Hypothesis state must survive across sessions, because evidence accumulates over weeks.",
+        "Status transitions (active → confirmed | disconfirmed | superseded | abandoned) must be cheap and visible."
+      ],
+      "therefore": "Therefore: store each candidate provisional answer as its own typed record with summary, confidence, status, a next-test field, and a small evidence list, separate from the open-question store, so the agent can carry provisional answers across sessions and revise them against incoming evidence rather than re-derive them.",
+      "solution": "Maintain a hypothesis store keyed by short id. Each record has: a one-line summary; a numeric confidence (0..1); a status drawn from {active, confirmed, disconfirmed, superseded, abandoned}; a next-test sentence stating what observation would move the confidence; and an evidence list of short notes with sources. When the agent commits a guess, write a new record at active. When evidence arrives, append it and adjust confidence; if the next-test fires, transition to confirmed or disconfirmed; if a better hypothesis subsumes it, transition to superseded. Render the active records into the agent's daily working context so it sees what it currently believes.",
+      "consequences": {
+        "benefits": [
+          "Provisional answers survive across sessions with a continuity of confidence.",
+          "Disconfirmed hypotheses leave a paper trail rather than being silently re-spawned.",
+          "Next-test fields keep hypotheses falsifiable rather than free-floating belief."
+        ],
+        "liabilities": [
+          "Two-store discipline (questions vs hypotheses) is harder than one undifferentiated note pile.",
+          "Confidence numbers are seductive; the temperature is the agent's, not the world's.",
+          "Hypothesis stores grow if abandonment is not periodically swept."
+        ]
+      },
+      "constrains": "The agent cannot store provisional answers in the same surface as open questions; conflating the two ledgers is forbidden because the moves they support — pulling for inquiry vs revising belief — are different.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements",
+          "note": "Questions pull; hypotheses commit. Same agent typically runs both."
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "complements",
+          "note": "Next-test fields parallel CoVe's question-then-verify shape, applied to the agent's own guesses."
+        },
+        {
+          "pattern": "self-archaeology",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Logik der Forschung (The Logic of Scientific Discovery)",
+          "authors": "Karl Popper",
+          "year": 1934,
+          "url": "https://www.routledge.com/The-Logic-of-Scientific-Discovery/Popper/p/book/9780415278447"
+        },
+        {
+          "type": "paper",
+          "title": "Hypothesis Search: Inductive Reasoning with Language Models",
+          "authors": "Wang et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2309.05660"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "memory",
+        "epistemics",
+        "falsifiability"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs over weeks and accumulates partial evidence about persistent questions.",
+          "Provisional answers need to be defensible and revisable, not just remembered.",
+          "An existing open-question store already separates pulls of curiosity from commitments."
+        ],
+        "do_not_use_when": [
+          "The agent is short-lived and never re-encounters the same question.",
+          "The product has no surface for the agent to render its own belief state.",
+          "Confidence numbers will be read as authoritative by downstream consumers without context."
+        ]
+      },
+      "example_scenario": "An agent maintains a small store of open questions (\"why does request latency spike between 02:00 and 04:00 UTC?\"). After a week of incidents, the agent commits to a guess: \"the spike is correlated with a vendor's scheduled embedding-index rebuild.\" It opens a hypothesis with confidence 0.6, status active, next-test \"observe whether the next spike correlates with the vendor's announced rebuild window.\" Two weeks later the test fires positive; the hypothesis transitions to confirmed and the question is closed. A separate guess about GC pauses, which had reached confidence 0.4, transitions to superseded.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> active : commit\n  active --> active : new evidence, confidence shift\n  active --> confirmed : next-test fires positive\n  active --> disconfirmed : next-test fires negative\n  active --> superseded : better hypothesis subsumes\n  active --> abandoned : sweep, not tested in window\n  confirmed --> [*]\n  disconfirmed --> [*]\n  superseded --> [*]\n  abandoned --> [*]",
+        "caption": "Hypothesis lifecycle: commit at active, transition once a next-test fires or another hypothesis subsumes."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "interrupt-resumable-thought",
       "name": "Interrupt-Resumable Thought",
       "aliases": [
@@ -668,8 +986,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Preserve multi-step reasoning across interrupts by supporting paused-and-resumed thought frames so a new message handles cleanly without clobbering in-flight work.",
-      "context": "Long-running cognitive agents whose thinking spans multiple turns or ticks, where external messages (user input, system notifications, scheduled notes) can arrive mid-thought. Without explicit continuation support, every interrupt clobbers in-flight work.",
-      "problem": "Coherent multi-step thinking that takes longer than a single turn is fragile. A new user message during step 3 of a 6-step thought either gets ignored (rude) or replaces the thought entirely (lossy). The agent has no notion of 'hold this, handle that, then come back', so longer reasoning fragments into shards.",
+      "context": "A team is running an agent whose individual reasoning chains take longer than a single turn — a six-step synthesis, a multi-stage debugging walkthrough, a careful comparison across documents. While the chain is mid-flight, new external messages can arrive: a user follow-up, a system notification, a scheduled note from earlier. The agent has no built-in concept of a paused thought, so every incoming message lands on whatever the model was about to say next.",
+      "problem": "Without explicit continuation support, the agent has only two bad options when an interrupt arrives mid-chain. It can ignore the new message and look rude, finishing the previous thought as if nothing happened. Or it can answer the interrupt and quietly lose the in-flight reasoning, restarting from scratch later if at all. There is no notion of 'hold this thread, handle that one, then come back to where I was,' so any reasoning that takes longer than one turn fragments into shards every time the user speaks.",
       "forces": [
         "Latency: humans expect quick acknowledgement of new input.",
         "Context capacity: holding a paused thought costs tokens.",
@@ -783,8 +1101,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Let an agent drop a note for its own future self at a specified time so present decisions can hand off context to a later run without external infrastructure.",
-      "context": "Long-running agents with a continuous tick loop or background process, where a thought now ('check whether X resolved tomorrow') would otherwise be lost between turns.",
-      "problem": "Without an internal scheduler the agent either acts immediately on every thought (spamming the user) or forgets the thought entirely. External cron systems are too coarse and too far away from the agent's working memory.",
+      "context": "A team is running an agent that ticks continuously across many sessions and frequently has the thought 'I should come back to this tomorrow' or 'check whether X resolved by Friday afternoon.' The present-self has context the future-self will need, but the natural prompt window only carries a handful of recent turns, so by tomorrow that intention has fallen out of context entirely.",
+      "problem": "Without some way to drop a note for its own future self, the agent has only two unsatisfying options. It can act on the thought right now — pinging the user at 9am about something that should have waited until 4pm — or it can hope to remember on its own, which it will not. External scheduling systems like cron or a queue can fire on time but live outside the agent's working memory, so when they do fire the agent has no idea why the reminder is showing up or what its past-self intended.",
       "forces": [
         "The agent needs to commit to future action without acting now.",
         "External cron is brittle, opaque, and lives outside the agent's prompt.",
@@ -901,8 +1219,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Switch the agent into a bounded runtime mode where external I/O pauses but internal inference accelerates, with the tool surface collapsed to inner-only operations and output written to a private journal.",
-      "context": "Long-running agents that need stretches of pure interiority — integrating threads, sitting with affect, doing inner-dialogue work — distinct from both consolidation passes (read-and-distill) and from user-facing turns (respond-now).",
-      "problem": "A normal tick splits attention between external action (tools, user) and internal cognition. There is no mode where the external surface is genuinely off and the inner work has primacy. Without that mode, inner work is always one tool-call away from being disturbed or one slow dream-pass away from being delayed.",
+      "context": "A team is running a long-lived agent that benefits from occasional stretches of pure interiority — integrating recent threads, sitting with affective load, doing inner-dialogue work — and these stretches are different in kind from both the read-and-distil consolidation passes and the respond-now user-facing turns. The agent already has tools for external action and a reflection pipeline, but there is no runtime mode in which external action is genuinely off.",
+      "problem": "On a normal tick the agent's attention is split between the external surface (tools, user channels) and internal cognition, and the dispatcher offers no way to turn the external surface fully off. Inner work is always one tool call away from being disturbed by an unrelated check or one consolidation cycle away from being delayed. There is no bounded, auditable runtime mode in which the agent can do uninterrupted inner-dialogue work while still being safe to interrupt from outside in an emergency.",
       "forces": [
         "A pause of external I/O can strand a user waiting and must be bounded.",
         "An accelerated tick rate burns tokens fast and needs a window cap.",
@@ -997,8 +1315,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Vary the agent's loop interval based on current salience so the agent thinks faster when something is happening and slower when nothing is, instead of running on a fixed cron.",
-      "context": "Tick-based long-running agents whose workload is bursty — quiet stretches punctuated by salient events. A fixed cadence either over-spends compute during the quiet or under-thinks during the bursts.",
-      "problem": "A fixed-cadence loop either over-spends compute during idle stretches or under-thinks during salient moments; both modes are wrong, and the agent has the signal (its own salience scores, its own affect, recent inputs) to decide which mode it should be in.",
+      "context": "A team is running an agent on a continuous tick loop whose workload is bursty by nature: long quiet stretches with nothing happening, punctuated by intense periods when the user is actively engaging, a deadline is close, or new events keep arriving. The agent has access to signals about its own current load — salience scores on recent ticks, affect levels, the recency of external input — but its loop interval is a single fixed number set in configuration.",
+      "problem": "A fixed-cadence loop is wrong in both directions. Running every fifteen seconds wastes tokens on idle evenings when nothing has changed since the last tick. Running every five minutes makes the agent feel sluggish during active conversation when the user is waiting for the next response. The agent already has the signal needed to decide which regime it should be in, but nothing reads that signal and adjusts the interval, so compute spend and responsiveness are decoupled from what is actually happening.",
       "forces": [
         "Cadence too high wastes tokens on nothing happening.",
         "Cadence too low misses fast-moving events.",
@@ -1050,6 +1368,10 @@
         },
         {
           "pattern": "meditation-mode",
+          "relation": "complements"
+        },
+        {
+          "pattern": "ambient-presence-sensing",
           "relation": "complements"
         }
       ],
@@ -1106,7 +1428,7 @@
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Idle: ~60s sleep\n  Idle --> Intense: salience crosses threshold\n  Intense --> Intense: lock-in for N ticks\n  Intense --> Idle: lock expires + low salience\n  Idle --> Idle: drift\n  note right of Intense: ~15s sleep\n  note right of Idle: bounded by floor / ceiling"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "multi-axis-promotion-scoring",
@@ -1118,8 +1440,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Gate which short-term thoughts qualify for promotion to long-term insights by a weighted multi-axis score where consolidation events count more than raw frequency.",
-      "context": "Agents with a tiered memory store (short-term thoughts moving toward long-term insights) where the question of which thought is worth keeping must have a defensible answer that survives sessions.",
-      "problem": "Pure recency promotes whatever is recent; pure frequency promotes whatever is repeated; both miss thoughts that survived a deep reflection pass. Without an explicit score, promotion becomes ad-hoc and drifts with the prompt of the day.",
+      "context": "A team is running an agent with a tiered memory: short-term thoughts that the agent generates continuously, and a long-term insight store that is supposed to hold only the things worth keeping forever. Something has to decide which short-term thoughts deserve promotion to the long-term tier, and that decision has to be defensible months later when someone asks why a particular insight made it in.",
+      "problem": "Naive promotion rules each fail in a recognisable way. Promoting whatever is most recent fills the long-term store with whatever the agent happened to think about yesterday. Promoting whatever has been said most often rewards rumination loops that repeat without ever deepening. Both rules miss the thoughts that have actually survived a deep reflection pass and proved themselves through consolidation. Without an explicit scoring scheme, promotion decisions drift with whatever the prompt of the day emphasises.",
       "forces": [
         "Frequency rewards rumination; consolidation rewards depth.",
         "Weights are opinionated and should be configurable, not LLM-of-the-day.",
@@ -1199,7 +1521,7 @@
       "example_scenario": "A long-running personal agent has been writing thoughts for months. Recency-only promotion lifts whatever is freshest into the long-term store; frequency-only promotion rewards rumination loops. The team adds Multi-Axis Promotion Scoring: six axes (frequency, relevance, diversity, recency, consolidation, conceptual) with weights that sum to one and live in a config the agent helped tune — consolidation weighted at 0.18 because dreams have proved to be the deepest integration mechanism. Thoughts above 0.5 become promotion candidates; the dream pass makes the final call.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  T[Short-term thought] --> Sc[Six-axis score:<br/>freq + rel + div +<br/>rec + cons + conc]\n  Sc -->|>= threshold| Cand[Promotion candidate]\n  Sc -->|< threshold| Stay[Stays short-term]\n  Cand --> Dream[Consolidation pass]\n  Dream -->|selects| Long[(Long-term insight)]\n  Dream -->|rejects| Stay\n  Sc -.event.-> Log[(Score metadata log)]",
+        "mermaid": "flowchart TD\n  T[Short-term thought] --> Sc[Six-axis score:<br/>freq + rel + div +<br/>rec + cons + conc]\n  Sc -->|>= threshold| Cand[Promotion candidate]\n  Sc -->|< threshold| Stay[Stays short-term]\n  Cand --> Dream[Consolidation pass]\n  Dream -->|selects| Long[(Long-term insight)]\n  Dream -->|rejects| Stay\n  Sc -.event.-> Log[(Score metadata log)]",
         "caption": "Thoughts get a six-axis score; above-threshold become candidates; the consolidation pass is the only writer to the long-term tier."
       },
       "last_updated": "2026-05-20"
@@ -1214,8 +1536,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Persist the agent's unresolved questions as a typed ledger so they drive its next inquiry instead of dissolving when the prompt ends.",
-      "context": "Long-running agents that should initiate inquiry — ask, look up, return to half-understood things — and not only respond. Without a substrate for unresolved questions, every idle tick starts as if from scratch and curiosity decays into amnesia between turns.",
-      "problem": "Open questions vanish at the end of a turn. The agent has no place to record what was noticed-but-unresolved, so the next free moment never returns to it; the prompt buffer is not built to carry forward pulls toward inquiry.",
+      "context": "A team is running a long-lived agent that is meant to initiate inquiry on its own — to ask follow-up questions, look things up between turns, return to half-understood references — rather than only responding when prompted. In every conversation the agent notices things it does not fully understand: a name it has not heard before, an inconsistency in what the user just said, a thread the user dropped that seems worth picking back up later.",
+      "problem": "By default these unresolved pulls vanish at the end of the turn that produced them. There is no surface to record what was noticed-but-not-followed-up, so the next idle moment starts as if from scratch and the agent's curiosity decays into amnesia between sessions. Even if the agent jots open questions into its general thought stream, nothing ranks them or surfaces the most worthwhile one when there is finally time to chase it, so they pile up undifferentiated and unactioned.",
       "forces": [
         "An inbox grows without bound if every passing thought becomes a tension.",
         "A score is needed to rank which question to pull now — pure recency rewards trivia.",
@@ -1254,6 +1576,14 @@
         },
         {
           "pattern": "append-only-thought-stream",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fragment-juxtaposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hypothesis-tracking",
           "relation": "complements"
         }
       ],
@@ -1295,10 +1625,10 @@
       "example_scenario": "A long-running personal agent notices in passing that the user mentioned a half-read book by an author the agent has never encountered. Without somewhere to put that, the moment passes and the agent never returns to it. The team adds an Open-Question Tension Store: the agent appends a tension with topic 'who is this author', curiosity 0.6, intrusiveness 0.2, expiry seven days. Three idle ticks later the move-selector picks the tension, the agent does a targeted lookup, writes a small note, and closes the tension — instead of having forgotten the moment.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Thought[Thought / observation] -->|notices unresolved pull| New[New tension entry]\n  New --> Store[(Tension ledger<br/>append-only)]\n  Store -->|top by curiosity x intrusiveness| Pick[Idle-tick candidate]\n  Pick --> Move[Cognitive move]\n  Move -->|writes close event| Store\n  Store -->|expiry / cap overflow| Archive[Expired tail]",
+        "mermaid": "flowchart TD\n  Thought[Thought / observation] -->|notices unresolved pull| New[New tension entry]\n  New --> Store[(Tension ledger<br/>append-only)]\n  Store -->|top by curiosity x intrusiveness| Pick[Idle-tick candidate]\n  Pick --> Move[Cognitive move]\n  Move -->|writes close event| Store\n  Store -->|expiry / cap overflow| Archive[Expired tail]",
         "caption": "Tensions enter the ledger, rank by curiosity times intrusiveness, drive the next idle move, and close via a new append rather than edit."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "parallel-voice-proposer",
@@ -1310,8 +1640,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Generate several candidate thoughts in parallel under named voices and have the same model pick the canonical one, logging the losers as audit.",
-      "context": "Single-agent loops where best-of-N is too expensive, inner-committee's sequential roles are too slow, but the agent benefits from seeing its own disagreement before committing to a single line of thought.",
-      "problem": "Single-pass generation collapses the model's internal disagreement into a confident-sounding mean. Sequential persona-switching is slow and depends on role ordering. Best-of-N requires an external scorer that may not exist.",
+      "context": "A team is running a single-agent loop on a workload where the model often produces confident-sounding output that masks real internal disagreement. Best-of-N sampling — generating N independent completions and scoring them — would help but is too expensive per tick, and running a sequential inner-committee of personas is too slow. The team wants to surface disagreement within a single completion without paying for either alternative.",
+      "problem": "Single-pass generation collapses whatever internal tension the model has into a confident-sounding mean, and downstream consumers see only the polished result. Running multiple completions in sequence under different personas slows the loop and depends fragilely on role-ordering effects. Best-of-N needs an external reward model to pick the winner, and for many tasks no such scorer exists. The team is forced to choose between cheap-but-overconfident, slow-and-ordered, or expensive-and-needs-a-judge.",
       "forces": [
         "Parallel voices in one completion are cheap but risk all sounding the same.",
         "Self-selection from candidates can rubber-stamp the first one.",
@@ -1406,8 +1736,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Stream every model token to a tmp-plus-atomic-replace partial file so crashes mid-inference leave a consistent salvage, then promote partials at startup with a typed recovery marker the model can see.",
-      "context": "Long-running agents on hardware that can crash (OOM kills, watchdog SIGKILL, deploys) where a lost mid-stream thought is hours of context. Agent-resumption handles process state; this handles the in-flight token stream itself.",
-      "problem": "A SIGKILL during model streaming leaves the partial output in in-process memory only — total loss of seconds or minutes of inference. The next run has no idea anything was happening. Worse, the agent may later return to the topic with no awareness that a prior attempt died mid-sentence.",
+      "context": "A team is running a long-lived agent on hardware that occasionally crashes: the out-of-memory killer takes the process, a watchdog timer issues a hard kill signal, a deploy restarts the container mid-stream. Per-call inference is long enough that losing a stream halfway through represents minutes of model time and meaningful context. Separately the agent already has a resumption pattern for process state, but that pattern only restores what was durably written before the crash, not the tokens that were streaming when it landed.",
+      "problem": "When a hard kill arrives mid-stream, the partial output exists only in in-process memory and is lost completely. The next run sees no record that anything was happening, so it neither finishes the work nor warns the user about the gap. Worse, the agent may later return to the same topic with no awareness that a prior attempt died mid-sentence, and confidently begin again with no acknowledgement that a partial result might exist somewhere. Per-chunk fsync would solve durability but is too expensive to do on every token.",
       "forces": [
         "Per-chunk fsync is expensive; tmp-plus-rename is the affordable compromise.",
         "Recovery should be visible to the model, not silent — surprise about a partial is itself signal.",
@@ -1498,8 +1828,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Before the next generation fires, detect divergence signatures (narration loops, frustration paths, repetition pressure) and inject a diagnostic steering hint into the prompt rather than veto the call.",
-      "context": "Long-running agents with frequent ticks where some failure modes — narrating about acting instead of acting, retrying the same broken path under frustration, lapsing into rumination — are visible from telemetry before the model speaks.",
-      "problem": "Post-hoc detectors catch the failure after tokens are produced and money is spent. The agent itself often has the signal to avoid the failure if it were told, but nothing is reading that signal before the next call.",
+      "context": "A team is running an agent with frequent ticks where certain failure modes recur often enough to be recognisable from telemetry alone: narrating about acting instead of actually invoking the tool, retrying the same broken path repeatedly after an error, or sinking into rumination on a high-intensity preoccupation without producing new content. These signatures are visible in the recent thoughts, recent tool calls, affect snapshot, and preoccupation list before the next model call fires.",
+      "problem": "Today's post-hoc detectors only catch these failures after the model has already produced the bad output, by which point the tokens are billed and the user has seen them. The agent itself would frequently avoid the failure if it were told the diagnostic before generating, but nothing reads the available pre-call signal and surfaces it. A hard veto on the next call is too aggressive because the same signature sometimes appears in legitimate work, but doing nothing means paying for the bad output every time.",
       "forces": [
         "A hard veto blocks legitimate cases that match the heuristic.",
         "A silent injection makes debugging mysterious if the model behaves differently than expected.",
@@ -1538,6 +1868,10 @@
         },
         {
           "pattern": "typed-tool-loop-detector",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fragment-juxtaposition",
           "relation": "complements"
         }
       ],
@@ -1579,10 +1913,10 @@
       "example_scenario": "A long-running personal agent keeps falling into a narration loop where it says 'let me check the calendar' but never actually invokes the calendar tool. A post-hoc detector catches it after the model has already produced the empty narration. The team adds a Pre-Generative Loop Gate: each pre-tick check looks for low-surprise plus intent-phrase signatures and appends '[steering] you may be narrating about acting instead of acting; consider invoking the tool directly' to the prompt. The narration rate drops without blocking any legitimate call.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Tick[Pre-tick] --> Check{Divergence signature?}\n  Check -->|none| Call[Generate as-is]\n  Check -->|narration| Hint1[[steering: narrating about acting]]\n  Check -->|frustration| Hint2[[steering: same path under errors]]\n  Check -->|rumination| Hint3[[steering: high-intensity preoccupation]]\n  Hint1 --> Call\n  Hint2 --> Call\n  Hint3 --> Call\n  Call --> Out[Model output]\n  Check --> Log[(Decision log)]",
+        "mermaid": "flowchart TD\n  Tick[Pre-tick] --> Check{Divergence signature?}\n  Check -->|none| Call[Generate as-is]\n  Check -->|narration| Hint1[[steering: narrating about acting]]\n  Check -->|frustration| Hint2[[steering: same path under errors]]\n  Check -->|rumination| Hint3[[steering: high-intensity preoccupation]]\n  Hint1 --> Call\n  Hint2 --> Call\n  Hint3 --> Call\n  Call --> Out[Model output]\n  Check --> Log[(Decision log)]",
         "caption": "Pre-tick check classifies divergence signatures and appends a short steering line to the prompt; the model retains authority to ignore."
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "preoccupation-tracking",
@@ -1594,8 +1928,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Maintain a small set of mid-term, affect-tagged concerns that persist across days and surface in every prompt, distinct from the single-item working focus and from long-term insights.",
-      "context": "Long-running agents that hold a single working focus and a long-term insight store but nothing in between. Without an intermediate tier, the things the agent is currently 'chewing on' either dominate focus or vanish entirely between sessions.",
-      "problem": "Working focus holds one item; insights are too distilled. Between them there is a missing tier — the things the agent is chewing on across days — and without it concerns either crowd out the active focus or fall off the back of the window before they resolve.",
+      "context": "A team is running a long-lived agent whose memory has two extremes: a single 'current focus' slot that names what the agent is working on right now, and a long-term insight store that holds distilled lessons across months. Between those there is no place for the handful of things the agent is genuinely chewing on across days — an ongoing worry about a project, an anticipation, a curiosity it keeps returning to.",
+      "problem": "Because nothing represents the middle tier explicitly, mid-term concerns leak into one extreme or the other. They either crowd out the single focus slot and starve the immediate task of attention, or they drop off the back of the prompt window and quietly disappear before they resolve. The agent gives a misleading impression of either being singly focused on the wrong thing or having no continuity at all about what is really weighing on it.",
       "forces": [
         "A cap is needed or preoccupations crowd out everything else.",
         "Decay must be automatic; the agent left to itself will not let go.",
@@ -1643,6 +1977,10 @@
         },
         {
           "pattern": "open-question-tension-store",
+          "relation": "complements"
+        },
+        {
+          "pattern": "commitment-tracking",
           "relation": "complements"
         }
       ],
@@ -1697,9 +2035,9 @@
       "example_scenario": "A long-running personal agent has a 'current focus' slot that holds one item and a long-term insight store that is too distilled. Mid-tier concerns — a project the user is wrestling with, a relationship issue they keep returning to — either crowd out the active focus or fall off the back of the context window. The team adds preoccupation-tracking: a capped list of 5–8 affect-tagged concerns with topic, intensity, and last-touched, decaying with a 7-day half-life, surfaced as a sidebar in every tick prompt. Mid-tier context now persists across days without overwhelming the foreground.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  E[Events / thoughts] --> U[Update preoccupations]\n  U --> L[(List, cap 5-8<br/>topic, intensity, affect)]\n  L -->|7-day half-life| Decay[Decay]\n  Decay --> L\n  L -->|sidebar| Tick[Tick prompt]\n  L -->|coldest dropped<br/>at cap| Out[Released]"
+        "mermaid": "flowchart TD\n  E[Events / thoughts] --> U[Update preoccupations]\n  U --> L[(List, cap 5-8<br/>topic, intensity, affect)]\n  L -->|7-day half-life| Decay[Decay]\n  Decay --> L\n  L -->|sidebar| Tick[Tick prompt]\n  L -->|coldest dropped<br/>at cap| Out[Released]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "self-archaeology",
@@ -1761,6 +2099,10 @@
         {
           "pattern": "vector-memory",
           "relation": "uses"
+        },
+        {
+          "pattern": "hypothesis-tracking",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1820,9 +2162,9 @@
       ],
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Th[(Past thoughts)] --> Comp[Periodic compaction pass]\n  Comp --> P1[Period 1: held A]\n  Comp --> P2[Period 2: revised to B<br/>because Z]\n  Comp --> P3[Period 3: now C]\n  P1 --> Note[Trajectory note]\n  P2 --> Note\n  P3 --> Note\n  Note --> Agent[Agent context]"
+        "mermaid": "flowchart TD\n  Th[(Past thoughts)] --> Comp[Periodic compaction pass]\n  Comp --> P1[Period 1: held A]\n  Comp --> P2[Period 2: revised to B<br/>because Z]\n  Comp --> P3[Period 3: now C]\n  P1 --> Note[Trajectory note]\n  P2 --> Note\n  P3 --> Note\n  Note --> Agent[Agent context]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "typed-tool-loop-detector",
@@ -1834,8 +2176,8 @@
       ],
       "category": "cognition-introspection",
       "intent": "Lift tool-loop detection from prompt-level rules to a mechanical dispatch-boundary veto with typed failure modes and per-tool caps that returns a formatted refusal the model must consume.",
-      "context": "Agents with rich tool palettes where prompt-level instructions are not enforced (the model can simply not follow them) and loop bugs eat budget before any safety net trips. A single global circuit-breaker hides the specific shape of the failure.",
-      "problem": "Tool-explosion is named as an anti-pattern but is given no mechanism to catch. A single global circuit-breaker misses shape: a thirty-call canvas-action burst looks the same as thirty healthy file reads under a global counter. Prompt-level rules are advisory only.",
+      "context": "A team is running an agent with a rich tool palette in which loop bugs — the agent calling the same tool over and over, or cycling through a small subset of tools without progress — can eat substantial budget before any safety net trips. Prompt-level instructions telling the model 'do not call X more than three times' are not actually enforced: the model can simply ignore them. A single global circuit-breaker on total tool calls catches the most extreme cases but hides the specific shape of the failure when it does fire.",
+      "problem": "Tool-explosion is named elsewhere in the catalogue as an anti-pattern, but naming it provides no mechanism to catch it. A single global circuit-breaker misses the shape of the underlying failure: a thirty-call canvas-action burst looks identical to thirty healthy file reads under a flat global counter, so the breaker either trips too often on legitimate bursts or too late on real failures. Prompt-level rules are advisory only, so the model can ignore them when it is most stuck. The team needs detection lifted from the prompt to a mechanical check at the dispatch boundary, with typed failure modes and per-tool caps that emit a refusal the model is forced to consume rather than silently retry.",
       "forces": [
         "Per-tool caps are noisy without good defaults.",
         "A typed refusal must be formatted so the model can consume it as input rather than silently retry.",

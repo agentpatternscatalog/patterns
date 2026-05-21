@@ -11,11 +11,11 @@ Maintain a structured document describing the model/agent's intended use, limita
 
 ## Context
 
-Regulated, high-stakes, or public-facing agents where stakeholders (legal, compliance, users) need to understand what the system does and where it fails.
+A team operates an agent in a setting where multiple stakeholders need a shared understanding of what it actually does: legal teams reviewing deployment, compliance officers preparing for a regulator visit, customers reading documentation, or new engineers joining the project. Examples include underwriting agents at a bank, medical-information agents in healthcare, and public-facing assistants subject to EU regulatory transparency obligations. There is enough institutional knowledge about intended use, known limitations, and evaluation results to write down.
 
 ## Problem
 
-Agent capabilities and limitations are tribal knowledge; without a card, every stakeholder reinvents understanding.
+When the team's understanding lives in three engineers' heads and a Slack thread, every new stakeholder asks the same questions from scratch, marketing claims drift away from actual capability, and a regulator request becomes a multi-week archaeology project. Limitations that the team knows about never surface to the people who need them. The team is forced to choose between rewriting the same explanation by hand for every audience or producing a single authoritative document that everyone can reference.
 
 ## Forces
 

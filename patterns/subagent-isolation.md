@@ -11,11 +11,11 @@ Run subagents in isolated workspaces so their writes do not collide and parallel
 
 ## Context
 
-Coding agents that delegate to multiple subagents for parallel work; without isolation, subagents fight over the same files.
+A coding agent — or any agent that edits files, runs commands, or mutates a workspace — delegates to several sub-agents that should work in parallel. Each sub-agent has its own bounded task: one refactors a module, another updates tests, a third writes documentation. They all want to touch the same repository at the same time.
 
 ## Problem
 
-Subagents writing to the same workspace race each other; one's edits are clobbered by another's.
+If the sub-agents share one working directory, their edits race each other: one sub-agent's commit clobbers another's uncommitted changes, two sub-agents edit the same file with incompatible diffs, and a failure in one leaves the workspace in a state that breaks the others. Serialising them removes the parallelism that was the point of spawning sub-agents in the first place. Without isolated workspaces, the team has to choose between racing writes and giving up on parallel execution.
 
 ## Forces
 

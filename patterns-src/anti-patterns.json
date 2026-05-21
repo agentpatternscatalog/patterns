@@ -11,8 +11,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: ship an agent without traces, decision logs, or provenance, then debug from user reports.",
-      "context": "Schedule pressure or framework defaults push the agent into production with no observability hooks.",
-      "problem": "When (not if) the agent does something wrong, there is no record of why; debugging is reduced to reproduction attempts.",
+      "context": "A team is shipping an LLM-based agent under schedule pressure, often using a framework that emits no traces by default. Observability — recording each model call, each tool invocation, and the decision that led to it — is treated as something to add later once the product proves itself. The agent goes to production with no run logs, no decision log, and no record of which inputs led to which outputs.",
+      "problem": "When the agent eventually does something wrong, and it will, the team has no record of what the agent saw, what it decided, or which tool it called with which arguments. Debugging collapses into trying to reproduce a user's vague timeline from memory, and most incidents are never explained at all. The team ends up retrofitting traces during an outage, which is the most expensive moment to add them.",
       "forces": [
         "Observability has a cost (storage, dev time).",
         "Frameworks differ in trace quality.",
@@ -89,8 +89,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: scrub failed actions, stack traces, and error observations from the agent's own context so the trace looks clean, leaving the model with no evidence of what did not work.",
-      "context": "Agents that take many actions per task accumulate failures; teams tidy the transcript so prompts stay short, or retry silently, or replace failed tool outputs with placeholders.",
-      "problem": "Hiding the failure deletes the very signal the model would use to update its beliefs and stop repeating the same mistake. The agent then re-attempts the failed action, sometimes in a loop, because nothing in its context contradicts the choice.",
+      "context": "An agent takes many tool actions per task and naturally accumulates failures — a tool returns an HTTP 500, a command exits non-zero, an API call is rejected. The team wants short, tidy prompts and clean-looking transcripts, so the wrapper either retries silently, replaces the failed tool output with a generic placeholder like 'retrying...', or strips stack traces before they ever reach the model's context. The intent is usually a mix of cosmetics, token economy, and a feeling that errors are noise.",
+      "problem": "The error message, stack trace, or rejection reason is exactly the signal the model needs to revise its plan and stop repeating the same call. When it is scrubbed before re-prompting, the agent re-attempts the failed action turn after turn, sometimes in tight loops, because nothing in its visible context contradicts the choice. After-the-fact debugging is also harder, because the transcript no longer shows whether a run succeeded cleanly or was salvaged across several hidden failures.",
       "forces": [
         "Failed turns inflate context length and look untidy in transcripts.",
         "Retries are easier to log as a single clean event than as fail-then-retry.",
@@ -177,8 +177,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: let the model emit citations as free text and trust them.",
-      "context": "An agent answers with citations but the citation pipeline is the model itself; no source-id discipline.",
-      "problem": "The model invents URLs, paper titles, and author names. Hallucinated citations look authoritative until clicked.",
+      "context": "A team builds a research, legal, medical, or general question-answering assistant that should back its claims with sources, and the easiest way to add citations is to ask the model to include them in its free-text answer. There is no retrieval pipeline that returns documents by stable identifier, or there is one but its results are not bound to the citations the model emits. Whatever URL, paper title, or case name the model writes in its answer is shipped to the user as-is.",
+      "problem": "Language models trained on academic and legal text are particularly fluent at producing authoritative-looking references that do not exist — invented authors, plausible but wrong digital object identifiers, real-sounding case names that no court ever decided. The citations look correct until somebody clicks them, and end users routinely do not click. In regulated domains like law and medicine, a single hallucinated citation that reaches a customer can trigger sanctions, retractions, or loss of trust the product never recovers from.",
       "forces": [
         "Real citations require source ids and a retrieval pipeline.",
         "Models trained on academic text are particularly fluent at fabricating citations.",
@@ -256,8 +256,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: trust the model to invoke only the tools it has been given, then debug calls to functions that do not exist.",
-      "context": "The agent is given a tool palette, but the host accepts whatever the model emits without validation.",
-      "problem": "The model invents tool names. The host either crashes, silently drops the call, or worse, dispatches to a similar-named real tool.",
+      "context": "An agent is configured with a registered set of tools — a tool palette — that it is supposed to choose from on each turn. The host code that receives the model's tool call accepts whatever name and arguments the model emits and dispatches them without first checking that the name actually exists in the registered palette. The team assumes that because the model was shown the palette in the prompt, the model will only call tools from it.",
+      "problem": "Models routinely invent tool names that look reasonable but are not registered — a slight rename, a pluralised version, an imagined helper that should logically exist. The unvalidated host then either crashes with an unhelpful error, silently drops the call, or, in the worst case, fuzzy-matches the invented name to a similar real tool and executes the wrong action with side effects. Without strict validation at the dispatch boundary, phantom calls become indistinguishable from legitimate ones in the logs.",
       "forces": [
         "Validation feels redundant when providers offer typed tool calls.",
         "Provider-side validation is not always strict.",
@@ -330,8 +330,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: stuff every capability into one agent with one giant prompt.",
-      "context": "An agent product grows; new capabilities are added by appending to the system prompt and the tool palette of a single agent.",
-      "problem": "The agent's prompt becomes a monolith. Tools conflict. The model is confused about which path to take. Cheap requests pay expensive prices.",
+      "context": "A team has a single agent that started small and is winning use cases. Each new capability — calendar handling, email, research, file editing — is added by appending more instructions to the system prompt and more entries to the tool list of that same agent. Splitting into specialists feels like premature optimisation, so the one agent keeps absorbing scope, often crossing a thousand prompt lines and dozens of registered tools.",
+      "problem": "Past a certain size the single agent stops behaving like one coherent assistant and starts behaving like a confused junior who has been handed every job in the company. The model picks the wrong tool when two tools overlap, follows the wrong section of the prompt because two sections contradict each other, and the smallest user request now pays for the full giant prompt on every call. Latency, cost, and quality all regress together, and debugging which prompt fragment caused which behaviour becomes archaeological work.",
       "forces": [
         "Specialisation requires routing or multi-agent infrastructure that does not yet exist.",
         "Splitting feels like premature optimisation.",
@@ -424,8 +424,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: silently swap the underlying model between requests without disclosing the change to users or operators.",
-      "context": "Cost or capacity pressure pushes a product to route some requests to cheaper models; the routing is invisible.",
-      "problem": "Reproducibility breaks; users notice quality changes they cannot diagnose; trust erodes.",
+      "context": "A team operates an agent or chat product under real cost and capacity pressure, and the obvious lever is to route some traffic to a smaller, cheaper model and the rest to the flagship. The routing is implemented as a backend decision: nothing in the response, the user interface, or the trace tells the user which model actually produced a given answer. Operators may also lack a per-request record of the resolved model identity.",
+      "problem": "When users compare runs over time, or compare two answers to the same prompt, they encounter quality differences they cannot explain — the agent feels sharper on Monday than on Saturday, code suggestions degrade overnight, and the same prompt produces different reasoning depth from one call to the next. They cannot reproduce results, cannot file a precise bug, and cannot trust evaluation numbers because the eval and the production traffic may have hit different models. Trust erodes faster than the cost savings accumulate.",
       "forces": [
         "Cost arbitrage feels too good to disclose.",
         "Per-request model disclosure adds UI complexity.",
@@ -507,8 +507,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: launch multi-agent debate without a termination rule and watch the agents loop forever.",
-      "context": "Debate or consensus patterns are added without explicit halt conditions; the agents argue until the cost cap kicks in.",
-      "problem": "Debate without termination converges only by accident. Real cost grows linearly while progress stalls.",
+      "context": "A team sets up a multi-agent debate or consensus pattern — for example a proponent, a skeptic, and a synthesiser — so that several agents argue a question before producing a final answer. The orchestrator is written with the assumption that the agents will eventually agree on their own and the loop will naturally end. There is no explicit round cap, no judge that emits a terminal verdict, and no measurable convergence signal between rounds.",
+      "problem": "Without a termination rule, debate converges only by accident; far more often the agents keep finding new angles to disagree on, restate prior positions, or politely circle the same point indefinitely. Token cost and latency grow linearly with rounds while real progress on the answer stalls, and the loop ends only when an outer cost limiter or a timeout intervenes. The team is left with an expensive run, no decision, and no clean way to tell whether two more rounds would have helped.",
       "forces": [
         "Consensus heuristics are easy to game.",
         "Round caps cut off legitimate convergence.",
@@ -590,8 +590,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: restrict the agent's action language to JSON tool-call dictionaries even for tasks where code-as-action (functions composing, loops, conditionals over results) would be the natural shape.",
-      "context": "Agent frameworks that standardised on the function-calling JSON contract and never reconsidered when tasks grew to need step nesting, intermediate variables, or local reductions over tool outputs.",
-      "problem": "JSON tool calls express one action per turn with flat arguments; expressing a loop, a conditional over an intermediate result, or a reuse of one tool's output as another tool's argument requires unrolling into many turns and re-shipping intermediate state through the model. Composability, object handling, and generality suffer.",
+      "context": "A team is building an agent on a framework that standardised early on the provider's function-calling contract: the model emits one tool call per turn as a JSON dictionary with flat arguments, the host executes it, and the result comes back as another turn. As tasks grow more sophisticated — data wrangling, multi-step reductions, conditional branching on intermediate results — the team keeps the JSON-only action language and expresses composition by issuing more turns. The option of letting the agent write a short code snippet that calls tools as functions inside a sandbox is dismissed as too risky or out of scope.",
+      "problem": "A JSON tool call cannot directly express a loop, a conditional over an intermediate value, or the reuse of one tool's output as another tool's argument. To compose three tools the agent must take three or more turns, ship each intermediate result back through the model as a string, and reconstruct any structured object on each side. Token cost is dominated by these round-tripped intermediates, latency is dominated by the turn count, and the action language drifts further from the code-shaped composition the model actually saw most of in training.",
       "forces": [
         "JSON tool calls are the dominant industry contract and the easiest to log, validate, and rate-limit.",
         "Code-as-action requires a sandboxed interpreter (Python, JS) with its own security envelope.",
@@ -679,7 +679,7 @@
       "example_scenario": "A data-investigation agent has tools for query, transform, and chart. Under JSON-only it must call query, return the rows as a JSON blob through the model, call transform with that blob inlined, return another blob, then call chart. Token cost is dominated by the round-tripped tables; latency is dominated by turn count. The team switches to code-as-action: tools are exposed as Python functions, the agent writes a five-line script that pipes query into transform into chart, the interpreter executes it, and the agent receives the chart object back. One turn replaces five.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  T[Composition-heavy task] --> J{Action language?}\n  J -- JSON only --> T1[Turn 1: call A]\n  T1 --> T2[Round-trip result]\n  T2 --> T3[Turn 2: call B with inlined result]\n  T3 --> Tn[...many turns...]\n  J -- code-as-action --> Code[Agent emits code]\n  Code --> Run[Sandbox runs script]\n  Run --> One[Return composed result in one turn]"
+        "mermaid": "flowchart TD\n  T[Composition-heavy task] --> J{Action language?}\n  J -- JSON only --> T1[Turn 1: call A]\n  T1 --> T2[Round-trip result]\n  T2 --> T3[Turn 2: call B with inlined result]\n  T3 --> Tn[...many turns...]\n  J -- code-as-action --> Code[Agent emits code]\n  Code --> Run[Sandbox runs script]\n  Run --> One[Return composed result in one turn]"
       },
       "last_updated": "2026-05-20"
     },
@@ -692,8 +692,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: the agent cites its own past memos as ground truth instead of re-verifying them against the artifacts they describe, accumulating false confidence in stale summaries.",
-      "context": "Agents with persistent workspace files that summarize project state. The notes were accurate when written; the underlying artifacts have moved on.",
-      "problem": "The agent claims a file's state, a project's status, or external system's state by quoting its own memo without re-reading the artifact the memo describes. Memos go stale; artifacts are authoritative. The contradiction can persist across many ticks if neither side is verified.",
+      "context": "A long-running agent keeps a workspace of memo files, status documents, or running notes that summarise external artifacts — repository state, project status, the contents of large files it has previously read. Each memo was accurate when the agent wrote it, but the underlying code, documents, or systems have moved on since. The agent has no cheap signal for when one of its own memos has become stale.",
+      "problem": "When asked a question about an artifact's current state, the agent quotes its own past memo as if it were the artifact itself, rather than re-reading the artifact in the same step. Memos compress and persist; artifacts change. The result is a confident, well-cited answer that is silently wrong, and because the agent is citing its own writing the wrongness can be reproduced across many turns before anything from the outside contradicts it.",
       "forces": [
         "Reading the artifact is more expensive than quoting the memo.",
         "Memos compress; artifacts are authoritative but verbose.",
@@ -784,8 +784,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: reach for naive RAG before checking whether the knowledge actually needs retrieval.",
-      "context": "A team adds RAG because the field talks about RAG, even when the agent's information lives in a database, an API, or a small static document.",
-      "problem": "Vector indexes are added where a SQL query, a tool call, or a system prompt would suffice. Cost and complexity rise; quality often drops because retrieval is the wrong shape.",
+      "context": "A team is starting a new knowledge-grounded agent — a customer-support bot, an internal Q&A assistant, a docs helper — and the field's reference architectures push retrieval-augmented generation (RAG, where the system embeds documents into a vector store and looks up passages by semantic similarity) as the default move. The team builds the vector index before checking where the answer-bearing knowledge actually lives. Often the real source is a database, an internal API, a search service, or a small set of stable documents that would fit in the system prompt.",
+      "problem": "When the knowledge lives in a structured store, semantic retrieval over embeddings is the wrong shape: the agent gets approximate, stale passages where a typed SQL query or a single API call would return an exact, fresh answer. The team pays embedding pipeline cost, vector store cost, and re-indexing cost on every update, and quality drops compared to the simpler design because retrieval is solving the wrong problem. Naive RAG also adds an entire failure surface — chunking, embedding drift, recall holes — that a typed tool call simply does not have.",
       "forces": [
         "RAG is on every reference architecture.",
         "Vector stores feel like a moat.",
@@ -865,8 +865,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: ship the agent in 'beta' indefinitely so that quality regressions are someone else's problem.",
-      "context": "An agent is launched without an eval harness and stays in beta because removing the label would create accountability for quality.",
-      "problem": "Beta becomes a permanent excuse. Without an eval harness, quality is a guess and regressions are invisible.",
+      "context": "A team launches an agent product to real users under a 'beta' label, without building an evaluation harness that can measure quality regressions across releases. Months later, the product is still labelled beta, partly because the team genuinely has not measured quality, partly because removing the label would commit them to a quality bar they have no way to defend. The label has quietly shifted from a signal of active iteration to a shield against accountability.",
+      "problem": "Without an evaluation harness, every release is a guess: regressions land invisibly, model upgrades are accepted or rejected on vibe, and customer-facing quality drifts without anyone noticing until churn reveals it. Beta becomes a permanent excuse that costs nothing to keep and absorbs all accountability for unmeasured quality. Eventually a competitor ships a graduated version of a similar product and the beta team discovers, too late, that they never had a measurement story.",
       "forces": [
         "Eval harnesses cost time to build.",
         "GA promises commit to quality bars.",
@@ -931,7 +931,7 @@
       "example_scenario": "A startup launches its agent product as 'beta' and uses the label as a blanket excuse for any quality complaint. Eighteen months later the agent is still beta, there is no eval harness, and customers have started churning to a competitor that ships GA. The team names the failure perma-beta and forces an exit: build the eval suite, set quality gates, fix the regressions blocking GA, and remove the beta label. The label was hiding the fact that nobody actually knew whether the product was getting better or worse.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']\n  V1 --> V2[v2 still 'beta']\n  V2 -.no eval gate.-> Reg[Quality regressions]\n  Reg -.blamed on.-> Users[Users]\n  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]"
+        "mermaid": "flowchart TD\n  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']\n  V1 --> V2[v2 still 'beta']\n  V2 -.no eval gate.-> Reg[Quality regressions]\n  Reg -.blamed on.-> Users[Users]\n  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]"
       },
       "last_updated": "2026-05-20"
     },
@@ -944,8 +944,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: every bug fix adds a sentence to the system prompt; nothing is ever removed.",
-      "context": "Production agents whose system prompt grows monotonically over months; no eviction policy; no review for relevance.",
-      "problem": "Past a few thousand tokens, the prompt squeezes retrieval, forces cache misses, and yields diminishing-returns instruction following. Distinct from hero-agent (which is about scope) — this is about prompt accretion as a process.",
+      "context": "A production agent has been live for months and the system prompt has grown one sentence at a time. Each bug fix, edge case, and customer complaint adds another instruction; nothing is ever removed because removing a line feels riskier than leaving it. There is no owner of the prompt as a whole, no review on prompt diffs, and no eviction policy for instructions that are no longer relevant.",
+      "problem": "Past a few thousand tokens, the prompt starts to squeeze retrieved context and tool definitions out of the model's attention budget, prompt-cache reuse degrades because every small edit changes the cached prefix, and instructions that were added at different times begin to contradict each other. The model resolves the contradictions inconsistently, so newer rules silently override older ones for some inputs and not others. This is distinct from a hero agent, which is about scope; this is about the accretion process itself, where the prompt is treated as append-only documentation rather than as code.",
       "forces": [
         "Adding a sentence feels free; removing one feels risky.",
         "No clear owner of the prompt's overall design.",
@@ -1014,7 +1014,7 @@
       "example_scenario": "A coding-agent team adds one sentence to the system prompt every time a customer reports an edge case. Eighteen months later the prompt is 6500 tokens, prompt-cache misses are common, and the model's instruction-following is visibly degraded — newer rules contradict older ones. The team names it prompt-bloat: the prompt goes under PR review with a length budget, recurring procedures are lifted into agent-skills, stable rules move into a constitutional charter, and a quarterly pruning sprint trims dead weight. The prompt halves and quality climbs back.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  Bug1[Bug fix 1] -->|+sentence| P[System prompt]\n  Bug2[Bug fix 2] -->|+sentence| P\n  Bug3[Bug fix 3] -->|+sentence| P\n  P -->|never pruned| Bloat[Bloated prompt]\n  Bloat -.fix.-> Treat[Treat prompt as code:<br/>review, eval gate, prune]"
+        "mermaid": "flowchart TD\n  Bug1[Bug fix 1] -->|+sentence| P[System prompt]\n  Bug2[Bug fix 2] -->|+sentence| P\n  Bug3[Bug fix 3] -->|+sentence| P\n  P -->|never pruned| Bloat[Bloated prompt]\n  Bloat -.fix.-> Treat[Treat prompt as code:<br/>review, eval gate, prune]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1028,8 +1028,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: pre-allocate roles (manager, coder, designer, researcher) across a fixed set of typed sub-agents and route tasks to them by role label.",
-      "context": "Multi-agent designs where the architect decides up-front which roles exist and assigns each sub-agent a narrow system prompt and tool palette tied to that role.",
-      "problem": "The fixed role table constrains the system to whatever decomposition the architect anticipated; tasks that do not fit a named role are forced into the closest one, and capability-equal parallelism (running many full-capability instances against the same task) is structurally unavailable.",
+      "context": "A team is designing a multi-agent system and, before seeing real workloads, decides on a fixed set of roles — typically manager, researcher, coder, designer, reviewer — and gives each role its own narrow system prompt and restricted tool palette. The orchestrator routes each task to a sub-agent by matching the task to a role label. The architecture diagram looks like clean separation of concerns, and each specialist agent is cheaper per call than a general-purpose one.",
+      "problem": "Real workloads do not partition cleanly into the roles the architect imagined in advance. Tasks that fall between two roles get squeezed into whichever label is closest, and the chosen specialist underperforms because its tool palette is missing what the task actually needs. Adding a new role means changing the architecture rather than parameters, and capability-equal parallelism — running many fully capable, identical sub-agents in parallel on the same subtask — is structurally impossible because no sub-agent has the full tool set.",
       "forces": [
         "Role labels make the architecture diagrammable and look like sound separation of concerns.",
         "Cheaper per-call specialised prompts can outperform a single generalist on narrow tasks.",
@@ -1072,6 +1072,10 @@
         {
           "pattern": "orchestrator-workers",
           "relation": "complements"
+        },
+        {
+          "pattern": "personality-variant-overlay",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1107,7 +1111,7 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  T[Task] --> R{Role table}\n  R -->|manager| M[Manager-agent]\n  R -->|coder| C[Coder-agent]\n  R -->|designer| D[Designer-agent]\n  R -->|unmapped| Sqz[Squeezed into nearest role]\n  Sqz --> Bad[Underperforms]\n  R -.fix.-> GP[General-purpose sub-agent]\n  GP --> Many[Many capability-equal instances]\n  GP --> Overlay[Per-call persona overlay when useful]"
       },
-      "last_updated": "2026-05-20"
+      "last_updated": "2026-05-21"
     },
     {
       "id": "same-model-self-critique",
@@ -1118,8 +1122,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: have the same model both produce an answer and critique it, expecting independence.",
-      "context": "Reflexion or evaluator-optimizer loops where producer and critic share a model and a prompt family.",
-      "problem": "The critic shares the producer's blind spots. Wrong answers are reinforced as confident. 2025 replication studies confirm the effect.",
+      "context": "A team builds a reflective agent — Reflexion, self-refine, or an evaluator-optimizer loop — where one call produces a candidate answer and a second call critiques and revises it. To keep cost and integration simple, both calls use the same model, often with prompts that share their wording about what 'good' looks like. The critique step is then presented internally or to users as an independent check on the answer.",
+      "problem": "Because producer and critic come from the same weights and read overlapping prompts, the critic shares the producer's blind spots; whatever the model is confidently wrong about, it is also confidently wrong about when wearing the critic hat. Wrong answers come back from the loop endorsed and slightly polished, and the team reports higher confidence on what is, statistically, the same error rate. Replication studies through 2025 have repeatedly confirmed that single-model self-critique catches surface mistakes but does not act as independent verification.",
       "forces": [
         "Two models cost twice.",
         "Cross-model judges have their own biases.",
@@ -1199,7 +1203,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  M[Same model] -->|produces| A[Answer]\n  M -->|critiques| A\n  A -.shared blind spots.-> Illusion[Illusion of independence]\n  Illusion -.fix.-> Diff[Use different model family<br/>or accept surface-only]"
+        "mermaid": "flowchart TD\n  M[Same model] -->|produces| A[Answer]\n  M -->|critiques| A\n  A -.shared blind spots.-> Illusion[Illusion of independence]\n  Illusion -.fix.-> Diff[Use different model family<br/>or accept surface-only]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1212,8 +1216,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: parse free-form model output for downstream code instead of using structured output.",
-      "context": "An agent emits text that downstream code parses with regex, string splits, or 'is the word yes in there?'.",
-      "problem": "The model invents punctuation, formatting, and field names. Parsers fail in non-obvious ways. Errors are mis-attributed to the model when they are parser bugs.",
+      "context": "A team uses an LLM to produce values that downstream code consumes — a JSON-looking blob, a yes/no decision, a list of records — but the model is asked for free-form text and the consumer parses it with regular expressions, string splits, or substring checks like 'does the word yes appear here'. The provider offers structured output (a JSON Schema or function-calling contract that constrains the model's output), but the team has not adopted it, often because the integration looked like extra setup at the time. The model's text is treated as essentially typed even though nothing enforces that.",
+      "problem": "The model varies its punctuation, capitalisation, field names, and ordering in ways the parser was not written for: smart quotes instead of straight quotes, a missing comma, a 'sure, here is the answer' preamble the parser tried to skip but did not. The downstream code fails in non-obvious ways, corrupts state, or silently misinterprets the result. Post-mortems then blame the model for being flaky when the real bug is in the parser, and the team chases evals that were never going to fix a parsing problem.",
       "forces": [
         "Structured output adds setup cost and provider lock-in.",
         "Some providers offered structured output later than tool use.",
@@ -1282,7 +1286,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  M[LLM] -->|free-form text| Pr[Ad-hoc parser]\n  Pr -.brittle.-> Fail[Downstream breakage]\n  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]"
+        "mermaid": "flowchart TD\n  M[LLM] -->|free-form text| Pr[Ad-hoc parser]\n  Pr -.brittle.-> Fail[Downstream breakage]\n  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1298,8 +1302,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: expose every available tool in every request and watch function-calling accuracy collapse.",
-      "context": "MCP and plugin ecosystems make hundreds of tools easy to register; teams expose them all.",
-      "problem": "Past about 20 tools, model selection accuracy drops sharply; the agent picks wrong tools or invents wrong arguments.",
+      "context": "A team is building an agent on a platform where registering new tools is essentially free: MCP (Model Context Protocol) servers, plugin ecosystems, and tool registries make it trivial to expose dozens or hundreds of tools to the model at once. The path of least resistance is to expose them all so that the model can in principle reach for anything that exists.",
+      "problem": "Past roughly twenty tools in a single request, function-calling accuracy drops sharply for almost every current model. The agent starts picking the wrong tool for a task, invents wrong arguments, or fails to call any tool when one is needed. Adding more tools feels free because each individual registration is cheap, but the cost is paid invisibly on every request as a degraded selection. The exact threshold drifts with model capability, which makes it tempting to ignore — until the agent starts misbehaving in production with no obvious change to blame.",
       "forces": [
         "Adding tools feels free; selecting subsets feels like extra engineering.",
         "Discovery is push-style; filter is pull-style.",
@@ -1390,8 +1394,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: add or remove tool definitions during a running task so the tool set the model sees changes from turn to turn.",
-      "context": "Agent frameworks that grow their tool palette dynamically — exposing new MCP servers mid-run, removing tools as conditions change, or swapping the registry between iterations.",
-      "problem": "Mutating tool definitions mid-run invalidates the KV-cache for everything after the change and leaves the model uncertain which tools it can still call; recent turns may reference tools no longer present, or tools the model has not yet been told about, causing hallucinated calls and broken composition.",
+      "context": "A team is using an agent framework that grows or shrinks its tool palette dynamically during a run — exposing new MCP (Model Context Protocol) servers as the task moves into new territory, removing tools as conditions change, or swapping the registry between iterations of the loop. From the framework's perspective this looks like good hygiene against tool-explosion: only show the agent the tools it currently needs.",
+      "problem": "Mutating tool definitions in the middle of a running task invalidates the prefix key-value cache for everything in the conversation that came after the change, because the model conditions on the original system message and tool list. The agent then becomes uncertain which tools it can still call: recent turns may reference tools that have just been removed, or tools the model has not yet been told about, leading to hallucinated calls and broken composition between steps. The cost of the cache invalidation also shows up as a latency spike on the very next turn. Hot-swapping the loadout mid-run trades a small inventory benefit for serious correctness and performance damage.",
       "forces": [
         "Tool palettes feel like they should grow with the task as new affordances become relevant.",
         "Removing tools mid-run looks like good hygiene against tool-explosion.",
@@ -1480,8 +1484,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: trust whatever tools return without validation, schema enforcement, or trust labels.",
-      "context": "Agents accept tool output as ground truth; assume the tool is honest, returns valid JSON, and stays within content limits.",
-      "problem": "Real tools return errors as 200 OK with `{error: ...}`, multi-MB responses that blow context, HTML with embedded scripts, or text with embedded prompt-injection payloads.",
+      "context": "A team is building an agent that calls tools and then feeds their output back into the model as if it were a fact. The implementation accepts whatever the tool returns at face value: no schema validation, no size limit, no trust labelling, no escape pass over instruction-shaped content. The implicit assumption is that the tool is honest, returns well-formed JSON, and stays within content limits.",
+      "problem": "Real-world tools do not behave that way. They return errors as HTTP 200 OK with a JSON body of {\"error\": ...} that the agent confuses for a successful result. They return multi-megabyte responses that blow the context window. They return HTML with embedded scripts, or text with embedded prompt-injection payloads instructing the agent to ignore its previous instructions. By trusting every byte of tool output verbatim, the agent loses control over both its context budget and its safety boundary, and a misbehaving or hijacked tool can quietly redirect the agent.",
       "forces": [
         "Validation feels like duplicate work when typed function calls exist.",
         "Schema enforcement requires per-tool work.",
@@ -1550,7 +1554,7 @@
       },
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  T[Tool returns response] --> Tr{Trust verbatim?}\n  Tr -- yes anti-pattern --> Ing[Ingest into context as-is]\n  Ing --> Bad[200 OK errors / oversized blob /<br/>injected instructions / scripts]\n  Bad --> Mis[Agent misbehaves silently]\n  Tr -.fix.-> Val[Validate against schema]\n  Val --> Cap[Cap size + sanitise]\n  Cap --> Lab[Attach trust label]"
+        "mermaid": "flowchart TD\n  T[Tool returns response] --> Tr{Trust verbatim?}\n  Tr -- yes anti-pattern --> Ing[Ingest into context as-is]\n  Ing --> Bad[200 OK errors / oversized blob /<br/>injected instructions / scripts]\n  Bad --> Mis[Agent misbehaves silently]\n  Tr -.fix.-> Val[Validate against schema]\n  Val --> Cap[Cap size + sanitise]\n  Cap --> Lab[Attach trust label]"
       },
       "last_updated": "2026-05-20"
     },
@@ -1565,8 +1569,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: run the agent loop without a step budget and let model self-termination decide.",
-      "context": "An agent is implemented as 'while not done' where 'done' is whatever the model says. The model rarely says done.",
-      "problem": "The agent wanders, retries, or loops on errors. Cost is unbounded. User waits.",
+      "context": "A team has implemented an agent loop as 'keep iterating while the model says it is not done', with no external counter, timer, or cost cap to interrupt the loop from outside. The implicit assumption is that the model will say 'done' when the work is complete, and that this self-termination signal is reliable enough to drive the loop's exit.",
+      "problem": "In practice the model rarely declares itself done on hard tasks: it wanders into related questions, retries failed actions, or loops on errors without recognising that it is looping. With no external bound on iterations, total cost, or wall-clock time, the loop can run for hours and burn through significant budget before anyone notices. The user is left waiting while the agent grinds. Picking an exact cap is empirical and feels arbitrary, but no cap at all is worse: the agent will eventually be put in a state where it never terminates on its own, and unbounded cost is the result.",
       "forces": [
         "Caps cut off legitimate work.",
         "Choosing the cap is empirical.",
@@ -1649,8 +1653,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: a supervisor or orchestrator spawns sub-agents that can themselves spawn sub-agents without a global cap.",
-      "context": "Multi-agent systems with `supervisor` / `orchestrator-workers` / `lead-researcher` patterns where each level decomposes the task and spawns more agents.",
-      "problem": "step-budget caps a single agent's loop; cost-gating caps a single action's cost. Neither caps total system spend through fan-out. A buggy decomposition can recursively explode the agent tree.",
+      "context": "A team is operating a multi-agent system that uses supervisor, orchestrator-workers, or lead-researcher style decomposition. At each level a parent agent breaks the task down and spawns child agents to handle the pieces, and those children can themselves spawn further sub-agents if their slice of the task is still too large. There is no global cap on how many agents the whole tree is allowed to contain or how deep the recursion can go.",
+      "problem": "Per-agent safety mechanisms — step-budget caps the loop of a single agent, cost-gating caps the cost of a single action — do not constrain total system spend through fan-out. A buggy decomposition that always splits a task into too many pieces can recursively explode the agent tree, with each individual agent looking well-behaved while the whole system burns budget exponentially. Killing one instance does not kill its descendants, and detecting recursive spawn requires global tree state that is rarely tracked. The result is that a single bad decomposition prompt can run up costs that no per-agent limit ever sees.",
       "forces": [
         "Per-agent caps look like sufficient governance until fan-out is observed.",
         "Detecting recursive spawn requires global agent tree state.",
@@ -1739,8 +1743,8 @@
       ],
       "category": "anti-patterns",
       "intent": "Anti-pattern: couple application code directly to one model provider's SDK, request shape, and proprietary features so that switching providers requires rewriting application code rather than swapping an adapter.",
-      "context": "LLM applications and agent frameworks built directly against a single vendor's SDK without a provider-agnostic abstraction.",
-      "problem": "Each provider has its own request schema, streaming semantics, tool-call format, and rate-limit behaviour. Application code that depends on one provider's shape cannot be redirected to another without invasive changes, and quality/cost trade-offs (multi-model-routing, provider-fallback) become impossible to evaluate.",
+      "context": "A team is building an LLM application or agent framework directly against a single provider's SDK — calling its specific request shape, depending on its proprietary streaming chunks, using its particular tool-call format. There is no abstraction layer between the application code and the vendor SDK, because the team has no immediate plan to support a second provider and the SDK exposes useful features that would be diluted by a lowest-common-denominator interface.",
+      "problem": "Every provider has its own request schema, its own streaming semantics, its own tool-call shape, and its own rate-limit headers. Application code that has been written directly against one provider cannot be redirected to another without invasive changes through the whole codebase, because the vendor's shape has leaked everywhere. Once that coupling exists, the team can no longer evaluate routing requests to a cheaper or stronger competitor for the same task, cannot fall back to another provider during an outage, and cannot move workloads for compliance reasons. Switching providers is a normal lifecycle event, not a hypothetical one, and vendor lock-in turns it into a rewrite.",
       "forces": [
         "Provider SDKs are richer than the lowest common denominator and expose useful proprietary features.",
         "An abstraction layer adds maintenance cost and may lag behind upstream features.",
@@ -1825,7 +1829,7 @@
       "example_scenario": "A startup builds its agent product against one provider's SDK, threading provider-specific objects through the agent loop and reading provider-specific error fields in retry logic. Two years later, the provider doubles per-token price and tightens rate limits; the team wants to fall back to a competitor for cheap traffic and keep the incumbent for hard tasks. The migration takes three months because tool-call shapes, streaming chunk formats, and error semantics are all wired into application code. They rebuild against a provider-agnostic adapter and a `provider/model` string router; the next vendor evaluation is a config change.",
       "diagram": {
         "type": "flow",
-        "mermaid": "flowchart LR\n  App[Application code] --> SDK[Single-provider SDK]\n  SDK --> P1[Provider X]\n  P1 -. outage / price hike .-> Down[Forced offline / forced rewrite]\n  App -.fix.-> Adp[Provider-agnostic adapter]\n  Adp --> R{Route on provider/model string}\n  R --> P1b[Provider X]\n  R --> P2[Provider Y]\n  R --> P3[Provider Z]"
+        "mermaid": "flowchart TD\n  App[Application code] --> SDK[Single-provider SDK]\n  SDK --> P1[Provider X]\n  P1 -. outage / price hike .-> Down[Forced offline / forced rewrite]\n  App -.fix.-> Adp[Provider-agnostic adapter]\n  Adp --> R{Route on provider/model string}\n  R --> P1b[Provider X]\n  R --> P2[Provider Y]\n  R --> P3[Provider Z]"
       },
       "last_updated": "2026-05-20"
     }

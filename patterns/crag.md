@@ -11,11 +11,11 @@ Add a lightweight retrieval evaluator that grades each retrieved document and tr
 
 ## Context
 
-Production RAG where retrieval quality varies and the system must recover gracefully from low-quality retrievals.
+A team is running a retrieval-augmented system in production over a corpus where retrieval quality varies request by request. Sometimes the top chunks are exactly right; sometimes they are tangentially related; sometimes they miss the answer entirely. The team cannot guarantee that every query gets a clean retrieval, and the cost of a hallucinated or confidently wrong answer is high enough that they need an explicit recovery path.
 
 ## Problem
 
-Naive RAG passes every retrieval into the generator; bad retrievals corrupt outputs without any correction step.
+A naive retrieve-then-generate pipeline passes every retrieval — good or bad — straight into the generator without judging it. When the retrieval is poor, the generator either ignores it and falls back to parametric knowledge that may itself be wrong, or it incorporates it and produces an answer corrupted by irrelevant chunks. Either way, the user sees no signal that the retrieval was weak, and the system has no correction step that could fall back to a web search, refine the query, or refuse to answer when the evidence is insufficient.
 
 ## Forces
 

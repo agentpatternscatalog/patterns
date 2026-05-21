@@ -11,11 +11,11 @@ Take ReWOO's plan-as-DAG and run independent steps in parallel through a task-fe
 
 ## Context
 
-Sequential ReWOO leaves parallelism on the table when steps have no mutual dependency.
+A team runs an agent whose work consists of many tool calls — fetching prices for nine tickers, summarising five documents, querying three APIs — and most of those calls are independent of each other. The deployment is latency-sensitive: a user is waiting for an answer or a downstream system has a deadline. The team is already using a plan-then-execute style architecture such as ReWOO (Reasoning Without Observation), where the planner emits a directed acyclic graph of tool calls before any tool runs.
 
 ## Problem
 
-Latency-sensitive agents waiting on tools sequentially are slower than they need to be.
+A sequential executor walks the plan one tool call at a time, so end-to-end latency is the sum of every call even when the calls have no mutual dependency. Naive parallel-tool-calling (firing them all at once from a single chat turn) ignores the dependency graph and breaks when later calls reference earlier results. A bespoke parallel runner without bounded concurrency and a join step blows past provider rate limits, leaks errors across branches, and assembles results out of order. The team needs a runner that respects the dependency graph while overlapping independent work.
 
 ## Forces
 

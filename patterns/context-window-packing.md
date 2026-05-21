@@ -11,11 +11,11 @@ Choose what fits in the context window each turn given a fixed token budget.
 
 ## Context
 
-Agents whose available context (system prompt + history + retrieved chunks + tools + state) exceeds the model's window.
+An agent's available context for the next model call — the system prompt, conversation history, retrieved chunks, tool definitions, current state, and any other information the model needs — has grown to the point where it exceeds the model's maximum context window. The team has to decide what goes in and what stays out for every single call.
 
 ## Problem
 
-Naive concatenation overflows; naive truncation loses critical state.
+Naively concatenating everything overflows the window and the call fails. Naively truncating from the start or the end drops information that may be critical (the original task, the most recent tool result, the system prompt itself). A first-fit packing strategy leaves the model with a different subset on every call, which makes behaviour unpredictable. The team needs a deliberate policy for what is preserved, what is summarised, what is retrieved on demand, and what is dropped — and that policy has to be applied consistently across calls.
 
 ## Forces
 

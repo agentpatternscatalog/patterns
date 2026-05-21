@@ -11,11 +11,11 @@ Track which prompt version, model version, and data sources produced each agent 
 
 ## Context
 
-Long-lived production agents where outputs are referenced months later and stakeholders ask 'which version produced this?'.
+A team runs an agent whose outputs may be referenced weeks or months after they were produced — an underwriting decision, a generated contract clause, a research summary cited in another document. Over that time the prompts evolve, the model is upgraded, the tool set changes, and the retrieval index is rebuilt. When a customer or auditor surfaces a specific past output and asks how it was produced, the team needs to be able to answer precisely.
 
 ## Problem
 
-Without lineage, output disputes are unanswerable; rolling back to a known-good state is guesswork.
+Without recording which prompt template, which model version, which tool versions, and which retrieved documents produced each output, the team cannot reconstruct what happened six weeks ago. Disputes become unanswerable and rollbacks become guesswork, because there is no record of which combination of ingredients was even live at that time. The team is forced to choose between manual reconstruction from incomplete clues or accepting that the system effectively forgets why it said what it said.
 
 ## Forces
 

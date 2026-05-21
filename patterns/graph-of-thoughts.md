@@ -11,11 +11,11 @@ Model reasoning as an arbitrary DAG so thoughts can be merged, refined, and aggr
 
 ## Context
 
-Tasks with subproblems whose results combine non-trivially (sorting partial lists, set operations, summarisation merge); tree-shaped reasoning loses these aggregation opportunities.
+A team is solving problems whose natural shape is not a chain or a tree but a graph in which partial results need to be combined: sorting where partial sorted runs have to be merged, set operations whose intermediate sets feed each other, or document-merge tasks where several draft sections converge into a single output. They have already tried plain chain-of-thought and tree-of-thoughts search and found that both shapes lose the dependency structure of the underlying problem.
 
 ## Problem
 
-Tree of Thoughts cannot combine partial solutions or reuse intermediate results across sibling branches.
+In a tree-shaped search, each branch is explored in isolation and the model cannot reuse what one sibling branch has already computed when working on another. When the answer further depends on combining several intermediate results, the tree has no operator to merge them, so the same sub-computation is repeated under different branches and the joint answer has to be reassembled awkwardly at the end. Without explicit operators for generating, aggregating, refining and scoring partial thoughts in a directed graph, the reasoning is more expensive than it needs to be and the structure of the problem is not preserved.
 
 ## Forces
 

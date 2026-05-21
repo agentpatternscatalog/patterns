@@ -11,11 +11,11 @@ Spend a configurable budget of internal reasoning tokens before producing a user
 
 ## Context
 
-Hard reasoning tasks where extra inference-time compute reliably improves answer quality.
+A team is calling a modern reasoning-capable model — for example Anthropic Claude with extended thinking, OpenAI o-series reasoning models, Gemini 2.5, or DeepSeek-R1 — on tasks where they have already observed that giving the model more time to think before answering reliably improves quality. Some requests in their workload are easy classifications or routing decisions that need no deep thought; others are hard analytical problems where the team is willing to trade latency and cost for a much better answer.
 
 ## Problem
 
-Static prompt-based CoT mixes reasoning into the response; reasoning models offer a separate budget meter and opaque internal reasoning the user does not see.
+If the team relies on prompt-based chain-of-thought, the reasoning ends up mixed into the user-visible response, and the same prompt has to drive both easy and hard tasks. They have no clean control to say 'spend more compute on this one' without rewriting the prompt for that request, and the visible reasoning pollutes downstream turns by leaving long traces in the conversation. They need a way to dial up internal reasoning effort per request while keeping the response itself focused, and they need to be able to monitor how many reasoning tokens each request actually consumed.
 
 ## Forces
 

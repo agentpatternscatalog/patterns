@@ -11,11 +11,11 @@ Inject task-specific scaffolding (examples, hints, schemas) into the prompt only
 
 ## Context
 
-Agents handling heterogeneous tasks where always-present scaffolding wastes tokens and sometimes biases outputs.
+A general-purpose agent handles a wide range of task types in one product — answering free-text questions, writing or refactoring code, querying databases, transforming structured documents. Some of those tasks benefit a lot from extra material in the prompt such as worked examples, output schemas, or domain hints, while others are trivial and need none of it. The same prompt is shared across every request unless the team does something about it.
 
 ## Problem
 
-Static prompts either include everything (wasteful, sometimes misleading) or include nothing (under-scaffolded for hard cases).
+If the prompt always carries the full scaffolding library, easy requests waste tokens on examples they never needed and sometimes the irrelevant examples push the model toward a wrong shape of answer. If the prompt always carries nothing, the model under-performs on the hard cases that genuinely benefit from few-shot examples or explicit schemas. A single static prompt forces the team to choose between overshooting cost on easy tasks and undershooting quality on hard ones.
 
 ## Forces
 

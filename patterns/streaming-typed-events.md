@@ -11,11 +11,11 @@ Push partial results to the client as typed events as they become available, rat
 
 ## Context
 
-User-facing agents where time-to-first-token (TTFT) is user-perceived latency; UIs that show cards, suggestions, or progressive disclosure.
+A team is building a user-facing agent where the time between the user pressing send and the first visible characters appearing is the latency the user actually perceives — what is often called time-to-first-token, or TTFT. The interface is not just plain prose: it shows cards, suggested follow-ups, tool-progress indicators, and progressively disclosed content. The team has to decide how the server should push partial results to the client as they become available.
 
 ## Problem
 
-Waiting for the complete answer feels slow; a single text stream loses the structure the UI needs.
+Waiting until the full answer is generated before rendering anything feels sluggish even when the actual generation is fast, because the user has nothing to look at during the wait. Streaming a single channel of plain text helps with perceived latency but loses the structure the interface needs: the client receives a stream of characters with no way to tell apart a token of the main answer, the start of a tool call, a structured card, or an error. Without a typed event vocabulary on the stream, the client either waits for the end or guesses, and neither produces a good interface.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Specify agent behaviour as declarative typed signatures and modules; compile pro
 
 ## Context
 
-Building reliable agent pipelines without hand-crafting prompts; treating prompts as the output of a compiler over typed specifications.
+A team is building an agent pipeline made of several language-model calls — retrieve a passage, summarise it, answer a question against it, check the answer — and wants the system to behave reliably across model upgrades without rewriting each prompt by hand every time. They are using DSPy, a framework from Stanford that lets the team describe each step as a typed input/output specification and then compiles the actual prompt strings and few-shot examples from those specifications. The compilation is driven by a metric the team cares about, the way an optimising compiler is driven by a benchmark.
 
 ## Problem
 
-Hand-crafted prompts are brittle, model-specific, and drift over time; teams reinvent the same prompt-engineering loop per pipeline.
+When prompts are hand-written strings glued into application code, they drift over time and break in ways that are expensive to track down. A wording change that helps one model hurts another; small edits to phrasing change behaviour without anyone noticing; every pipeline reinvents the same prompt-engineering loop with no shared discipline. Without a way to express what each step expects and produces in a structured form, the team has no compiler to lean on and no metric-driven way to know whether a prompt change is an improvement or a regression.
 
 ## Forces
 

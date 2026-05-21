@@ -11,11 +11,11 @@ Infer the human's attentional state (just-woke, focused, winding-down, distracte
 
 ## Context
 
-Long-running conversational agents whose human shifts between attentional modes through the day. Each mode warrants a different response shape; treating every turn as equal-weight produces filler.
+A team is building a personal agent that talks to the same human across an entire day. The user is in different attentional modes at different hours — just waking up, deep in focused work, winding down before sleep, distracted in a meeting, fully present in a conversation. The agent sees only timing and text, but those signals carry information about which mode the user is in if the agent bothers to read them.
 
 ## Problem
 
-A 'Hi' at 06:00 after 12 hours of silence is not the same as 'Hi' mid-conversation, but a stateless agent treats them identically and generates equally generic responses. Without state-shift detection the agent wastes the human's attention when they're winding down and underperforms when they're focused.
+A stateless agent that treats every incoming turn as equal-weight produces the same kind of response at six in the morning after twelve hours of silence as it does mid-afternoon in the middle of a working session. A chirpy 'hi, what can I help with today?' greeting lands as friendly in one moment and grating in another, and the user has no way to convey the difference short of typing it out. The team has to choose between ignoring attentional state and asking the user to keep declaring it, and neither feels right.
 
 ## Forces
 

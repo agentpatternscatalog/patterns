@@ -11,11 +11,11 @@ Trigger a fresh planning step when execution evidence contradicts the current pl
 
 ## Context
 
-Plan-and-Execute systems where the world differs from the planner's mental model and the executor surfaces evidence the plan must respond to.
+A team runs a Plan-and-Execute agent where the planner commits to a plan up front and the executor walks it step by step. The world is not perfectly predictable: a tool returns an error, an observation contradicts an assumption in the plan, or an observer disagrees with where the run is heading. The team wants the agent to repair the plan from that evidence instead of grinding through to failure.
 
 ## Problem
 
-Plans are made under incomplete information; without replanning, the executor either grinds through a wrong plan or fails silently.
+Plans are made under incomplete information, so some plans are wrong from the start and others become wrong partway through. Without a replanning step the executor will either keep trying the same broken sequence until the step budget runs out, or it will silently fail and return partial results that look complete. A naive replan-on-every-error policy thrashes — the agent re-plans, fails, re-plans again on the new plan, and never makes progress. The team needs explicit triggers that decide when failure is bad enough to send control back to the planner with the failure context attached.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A travel-booking agent has a plan that assumes a particular hotel API is up; the
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Plan[Plan v1] --> Exec[Executor]
   Exec -->|tool error| Trig[Replan trigger]
   Exec -->|unexpected obs| Trig

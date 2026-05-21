@@ -11,11 +11,11 @@ An orchestrator dynamically breaks a task into subtasks at runtime and delegates
 
 ## Context
 
-The subtasks needed are not known in advance and depend on the task; coding tasks where the number of files to change varies are the canonical example. Distinct from supervisor: orchestrator-workers does *dynamic* decomposition into ad-hoc subtasks per request; supervisor routes work to a *fixed* set of pre-existing specialist agents.
+A team is handling tasks where the right decomposition cannot be known in advance and depends on the input. A coding agent asked to audit a repository does not know how many languages or services it will find; a research agent does not know how many sub-questions a brief will need until it reads the brief. The number and shape of sub-tasks is data-dependent. This is distinct from supervisor, which routes work to a fixed set of pre-existing specialist agents; orchestrator-workers decides the sub-tasks at run time.
 
 ## Problem
 
-Static decomposition (Plan-and-Execute, Prompt Chaining) cannot handle tasks whose shape is data-dependent.
+A static decomposition — a fixed plan-and-execute pipeline or a hard-coded prompt chain — cannot handle tasks whose shape depends on the input. Trying to enumerate every possible sub-task in the prompt produces a sprawling system that still misses the cases the team did not anticipate. Picking the wrong decomposition at design time forces every request through it, even the ones it does not fit. The team needs decomposition to happen after the task arrives, not before.
 
 ## Forces
 

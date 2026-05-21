@@ -11,11 +11,11 @@ Run a framework as both MCP client (consuming external MCP servers as tools) and
 
 ## Context
 
-Multi-framework agentic ecosystems where MCP is the lingua franca; a framework that only consumes MCP can use external capabilities but cannot offer its own, and vice versa.
+An organisation operates in a heterogeneous agent ecosystem where the Model Context Protocol (MCP) has become the common contract between tools, agents, and hosts. The team is choosing or building a framework that will both use external MCP services and offer its own agents and workflows to other MCP-speaking systems.
 
 ## Problem
 
-One-way MCP creates asymmetric ecosystems: producers and consumers cannot swap roles, and a framework's own value (its agents, workflows, prompts) is locked inside its own runtime rather than reusable by peers.
+A framework that only acts as an MCP client can consume external capabilities but cannot expose its own agents and workflows to peers, locking its value inside its own runtime. A framework that only acts as an MCP server can be called from outside but cannot integrate external MCP tools without writing per-vendor adapters. Either asymmetry forces teams to commit to one framework and rewrite integrations whenever they want to combine its agents with another system, defeating the point of having a shared protocol.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A platform team picks Mastra as its agent framework. On the client side, Mastra 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   ExtSrv1[(External MCP server:<br/>GitHub)] --> MC[Framework MCP client]
   ExtSrv2[(External MCP server:<br/>Slack)] --> MC
   MC --> FW[Framework runtime<br/>agents / workflows / prompts]

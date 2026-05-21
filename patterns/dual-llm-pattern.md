@@ -11,11 +11,11 @@ Split agent work between a privileged model that holds tool access and a quarant
 
 ## Context
 
-Tool-using agents that must process attacker-controlled text (emails, web pages, document attachments, API responses) while also calling tools that can take consequential actions on the user's behalf.
+A team builds a tool-using agent that has to read content the operator does not control — inbound emails, fetched web pages, document attachments, third-party API responses — while also calling tools that take real actions on the user's behalf, such as sending messages, making payments, or modifying records. The same agent sits in the middle of both the read path and the write path. Attackers know the agent will read whatever lands in its inbox or whatever page it browses, and they plant instructions inside that content.
 
 ## Problem
 
-When the same model reads untrusted content and decides which tools to call, a single successful prompt injection in the untrusted text can hijack the action loop. Guardrails on the same model that performs both jobs cannot reliably tell trusted system instructions apart from instructions smuggled in via data.
+When one model both reads the untrusted text and decides which tools to call, a single successful prompt injection buried in an inbound email or a fetched web page can hijack the action loop and drive the tools the operator gave the agent. The model has no reliable way to tell instructions in the system prompt apart from instructions smuggled in as data, because both arrive as tokens in the same context window. Filtering or labelling untrusted text before it reaches the model is unreliable — every filter has bypasses — and prompting the model to ignore embedded instructions does not survive a clever payload.
 
 ## Forces
 

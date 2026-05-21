@@ -11,11 +11,11 @@ Anti-pattern: launch multi-agent debate without a termination rule and watch the
 
 ## Context
 
-Debate or consensus patterns are added without explicit halt conditions; the agents argue until the cost cap kicks in.
+A team sets up a multi-agent debate or consensus pattern — for example a proponent, a skeptic, and a synthesiser — so that several agents argue a question before producing a final answer. The orchestrator is written with the assumption that the agents will eventually agree on their own and the loop will naturally end. There is no explicit round cap, no judge that emits a terminal verdict, and no measurable convergence signal between rounds.
 
 ## Problem
 
-Debate without termination converges only by accident. Real cost grows linearly while progress stalls.
+Without a termination rule, debate converges only by accident; far more often the agents keep finding new angles to disagree on, restate prior positions, or politely circle the same point indefinitely. Token cost and latency grow linearly with rounds while real progress on the answer stalls, and the loop ends only when an outer cost limiter or a timeout intervenes. The team is left with an expensive run, no decision, and no clean way to tell whether two more rounds would have helped.
 
 ## Forces
 

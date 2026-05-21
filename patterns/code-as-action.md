@@ -11,11 +11,11 @@ Have the agent emit a Python (or similar) code snippet as its action at each ste
 
 ## Context
 
-Agent loops where each step often needs to compose several tool results, branch on intermediate values, or compute over them — actions that a single JSON tool call cannot express without inventing meta-tools.
+A team is building an agent whose steps frequently need to compose multiple tool results: fetch a list, filter it by some predicate, then call a second tool for each remaining item. The model is strong at writing short snippets of Python or JavaScript, and the deployment can host a sandboxed interpreter that the agent's actions can run in.
 
 ## Problem
 
-JSON tool calls flatten composition; expressing "call A, filter results by predicate B, then call C on each" requires multiple turns or bespoke meta-tools, both of which inflate token cost and lose the natural composability of a programming language.
+When the action channel is JSON tool calls, the agent has to unroll every composition across many turns. Expressing 'fetch orders, keep the ones over a threshold, then call refund on each' takes a turn for the fetch, a turn to inspect, then one turn per refund, with the whole intermediate list passing through the context window each time. Token cost balloons and the natural composability of a programming language (loops, conditionals, local variables) has to be faked through bespoke meta-tools or multi-turn glue.
 
 ## Forces
 

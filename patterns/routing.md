@@ -11,11 +11,11 @@ Classify an incoming request and dispatch it to the specialist (lane / agent / m
 
 ## Context
 
-Heterogeneous traffic where different requests benefit from different prompts, tool palettes, or models.
+An agent product receives a heterogeneous mix of incoming requests: short deterministic commands ("open settings"), open-ended chats with no tool use, and longer multi-step tasks that need a planner, retrieval, and several tool calls. Each kind of request benefits from a different prompt, a different tool palette, and sometimes a different model. The team has the option of building several specialist lanes behind a single front door.
 
 ## Problem
 
-A single prompt that handles everything either over-pays (cheap requests routed through expensive paths) or under-serves (complex requests stuck in cheap paths).
+If every request goes through one all-purpose prompt that can handle the hardest case, the cheap and simple requests over-pay on tokens and latency for capabilities they never use. If every request goes through a prompt tuned for cheap cases, the complex requests are stuck without the planning and tools they need and the product feels incompetent on anything non-trivial. A single shared prompt forces the team to pay for the worst case on every request or under-serve the hard cases.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A help-desk product handles cheap FAQ lookups and rare deep-research queries thr
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Req[Request] --> CL[Cheap classifier]
   CL -->|command| L1[Deterministic action lane]
   CL -->|agent| L2[Multi-step agent lane]

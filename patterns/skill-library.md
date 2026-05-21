@@ -11,11 +11,11 @@ Let the agent grow its own toolkit by writing reusable skills that subsequent ru
 
 ## Context
 
-Patterns of tool use repeat; the agent re-derives the same routine across runs and pays for it each time.
+A team operates a long-running agent that handles recurring task shapes — weekly competitor reports, periodic data cleans, repeating customer-onboarding workflows. The same scrape-clean-summarise pipeline gets re-derived from first principles every run, and the runtime supports loading new code modules without restarting the agent.
 
 ## Problem
 
-Without a place to crystallise repeated work, every run starts from scratch.
+Without a place to crystallise repeated work into reusable artefacts, every run pays the full cost of working the routine out again, including the cost of the model's wrong turns along the way. The team has no way to review or remove a routine once it exists in the model's habits, because the only place it ever lived was the model's working memory for that session.
 
 ## Forces
 
@@ -52,7 +52,7 @@ An agent that fetches similar reports every week keeps re-deriving the same scra
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Run[Agent run] --> Need{Repeating routine?}
   Need -- yes --> Write[Write new skill module]
   Write --> Critic{Critic gate}

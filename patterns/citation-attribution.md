@@ -11,11 +11,11 @@ Track and surface, alongside a RAG-grounded answer, which retrieved chunks suppo
 
 ## Context
 
-RAG systems where the user must be able to trace any claim back to the retrieved evidence that supports it; compliance, research, and customer-support settings where unsupported claims are not acceptable.
+A team is shipping a retrieval-augmented system in a compliance, research, or customer-support setting where the user must be able to trace any claim in the answer back to the specific evidence that supports it. Unsupported claims are not an acceptable failure mode; the user needs to click from a sentence in the answer to the exact passage in a source document, and the team needs to be able to defend that link to an auditor.
 
 ## Problem
 
-Generating citations is not enough — they must be bound to the spans of the answer they support. Free-text citations the model writes are ungrounded (see hallucinated-citations); the binding has to be created by the retrieval pipeline and preserved through generation and delivery.
+Just asking the model to 'include citations' is not enough. Citations that the model writes freely are ungrounded — they look real but may point to documents that were never retrieved or quote text that does not appear in the source. The binding from a span of the answer to a span of evidence has to be created by the retrieval pipeline and carried through generation and delivery; otherwise the citations cannot be trusted, and the whole audit story collapses.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A legal-research assistant retrieves case excerpts and must produce an analysis 
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   Q[Query] --> R[Retriever]
   R --> Reg[(Source registry<br/>chunk_id -> chunk)]
   Reg --> Gen[Generator<br/>emits claims with chunk_ids]

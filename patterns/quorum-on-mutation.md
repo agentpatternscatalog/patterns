@@ -11,11 +11,11 @@ Require multiple consecutive ticks (or runs) to agree before a mutation to durab
 
 ## Context
 
-A long-running agent proposes changes to its own rules or persistent memory; one-shot proposals can encode transient confusion as permanent state.
+A team runs a long-running agent that is allowed to propose changes to its own durable state — its persistent rules, its memory entries, its operating preferences. Over time the agent revises these to fit how the user actually behaves. Some of those proposed changes come from a single frustrated moment in a single conversation, and the agent has no built-in way to tell a passing reaction apart from a genuine long-term preference.
 
 ## Problem
 
-A single-tick edit can capture momentary confusion as a lasting rule.
+If a proposed mutation lands on a single tick's say-so, then a momentary misreading — a user vented once, the agent overinterpreted a single sentence, a transient confusion in context — becomes a permanent rule that degrades the agent for weeks. If the team simply disables self-mutation to avoid this, the agent stops learning from real signals and the operator has to hand-edit every rule change. Without a way to require multiple consecutive endorsements before a mutation lands, single-tick confusion gets baked into durable state.
 
 ## Forces
 

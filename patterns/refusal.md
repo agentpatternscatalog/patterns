@@ -11,11 +11,11 @@ Explicitly refuse requests that fall outside the agent's scope, capability, or p
 
 ## Context
 
-Users will ask the agent things it should not do (off-topic, unsafe, beyond capability); silently complying or hallucinating both fail.
+A team runs an agent with a defined scope — customer support for a specific product, technical help in a specific domain, internal operations for a specific team — and real users will ask it things outside that scope: medical advice from a banking agent, legal interpretation from a coding assistant, competitor comparisons from a vendor's own bot. Some of these requests are simply off-topic; others are unsafe, regulated, or beyond what the model can reliably do.
 
 ## Problem
 
-Helpful-by-default agents drift into unhelpful or unsafe responses on out-of-scope requests.
+A helpful-by-default agent answers these out-of-scope questions anyway, producing plausible-sounding but unauthorised content: a stock pick from a system that has no business giving one, a dosage suggestion from a tool that is not a medical device, a confident wrong answer in a domain the model has not been validated against. Silently routing such requests through the model also strips the user of the signal that the agent has a boundary. Without an explicit, kind refusal at the named boundary, the agent drifts into territory that erodes trust and exposes the operator.
 
 ## Forces
 

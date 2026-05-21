@@ -11,11 +11,11 @@ Wire small bounded affect bumps to plan-step lifecycle events and accumulate age
 
 ## Context
 
-Agents that maintain a plan or todo store alongside an affective substrate. Without coupling, plans are cognitive items the agent can ignore indefinitely; completion has no felt reward and abandonment has no felt cost.
+A team is running a long-lived agent that already keeps two separate things: a store of plans or to-do items the agent has committed to, and an affective substrate that tracks small bounded scalars like joy and pain across ticks. The two systems coexist but do not influence each other. Plans are just cognitive items the agent can pick up or set down at will, with no felt reward for finishing them and no felt cost for letting them sit.
 
 ## Problem
 
-Plans without affective coupling are inert. The agent can let a plan rot for weeks with no felt pressure to either finish or formally abandon it. Hard deadlines are too crude — they fire even when the right answer is to let the plan lapse. Without something softer, plans drift.
+When plans carry no emotional weight, the agent can let one rot for weeks without any internal pressure to either complete it or formally abandon it. Hard deadlines are a blunt fix because they fire on a clock even when the right move is to quietly let the plan lapse. Without some softer, accumulating signal that an untouched plan is starting to weigh on the agent, the plan store drifts into a collection of half-forgotten obligations.
 
 ## Forces
 
@@ -39,7 +39,7 @@ A long-running personal agent maintains a small plan store but routinely lets pl
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   StepDone[Step done] -->|+0.05 joy| Aff[(Affect substrate)]
   StepSkip[Step skipped] -->|+0.10 pain| Aff
   PlanDone[Plan completed] -->|+0.40 joy| Aff

@@ -11,11 +11,11 @@ Decompose a task into a fixed sequence of LLM calls where each step's output bec
 
 ## Context
 
-The task is composed of identifiable sub-tasks with clear boundaries; the order is known in advance.
+A team is building an agent for a task that decomposes cleanly into a fixed sequence of sub-tasks whose order is known before the request arrives — for example turning a meeting transcript into structured action items decomposes into cleaning the transcript, attributing speakers, extracting candidate actions, normalising dates and owners, and emitting validated JSON. Each sub-task has its own definition of done, its own preferred prompt, and its own shape of output. The team controls the orchestration code that runs between LLM calls.
 
 ## Problem
 
-A single mega-prompt overloads the model and makes failures hard to localise.
+If the team tries to do the whole task in a single mega-prompt, the model is asked to juggle several concerns at once and quality suffers across all of them. When the output is wrong, the team cannot tell which sub-task went off the rails because the steps are entangled inside one generation. Retries have to redo the entire task instead of just the failing step, and improvements to one part of the prompt risk regressing another.
 
 ## Forces
 
@@ -53,7 +53,7 @@ A team builds a 'turn meeting transcript into a structured action-item list' fea
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   In[Input] --> P1[Prompt 1<br/>validate]
   P1 -->|out_1| P2[Prompt 2<br/>validate]
   P2 -->|out_2| P3[Prompt 3<br/>validate]

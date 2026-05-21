@@ -11,11 +11,11 @@ Persist agent memory as entities and relations in a structured graph so symbolic
 
 ## Context
 
-Tasks where structured queries over relationships beat semantic similarity (organisation charts, code call graphs, family trees, knowledge bases).
+An agent's tasks involve questions about structured relationships rather than semantic similarity: 'who reports to whom in this organisation chart', 'what code depends on this function', 'what are the ancestors of this entity in the family tree', 'which products are compatible with this one'. The answers are not 'documents that look similar' but 'nodes connected by specific edge types in a graph'.
 
 ## Problem
 
-Vector memory cannot answer 'who reports to whom' or 'what depends on X' queries; symbolic structure is lost.
+Vector memory excels at semantic similarity but cannot answer relational queries: there is no embedding-space operator for 'find every node whose reports_to edge transitively reaches Alice'. When the team stores only vector representations of facts, the symbolic structure between facts — who knows whom, what depends on what — is lost. Without a graph representation, structured queries either become brittle keyword hacks or have to be answered by the model from raw text, where the relational structure has been flattened into prose and is no longer reliably queryable.
 
 ## Forces
 

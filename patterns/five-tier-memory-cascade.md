@@ -11,11 +11,11 @@ Stage agent memory across sensory, working, short-term, episodic, and long-term 
 
 ## Context
 
-A long-running agent accumulates information of different timescales (one-tick observation, one-day pattern, one-month rule); flat memory cannot represent this.
+A long-running agent accumulates information at very different timescales. Some observations are one-tick-only ('the user just clicked save'); some are one-day patterns ('this user worked on project X this afternoon'); some are one-month rules ('this user prefers concise replies'); some are stable identity facts ('this user's name is Marco'). A flat single-tier memory store cannot represent these differences in age, decay rate, or relevance horizon.
 
 ## Problem
 
-Flat append-only logs collapse signal across timescales; pure long-term memory cannot capture momentary salience.
+A flat append-only log collapses signal across timescales: a momentary observation and a stable identity fact look the same and compete for attention. Pure long-term memory, on the other hand, cannot capture momentary salience — a recent flick of attention that needs to live for the next few minutes and then expire. Without an explicit cascade that separates working memory from short-term, episodic, semantic, and long-term tiers, each with its own decay and promotion rules, the agent either drowns in stale recent noise or forgets the very fast signals it needs in order to respond well.
 
 ## Forces
 

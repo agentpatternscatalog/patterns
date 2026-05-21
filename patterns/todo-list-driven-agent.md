@@ -11,11 +11,11 @@ Have the autonomous agent author a writeable plan file (e.g. todo.md) early in t
 
 ## Context
 
-A long-horizon autonomous task in a sandboxed VM with file-system access; the run may span hundreds of tool calls and exceed any usable in-context plan.
+A team runs an agent on a long-horizon autonomous job — a multi-hour coding task, a deep research investigation, a complex data migration — inside a sandboxed virtual machine that gives it persistent file-system access and basic tools (shell, browser, file editor). The run may span hundreds of tool calls, more than any one model context window can comfortably hold. The team needs the agent's plan to survive context truncation and process restarts.
 
 ## Problem
 
-In-context plans drift to the middle of the window where the model attends least; without a durable plan artefact, paused or context-truncated runs cannot recover; the agent forgets which sub-tasks are done.
+If the plan lives only in the model's context window, it drifts toward the middle of the window where attention is weakest and the model loses track of which items it has finished. When the context is truncated to fit, the plan is the first thing to disappear because the model has moved past it. If the run is paused, crashed, or resumed in a fresh context, the agent has no durable record of which sub-tasks are done and starts over or skips items at random. Keeping the plan only in the model's head is incompatible with runs longer than a single window.
 
 ## Forces
 

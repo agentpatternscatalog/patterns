@@ -11,11 +11,11 @@ Transfer the entire conversation thread from agent to human operator, with state
 
 ## Context
 
-Customer-facing agent products where some conversations exceed agent capability or require regulatory accountability.
+A team runs a customer-facing chat agent — support, sales, billing — that handles most conversations end to end, but some threads exceed what the agent can responsibly do alone: a refund above a policy threshold, a complaint with regulatory implications, a confused customer who explicitly asks for a person. The customer is mid-conversation, the agent has accumulated context across many turns, and the team needs a clean way to bring a human operator in without dropping the thread.
 
 ## Problem
 
-Human-in-the-loop gates approve or reject discrete actions; this pattern transfers ownership of the whole conversation, which is structurally different.
+Approving or rejecting a single tool call does not solve this case, because the whole conversation needs to change owners, not just one action. If the agent simply tells the customer to call a support line, all the accumulated context is lost and the customer has to start over with a person who knows nothing. If the agent stays in the loop and parrots whatever the human says, accountability gets muddy. Without a structured transfer of the whole thread, escalation either destroys continuity or smears responsibility between agent and operator.
 
 ## Forces
 

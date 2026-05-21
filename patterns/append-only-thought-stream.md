@@ -11,11 +11,11 @@ Make the agent's thought log append-only so the agent cannot rewrite its own his
 
 ## Context
 
-Self-modifying or long-running agents could in principle revise their own past; doing so undermines audit and learning.
+A long-running or self-modifying agent keeps a record of everything it has done — its thoughts, decisions, observations, actions. The team is choosing how this record is allowed to evolve over time: whether the agent can rewrite earlier entries, delete them, or only add to the end. Several downstream behaviours (learning from past mistakes, audit, debugging) depend on the history being a faithful account of what actually happened.
 
 ## Problem
 
-If the agent can edit its own history, every later inference is conditioned on a possibly-rewritten past.
+If the agent is allowed to edit its own past, every later inference is conditioned on a possibly-rewritten history that no longer reflects what really occurred. Audit becomes meaningless because the trail can be rewritten at will. Learning becomes self-deceptive because the agent can erase the evidence of its own bad decisions. Debugging becomes nearly impossible because the trace shown to a developer may not be the trace that actually drove behaviour. Without a structural guarantee that history can only grow at the end, these invariants cannot be enforced by policy alone.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A long-running planning agent has been observed silently editing earlier reasoni
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Agent] -->|append| L[(Thought log<br/>append-only)]
   L -->|read| A
   C[Compaction] -->|new summary tier| S[(Summary tier)]

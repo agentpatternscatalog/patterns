@@ -11,11 +11,11 @@ Iterate generate → reward-filter → fine-tune to bootstrap reasoning capabili
 
 ## Context
 
-Reasoning tasks where the model is partially competent and a reward signal (correct answer, executable test, formal verifier) exists.
+A team wants to improve a model's performance on a reasoning task where the model is already partially competent — it gets some answers right with chain-of-thought — and where there is an automatic way to tell a right answer from a wrong one. This automatic check might be a ground-truth label, an executable test suite, or a formal verifier that says yes or no. The team has compute to spend on generating and filtering many samples, but they do not have human-written rationales or step-by-step solutions to fine-tune on.
 
 ## Problem
 
-Pure prompting plateaus; full RL with PPO is unstable and expensive; supervised data is unavailable.
+Pure prompting on the base model has plateaued and is not improving any further. Full reinforcement learning with algorithms like PPO is unstable and expensive to set up and run. Buying or labelling supervised rationale data at scale is not affordable for this task. The team needs a training loop that can bootstrap better reasoning out of the model itself using only the reward signal they already have, without depending on human labels and without the volatility of full reinforcement learning.
 
 ## Forces
 
@@ -59,7 +59,7 @@ A team wants a small in-house model to solve grade-school math without paying to
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   M[Model] -->|E-step:<br/>generate many| C[Candidates]
   C --> Rw[Reward filter:<br/>correctness / tests]
   Rw --> Good[Filtered set]

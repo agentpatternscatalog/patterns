@@ -11,11 +11,11 @@ Transfer the active conversation from one agent to another, carrying context acr
 
 ## Context
 
-A specialist agent realises it is the wrong agent for the current request and needs to pass control to another specialist.
+An agent system has several specialised agents — tier-1 support, billing, technical, sales — and one of them is mid-conversation with a user when it realises the request actually belongs to a different specialist. The user has already explained their situation, and forcing them to start over with a new agent would be a poor experience.
 
 ## Problem
 
-Without a handoff primitive, mid-conversation reroutes either restart context or stay stuck with the wrong specialist.
+Without an explicit way to transfer the conversation, the team is stuck choosing between two bad options: keep the wrong agent on the line and let it bluff through territory it cannot really handle, or restart the conversation with a new agent and make the user repeat themselves. A naive transfer that just changes which agent is responding loses the context that has accumulated in the transcript. Worse, repeated transfers can ping-pong between agents that each think the other is the right one, with nothing detecting the loop.
 
 ## Forces
 

@@ -11,11 +11,11 @@ Let the model emit code, run it in a sandbox, and treat the run as the answer in
 
 ## Context
 
-The task involves arithmetic, data manipulation, parsing, or transformation where executing code is more reliable than text generation.
+A team is building an agent for a task that involves arithmetic, data manipulation, parsing, or other deterministic computation. The deployment can host a sandboxed Python or JavaScript interpreter (or another container-based execution environment) that the agent's code blocks can run inside.
 
 ## Problem
 
-LLMs hallucinate calculations and miscount; small numeric errors invalidate downstream steps.
+Large language models routinely get arithmetic wrong, miscount items in a list, and round numbers inconsistently when they try to compute the answer in their head. A small numeric error early in a workflow invalidates every downstream step, and the model offers no audit trail for how it arrived at a wrong number. Asking the model to be more careful does not fix the underlying issue: the computation never becomes a step the model can rerun or inspect.
 
 ## Forces
 

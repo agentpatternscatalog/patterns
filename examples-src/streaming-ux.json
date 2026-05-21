@@ -1,0 +1,216 @@
+{
+  "$schema": "../examples.schema.json",
+  "category": "streaming-ux",
+  "label": "Streaming & UX",
+  "patterns": [
+    {
+      "pattern_id": "bidirectional-impulse-channel",
+      "intent": "Show a single chat surface that carries both user-injected sigil commands (bypassing the model and writing directly to state) and threshold-gated unsolicited agent pushes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a single channel that splits on a sigil prefix and rate-limits agent-initiated pushes.",
+          "code": "SIGIL = \"!\"\nUNSOLICITED_WINDOW = 600    # seconds\nSALIENCE_THRESHOLD = 0.7\n\nstate = {\n    \"memory\": load_memory(),\n    \"last_push_ts\": 0,\n}\n\nfunction on_user_message(text):\n    if text.startswith(SIGIL):\n        verb, args = parse_sigil(text[1:])\n        apply_to_memory(state.memory, verb, args)   # bypasses the model\n        return ack(verb)\n    return agent.reply(text, state)\n\nfunction on_agent_tick():\n    candidate = agent.scan_for_signal(state)        # insight, contradiction, goal-done\n    if candidate is none:\n        return\n    if candidate.salience < SALIENCE_THRESHOLD:\n        log(\"below threshold\", candidate)\n        return\n    if now() - state.last_push_ts < UNSOLICITED_WINDOW:\n        log(\"rate-limited\", candidate)\n        return\n    push_to_user(candidate.message)\n    state.last_push_ts = now()\n# Invariant: at most one unsolicited message per window; sigils never call the model.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "citation-streaming",
+      "intent": "Show how to stream citation events interleaved with text deltas so the UI can render source links in place as content appears.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: extract citation markers from model output into typed events alongside text deltas, accumulating a final citation map.",
+          "code": "CITATION_RE = /\\[\\[cite:([a-z0-9_-]+)\\]\\]/\n\nfunction stream_with_citations(question, sources):\n    prompt = build_prompt(question, sources, marker=\"[[cite:<id>]]\")\n    citations_seen = {}\n\n    for chunk in llm.stream(prompt):\n        text = chunk.delta\n        cursor = 0\n        for match in CITATION_RE.find_all(text):\n            if match.start > cursor:\n                yield {\"type\": \"text_delta\", \"text\": text[cursor:match.start]}\n            cid = match.group(1)\n            src = sources.get(cid)\n            if src and cid not in citations_seen:\n                citations_seen[cid] = src\n            yield {\"type\": \"citation\", \"id\": cid, \"source\": src}\n            cursor = match.end\n        if cursor < len(text):\n            yield {\"type\": \"text_delta\", \"text\": text[cursor:]}\n\n    yield {\"type\": \"done\", \"citations\": citations_seen}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Iterate streamed message chunks and route Citation annotations on text content blocks into separate UI events.",
+          "source_url": "https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/messages/content.py",
+          "sdk_version": "langchain-core>=0.3",
+          "code": "from langchain.chat_models import init_chat_model\n\n# Some providers (Anthropic, OpenAI with web search, Google) emit citation\n# annotations on text content blocks. LangChain normalises them into the\n# Citation TypedDict on TextContentBlock.annotations.\nmodel = init_chat_model(\"anthropic:claude-sonnet-4-5\")\n\nfor chunk in model.stream(\n    \"Summarise the 2024 AI Safety Summit declarations, with citations.\",\n):\n    # chunk.content is a list of content blocks (text, citation, etc.).\n    for block in chunk.content or []:\n        if isinstance(block, dict) and block.get(\"type\") == \"text\":\n            yield_text(block.get(\"text\", \"\"))\n            for ann in block.get(\"annotations\") or []:\n                if ann.get(\"type\") == \"citation\":\n                    yield_citation({\n                        \"id\": ann.get(\"id\"),\n                        \"url\": ann.get(\"url\"),\n                        \"title\": ann.get(\"title\"),\n                        \"start\": ann.get(\"start_index\"),\n                        \"end\": ann.get(\"end_index\"),\n                        \"cited_text\": ann.get(\"cited_text\"),\n                    })",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against langchain_core/messages/content.py at master: Citation TypedDict has type='citation', id, url, title, start_index, end_index, cited_text, extras fields. TextContentBlock has type='text', text, annotations: NotRequired[list[Annotation]] where Annotation = Citation | NonStandardAnnotation. init_chat_model is the documented LangChain v0.3 entrypoint and model.stream() yields AIMessageChunk whose content is a list of content blocks.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "vercel-ai-sdk",
+          "framework_label": "Vercel AI SDK",
+          "language": "typescript",
+          "intent": "Consume streamText's fullStream and split text-delta events from source events so the UI renders citations as they arrive.",
+          "source_url": "https://ai-sdk.dev/docs/ai-sdk-core/generating-text",
+          "sdk_version": "ai@4.x",
+          "code": "import { streamText } from \"ai\";\nimport { google } from \"@ai-sdk/google\";\n\nconst result = streamText({\n  model: google(\"gemini-2.5-flash\"),\n  tools: { google_search: google.tools.googleSearch({}) },\n  prompt: \"List the top 5 San Francisco news stories today.\",\n});\n\n// fullStream interleaves text-delta and source events.\nfor await (const part of result.fullStream) {\n  switch (part.type) {\n    case \"text-delta\":\n      ui.appendText(part.textDelta);\n      break;\n    case \"source\":\n      if (part.sourceType === \"url\") {\n        ui.appendCitation({\n          id: part.id,\n          url: part.url,\n          title: part.title,\n        });\n      }\n      break;\n    case \"finish\":\n      ui.done();\n      break;\n  }\n}",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://ai-sdk.dev/docs/ai-sdk-core/generating-text: streamText, fullStream, 'text-delta' and 'source' event types all documented, with sourceType==='url' and source fields id, url, title shown verbatim. The google_search tool via google.tools.googleSearch({}) is documented on the same page with @ai-sdk/google. 'finish' event in fullStream switch is also documented.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "delayed-streams-modeling",
+      "intent": "Show the preprocessing step that interleaves source and target streams with a fixed offset, turning streaming speech into a single-decoder autoregressive problem with no learned read/write policy.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: tokenise source and target onto a shared time axis, offset target by a fixed delay, then interleave for a vanilla next-token loss.",
+          "code": "PAD = \"<pad>\"\n\nfunction build_training_example(source_audio, target_text, delay_steps):\n    src = tokenise_aligned(source_audio)            # one token per time step\n    tgt = tokenise_aligned(target_text, src)        # same time axis, possibly sparse\n\n    # Shift target right by `delay_steps`; pad the prefix so the decoder cannot\n    # see future source at any step. The offset IS the read/write policy.\n    tgt_shifted = [PAD] * delay_steps + tgt\n    tgt_shifted = tgt_shifted[:len(src)]\n\n    interleaved = []\n    for t in 0..len(src)-1:\n        interleaved.append((src[t], tgt_shifted[t]))   # pair per timestep\n\n    return interleaved   # train standard decoder-only LM to predict next pair\n\nfunction infer(stream_source, delay_steps):\n    buffer = []\n    for src_tok in stream_source:\n        buffer.append(src_tok)\n        out = model.step(src_tok)                      # next-token over pair\n        if len(buffer) > delay_steps:\n            emit(out.target_token)                     # read off at the offset\n# No policy net; latency is a hyperparameter, not a learned decision.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "embodied-proxy-handoff",
+      "intent": "Show a minimal proxy schema (energy, fatigue, environment) the human updates and the agent reads on every prompt assembly, with response shape conditional on the proxy.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a tiny persistent proxy file the human writes and the agent reads to shape its reply.",
+          "code": "PROXY_PATH = \"~/.agent/proxy.json\"\n\n# Schema kept deliberately tiny so the human will actually update it.\n# {\n#   \"energy\":      0..10,\n#   \"fatigue\":     0..10,\n#   \"environment\": one word,\n#   \"emoji\":       optional single grapheme,\n#   \"updated_at\":  iso8601\n# }\n\nfunction set_proxy(energy, fatigue, environment, emoji=none):\n    proxy = {\n        \"energy\": energy,\n        \"fatigue\": fatigue,\n        \"environment\": environment,\n        \"emoji\": emoji,\n        \"updated_at\": now_iso(),\n    }\n    atomic_write(PROXY_PATH, proxy)\n\nfunction build_prompt(user_text):\n    proxy = read_or_default(PROXY_PATH)\n    shape = derive_shape(proxy)              # pace, length, depth, opens-threads?\n    return [\n        system(BASE_SYSTEM_PROMPT + \"\\nProxy: \" + serialise(proxy) +\n               \"\\nResponse shape: \" + shape),\n        user(user_text),\n    ]\n\nfunction derive_shape(proxy):\n    if proxy.energy <= 3 or proxy.fatigue >= 7:\n        return \"short; one anchor; do not open new threads\"\n    if proxy.environment == \"winding-down\":\n        return \"stay present; no homework\"\n    return \"normal\"",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "liminal-state-detection",
+      "intent": "Show how to compute a small feature set from message timing and tone, map it to a mode, and condition response shape on that mode.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: extract timing + tone features, classify mode, and feed mode into the prompt assembly.",
+          "code": "ANCHOR_HOUR = 7    # the user's known morning anchor\n\nfunction extract_features(msg, prev_ts):\n    now = current_time()\n    return {\n        \"hour\":         now.hour,\n        \"hours_to_anchor\": min_distance(now.hour, ANCHOR_HOUR),\n        \"gap_seconds\":  (now - prev_ts).seconds if prev_ts else infinity,\n        \"len\":          len(msg.text),\n        \"punct_density\": punctuation_count(msg.text) / max(1, len(msg.text)),\n        \"single_emoji\": is_solo_emoji(msg.text),\n    }\n\nfunction classify_mode(f):\n    if f.hours_to_anchor <= 1 and f.len < 40:        return \"just-woke\"\n    if f.hour >= 22 or (f.len < 30 and f.single_emoji): return \"winding-down\"\n    if f.gap_seconds < 30 and f.len > 200:           return \"focused\"\n    if f.gap_seconds > 1800 and f.len < 20:          return \"distracted\"\n    return \"present\"\n\nfunction respond(msg, prev_ts):\n    mode = classify_mode(extract_features(msg, prev_ts))\n    shape = {\n        \"just-woke\":    \"one anchor surface, no questions\",\n        \"winding-down\": \"short, no homework\",\n        \"focused\":      \"deeper engagement, no hedging\",\n        \"distracted\":   \"hold; acknowledge only\",\n        \"present\":      \"normal\",\n    }[mode]\n    telemetry.emit({\"mode\": mode, \"shape\": shape})\n    return agent.reply(msg, response_shape=shape)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "salience-triggered-output",
+      "intent": "Show the salience score, threshold check, and per-window rate limit that gate whether the agent emits at all.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: score every candidate output, emit only over threshold, and enforce a per-window emission cap.",
+          "code": "THRESHOLD = 0.65\nWINDOW_SECONDS = 1800\nMAX_PER_WINDOW = 1\n\nemissions = []          # list of {ts, score}\n\nfunction salience(event, state):\n    return (\n        W_NOVELTY      * novelty(event, state.recent)\n      + W_GOAL         * goal_relevance(event, state.goals)\n      + W_RECENCY      * recency_decay(event.ts)\n      + W_PREDERR      * prediction_error(event, state.model)\n      - W_FATIGUE      * state.fatigue\n    )\n\nfunction maybe_emit(candidate, state):\n    score = salience(candidate, state)\n    if score < THRESHOLD:\n        log(\"sub-threshold\", candidate, score)\n        return\n    cutoff = now() - WINDOW_SECONDS\n    recent = [e for e in emissions if e.ts >= cutoff]\n    if len(recent) >= MAX_PER_WINDOW:\n        log(\"rate-limited\", candidate, score)\n        return\n    emit(candidate)\n    emissions.append({\"ts\": now(), \"score\": score})\n# Invariant: at most MAX_PER_WINDOW emissions per WINDOW_SECONDS; silence is the default.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "stop-cancel",
+      "intent": "Show clean interruption of an in-flight agent run: a cancellation token propagated through the loop, the provider stream, and any tool calls, with partial state surfaced to the UI.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a cancellation token threaded through the agent loop, the provider stream, and tool calls, with partial state returned.",
+          "code": "function run_agent(task, cancel_token):\n    messages = [system_prompt, user(task)]\n    partial  = \"\"\n\n    for step in 1..MAX_STEPS:\n        if cancel_token.is_set():\n            return halt(\"cancelled\", partial=partial, step=step)\n\n        stream = llm.stream(messages=messages, tools=TOOLS,\n                            cancel_token=cancel_token)\n        for chunk in stream:\n            if cancel_token.is_set():\n                stream.close()                       # tear down provider stream\n                return halt(\"cancelled\", partial=partial, step=step)\n            partial += chunk.text\n            ui.emit(\"text_delta\", chunk.text)\n\n        reply = finalise(stream)\n        messages.append(reply)\n        if not reply.tool_calls:\n            return ok(reply.content, step=step)\n\n        for call in reply.tool_calls:\n            result = dispatch(call, cancel_token=cancel_token)  # tools honour the token\n            if cancel_token.is_set():\n                return halt(\"cancelled\", partial=partial, step=step)\n            messages.append(tool_result(call.id, result))\n\n    return halt(\"budget_exhausted\", partial=partial, step=MAX_STEPS)\n\n# UI side\nstop_button.on_click = () => cancel_token.set()",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "vercel-ai-sdk",
+          "framework_label": "Vercel AI SDK",
+          "language": "typescript",
+          "intent": "Pass an AbortSignal into streamText; close the stream from the UI, observe the abort event in fullStream, and surface partial output via the onAbort callback.",
+          "source_url": "https://ai-sdk.dev/docs/ai-sdk-core/error-handling",
+          "sdk_version": "ai@4.x",
+          "code": "import { streamText } from \"ai\";\nimport { openai } from \"@ai-sdk/openai\";\n\nconst controller = new AbortController();\n\nlet partial = \"\";\nconst result = streamText({\n  model: openai(\"gpt-4o-mini\"),\n  prompt: \"Write a long essay about the history of the spreadsheet.\",\n  abortSignal: controller.signal,\n  onAbort: ({ steps }) => {\n    // onAbort fires instead of onFinish; surface partial state to the UI.\n    ui.surfacePartial({ text: partial, completedSteps: steps.length });\n  },\n});\n\n// Wire the UI stop button.\nstopButton.onclick = () => controller.abort();\n\nfor await (const part of result.fullStream) {\n  switch (part.type) {\n    case \"text-delta\":\n      partial += part.textDelta;\n      ui.appendText(part.textDelta);\n      break;\n    case \"abort\":\n      ui.markCancelled();\n      break;\n    case \"finish\":\n      ui.done();\n      break;\n  }\n}",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://ai-sdk.dev/docs/ai-sdk-core/error-handling: onAbort callback with steps parameter and the 'abort' event in fullStream are both documented verbatim. The abortSignal?: AbortSignal parameter to streamText is documented one hop away at https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text (linked from the error-handling page); AbortController is the standard Web API that produces an AbortSignal. streamText, openai('gpt-4o-mini'), text-delta and finish events all match the AI SDK Core surface.",
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "livekit-agents",
+          "framework_label": "LiveKit Agents",
+          "language": "python",
+          "intent": "Stop in-flight agent speech via session.interrupt(); subscribe to user_interruption_detected for barge-in.",
+          "source_url": "https://docs.livekit.io/agents/build/turns/",
+          "sdk_version": "livekit-agents>=0.10",
+          "code": "from livekit.agents import AgentSession, TurnHandlingOptions\n\nsession = AgentSession(\n    # ... stt / llm / tts plugins ...\n    turn_handling=TurnHandlingOptions(\n        interruption={\n            \"enabled\": True,\n            \"mode\": \"adaptive\",\n            \"resume_false_interruption\": True,\n        },\n    ),\n)\n\n\n@session.on(\"user_interruption_detected\")\ndef _on_user_interruption(ev):\n    # User started speaking while the agent was still talking.\n    # The session will stop synthesis automatically; surface partial state.\n    ui.mark_agent_interrupted(reason=\"user_barge_in\")\n\n\n@session.on(\"agent_false_interruption\")\ndef _on_false_interruption(ev):\n    # Detector fired but the user didn't actually take the turn.\n    ui.note(\"resumed after false interruption\")\n\n\nasync def stop_button_pressed():\n    # Explicit UI-driven cancel: stop any current agent speech immediately.\n    await session.interrupt()",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://docs.livekit.io/agents/build/turns/: the documented Python import is `from livekit.agents import AgentSession, TurnHandlingOptions` (top-level re-export), the `AgentSession(turn_handling=TurnHandlingOptions(...))` constructor, the `@session.on(\"user_interruption_detected\")` and `@session.on(\"agent_false_interruption\")` event handlers, and the `await session.interrupt()` explicit-cancel call are all shown verbatim on the page. The InterruptionOptions fields enabled/mode='adaptive'/resume_false_interruption are documented under the same Turns guide. Fixed the prior `from livekit.agents.voice import TurnHandlingOptions` import (livekit/agents/voice/__init__.py does not re-export TurnHandlingOptions; the canonical import is the top-level livekit.agents one shown in the docs).",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "streaming-typed-events",
+      "intent": "Show a typed event vocabulary streamed to the client (text_delta, tool_start, tool_end, card, done, error) and how the host emits each as it becomes available.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a typed SSE-style event stream with last-event-id resumption.",
+          "code": "# Event vocabulary the client routes on:\n#   text_delta   { text }\n#   tool_start   { id, name, args }\n#   tool_end     { id, result }\n#   card         { schema, data }\n#   suggestions  { items }\n#   done         {}\n#   error        { message }\n\nfunction handle_request(req, last_event_id=none):\n    cursor = resume_cursor(last_event_id) or new_cursor(req)\n    set_sse_headers()\n\n    for step in agent.run(cursor=cursor):\n        for chunk in step.stream():\n            yield sse(id=next_id(), event=\"text_delta\",\n                      data={\"text\": chunk.text})\n        for call in step.tool_calls:\n            yield sse(id=next_id(), event=\"tool_start\",\n                      data={\"id\": call.id, \"name\": call.name, \"args\": call.args})\n            result = dispatch(call)\n            yield sse(id=next_id(), event=\"tool_end\",\n                      data={\"id\": call.id, \"result\": result})\n        for card in step.cards:\n            yield sse(id=next_id(), event=\"card\",\n                      data={\"schema\": card.schema, \"data\": card.data})\n\n    yield sse(id=next_id(), event=\"done\", data={})\n# Client: EventSource(url, { lastEventId }); switch(ev.event){...}",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "haystack",
+          "framework_label": "Haystack",
+          "language": "python",
+          "intent": "Use the Agent's streaming_callback to receive typed chunks (text tokens and tool events) and fan them out as named events.",
+          "source_url": "https://docs.haystack.deepset.ai/docs/agent",
+          "sdk_version": "haystack-ai>=2.0",
+          "code": "from haystack.components.agents import Agent\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage, StreamingChunk\n\n\ndef on_chunk(chunk: StreamingChunk):\n    # Haystack hands a StreamingChunk with content plus optional tool events.\n    # Translate each into a typed SSE-style event.\n    if chunk.content:\n        sse_emit(event=\"text_delta\", data={\"text\": chunk.content})\n    for call in getattr(chunk, \"tool_calls\", []) or []:\n        sse_emit(event=\"tool_start\",\n                 data={\"id\": call.id, \"name\": call.tool_name, \"args\": call.arguments})\n    result = getattr(chunk, \"tool_call_result\", None)\n    if result is not None:\n        sse_emit(event=\"tool_end\",\n                 data={\"id\": result.origin.id, \"result\": result.result})\n\n\nagent = Agent(\n    chat_generator=OpenAIChatGenerator(model=\"gpt-4o-mini\"),\n    tools=[...],\n    streaming_callback=on_chunk,\n)\n\nresponse = agent.run(messages=[ChatMessage.from_user(\"Plan my week.\")])\nsse_emit(event=\"done\", data={})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against https://docs.haystack.deepset.ai/docs/agent and the Haystack data-classes API reference. Confirmed: `from haystack.components.agents import Agent`, `from haystack.components.generators.chat import OpenAIChatGenerator`, `from haystack.dataclasses import ChatMessage, StreamingChunk`, Agent constructor kwargs `chat_generator` / `tools` / `streaming_callback`, `agent.run(messages=...)`, `ChatMessage.from_user(...)`, `StreamingChunk.content`, `StreamingChunk.tool_calls` (list of ToolCallDelta with `.id`, `.tool_name`, `.arguments`), `StreamingChunk.tool_call_result` (singular `ToolCallResult | None` with `.origin` (a `ToolCall` having `.id`) and `.result`). Wave 5 fix: changed `chunk.tool_call_results` iteration to a single `chunk.tool_call_result` null-check to match the documented singular field.",
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "unified-voice-interface",
+      "intent": "Show a single Voice interface with speak / listen / converse, a capability-flag check, and a shared event vocabulary so the agent loop swaps providers without code changes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: an abstract Voice interface with three modes, capability flags, and one event vocabulary across providers.",
+          "code": "interface Voice:\n    capabilities: set      # subset of {\"tts\", \"stt\", \"sts\"}\n    voices:       list\n\n    function speak(text)        -> AudioStream\n    function listen(audio)      -> TranscriptStream\n    function converse(audio)    -> AudioStream     # realtime speech-to-speech\n\n# Shared event vocabulary every implementation emits:\n#   turn_start | partial_transcript | final_transcript\n#   voice_activity_start | voice_activity_stop\n#   barge_in   | audio_chunk | turn_end\n\nfunction run_voice_agent(voice: Voice, mic, speaker):\n    if \"sts\" in voice.capabilities:\n        out = voice.converse(mic.stream())\n        for ev in out:\n            route(ev, speaker)                    # one path, realtime\n        return\n\n    require({\"tts\", \"stt\"}.issubset(voice.capabilities), \"need tts+stt\")\n    for ev in voice.listen(mic.stream()):\n        if ev.type == \"final_transcript\":\n            reply = agent.reply(ev.text)\n            for chunk in voice.speak(reply):\n                speaker.play(chunk)\n        elif ev.type == \"barge_in\":\n            speaker.cancel()                      # stop_cancel hook\n# The loop branches on capability, never on provider name.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    }
+  ]
+}

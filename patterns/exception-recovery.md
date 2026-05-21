@@ -11,11 +11,11 @@ Catch and react to predictable failure modes (tool errors, rate limits, validati
 
 ## Context
 
-Production agents face many failure modes (API down, rate-limited, malformed responses, permission denied); each needs a defined response.
+A team runs a production agent that calls many tools in a loop: search APIs, internal databases, third-party services, model endpoints. In real traffic those tools fail in predictable, repeating ways — the API is briefly down, the caller hit a rate limit, the response came back malformed, the credential was rejected, the request timed out. Each of those failure modes wants a different response from the agent.
 
 ## Problem
 
-Untyped errors bubble up as agent confusion; the agent retries randomly, hallucinates explanations, or stalls.
+If the tool layer returns errors as opaque strings stuffed back into the conversation, the agent treats them as text and reacts with whatever the model invents — sometimes a retry, sometimes a confident hallucinated explanation to the user, sometimes a stall. The agent has no way to branch deterministically on a rate-limit versus a validation error, so it cannot back off correctly on the first or replan on the second. Without typed errors and named recovery branches, the team is forced to choose between blanket retries that mask real bugs and giving up on partial-failure handling altogether.
 
 ## Forces
 

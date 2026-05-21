@@ -11,11 +11,11 @@ Give multiple agents a shared, queryable workspace they can read from and write 
 
 ## Context
 
-Coordinated multi-agent work where agents need to see each other's progress and contribute to a shared artefact.
+Several specialised agents are working on a shared artefact — a document being annotated by a layout-extractor, table-parser, citation-resolver, and summariser; a code review where multiple analysers contribute findings — and each needs to see what the others have already produced before deciding what to do next. The agents are not in a fixed pipeline; the order of useful contributions depends on what is already on the page.
 
 ## Problem
 
-Agents working in isolation miss each other's progress; explicit messaging requires a protocol; shared mutable state without discipline races.
+If the agents work in isolation, they cannot build on each other's findings and duplicate or miss work. If they message each other point to point, every new agent forces edits to every other agent that should hear from it, and the protocol grows into a brittle web. If they share an unstructured mutable workspace without discipline, concurrent writes race and overwrite useful intermediate state. The team needs a coordination shape that is more flexible than a strict pipeline but more disciplined than free shared memory.
 
 ## Forces
 
@@ -38,7 +38,7 @@ A document-processing pipeline has a layout-extractor agent, a table-parser, a c
 ## Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   A1[Agent A] -->|write| BB[(Blackboard<br/>shared store)]
   A2[Agent B] -->|write| BB
   A3[Agent C] -->|write| BB

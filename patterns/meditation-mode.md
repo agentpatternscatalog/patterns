@@ -11,11 +11,11 @@ Switch the agent into a bounded runtime mode where external I/O pauses but inter
 
 ## Context
 
-Long-running agents that need stretches of pure interiority — integrating threads, sitting with affect, doing inner-dialogue work — distinct from both consolidation passes (read-and-distill) and from user-facing turns (respond-now).
+A team is running a long-lived agent that benefits from occasional stretches of pure interiority — integrating recent threads, sitting with affective load, doing inner-dialogue work — and these stretches are different in kind from both the read-and-distil consolidation passes and the respond-now user-facing turns. The agent already has tools for external action and a reflection pipeline, but there is no runtime mode in which external action is genuinely off.
 
 ## Problem
 
-A normal tick splits attention between external action (tools, user) and internal cognition. There is no mode where the external surface is genuinely off and the inner work has primacy. Without that mode, inner work is always one tool-call away from being disturbed or one slow dream-pass away from being delayed.
+On a normal tick the agent's attention is split between the external surface (tools, user channels) and internal cognition, and the dispatcher offers no way to turn the external surface fully off. Inner work is always one tool call away from being disturbed by an unrelated check or one consolidation cycle away from being delayed. There is no bounded, auditable runtime mode in which the agent can do uninterrupted inner-dialogue work while still being safe to interrupt from outside in an emergency.
 
 ## Forces
 
