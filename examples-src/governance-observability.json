@@ -41,8 +41,9 @@
           "source_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
           "sdk_version": "langgraph>=0.2",
           "code": "from operator import add\nfrom typing import Annotated\nfrom typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\n\n\nclass State(TypedDict):\n    foo: str\n    bar: Annotated[list[str], add]\n\n\ndef node_a(state: State):\n    return {\"foo\": \"a\", \"bar\": [\"a\"]}\n\n\ndef node_b(state: State):\n    return {\"foo\": \"b\", \"bar\": [\"b\"]}\n\n\nworkflow = StateGraph(State)\nworkflow.add_node(node_a)\nworkflow.add_node(node_b)\nworkflow.add_edge(START, \"node_a\")\nworkflow.add_edge(\"node_a\", \"node_b\")\nworkflow.add_edge(\"node_b\", END)\n\ngraph = workflow.compile(checkpointer=InMemorySaver())\n\nconfig = {\"configurable\": {\"thread_id\": \"user-123\"}}\ngraph.invoke({\"foo\": \"\", \"bar\": []}, config)\n\n# Process restart: same thread_id, state is restored from the checkpointer.\nstate = graph.get_state(config)\nprint(state.values)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: langgraph.graph imports (StateGraph, START, END), langgraph.checkpoint.memory.InMemorySaver, workflow.add_node / add_edge, workflow.compile(checkpointer=...), config = {'configurable': {'thread_id': ...}}, graph.invoke(state, config), graph.get_state(config). Source: https://docs.langchain.com/oss/python/langgraph/persistence",
           "last_updated": "2026-05-21"
         },
         {
@@ -53,8 +54,9 @@
           "source_url": "https://openai.github.io/openai-agents-python/sessions/",
           "sdk_version": "openai-agents>=0.1",
           "code": "import asyncio\nfrom agents import Agent, Runner, SQLiteSession\n\nagent = Agent(name=\"Assistant\", instructions=\"Reply very concisely.\")\n\n# Same (session_id, db path) on a later run resumes the conversation.\nsession = SQLiteSession(\"conversation_123\", \"conversations.db\")\n\n\nasync def main():\n    # First turn — context is written to conversations.db.\n    r1 = await Runner.run(\n        agent,\n        \"What city is the Golden Gate Bridge in?\",\n        session=session,\n    )\n    print(r1.final_output)\n\n    # Second turn — runner auto-prepends prior turns from the session.\n    r2 = await Runner.run(\n        agent,\n        \"What state is it in?\",\n        session=session,\n    )\n    print(r2.final_output)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from agents import Agent, Runner, SQLiteSession`, Agent(name=..., instructions=...), SQLiteSession(session_id, db_path) with positional id and optional db path, await Runner.run(agent, input_str, session=session). Source: https://openai.github.io/openai-agents-python/sessions/",
           "last_updated": "2026-05-21"
         },
         {
@@ -65,8 +67,9 @@
           "source_url": "https://docs.claude.com/en/docs/agent-sdk/sessions",
           "sdk_version": "claude-agent-sdk>=0.3",
           "code": "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage\n\n\nasync def first_run() -> str | None:\n    session_id = None\n    async for message in query(\n        prompt=\"Analyze the auth module and suggest improvements.\",\n        options=ClaudeAgentOptions(allowed_tools=[\"Read\", \"Glob\", \"Grep\"]),\n    ):\n        if isinstance(message, ResultMessage):\n            session_id = message.session_id\n    return session_id\n\n\nasync def resume(session_id: str):\n    # Same cwd as the first run; transcript is on disk under ~/.claude/projects.\n    async for message in query(\n        prompt=\"Now implement the refactoring you suggested.\",\n        options=ClaudeAgentOptions(\n            resume=session_id,\n            allowed_tools=[\"Read\", \"Edit\", \"Write\", \"Glob\", \"Grep\"],\n        ),\n    ):\n        if isinstance(message, ResultMessage) and message.subtype == \"success\":\n            print(message.result)\n\n\nasync def main():\n    sid = await first_run()\n    if sid:\n        await resume(sid)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports `from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage`, async for message in query(prompt=..., options=ClaudeAgentOptions(allowed_tools=[...])), ClaudeAgentOptions(resume=session_id, allowed_tools=[...]), ResultMessage with .session_id, .subtype == 'success', and .result attributes. Page docs show the exact two-stage capture-then-resume pattern in Python code samples. Source: https://code.claude.com/docs/en/agent-sdk/sessions (final URL after redirect chain from docs.claude.com -> platform.claude.com -> code.claude.com).",
           "last_updated": "2026-05-21"
         },
         {
@@ -77,8 +80,9 @@
           "source_url": "https://developers.llamaindex.ai/python/examples/workflow/checkpointing_workflows/",
           "sdk_version": "llama-index>=0.12",
           "code": "import asyncio\nfrom llama_index.core.workflow import (\n    Workflow,\n    step,\n    StartEvent,\n    StopEvent,\n    Event,\n)\nfrom llama_index.core.workflow.checkpointer import WorkflowCheckpointer\nfrom llama_index.llms.openai import OpenAI\n\n\nclass JokeEvent(Event):\n    joke: str\n\n\nclass JokeFlow(Workflow):\n    llm = OpenAI(model=\"gpt-4o-mini\")\n\n    @step\n    async def generate_joke(self, ev: StartEvent) -> JokeEvent:\n        resp = await self.llm.acomplete(f\"Write a joke about {ev.topic}\")\n        return JokeEvent(joke=str(resp))\n\n    @step\n    async def critique_joke(self, ev: JokeEvent) -> StopEvent:\n        resp = await self.llm.acomplete(f\"Critique: {ev.joke}\")\n        return StopEvent(result=str(resp))\n\n\nasync def main():\n    checkpointer = WorkflowCheckpointer(workflow=JokeFlow())\n    await checkpointer.run(topic=\"chemistry\")\n\n    # Pick any checkpoint and resume — e.g. just after generate_joke.\n    after_gen = checkpointer.filter_checkpoints(\n        last_completed_step=\"generate_joke\"\n    )[0]\n    await checkpointer.run_from(checkpoint=after_gen)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: imports from llama_index.core.workflow (Workflow, step, StartEvent, StopEvent, Event), WorkflowCheckpointer from llama_index.core.workflow.checkpointer with workflow= kwarg, OpenAI from llama_index.llms.openai, @step decorator on async methods, checkpointer.run(topic=...), checkpointer.filter_checkpoints(last_completed_step=...), checkpointer.run_from(checkpoint=...). Source: https://developers.llamaindex.ai/python/examples/workflow/checkpointing_workflows/",
           "last_updated": "2026-05-21"
         }
       ]

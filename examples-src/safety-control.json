@@ -22,11 +22,12 @@
           "framework_label": "LangGraph",
           "language": "python",
           "intent": "Pause the graph at an approval node via interrupt(); a checkpointer persists state and the caller resumes with Command(resume=decision).",
-          "source_url": "https://github.com/langchain-ai/langgraph",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/interrupts",
           "sdk_version": "langgraph>=0.2",
           "code": "from langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.types import interrupt, Command\nfrom typing import TypedDict\n\n\nclass S(TypedDict):\n    action: dict\n    result: str | None\n\n\ndef propose(state: S) -> S:\n    # Agent has decided what to do; do not execute yet.\n    return {\"action\": {\"tool\": \"send_email\", \"to\": \"ceo@acme.com\"}}\n\n\ndef approval_gate(state: S) -> S:\n    # interrupt() halts the graph; the value surfaces in the\n    # interrupt payload of the next invoke() result.\n    decision = interrupt({\"review\": state[\"action\"]})\n    if decision != \"approve\":\n        return {\"result\": \"rejected\"}\n    return {\"result\": run_action(state[\"action\"])}\n\n\ndef run_action(a: dict) -> str:\n    return f\"executed {a['tool']}\"\n\n\ng = StateGraph(S)\ng.add_node(\"propose\", propose)\ng.add_node(\"approval_gate\", approval_gate)\ng.add_edge(START, \"propose\")\ng.add_edge(\"propose\", \"approval_gate\")\ng.add_edge(\"approval_gate\", END)\napp = g.compile(checkpointer=InMemorySaver())\n\ncfg = {\"configurable\": {\"thread_id\": \"t-1\"}}\napp.invoke({\"action\": {}, \"result\": None}, config=cfg)  # pauses\n# ... reviewer eventually decides ...\nfinal = app.invoke(Command(resume=\"approve\"), config=cfg)\nprint(final[\"result\"])",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: StateGraph, START, END from langgraph.graph; InMemorySaver from langgraph.checkpoint.memory; interrupt and Command from langgraph.types; add_node and add_edge on StateGraph; compile(checkpointer=InMemorySaver()); invoke with config={'configurable': {'thread_id': ...}}; Command(resume=...) for resumption after an interrupt. The interrupts doc page shows the same import set and an end-to-end resume-with-Command example. Source: https://docs.langchain.com/oss/python/langgraph/interrupts.",
           "last_updated": "2026-05-21"
         },
         {
@@ -37,8 +38,9 @@
           "source_url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop",
           "sdk_version": "langchain>=1.0",
           "code": "from langchain.agents import create_agent\nfrom langchain.agents.middleware import HumanInTheLoopMiddleware\nfrom langchain.tools import tool\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.types import Command\n\n\n@tool\ndef execute_sql(query: str) -> str:\n    \"\"\"Run a SQL statement against the warehouse.\"\"\"\n    return run(query)\n\n\nagent = create_agent(\n    model=\"gpt-4o-mini\",\n    tools=[execute_sql],\n    middleware=[\n        HumanInTheLoopMiddleware(\n            interrupt_on={\n                \"execute_sql\": {\"allowed_decisions\": [\"approve\", \"reject\"]},\n            }\n        ),\n    ],\n    checkpointer=InMemorySaver(),\n)\n\ncfg = {\"configurable\": {\"thread_id\": \"thread_1\"}}\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Delete archived rows\"}]},\n    config=cfg,\n    version=\"v2\",\n)\n# Inspect result['__interrupt__'] in your UI; reviewer decides asynchronously.\nfinal = agent.invoke(\n    Command(resume={\"decisions\": [{\"type\": \"approve\"}]}),\n    config=cfg,\n    version=\"v2\",\n)\nprint(final[\"messages\"][-1].content)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: create_agent from langchain.agents; HumanInTheLoopMiddleware from langchain.agents.middleware; InMemorySaver from langgraph.checkpoint.memory; Command from langgraph.types; interrupt_on parameter with allowed_decisions (approve/edit/reject/respond); checkpointer argument; agent.invoke with config and version='v2'; Command(resume={'decisions':[{'type':'approve'}]}). The @tool decorator import 'from langchain.tools import tool' is confirmed at the linked tools doc page (https://docs.langchain.com/oss/python/langchain/tools). Source: https://docs.langchain.com/oss/python/langchain/human-in-the-loop.",
           "last_updated": "2026-05-21"
         },
         {
@@ -49,8 +51,9 @@
           "source_url": "https://docs.claude.com/en/docs/agent-sdk/user-input",
           "sdk_version": "claude-agent-sdk>=0.1.80",
           "code": "import asyncio\nfrom claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query\nfrom claude_agent_sdk.types import (\n    HookMatcher,\n    PermissionResultAllow,\n    PermissionResultDeny,\n    ToolPermissionContext,\n)\n\nGATED = {\"Bash\", \"Write\", \"Edit\"}\n\n\nasync def can_use_tool(\n    tool_name: str, input_data: dict, ctx: ToolPermissionContext\n) -> PermissionResultAllow | PermissionResultDeny:\n    if tool_name not in GATED:\n        return PermissionResultAllow(updated_input=input_data)\n    ticket = await approval_inbox.enqueue(tool_name, input_data)\n    decision = await ticket.wait()              # async, non-blocking\n    if decision.approved:\n        return PermissionResultAllow(updated_input=decision.input)\n    return PermissionResultDeny(message=decision.reason or \"reviewer rejected\")\n\n\nasync def keep_open(_i, _id, _ctx):              # required to keep the\n    return {\"continue_\": True}                    # stream alive for can_use_tool\n\n\nasync def main():\n    opts = ClaudeAgentOptions(\n        can_use_tool=can_use_tool,\n        hooks={\"PreToolUse\": [HookMatcher(matcher=None, hooks=[keep_open])]},\n    )\n    async for msg in query(prompt=\"Clean up /tmp\", options=opts):\n        if isinstance(msg, ResultMessage) and msg.subtype == \"success\":\n            print(msg.result)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: ClaudeAgentOptions, ResultMessage, query from claude_agent_sdk; HookMatcher, PermissionResultAllow, PermissionResultDeny, ToolPermissionContext from claude_agent_sdk.types; can_use_tool parameter on ClaudeAgentOptions; hooks={'PreToolUse': [HookMatcher(matcher=None, hooks=[...])]} workaround to keep stream open; PermissionResultAllow(updated_input=...); PermissionResultDeny(message=...); the dummy hook returning {'continue_': True}; ResultMessage.subtype=='success' check with msg.result. The fetched docs page shows the same code shape end-to-end. Source: https://code.claude.com/docs/en/agent-sdk/user-input (final URL after redirects from docs.claude.com -> platform.claude.com -> code.claude.com).",
           "last_updated": "2026-05-21"
         },
         {
@@ -61,8 +64,9 @@
           "source_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/agents-returncontrol.html",
           "sdk_version": "boto3>=1.34",
           "code": "import boto3\n\nrt = boto3.client(\"bedrock-agent-runtime\")\n\n# 1. Agent decides to call a RETURN_CONTROL action; response carries the\n#    proposed invocation instead of executing it.\nresp = rt.invoke_agent(\n    agentId=\"AGENT12345\",\n    agentAliasId=\"TSTALIASID\",\n    sessionId=\"sess-1\",\n    inputText=\"Refund order 42\",\n)\nrc = next(\n    e[\"returnControl\"] for e in resp[\"completion\"] if \"returnControl\" in e\n)\ncall = rc[\"invocationInputs\"][0][\"functionInvocationInput\"]\n\n# 2. Surface to a human reviewer; they approve or reject.\nif not human_approves(call):\n    body = \"User rejected this action.\"\nelse:\n    body = execute_locally(call)                  # your own runner\n\n# 3. Send the outcome back so the agent can continue reasoning.\nrt.invoke_agent(\n    agentId=\"AGENT12345\",\n    agentAliasId=\"TSTALIASID\",\n    sessionId=\"sess-1\",\n    sessionState={\n        \"invocationId\": rc[\"invocationId\"],\n        \"returnControlInvocationResults\": [\n            {\n                \"functionResult\": {\n                    \"actionGroup\": call[\"actionGroup\"],\n                    \"function\": call[\"function\"],\n                    \"responseBody\": {\"TEXT\": {\"body\": body}},\n                }\n            }\n        ],\n    },\n)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: bedrock-agent-runtime boto3 client; InvokeAgent API with agentId/agentAliasId/sessionId/inputText; response payload returnControl.invocationInputs[].functionInvocationInput with actionGroup, function, parameters and the sibling invocationId; resubmission via sessionState containing invocationId and returnControlInvocationResults[].functionResult with actionGroup, function, responseBody.TEXT.body. All elements appear in the documented HTTP examples on the page. Source: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-returncontrol.html.",
           "last_updated": "2026-05-21"
         }
       ]
@@ -462,11 +466,12 @@
           "framework_label": "LangGraph",
           "language": "python",
           "intent": "recursion_limit in the invoke config caps total super-steps; LangGraph raises GraphRecursionError when the cap is hit so the caller can return a partial.",
-          "source_url": "https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/graph-api",
           "sdk_version": "langgraph>=0.2",
           "code": "from langgraph.graph import StateGraph, START, END\nfrom langgraph.errors import GraphRecursionError\nfrom typing import TypedDict\n\n\nclass S(TypedDict):\n    messages: list\n    done: bool\n\n\ndef step(state: S) -> S:\n    reply = llm_step(state[\"messages\"])\n    return {\n        \"messages\": state[\"messages\"] + [reply],\n        \"done\": not reply.tool_calls,\n    }\n\n\ndef route(state: S) -> str:\n    return END if state[\"done\"] else \"step\"\n\n\ng = StateGraph(S)\ng.add_node(\"step\", step)\ng.add_edge(START, \"step\")\ng.add_conditional_edges(\"step\", route)\napp = g.compile()\n\ntry:\n    result = app.invoke(\n        {\"messages\": [user(\"fix the failing tests\")], \"done\": False},\n        config={\"recursion_limit\": 25},\n    )\n    print(result[\"messages\"][-1])\nexcept GraphRecursionError:\n    print(\"step budget exhausted; returning partial\")",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: StateGraph from langgraph.graph; START and END nodes from langgraph.graph; GraphRecursionError from langgraph.errors (page shows the import 'from langgraph.errors import GraphRecursionError' and a try/except example around graph.invoke with recursion_limit); add_node, add_edge, and add_conditional_edges on StateGraph; .compile() method; invoke with config={'recursion_limit': N}; the recursion_limit config field and the documented behaviour that LangGraph raises GraphRecursionError when the cap is hit. Source: https://docs.langchain.com/oss/python/langgraph/graph-api.",
           "last_updated": "2026-05-21"
         },
         {
@@ -477,8 +482,9 @@
           "source_url": "https://openai.github.io/openai-agents-python/running_agents/",
           "sdk_version": "openai-agents>=0.0.5",
           "code": "import asyncio\nfrom agents import Agent, Runner\nfrom agents.exceptions import MaxTurnsExceeded\n\nagent = Agent(\n    name=\"Fixer\",\n    instructions=\"Fix the failing tests. Use tools as needed.\",\n    tools=[run_pytest, read_file, edit_file],\n)\n\n\nasync def main():\n    try:\n        result = await Runner.run(\n            agent,\n            \"Fix the failing tests in this repo.\",\n            max_turns=10,        # hard cap on tool-use turns\n        )\n        print(result.final_output)\n    except MaxTurnsExceeded:\n        # Surface best partial state to the caller; do NOT retry blindly.\n        print(\"step budget exhausted (10 turns); halted\")\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: Agent from agents (constructor with name, instructions, tools); Runner.run (async classmethod returning a RunResult); MaxTurnsExceeded from agents.exceptions (raised when max_turns is exceeded on Runner.run/run_sync/run_streamed); max_turns parameter on Runner.run; result.final_output. Source: https://openai.github.io/openai-agents-python/running_agents/.",
           "last_updated": "2026-05-21"
         },
         {
@@ -489,8 +495,9 @@
           "source_url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/termination.html",
           "sdk_version": "autogen-agentchat>=0.4",
           "code": "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_agentchat.conditions import (\n    MaxMessageTermination,\n    TextMentionTermination,\n)\nfrom autogen_agentchat.teams import RoundRobinGroupChat\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\n\nclient = OpenAIChatCompletionClient(model=\"gpt-4o-mini\")\nworker = AssistantAgent(\"worker\", model_client=client)\ncritic = AssistantAgent(\"critic\", model_client=client)\n\n# Hard cap OR a natural-language stop signal: whichever fires first wins.\ntermination = MaxMessageTermination(max_messages=8) | TextMentionTermination(\n    \"APPROVE\"\n)\n\nteam = RoundRobinGroupChat(\n    [worker, critic],\n    termination_condition=termination,\n)\n\n\nasync def main():\n    result = await team.run(task=\"Draft a refund policy and approve it.\")\n    print(result.stop_reason)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: AssistantAgent from autogen_agentchat.agents; MaxMessageTermination and TextMentionTermination from autogen_agentchat.conditions; RoundRobinGroupChat from autogen_agentchat.teams; OpenAIChatCompletionClient from autogen_ext.models.openai; the | operator for combining termination conditions; max_messages argument on MaxMessageTermination; termination_condition argument on RoundRobinGroupChat; team.run(task=...) and result.stop_reason. Source: https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/termination.html.",
           "last_updated": "2026-05-21"
         },
         {
@@ -501,8 +508,9 @@
           "source_url": "https://docs.claude.com/en/docs/agent-sdk/agent-loop",
           "sdk_version": "claude-agent-sdk>=0.1",
           "code": "import asyncio\nfrom claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query\n\n\nasync def main():\n    opts = ClaudeAgentOptions(\n        max_turns=15,                       # hard cap on tool-use turns\n        allowed_tools=[\"Read\", \"Edit\", \"Bash\"],\n    )\n    async for msg in query(prompt=\"Fix the failing tests\", options=opts):\n        if not isinstance(msg, ResultMessage):\n            continue\n        if msg.subtype == \"success\":\n            print(msg.result)\n        elif msg.subtype == \"error_max_turns\":\n            # Loop halted at the cap. session_id lets us resume later with a\n            # higher budget instead of re-running from scratch.\n            print(f\"step budget exhausted; resume session {msg.session_id}\")\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: ClaudeAgentOptions, ResultMessage, query from claude_agent_sdk; max_turns option on ClaudeAgentOptions (caps tool-use round trips); allowed_tools option; ResultMessage.subtype values 'success' and 'error_max_turns' (documented in the result-subtype table); ResultMessage.session_id (carried on all result subtypes for resumption); ResultMessage.result (present only on the success variant). The fetched docs page shows an equivalent end-to-end example using the same imports and option names. Source: https://code.claude.com/docs/en/agent-sdk/agent-loop (final URL after redirects from docs.claude.com -> platform.claude.com -> code.claude.com).",
           "last_updated": "2026-05-21"
         }
       ]

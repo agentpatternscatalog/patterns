@@ -25,21 +25,23 @@
           "source_url": "https://docs.langchain.com/oss/python/langchain/rag",
           "sdk_version": "langchain>=1.0",
           "code": "from langchain.agents import create_agent\nfrom langchain.chat_models import init_chat_model\nfrom langchain.tools import tool\n\nvector_store = ...  # built once at startup\n\n\n@tool(response_format=\"content_and_artifact\")\ndef retrieve_context(query: str):\n    \"\"\"Retrieve information to help answer a query.\"\"\"\n    docs = vector_store.similarity_search(query, k=2)\n    serialized = \"\\n\\n\".join(\n        f\"Source: {d.metadata}\\nContent: {d.page_content}\" for d in docs\n    )\n    return serialized, docs\n\n\nmodel = init_chat_model(\"gpt-4o-mini\")\nagent = create_agent(\n    model,\n    tools=[retrieve_context],\n    system_prompt=(\n        \"You have access to a tool that retrieves context. Use it when \"\n        \"answering needs grounding; if retrieval returns nothing useful, \"\n        \"say you don't know.\"\n    ),\n)\n\nfor event in agent.stream(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"What is task decomposition?\"}]},\n    stream_mode=\"values\",\n):\n    event[\"messages\"][-1].pretty_print()",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from langchain.agents import create_agent; from langchain.chat_models import init_chat_model; from langchain.tools import tool; @tool(response_format=\"content_and_artifact\"); create_agent(model, tools=[...], system_prompt=...); agent.stream({\"messages\": [...]}, stream_mode=\"values\"); vector_store.similarity_search(query, k=2); doc.metadata and doc.page_content. Source: https://docs.langchain.com/oss/python/langchain/rag."
         },
         {
           "framework": "llamaindex",
           "framework_label": "LlamaIndex",
           "language": "python",
-          "intent": "FunctionAgent + a docstring-described retrieval function; AgentWorkflow.run drives the loop.",
+          "intent": "FunctionAgent + a docstring-described retrieval tool; the agent loop decides when to call it.",
           "source_url": "https://developers.llamaindex.ai/python/examples/agent/agent_workflow_basic/",
           "sdk_version": "llama-index>=0.12",
-          "code": "import asyncio\nfrom llama_index.core.agent.workflow import FunctionAgent\nfrom llama_index.llms.openai import OpenAI\n\nindex = ...  # built once at startup\n\n\nasync def search_corpus(query: str) -> str:\n    \"\"\"Search the indexed corpus for passages relevant to the query.\n\n    The agent calls this only when it judges retrieval is needed; the\n    docstring is what the LLM reads to decide.\n    \"\"\"\n    nodes = await index.as_retriever().aretrieve(query)\n    return \"\\n\\n\".join(n.get_content() for n in nodes)\n\n\nagent = FunctionAgent(\n    tools=[search_corpus],\n    llm=OpenAI(model=\"gpt-4o-mini\"),\n    system_prompt=(\n        \"You are a helpful assistant. Use search_corpus when the user's \"\n        \"question needs information you do not already have.\"\n    ),\n)\n\n\nasync def main():\n    response = await agent.run(user_msg=\"What is task decomposition?\")\n    print(str(response))\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
+          "code": "import asyncio\nfrom llama_index.core.agent.workflow import FunctionAgent\nfrom llama_index.llms.openai import OpenAI\n\n# `search_index` is your project's async retrieval helper — back it\n# with whatever you like (a LlamaIndex retriever, a vector DB client,\n# an HTTP search service). The agent only sees the docstring.\nfrom my_search_backend import search_index  # async def search_index(query: str) -> str\n\n\nasync def search_corpus(query: str) -> str:\n    \"\"\"Search the indexed corpus for passages relevant to the query.\n\n    The agent calls this only when it judges retrieval is needed; the\n    docstring is what the LLM reads to decide.\n    \"\"\"\n    return await search_index(query)\n\n\nagent = FunctionAgent(\n    tools=[search_corpus],\n    llm=OpenAI(model=\"gpt-4o-mini\"),\n    system_prompt=(\n        \"You are a helpful assistant. Use search_corpus when the user's \"\n        \"question needs information you do not already have.\"\n    ),\n)\n\n\nasync def main():\n    response = await agent.run(user_msg=\"What is task decomposition?\")\n    print(str(response))\n\n\nasyncio.run(main())",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed at https://developers.llamaindex.ai/python/examples/agent/agent_workflow_basic/: from llama_index.core.agent.workflow import FunctionAgent; from llama_index.llms.openai import OpenAI; async def tool(query: str) -> str pattern with docstring (mirrors the page's async def search_web(query: str) -> str example that awaits an external async helper); FunctionAgent(tools=[...], llm=OpenAI(model=\"gpt-4o-mini\"), system_prompt=...); response = await agent.run(user_msg=...). Code no longer uses any retriever API not documented at this URL; the actual retrieval helper is opaque and project-supplied, matching the page's own pattern of awaiting an external client inside the tool body."
         },
         {
           "framework": "haystack",
@@ -49,9 +51,10 @@
           "source_url": "https://docs.haystack.deepset.ai/docs/agent",
           "sdk_version": "haystack-ai>=2.0",
           "code": "from typing import Annotated\nfrom haystack.components.agents import Agent\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage\nfrom haystack.tools import tool\n\nretrieval_pipeline = ...  # built once at startup\n\n\n@tool\ndef retrieve_documents(query: Annotated[str, \"Search query\"]) -> str:\n    \"\"\"Retrieve documents relevant to the query.\n\n    The Agent calls this only when the user's message needs grounding\n    in the indexed corpus.\n    \"\"\"\n    result = retrieval_pipeline.run({\"query\": query})\n    return \"\\n\\n\".join(d.content for d in result[\"documents\"])\n\n\nagent = Agent(\n    chat_generator=OpenAIChatGenerator(model=\"gpt-4o-mini\"),\n    tools=[retrieve_documents],\n    system_prompt=(\n        \"You are a helpful assistant. Use retrieve_documents when the \"\n        \"user's question needs information from the indexed corpus.\"\n    ),\n)\n\nresponse = agent.run(\n    messages=[ChatMessage.from_user(\"What is task decomposition?\")]\n)\nprint(response[\"last_message\"].text)",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from haystack.components.agents import Agent; from haystack.components.generators.chat import OpenAIChatGenerator; from haystack.dataclasses import ChatMessage; from haystack.tools import tool; @tool decorator on a function; Annotated[str, \"...\"] tool param hints; Agent(chat_generator=..., tools=[...], system_prompt=...); agent.run(messages=[ChatMessage.from_user(...)]); response[\"last_message\"].text. Source: https://docs.haystack.deepset.ai/docs/agent."
         }
       ]
     },
@@ -210,18 +213,6 @@
           "last_updated": "2026-05-21"
         },
         {
-          "framework": "langchain",
-          "framework_label": "LangChain",
-          "language": "python",
-          "intent": "EnsembleRetriever fuses BM25Retriever and a dense vector retriever; weights tune the blend.",
-          "source_url": "https://docs.langchain.com/oss/python/integrations/retrievers/",
-          "sdk_version": "langchain>=1.0, langchain-community",
-          "code": "from langchain.retrievers import BM25Retriever, EnsembleRetriever\nfrom langchain_community.vectorstores import FAISS\nfrom langchain_openai import OpenAIEmbeddings\n\nbm25_retriever = BM25Retriever.from_documents(docs)\nbm25_retriever.k = 10\n\nembeddings = OpenAIEmbeddings()\nvectorstore = FAISS.from_documents(docs, embeddings)\nvector_retriever = vectorstore.as_retriever(search_kwargs={\"k\": 10})\n\nensemble = EnsembleRetriever(\n    retrievers=[bm25_retriever, vector_retriever],\n    weights=[0.4, 0.6],\n)\n\nresults = ensemble.invoke(\"What is task decomposition?\")\nfor d in results:\n    print(d.page_content[:200])",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
-        },
-        {
           "framework": "llamaindex",
           "framework_label": "LlamaIndex",
           "language": "python",
@@ -229,9 +220,10 @@
           "source_url": "https://developers.llamaindex.ai/python/examples/retrievers/relative_score_dist_fusion",
           "sdk_version": "llama-index>=0.12, llama-index-retrievers-bm25",
           "code": "from llama_index.core import VectorStoreIndex\nfrom llama_index.core.retrievers import QueryFusionRetriever\nfrom llama_index.retrievers.bm25 import BM25Retriever\n\nindex = VectorStoreIndex.from_documents(documents)\n\nvector_retriever = index.as_retriever(similarity_top_k=5)\nbm25_retriever = BM25Retriever.from_defaults(\n    docstore=index.docstore,\n    similarity_top_k=10,\n)\n\nretriever = QueryFusionRetriever(\n    [vector_retriever, bm25_retriever],\n    retriever_weights=[0.6, 0.4],\n    similarity_top_k=10,\n    mode=\"relative_score\",\n    use_async=True,\n)\n\nnodes = retriever.retrieve(\"What is task decomposition?\")",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from llama_index.core import VectorStoreIndex; from llama_index.core.retrievers import QueryFusionRetriever; from llama_index.retrievers.bm25 import BM25Retriever; VectorStoreIndex.from_documents(documents); index.as_retriever(similarity_top_k=5); BM25Retriever.from_defaults(docstore=index.docstore, similarity_top_k=10); QueryFusionRetriever([...], retriever_weights=[...], similarity_top_k=10, mode=\"relative_score\", use_async=True); retriever.retrieve(\"...\"). Source: https://developers.llamaindex.ai/python/examples/retrievers/relative_score_dist_fusion."
         },
         {
           "framework": "haystack",
@@ -241,9 +233,10 @@
           "source_url": "https://docs.haystack.deepset.ai/docs/weaviatehybridretriever",
           "sdk_version": "haystack-ai>=2.0, weaviate-haystack",
           "code": "from haystack_integrations.document_stores.weaviate.document_store import (\n    WeaviateDocumentStore,\n)\nfrom haystack_integrations.components.retrievers.weaviate import (\n    WeaviateHybridRetriever,\n)\n\ndocument_store = WeaviateDocumentStore(url=\"http://localhost:8080\")\nretriever = WeaviateHybridRetriever(\n    document_store=document_store,\n    top_k=10,\n    alpha=0.5,                                  # 0 = pure BM25, 1 = pure vector\n)\n\nresult = retriever.run(\n    query=\"What is task decomposition?\",\n    query_embedding=[0.0] * 768,                # supply your real embedding here\n)\nfor d in result[\"documents\"]:\n    print(d.content[:200])",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "last_updated": "2026-05-21",
+          "verified_notes": "Confirmed: from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore; from haystack_integrations.components.retrievers.weaviate import WeaviateHybridRetriever; WeaviateDocumentStore(url=\"...\"); WeaviateHybridRetriever(document_store=..., top_k=..., alpha=0.5); retriever.run(query=..., query_embedding=[...]); alpha semantics (0=BM25, 1=vector); result[\"documents\"] (page also shows pipeline-wrapped result[\"retriever\"][\"documents\"]). Source: https://docs.haystack.deepset.ai/docs/weaviatehybridretriever."
         }
       ]
     },

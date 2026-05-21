@@ -156,42 +156,6 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "pydantic-ai",
-          "framework_label": "Pydantic AI",
-          "language": "python",
-          "intent": "A pydantic-evals Evaluator scores an agent's output; the calling loop revises the prompt with the evaluator's verdict until the score crosses a threshold.",
-          "source_url": "https://pydantic.dev/docs/ai/evals/evals/",
-          "sdk_version": "pydantic-ai>=0.0.50",
-          "code": "from dataclasses import dataclass\nfrom pydantic_ai import Agent\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\nagent = Agent(\"openai:gpt-4o-mini\", system_prompt=\"You write concise emails.\")\n\n\n@dataclass\nclass ConcisenessEvaluator(Evaluator[str, str]):\n    max_words: int = 80\n\n    async def evaluate(self, ctx: EvaluatorContext[str, str]) -> float:\n        words = len(ctx.output.split())\n        return 1.0 if words <= self.max_words else self.max_words / max(words, 1)\n\n\nasync def evaluator_optimizer_loop(task: str, target: float = 0.95) -> str:\n    evaluator = ConcisenessEvaluator()\n    candidate = (await agent.run(task)).output\n    feedback = \"\"\n    for _ in range(4):\n        ctx = EvaluatorContext(name=\"case\", inputs=task, output=candidate,\n                               expected_output=None, metadata=None,\n                               metrics={}, attributes={}, span_tree=None)\n        score = await evaluator.evaluate(ctx)\n        if score >= target:\n            return candidate\n        feedback = f\"Previous was too long ({len(candidate.split())} words). Cut hard.\"\n        candidate = (await agent.run(f\"{task}\\n\\nFeedback: {feedback}\")).output\n    return candidate",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "mastra",
-          "framework_label": "Mastra",
-          "language": "typescript",
-          "intent": "Attach a scorer to a Mastra Agent; the application loop reads the score and revises the prompt when below threshold.",
-          "source_url": "https://mastra.ai/docs/evals/overview",
-          "sdk_version": "@mastra/core>=0.10",
-          "code": "import { Agent } from '@mastra/core/agent';\nimport { createAnswerRelevancyScorer } from '@mastra/evals/scorers/prebuilt';\n\nconst relevancy = createAnswerRelevancyScorer({ model: 'openai/gpt-4o-mini' });\n\nconst writer = new Agent({\n  name: 'writer',\n  instructions: 'Answer the user question precisely.',\n  model: 'openai/gpt-4o-mini',\n  scorers: {\n    relevancy: { scorer: relevancy, sampling: { type: 'ratio', rate: 1 } },\n  },\n});\n\nasync function evaluatorOptimizer(task: string, threshold = 0.8) {\n  let feedback = '';\n  let candidate = '';\n  for (let i = 0; i < 4; i++) {\n    const prompt = feedback ? `${task}\\n\\nReviewer feedback: ${feedback}` : task;\n    const res = await writer.generate(prompt);\n    candidate = res.text;\n    const score = await relevancy.score({ input: task, output: candidate });\n    if (score.score >= threshold) return candidate;\n    feedback = score.reason ?? 'Not relevant enough to the question.';\n  }\n  return candidate;\n}",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "dspy",
-          "framework_label": "DSPy",
-          "language": "python",
-          "intent": "DSPy compiles a generator program against a metric (evaluator); the optimizer is the loop that revises few-shot demos until the metric stops improving.",
-          "source_url": "https://dspy.ai/",
-          "sdk_version": "dspy>=2.5",
-          "code": "import dspy\n\nlm = dspy.LM(\"openai/gpt-4o-mini\")\ndspy.configure(lm=lm)\n\n\nclass Draft(dspy.Signature):\n    \"\"\"Draft a concise email for the given task.\"\"\"\n    task: str = dspy.InputField()\n    email: str = dspy.OutputField()\n\n\ngenerator = dspy.ChainOfThought(Draft)\n\n\ndef evaluator_metric(example, pred, trace=None) -> float:\n    # Evaluator role: judge concision + on-topic-ness.\n    too_long = len(pred.email.split()) > 80\n    on_topic = example.task.split()[0].lower() in pred.email.lower()\n    return 0.0 if too_long else (1.0 if on_topic else 0.4)\n\n\ntrainset = [\n    dspy.Example(task=\"refund\", email=\"...\").with_inputs(\"task\"),\n]\n\n# BootstrapFewShot acts as the optimizer loop: propose demo sets,\n# score with evaluator_metric, keep the best.\noptimizer = dspy.BootstrapFewShot(metric=evaluator_metric, max_rounds=4)\nbest = optimizer.compile(generator, trainset=trainset)",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
         }
       ]
     },

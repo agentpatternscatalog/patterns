@@ -73,8 +73,9 @@
           "source_url": "https://developers.llamaindex.ai/python/framework/understanding/workflows/",
           "sdk_version": "llama-index>=0.12",
           "code": "import asyncio\nfrom workflows import Workflow, step\nfrom workflows.events import Event, StartEvent, StopEvent\nfrom llama_index.llms.openai import OpenAI\n\n\nclass WebhookEvent(Event):\n    payload: dict\n\n\nclass AgentReplyEvent(Event):\n    text: str\n\n\nclass WebhookAgentFlow(Workflow):\n    llm = OpenAI(model=\"gpt-4o-mini\")\n\n    @step\n    async def receive(self, ev: StartEvent) -> WebhookEvent:\n        # In production: validate signature, dedupe by ev.delivery_id.\n        return WebhookEvent(payload=ev.payload)\n\n    @step\n    async def run_agent(self, ev: WebhookEvent) -> AgentReplyEvent:\n        prompt = f\"Triage this webhook payload: {ev.payload}\"\n        response = await self.llm.acomplete(prompt)\n        return AgentReplyEvent(text=str(response))\n\n    @step\n    async def finish(self, ev: AgentReplyEvent) -> StopEvent:\n        return StopEvent(result=ev.text)\n\n\nasync def main():\n    flow = WebhookAgentFlow(timeout=60)\n    result = await flow.run(payload={\"action\": \"opened\", \"pr\": 42})\n    print(result)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: Workflow base class, @step decorator, Event/StartEvent/StopEvent subclasses, OpenAI from llama_index.llms.openai, .acomplete() async completion method, Workflow.run() async entry point. Source: https://developers.llamaindex.ai/python/framework/understanding/workflows/",
           "last_updated": "2026-05-21"
         },
         {
@@ -85,8 +86,9 @@
           "source_url": "https://docs.temporal.io/develop/python/message-passing",
           "sdk_version": "temporalio>=1.6",
           "code": "from dataclasses import dataclass\nfrom datetime import timedelta\nfrom temporalio import workflow\n\n\n@dataclass\nclass WebhookEvent:\n    delivery_id: str\n    payload: dict\n\n\n@workflow.defn\nclass EventDrivenAgent:\n    def __init__(self) -> None:\n        self._inbox: list[WebhookEvent] = []\n        self._seen: set[str] = set()\n\n    @workflow.signal\n    def deliver(self, event: WebhookEvent) -> None:\n        # Idempotency: drop duplicate deliveries.\n        if event.delivery_id in self._seen:\n            return\n        self._seen.add(event.delivery_id)\n        self._inbox.append(event)\n\n    @workflow.run\n    async def run(self) -> None:\n        while True:\n            await workflow.wait_condition(lambda: bool(self._inbox))\n            event = self._inbox.pop(0)\n            # Each event triggers one agent activity invocation.\n            await workflow.execute_activity(\n                \"run_agent_once\",\n                event.payload,\n                start_to_close_timeout=timedelta(minutes=5),\n            )",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: @workflow.defn, @workflow.signal (dataclass parameter pattern documented), @workflow.run, workflow.wait_condition with lambda condition, workflow.execute_activity with start_to_close_timeout=timedelta(...). The page explicitly recommends data class parameters for signal handlers. Source: https://docs.temporal.io/develop/python/message-passing",
           "last_updated": "2026-05-21"
         },
         {
@@ -94,11 +96,12 @@
           "framework_label": "AutoGen Core",
           "language": "python",
           "intent": "RoutedAgent on a SingleThreadedAgentRuntime: the runtime delivers each typed message to the matching @message_handler.",
-          "source_url": "https://microsoft.github.io/autogen/stable/",
+          "source_url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/framework/agent-and-agent-runtime.html",
           "sdk_version": "autogen-core>=0.4",
           "code": "import asyncio\nfrom dataclasses import dataclass\nfrom autogen_core import (\n    AgentId,\n    MessageContext,\n    RoutedAgent,\n    SingleThreadedAgentRuntime,\n    message_handler,\n)\n\n\n@dataclass\nclass WebhookEvent:\n    delivery_id: str\n    payload: dict\n\n\nclass WebhookAgent(RoutedAgent):\n    def __init__(self) -> None:\n        super().__init__(\"WebhookAgent\")\n        self._seen: set[str] = set()\n\n    @message_handler\n    async def on_event(self, message: WebhookEvent, ctx: MessageContext) -> None:\n        if message.delivery_id in self._seen:\n            return                              # dedupe\n        self._seen.add(message.delivery_id)\n        # ... run the agent over message.payload ...\n        print(f\"handled {message.delivery_id}: {message.payload}\")\n\n\nasync def main() -> None:\n    runtime = SingleThreadedAgentRuntime()\n    await WebhookAgent.register(runtime, \"webhook_agent\", lambda: WebhookAgent())\n    runtime.start()\n    await runtime.send_message(\n        WebhookEvent(delivery_id=\"d-1\", payload={\"pr\": 42}),\n        AgentId(\"webhook_agent\", \"default\"),\n    )\n    await runtime.stop_when_idle()\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: AgentId(agent_type, instance_id), MessageContext, RoutedAgent base class, @message_handler decorator, RoutedAgent.register(runtime, type, factory) classmethod, SingleThreadedAgentRuntime, runtime.start(), runtime.send_message(), runtime.stop_when_idle() — all documented on the agent-and-agent-runtime user-guide page. Source: https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/framework/agent-and-agent-runtime.html",
           "last_updated": "2026-05-21"
         }
       ]
@@ -250,11 +253,12 @@
           "framework_label": "LangChain",
           "language": "python",
           "intent": "Structured-output planner produces an ordered step list; an agent executor walks each step under a cheaper model.",
-          "source_url": "https://www.langchain.com/blog/planning-agents",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/agents",
           "sdk_version": "langchain>=1.0",
-          "code": "from pydantic import BaseModel, Field\nfrom langchain.agents import create_agent\nfrom langchain.tools import tool\nfrom langchain_openai import ChatOpenAI\n\n\nclass Plan(BaseModel):\n    \"\"\"Ordered steps for the executor to walk.\"\"\"\n    steps: list[str] = Field(description=\"Concrete, ordered, atomic steps.\")\n\n\nplanner_llm = ChatOpenAI(model=\"gpt-4o\").with_structured_output(Plan)\nexecutor_llm = ChatOpenAI(model=\"gpt-4o-mini\")\n\n\n@tool\ndef search(q: str) -> str:\n    \"\"\"Search the web.\"\"\"\n    return f\"results for {q}\"\n\n\nexecutor = create_agent(executor_llm, tools=[search])\n\n\ndef run(goal: str) -> list[str]:\n    plan = planner_llm.invoke(\n        f\"Plan ordered steps to achieve: {goal}\"\n    )\n    results: list[str] = []\n    for step in plan.steps:\n        out = executor.invoke(\n            {\"messages\": [{\"role\": \"user\", \"content\": step}]}\n        )\n        results.append(out[\"messages\"][-1].content)\n    return results\n\n\nprint(run(\"book a team offsite in Barcelona for ten people next month\"))",
-          "verified": false,
-          "verified_date": null,
+          "code": "from pydantic import BaseModel, Field\nfrom langchain.agents import create_agent\nfrom langchain.tools import tool\n\n\nclass Plan(BaseModel):\n    \"\"\"Ordered steps for the executor to walk.\"\"\"\n    steps: list[str] = Field(description=\"Concrete, ordered, atomic steps.\")\n\n\n@tool\ndef search(query: str) -> str:\n    \"\"\"Search the web and return a short result string.\"\"\"\n    return f\"results for {query}\"\n\n\n# Strong planner: structured output via response_format on create_agent.\nplanner = create_agent(\n    model=\"openai:gpt-4o\",\n    tools=[],\n    response_format=Plan,\n)\n\n# Cheap executor: walks each step with a tool loop.\nexecutor = create_agent(model=\"openai:gpt-4o-mini\", tools=[search])\n\n\ndef run(goal: str) -> list[str]:\n    plan_result = planner.invoke(\n        {\"messages\": [{\"role\": \"user\",\n                       \"content\": f\"Plan ordered steps to achieve: {goal}\"}]}\n    )\n    plan: Plan = plan_result[\"structured_response\"]\n    results: list[str] = []\n    for step in plan.steps:\n        out = executor.invoke(\n            {\"messages\": [{\"role\": \"user\", \"content\": step}]}\n        )\n        results.append(out[\"messages\"][-1].content)\n    return results\n\n\nprint(run(\"book a team offsite in Barcelona for ten people next month\"))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: create_agent from langchain.agents with model=, tools=, response_format= kwargs; @tool decorator from langchain.tools with docstring-as-description; pydantic BaseModel/Field for the response_format schema; agent.invoke({'messages': [...]}) pattern; structured output surfaced via result['structured_response']. All elements documented on the LangChain agents page. Source: https://docs.langchain.com/oss/python/langchain/agents",
           "last_updated": "2026-05-21"
         },
         {
@@ -262,11 +266,12 @@
           "framework_label": "LangGraph",
           "language": "python",
           "intent": "Plan-and-execute graph: a planner node populates state.plan; an executor node walks steps; a replanner edge returns to the planner on surprise.",
-          "source_url": "https://github.com/langchain-ai/langgraph",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/graph-api",
           "sdk_version": "langgraph>=0.2",
-          "code": "from typing import TypedDict\nfrom langchain_openai import ChatOpenAI\nfrom langgraph.graph import StateGraph, END\nfrom langgraph.prebuilt import create_react_agent\n\n\nclass State(TypedDict):\n    goal: str\n    plan: list[str]\n    past: list[tuple[str, str]]\n\n\nplanner = ChatOpenAI(model=\"gpt-4o\")\nexecutor = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), tools=[])\n\n\ndef plan_step(state: State) -> State:\n    raw = planner.invoke(\n        f\"Return a numbered ordered plan for: {state['goal']}\"\n    ).content\n    state[\"plan\"] = [line.strip(\"-* 0123456789.\")\n                     for line in raw.splitlines() if line.strip()]\n    return state\n\n\ndef execute_step(state: State) -> State:\n    step = state[\"plan\"][len(state[\"past\"])]\n    out = executor.invoke({\"messages\": [{\"role\": \"user\", \"content\": step}]})\n    state[\"past\"].append((step, out[\"messages\"][-1].content))\n    return state\n\n\ndef should_continue(state: State) -> str:\n    return END if len(state[\"past\"]) >= len(state[\"plan\"]) else \"execute\"\n\n\ng = StateGraph(State)\ng.add_node(\"plan\", plan_step)\ng.add_node(\"execute\", execute_step)\ng.set_entry_point(\"plan\")\ng.add_edge(\"plan\", \"execute\")\ng.add_conditional_edges(\"execute\", should_continue)\napp = g.compile()\n\nprint(app.invoke({\"goal\": \"draft Q3 release notes\", \"plan\": [], \"past\": []}))",
-          "verified": false,
-          "verified_date": null,
+          "code": "from typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\n\n\nclass State(TypedDict):\n    goal: str\n    plan: list[str]\n    past: list[tuple[str, str]]\n\n\ndef plan_step(state: State) -> State:\n    # Strong planner: emit an ordered numbered plan for the goal.\n    raw = call_planner_llm(\n        f\"Return a numbered ordered plan for: {state['goal']}\"\n    )\n    state[\"plan\"] = [line.strip(\"-* 0123456789.\")\n                     for line in raw.splitlines() if line.strip()]\n    return state\n\n\ndef execute_step(state: State) -> State:\n    # Cheap executor: walk the next unfinished step.\n    step = state[\"plan\"][len(state[\"past\"])]\n    result = call_executor_llm(step)\n    state[\"past\"].append((step, result))\n    return state\n\n\ndef should_continue(state: State) -> str:\n    return END if len(state[\"past\"]) >= len(state[\"plan\"]) else \"execute\"\n\n\nbuilder = StateGraph(State)\nbuilder.add_node(\"plan\", plan_step)\nbuilder.add_node(\"execute\", execute_step)\nbuilder.add_edge(START, \"plan\")\nbuilder.add_edge(\"plan\", \"execute\")\nbuilder.add_conditional_edges(\"execute\", should_continue, [\"execute\", END])\napp = builder.compile()\n\nprint(app.invoke({\"goal\": \"draft Q3 release notes\", \"plan\": [], \"past\": []}))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the LangGraph Graph API docs: StateGraph(State) construction over a TypedDict State, builder.add_node(name, fn), builder.add_edge(START, node) and add_edge(node, node), add_conditional_edges(source, routing_fn, [destinations]), builder.compile(), START and END constants imported from langgraph.graph, and app.invoke({...}) execution. LLM calls are abstracted as call_planner_llm/call_executor_llm so the example stays within the documented LangGraph surface. Source: https://docs.langchain.com/oss/python/langgraph/graph-api",
           "last_updated": "2026-05-21"
         },
         {
@@ -277,8 +282,9 @@
           "source_url": "https://github.com/agentscope-ai/agentscope",
           "sdk_version": "agentscope>=0.1",
           "code": "import asyncio\nfrom agentscope.agent import ReActAgent\nfrom agentscope.memory import InMemoryMemory\nfrom agentscope.message import Msg\nfrom agentscope.model import DashScopeChatModel\nfrom agentscope.tool import Toolkit\n\n\ndef search_venue(city: str) -> str:\n    \"\"\"Search team-offsite venues in a city.\"\"\"\n    return f\"3 venue options for {city}\"\n\n\ndef book_venue(venue_id: str) -> str:\n    \"\"\"Book a venue by id.\"\"\"\n    return f\"booked {venue_id}\"\n\n\ntoolkit = Toolkit()\ntoolkit.register_tool_function(search_venue)\ntoolkit.register_tool_function(book_venue)\n\nagent = ReActAgent(\n    name=\"Planner\",\n    sys_prompt=(\n        \"First write a short ordered plan. Then execute the plan step \"\n        \"by step using the tools. Only deviate from the plan if a tool \"\n        \"result forces you to.\"\n    ),\n    model=DashScopeChatModel(model_name=\"qwen-max\"),\n    memory=InMemoryMemory(),\n    toolkit=toolkit,\n)\n\n\nasync def main():\n    reply = await agent(Msg(\"user\", \"Plan and book a Barcelona offsite\", \"user\"))\n    print(reply.content)\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: ReActAgent from agentscope.agent with constructor params name/sys_prompt/model/memory/toolkit (formatter is also documented but optional), InMemoryMemory from agentscope.memory, Msg from agentscope.message with three positional args (name, content, role), DashScopeChatModel from agentscope.model with model_name parameter, Toolkit from agentscope.tool with register_tool_function method. Async agent invocation pattern matches documented example. Source: https://github.com/agentscope-ai/agentscope",
           "last_updated": "2026-05-21"
         }
       ]
@@ -353,8 +359,9 @@
           "source_url": "https://docs.langchain.com/oss/python/langchain/agents",
           "sdk_version": "langchain>=1.0",
           "code": "from langchain.agents import create_agent\nfrom langchain.tools import tool\nfrom langchain_openai import ChatOpenAI\n\n\n@tool\ndef search(query: str) -> str:\n    \"\"\"Search the web and return a short result string.\"\"\"\n    return f\"top result for: {query}\"\n\n\nmodel = ChatOpenAI(model=\"gpt-4o-mini\")\nagent = create_agent(\n    model,\n    tools=[search],\n    system_prompt=(\n        \"Use the search tool when the user's question needs fresh facts. \"\n        \"Call one tool at a time, then reason over the result.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Latest AI safety news?\"}]}\n)\nprint(result[\"messages\"][-1].content)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: create_agent from langchain.agents with model/tools/system_prompt parameters, @tool decorator from langchain.tools, ChatOpenAI from langchain_openai, agent.invoke({'messages': [{'role': 'user', 'content': ...}]}) invocation pattern. All four import paths and the system_prompt kwarg are explicitly documented. Source: https://docs.langchain.com/oss/python/langchain/agents",
           "last_updated": "2026-05-21"
         },
         {
@@ -362,11 +369,12 @@
           "framework_label": "LangGraph",
           "language": "python",
           "intent": "create_react_agent compiles a prebuilt Thought-Action-Observation graph with a recursion limit acting as the step budget.",
-          "source_url": "https://langchain-ai.github.io/langgraph/reference/prebuilt/",
+          "source_url": "https://docs.langchain.com/oss/python/langgraph/graph-api",
           "sdk_version": "langgraph>=0.2",
-          "code": "from langchain_anthropic import ChatAnthropic\nfrom langchain_core.tools import tool\nfrom langgraph.prebuilt import create_react_agent\n\n\n@tool\ndef get_weather(location: str) -> str:\n    \"\"\"Return the current weather for a city.\"\"\"\n    return f\"{location}: 18C, light rain\"\n\n\nmodel = ChatAnthropic(model=\"claude-3-5-sonnet-latest\")\nagent = create_react_agent(\n    model,\n    tools=[get_weather],\n    prompt=(\n        \"You are a travel assistant. Call get_weather when the user asks \"\n        \"about conditions in a city. One tool call per step.\"\n    ),\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Should I bring a coat to Oslo?\"}]},\n    config={\"recursion_limit\": 10},   # step budget\n)\nprint(result[\"messages\"][-1].content)",
-          "verified": false,
-          "verified_date": null,
+          "code": "from typing import Annotated, Literal\nfrom typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.graph.message import add_messages\n\n\nclass State(TypedDict):\n    # Reducer appends new messages instead of overwriting.\n    messages: Annotated[list, add_messages]\n\n\ndef llm_call(state: State) -> State:\n    # One Thought: call the model with tools bound; it either replies\n    # with content or emits a tool call.\n    return {\"messages\": [call_model_with_tools(state[\"messages\"])]}\n\n\ndef tool_node(state: State) -> State:\n    # One Observation: run the last tool call and append its result.\n    last = state[\"messages\"][-1]\n    return {\"messages\": [run_tool_calls(last)]}\n\n\ndef should_continue(state: State) -> Literal[\"tool_node\", \"__end__\"]:\n    last = state[\"messages\"][-1]\n    return \"tool_node\" if has_tool_calls(last) else END\n\n\nbuilder = StateGraph(State)\nbuilder.add_node(\"llm_call\", llm_call)\nbuilder.add_node(\"tool_node\", tool_node)\nbuilder.add_edge(START, \"llm_call\")\nbuilder.add_conditional_edges(\"llm_call\", should_continue, [\"tool_node\", END])\nbuilder.add_edge(\"tool_node\", \"llm_call\")   # observation feeds next thought\nagent = builder.compile()\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"Should I bring a coat to Oslo?\"}]}\n)\nprint(result[\"messages\"][-1].content)",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the LangGraph Graph API docs: StateGraph(State) over a TypedDict State, Annotated[list, add_messages] reducer pattern (add_messages from langgraph.graph.message), START and END constants from langgraph.graph, add_node(name, fn), add_edge(START, node) and add_edge(node, node), add_conditional_edges(source, fn, [destinations]) with explicit destination list, compile(), and agent.invoke({...}) execution. The ReAct loop is expressed as the documented two-node llm_call/tool_node cycle (the exact calculator-agent shape used in the Graph API quickstart). Source: https://docs.langchain.com/oss/python/langgraph/graph-api",
           "last_updated": "2026-05-21"
         },
         {
@@ -377,8 +385,9 @@
           "source_url": "https://developers.llamaindex.ai/python/examples/agent/react_agent",
           "sdk_version": "llama-index>=0.12",
           "code": "import asyncio\nfrom llama_index.core.agent.workflow import ReActAgent\nfrom llama_index.core.workflow import Context\nfrom llama_index.llms.openai import OpenAI\n\n\ndef multiply(a: int, b: int) -> int:\n    \"\"\"Multiply two integers and return the result.\"\"\"\n    return a * b\n\n\ndef add(a: int, b: int) -> int:\n    \"\"\"Add two integers and return the result.\"\"\"\n    return a + b\n\n\nllm = OpenAI(model=\"gpt-4o-mini\")\nagent = ReActAgent(tools=[multiply, add], llm=llm)\n\n\nasync def main():\n    ctx = Context(agent)\n    response = await agent.run(\"What is 20 + (2 * 4)?\", ctx=ctx)\n    print(str(response))\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed: ReActAgent from llama_index.core.agent.workflow with tools and llm parameters, OpenAI from llama_index.llms.openai with model= kwarg, Context from llama_index.core.workflow with Context(agent) instantiation, agent.run(query, ctx=ctx) async invocation. The page also documents that ReActAgent works with any LLM (not just function-calling models). Source: https://developers.llamaindex.ai/python/examples/agent/react_agent",
           "last_updated": "2026-05-21"
         }
       ]
