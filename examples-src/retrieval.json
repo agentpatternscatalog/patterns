@@ -96,8 +96,9 @@
           "source_url": "https://developers.llamaindex.ai/python/examples/cookbooks/contextual_retrieval",
           "sdk_version": "llama-index>=0.12",
           "code": "import copy\nfrom llama_index.core import VectorStoreIndex\nfrom llama_index.core.node_parser import SentenceSplitter\nfrom llama_index.llms.anthropic import Anthropic\n\nllm = Anthropic(model=\"claude-3-5-sonnet-latest\")\n\nCONTEXT_PROMPT = (\n    \"<document>{document}</document>\\n\"\n    \"Here is the chunk we want to situate within the whole document:\\n\"\n    \"<chunk>{chunk}</chunk>\\n\"\n    \"Give a short, succinct context to situate this chunk within the overall \"\n    \"document for the purposes of improving search retrieval. Answer only \"\n    \"with the succinct context and nothing else.\"\n)\n\n\ndef create_contextual_nodes(nodes, whole_document: str):\n    \"\"\"Prepend an LLM-generated situating context to each node.\"\"\"\n    enriched = []\n    for node in nodes:\n        new_node = copy.deepcopy(node)\n        ctx = llm.complete(\n            CONTEXT_PROMPT.format(\n                document=whole_document, chunk=node.get_content()\n            )\n        ).text\n        new_node.metadata[\"context\"] = ctx\n        new_node.set_content(ctx + \"\\n\\n\" + node.get_content())\n        enriched.append(new_node)\n    return enriched\n\n\nnodes = SentenceSplitter().get_nodes_from_documents(documents)\ncontextual_nodes = create_contextual_nodes(nodes, documents[0].text)\nindex = VectorStoreIndex(contextual_nodes)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex contextual retrieval cookbook (source_url) and one-hop API references. Confirmed: `from llama_index.core import VectorStoreIndex`, `from llama_index.core.node_parser import SentenceSplitter` (with `get_nodes_from_documents`), `from llama_index.llms.anthropic import Anthropic` with `Anthropic(model=...)` constructor — all appear verbatim in the cookbook. `llm.complete(prompt).text` confirmed via the Anthropic LLM API reference (`complete()` returns AnthropicCompletionResponse with `.text`). `node.get_content()`, `node.set_content()`, and `node.metadata` confirmed on BaseNode/TextNode in the framework schema API reference. `VectorStoreIndex(nodes)` constructor form is documented (cookbook uses `VectorStoreIndex(nodes_)`).",
           "last_updated": "2026-05-21"
         }
       ]
@@ -123,9 +124,10 @@
           "intent": "CorrectiveRAGWorkflow: retrieve, LLM-grade relevance, transform query and call Tavily web-search when any doc is judged irrelevant.",
           "source_url": "https://developers.llamaindex.ai/python/examples/workflow/corrective_rag_pack",
           "sdk_version": "llama-index>=0.12",
-          "code": "from llama_index.core.workflow import (\n    Workflow, step, Context, StartEvent, StopEvent, Event,\n)\nfrom llama_index.core import VectorStoreIndex, SummaryIndex, Document\nfrom llama_index.llms.openai import OpenAI\nfrom llama_index.tools.tavily_research.base import TavilyToolSpec\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\nRELEVANCE_PROMPT = (\n    \"Given the query: {query}\\nAnd the document: {doc}\\n\"\n    \"Is this document relevant? Answer 'yes' or 'no'.\"\n)\n\n\nclass RetrievedEvent(Event):\n    nodes: list\n\n\nclass CorrectiveRAGWorkflow(Workflow):\n    @step\n    async def retrieve(self, ev: StartEvent) -> RetrievedEvent:\n        index: VectorStoreIndex = ev.index\n        nodes = index.as_retriever(similarity_top_k=5).retrieve(ev.query)\n        return RetrievedEvent(nodes=nodes)\n\n    @step\n    async def grade_and_answer(\n        self, ctx: Context, ev: RetrievedEvent\n    ) -> StopEvent:\n        query = await ctx.get(\"query\")\n        grades = [\n            llm.complete(\n                RELEVANCE_PROMPT.format(query=query, doc=n.get_content())\n            ).text.strip().lower()\n            for n in ev.nodes\n        ]\n        relevant = [n for n, g in zip(ev.nodes, grades) if g.startswith(\"yes\")]\n        if any(g.startswith(\"no\") for g in grades):\n            tavily = TavilyToolSpec(api_key=\"YOUR_TAVILY_KEY\")\n            web_docs = tavily.search(query, max_results=5)\n            relevant += [Document(text=d.text) for d in web_docs]\n        answer = SummaryIndex.from_documents(\n            [Document(text=n.get_content()) for n in relevant]\n        ).as_query_engine(llm=llm).query(query)\n        return StopEvent(result=str(answer))",
-          "verified": false,
-          "verified_date": null,
+          "code": "from llama_index.core.workflow import (\n    Workflow, step, Context, StartEvent, StopEvent, Event,\n)\nfrom llama_index.core import VectorStoreIndex, SummaryIndex, Document\nfrom llama_index.llms.openai import OpenAI\nfrom llama_index.tools.tavily_research.base import TavilyToolSpec\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\nRELEVANCE_PROMPT = (\n    \"Given the query: {query}\\nAnd the document: {doc}\\n\"\n    \"Is this document relevant? Answer 'yes' or 'no'.\"\n)\n\n\nclass RetrievedEvent(Event):\n    nodes: list\n\n\nclass CorrectiveRAGWorkflow(Workflow):\n    @step\n    async def retrieve(\n        self, ctx: Context, ev: StartEvent\n    ) -> RetrievedEvent:\n        index: VectorStoreIndex = ev.index\n        await ctx.store.set(\"query\", ev.query)\n        nodes = index.as_retriever(similarity_top_k=5).retrieve(ev.query)\n        return RetrievedEvent(nodes=nodes)\n\n    @step\n    async def grade_and_answer(\n        self, ctx: Context, ev: RetrievedEvent\n    ) -> StopEvent:\n        query = await ctx.store.get(\"query\")\n        grades = [\n            llm.complete(\n                RELEVANCE_PROMPT.format(query=query, doc=n.get_content())\n            ).text.strip().lower()\n            for n in ev.nodes\n        ]\n        relevant = [n for n, g in zip(ev.nodes, grades) if g.startswith(\"yes\")]\n        if any(g.startswith(\"no\") for g in grades):\n            tavily = TavilyToolSpec(api_key=\"YOUR_TAVILY_KEY\")\n            web_docs = tavily.search(query, max_results=5)\n            relevant += [Document(text=d.text) for d in web_docs]\n        answer = SummaryIndex.from_documents(\n            [Document(text=n.get_content()) for n in relevant]\n        ).as_query_engine(llm=llm).query(query)\n        return StopEvent(result=str(answer))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against the LlamaIndex Corrective RAG workflow cookbook (source_url). Confirmed: `from llama_index.core.workflow import Workflow, step, Context, StartEvent, StopEvent, Event`, `VectorStoreIndex`/`SummaryIndex`/`Document` from `llama_index.core`, `OpenAI` from `llama_index.llms.openai`, `TavilyToolSpec` from `llama_index.tools.tavily_research.base`, `@step` decorator, `index.as_retriever(similarity_top_k=...).retrieve(...)`, `SummaryIndex.from_documents(...).as_query_engine(llm=...).query(...)`, `tavily.search(query, max_results=5)`, `n.get_content()` (BaseNode/TextNode). Wave 5 fix: replaced top-level `await ctx.get(\"query\")` with the documented `await ctx.store.get(\"query\")` / `await ctx.store.set(\"query\", ...)` pattern from the upstream cookbook (workflows-py Context state lives behind the `.store` property).",
           "last_updated": "2026-05-21"
         }
       ]
@@ -152,8 +154,9 @@
           "source_url": "https://docs.langchain.com/oss/python/integrations/document_transformers/cross_encoder_reranker/",
           "sdk_version": "langchain>=1.0, langchain-classic, langchain-community",
           "code": "from langchain_classic.retrievers.contextual_compression import (\n    ContextualCompressionRetriever,\n)\nfrom langchain_classic.retrievers.document_compressors import CrossEncoderReranker\nfrom langchain_community.cross_encoders import HuggingFaceCrossEncoder\n\nbase_retriever = vector_store.as_retriever(search_kwargs={\"k\": 20})\n\ncross_encoder = HuggingFaceCrossEncoder(model_name=\"BAAI/bge-reranker-v2-m3\")\nreranker = CrossEncoderReranker(model=cross_encoder, top_n=3)\n\ncompression_retriever = ContextualCompressionRetriever(\n    base_compressor=reranker,\n    base_retriever=base_retriever,\n)\n\ndocs = compression_retriever.invoke(\"What is task decomposition?\")\nfor d in docs:\n    print(d.page_content[:200])",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://docs.langchain.com/oss/python/integrations/document_transformers/cross_encoder_reranker/: imports `from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever`, `from langchain_classic.retrievers.document_compressors import CrossEncoderReranker`, `from langchain_community.cross_encoders import HuggingFaceCrossEncoder` all shown verbatim. Constructor patterns `CrossEncoderReranker(model=cross_encoder, top_n=3)` and `ContextualCompressionRetriever(base_compressor=..., base_retriever=...)` documented, as is `compression_retriever.invoke(...)`. `HuggingFaceCrossEncoder(model_name=...)` and `vector_store.as_retriever(search_kwargs={...})` are standard LangChain APIs on the same page.",
           "last_updated": "2026-05-21"
         },
         {
@@ -164,8 +167,9 @@
           "source_url": "https://developers.llamaindex.ai/python/framework/module_guides/querying/node_postprocessors/node_postprocessors",
           "sdk_version": "llama-index>=0.12",
           "code": "from llama_index.core import VectorStoreIndex\nfrom llama_index.core.postprocessor import SentenceTransformerRerank\n\nindex = VectorStoreIndex.from_documents(documents)\n\nreranker = SentenceTransformerRerank(\n    model=\"cross-encoder/ms-marco-MiniLM-L-2-v2\",\n    top_n=3,\n)\n\nquery_engine = index.as_query_engine(\n    similarity_top_k=20,                # first-stage retrieve N=20\n    node_postprocessors=[reranker],     # cross-encoder narrows to top_n=3\n)\n\nresponse = query_engine.query(\"What is task decomposition?\")\nprint(response)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the cited node_postprocessors index page and one-hop linked pages: `from llama_index.core.postprocessor import SentenceTransformerRerank` and `SentenceTransformerRerank(model=\"cross-encoder/ms-marco-MiniLM-L-2-v2\", top_n=3)` shown verbatim on the cited page. `from llama_index.core import VectorStoreIndex` and `VectorStoreIndex.from_documents(documents)` confirmed at the linked VectorStoreIndex module guide. The exact usage `query_engine = index.as_query_engine(similarity_top_k=..., node_postprocessors=[rerank])` plus `query_engine.query(...)` is documented in the SentenceTransformerRerank example notebook linked from the postprocessors page.",
           "last_updated": "2026-05-21"
         }
       ]
@@ -192,8 +196,9 @@
           "source_url": "https://www.llamaindex.ai/blog/introducing-the-property-graph-index-a-powerful-new-way-to-build-knowledge-graphs-with-llms",
           "sdk_version": "llama-index>=0.12",
           "code": "from llama_index.core import PropertyGraphIndex, SimpleDirectoryReader\nfrom llama_index.core.indices.property_graph import SimpleLLMPathExtractor\nfrom llama_index.llms.openai import OpenAI\n\nllm = OpenAI(model=\"gpt-4o-mini\")\n\ndocuments = SimpleDirectoryReader(\"./data\").load_data()\n\nkg_extractor = SimpleLLMPathExtractor(\n    llm=llm,\n    max_paths_per_chunk=10,\n)\n\nindex = PropertyGraphIndex.from_documents(\n    documents,\n    kg_extractors=[kg_extractor],\n    llm=llm,\n)\n\nretriever = index.as_retriever(include_text=True)\nnodes = retriever.retrieve(\"How are entities A and B related?\")\nfor n in nodes:\n    print(n.get_content()[:200])",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex Property Graph Index announcement blog (source_url) and one-hop API references / module guide. Confirmed in the blog: `from llama_index.core import PropertyGraphIndex`, `from llama_index.core.indices.property_graph import SimpleLLMPathExtractor`, `index.as_retriever(...)`. Confirmed in the lpg_index_guide module guide: `SimpleLLMPathExtractor(llm=llm, max_paths_per_chunk=10, ...)`, `PropertyGraphIndex.from_documents(documents, kg_extractors=[...])`, `as_retriever(include_text=True, similarity_top_k=2)`. `llm` is a documented kwarg on `PropertyGraphIndex.__init__` (forwarded by `from_documents`). `SimpleDirectoryReader(...).load_data()` and `from llama_index.llms.openai import OpenAI` are documented in the LlamaIndex starter example. `retriever.retrieve(...)` and `BaseNode.get_content()` are documented core APIs.",
           "last_updated": "2026-05-21"
         }
       ]
@@ -278,8 +283,9 @@
           "source_url": "https://developers.llamaindex.ai/python/framework/understanding/rag/",
           "sdk_version": "llama-index>=0.12",
           "code": "from llama_index.core import SimpleDirectoryReader, VectorStoreIndex\n\n# Load\ndocuments = SimpleDirectoryReader(\"./data\").load_data()\n\n# Index (chunks, embeds, stores)\nindex = VectorStoreIndex.from_documents(documents)\n\n# Query (retrieves top-k, prepends to prompt, generates)\nquery_engine = index.as_query_engine()\nresponse = query_engine.query(\"What is task decomposition?\")\nprint(response)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Checked against the LlamaIndex Understanding-RAG page (source_url) and the one-hop starter example. Confirmed verbatim in the starter tutorial: `from llama_index.core import VectorStoreIndex, SimpleDirectoryReader`, `SimpleDirectoryReader(\"data\").load_data()`, `VectorStoreIndex.from_documents(documents)`, `index.as_query_engine()`, and `query_engine.query(...)`. All five named APIs in the snippet are documented; the snippet matches the canonical five-line RAG tutorial.",
           "last_updated": "2026-05-21"
         }
       ]

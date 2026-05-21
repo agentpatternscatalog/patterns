@@ -412,11 +412,12 @@
           "language": "python",
           "intent": "Temporal RetryPolicy bounds activity retries; on non-retryable failure the workflow catches the ApplicationError and re-invokes the planner activity with the failure context.",
           "code": "from datetime import timedelta\nfrom temporalio import workflow\nfrom temporalio.common import RetryPolicy\nfrom temporalio.exceptions import ApplicationError\n\n\n@workflow.defn\nclass ReplanOnFailure:\n    @workflow.run\n    async def run(self, goal: str) -> str:\n        plan = await workflow.execute_activity(\n            \"plan\", goal,\n            start_to_close_timeout=timedelta(minutes=2),\n        )\n        progress: list[dict] = []\n\n        for step in plan:\n            try:\n                obs = await workflow.execute_activity(\n                    \"execute_step\", {\"step\": step, \"progress\": progress},\n                    start_to_close_timeout=timedelta(minutes=5),\n                    retry_policy=RetryPolicy(\n                        initial_interval=timedelta(seconds=2),\n                        maximum_attempts=3,\n                        # non_retryable: planner-relevant signals\n                        non_retryable_error_types=[\"ReplanTrigger\"],\n                    ),\n                )\n                progress.append({\"step\": step, \"obs\": obs})\n            except ApplicationError as exc:\n                if exc.type != \"ReplanTrigger\":\n                    raise\n                # replan with failure context; keep compatible progress\n                plan = await workflow.execute_activity(\n                    \"plan\",\n                    {\"goal\": goal, \"progress\": progress, \"failure\": str(exc)},\n                    start_to_close_timeout=timedelta(minutes=2),\n                )\n        return await workflow.execute_activity(\n            \"summarise\", {\"goal\": goal, \"progress\": progress},\n            start_to_close_timeout=timedelta(minutes=2),\n        )",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "source_url": "https://docs.temporal.io/encyclopedia/retry-policies",
-          "sdk_version": "temporalio>=1.6"
+          "sdk_version": "temporalio>=1.6",
+          "verified_notes": "Verified against https://docs.temporal.io/encyclopedia/retry-policies (RetryPolicy fields Initial Interval / Maximum Attempts / Non-Retryable Errors; ApplicationError with type and non_retryable) plus one-hop https://python.temporal.io/temporalio.common.RetryPolicy.html (RetryPolicy dataclass fields initial_interval: timedelta, maximum_attempts: int, non_retryable_error_types: Sequence[str] | None) and https://learn.temporal.io/getting_started/python/first_program_in_python/ (@workflow.defn class decorator, @workflow.run async method decorator, workflow.execute_activity_method with start_to_close_timeout=timedelta(...) and retry_policy=RetryPolicy(...) kwargs). The string-name overload workflow.execute_activity used here is listed alongside execute_activity_method in temporalio.workflow._activities. ApplicationError.type and exc.type attribute confirmed by retry-policies page snippet (type=\"InvalidChargeAmount\")."
         }
       ]
     },
@@ -474,8 +475,9 @@
           "source_url": "https://docs.temporal.io/develop/python/schedules",
           "sdk_version": "temporalio>=1.6",
           "code": "import asyncio\nfrom datetime import timedelta\nfrom temporalio import workflow\nfrom temporalio.client import (\n    Client,\n    Schedule,\n    ScheduleActionStartWorkflow,\n    ScheduleSpec,\n)\n\n\n@workflow.defn\nclass DailyDigest:\n    @workflow.run\n    async def run(self) -> str:\n        # Read durable state, fetch new items, summarise, persist.\n        return await workflow.execute_activity(\n            \"build_digest\",\n            start_to_close_timeout=timedelta(minutes=10),\n        )\n\n\nasync def main() -> None:\n    client = await Client.connect(\"localhost:7233\")\n    await client.create_schedule(\n        \"daily-digest\",\n        Schedule(\n            action=ScheduleActionStartWorkflow(\n                DailyDigest.run,\n                id=\"daily-digest-wf\",\n                task_queue=\"agents\",\n            ),\n            spec=ScheduleSpec(cron_expressions=[\"0 6 * * *\"]),\n        ),\n    )\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against docs.temporal.io/develop/python/schedules: Client.connect, Client.create_schedule, Schedule, ScheduleActionStartWorkflow (with id and task_queue), and ScheduleSpec(cron_expressions=[...]) are all documented on the cited page. @workflow.defn, @workflow.run, and workflow.execute_activity with start_to_close_timeout are standard Temporal Python SDK APIs documented across the python develop docs.",
           "last_updated": "2026-05-21"
         },
         {
@@ -486,20 +488,22 @@
           "source_url": "https://modal.com/docs/guide/cron",
           "sdk_version": "modal>=0.64",
           "code": "import modal\n\napp = modal.App(\"daily-digest\")\nstate = modal.Dict.from_name(\"digest-state\", create_if_missing=True)\n\nimage = modal.Image.debian_slim().pip_install(\"anthropic\")\n\n\n@app.function(image=image, schedule=modal.Cron(\"0 6 * * *\"))\ndef run_daily_digest() -> None:\n    import anthropic\n\n    last_seen = state.get(\"last_seen\", \"yesterday\")\n    items = fetch_new_items(since=last_seen)\n    if not items:\n        return\n\n    client = anthropic.Anthropic()\n    digest = client.messages.create(\n        model=\"claude-3-5-sonnet-latest\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\",\n                   \"content\": f\"Summarise these items:\\n{items}\"}],\n    ).content[0].text\n\n    deliver(digest)\n    state[\"last_seen\"] = max(i.timestamp for i in items)\n\n\ndef fetch_new_items(since): ...   # implemented elsewhere\ndef deliver(text): ...",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against modal.com/docs/guide/cron and one-hop linked reference pages: @app.function(schedule=...) with modal.Cron(\"0 6 * * *\") is the canonical pattern on the cited cron guide; modal.Image.debian_slim().pip_install(...) is documented on /docs/reference/modal.Image; modal.Dict.from_name(name, create_if_missing=True) is documented on /docs/reference/modal.Dict (both referenced from the cron guide/reference index).",
           "last_updated": "2026-05-21"
         },
         {
           "framework": "restack",
           "framework_label": "Restack (TypeScript)",
           "language": "typescript",
-          "intent": "Restack workflow defines the agent's work; scheduleWorkflow binds it to a cron spec at the client side.",
-          "source_url": "https://docs.restack.io/features/workflows",
+          "intent": "Restack workflow is an exported async function; client.scheduleWorkflow binds it to a cron spec at the client side.",
+          "source_url": "https://docs.restack.io/features/schedules",
           "sdk_version": "@restackio/ai@^0.0.x",
-          "code": "// workflow.ts\nimport { workflow, step } from \"@restackio/ai/workflow\";\nimport * as functions from \"./functions\";\n\n@workflow.defn()\nexport class DailyDigest {\n  @workflow.run\n  async run(): Promise<string> {\n    const items = await step<typeof functions>({}).fetchNewItems();\n    if (items.length === 0) return \"no-op\";\n    const digest = await step<typeof functions>({}).summarise(items);\n    await step<typeof functions>({}).deliver(digest);\n    return \"ok\";\n  }\n}\n\n// schedule.ts\nimport Restack from \"@restackio/ai\";\nimport { DailyDigest } from \"./workflow\";\n\nasync function schedule() {\n  const client = new Restack();\n  await client.scheduleWorkflow({\n    workflowName: DailyDigest.name,\n    workflowId: `daily-digest-${Date.now()}`,\n    cronSchedule: \"0 6 * * *\", // every day at 06:00 UTC\n  });\n}\n\nschedule();",
-          "verified": false,
-          "verified_date": null,
+          "code": "// workflow.ts\nimport { step } from \"@restackio/ai/workflow\";\nimport * as functions from \"./functions\";\n\nexport async function dailyDigestWorkflow(): Promise<string> {\n  const items = await step<typeof functions>({}).fetchNewItems();\n  if (items.length === 0) return \"no-op\";\n  const digest = await step<typeof functions>({}).summarise(items);\n  await step<typeof functions>({}).deliver(digest);\n  return \"ok\";\n}\n\n// schedule.ts\nimport Restack from \"@restackio/ai\";\n\nasync function schedule() {\n  const client = new Restack();\n  const runId = await client.scheduleWorkflow({\n    workflowName: \"dailyDigestWorkflow\",\n    workflowId: `daily-digest-${Date.now()}`,\n    input: {},\n    schedule: { cron: \"0 6 * * *\" }, // every day at 06:00\n  });\n  return runId;\n}\n\nschedule();",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against docs.restack.io/features/schedules and docs.restack.io/libraries/typescript/workflows: workflows are defined as `export async function` (not class decorators — those are Python-only); the `step<typeof functions>({}).functionName(args)` shape is documented; client.scheduleWorkflow takes workflowName, workflowId, input, and schedule with a nested `cron` property — verbatim from the schedules docs example `client.scheduleWorkflow({ workflowName, workflowId, input, schedule: { cron: \"0 10 * * *\" } })`. Source: https://docs.restack.io/features/schedules",
           "last_updated": "2026-05-21"
         }
       ]
@@ -523,9 +527,10 @@
           "framework_label": "GPT-Engineer",
           "language": "python",
           "intent": "GPT-Engineer drives a CLI loop from a single prompt file; the agent re-reads the prompt, edits the workspace, and exits with a test gate that the wrapper checks.",
-          "code": "# spec_loop.sh — wrap gpt-engineer in a spec-driven outer loop\n# prerequisite: `pip install gpt-engineer` and a `PROMPT` file in ./project\n#\n# PROMPT (single source of truth) describes:\n#   - the desired behaviour\n#   - the test command (e.g. `pytest -q`)\n#   - where the agent should record progress (fix_plan.md)\n\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nPROJECT = Path(\"./project\")\nMAX_ITERS = 8\n\nfor i in range(MAX_ITERS):\n    # one iteration: gpt-engineer reads PROMPT and edits the workspace\n    subprocess.run([\"gpte\", str(PROJECT), \"--improve\"], check=True)\n\n    # test gate gates the next iteration\n    result = subprocess.run(\n        [\"pytest\", \"-q\"], cwd=PROJECT, capture_output=True\n    )\n    if result.returncode == 0:\n        print(f\"spec satisfied after {i + 1} iterations\")\n        sys.exit(0)\n\n    # otherwise the agent's own fix_plan.md is updated in-tree;\n    # the next iteration reads it from the same PROMPT.\nsys.exit(\"spec not satisfied within budget\")",
-          "verified": false,
-          "verified_date": null,
+          "code": "# spec_loop.py — wrap gpt-engineer in a spec-driven outer loop\n# prerequisite: `pip install gpt-engineer` and a `prompt` file in ./project\n#\n# prompt (single source of truth, no extension) describes:\n#   - the desired behaviour\n#   - the test command (e.g. `pytest -q`)\n#   - where the agent should record progress (fix_plan.md)\n\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nPROJECT = Path(\"./project\")\nMAX_ITERS = 8\n\nfor i in range(MAX_ITERS):\n    # one iteration: gpt-engineer reads `prompt` and edits the workspace\n    # `-i` is the documented improve-mode flag\n    subprocess.run([\"gpte\", str(PROJECT), \"-i\"], check=True)\n\n    # test gate gates the next iteration\n    result = subprocess.run(\n        [\"pytest\", \"-q\"], cwd=PROJECT, capture_output=True\n    )\n    if result.returncode == 0:\n        print(f\"spec satisfied after {i + 1} iterations\")\n        sys.exit(0)\n\n    # otherwise the agent's own fix_plan.md is updated in-tree;\n    # the next iteration reads it from the same `prompt` file.\nsys.exit(\"spec not satisfied within budget\")",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the AntonOsika/gpt-engineer README: `gpte <project_dir>` for initial generation and `gpte <project_dir> -i` for improve mode are the documented CLI invocations; the spec file convention is a lowercase `prompt` file with no extension placed inside the project directory. Source: https://github.com/AntonOsika/gpt-engineer",
           "last_updated": "2026-05-21",
           "source_url": "https://github.com/AntonOsika/gpt-engineer",
           "sdk_version": "gpt-engineer>=0.3"
@@ -534,12 +539,13 @@
           "framework": "metagpt",
           "framework_label": "MetaGPT",
           "language": "python",
-          "intent": "MetaGPT's SoftwareCompany runs role agents against a single product spec; the loop ends when the QA role's tests pass.",
-          "code": "import asyncio\nfrom metagpt.software_company import SoftwareCompany\nfrom metagpt.roles import (\n    ProductManager,\n    Architect,\n    Engineer,\n    QaEngineer,\n)\n\n\nasync def main():\n    company = SoftwareCompany()\n    company.hire([\n        ProductManager(),    # turns PROMPT.md into a PRD\n        Architect(),         # turns PRD into a design\n        Engineer(),          # implements against the design\n        QaEngineer(),        # runs the test gate — closes the spec loop\n    ])\n    company.invest(investment=3.0)\n\n    # The spec lives in idea (or a PROMPT.md fed in here);\n    # the loop re-runs roles until QA reports green.\n    await company.run(\n        idea=\"Build a CLI todo app per ./PROMPT.md; pytest must pass.\",\n        n_round=8,\n    )\n\n\nasyncio.run(main())",
-          "verified": false,
-          "verified_date": null,
+          "intent": "MetaGPT's Team runs role agents against a single product idea; n_round bounds the outer loop until the engineer role's output stabilises.",
+          "code": "import asyncio\nfrom metagpt.roles import (\n    Architect,\n    Engineer,\n    ProductManager,\n    ProjectManager,\n)\nfrom metagpt.team import Team\n\n\nasync def startup(idea: str):\n    company = Team()\n    company.hire(\n        [\n            ProductManager(),    # turns the idea into a PRD\n            Architect(),         # turns PRD into a design\n            ProjectManager(),    # breaks design into tasks\n            Engineer(),          # implements against the design\n        ]\n    )\n    company.invest(investment=3.0)\n    company.run_project(idea=idea)\n\n    # n_round bounds the spec-driven outer loop\n    await company.run(n_round=5)\n\n\nasyncio.run(startup(\"write a cli blackjack game\"))",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against the MetaGPT quickstart at docs.deepwisdom.ai: `from metagpt.team import Team`, `from metagpt.roles import (Architect, Engineer, ProductManager, ProjectManager)`, Team() construction, company.hire([...roles...]), company.invest(investment=3.0), company.run_project(idea=idea), and `await company.run(n_round=5)` are all shown verbatim in the documented startup example. Source: https://docs.deepwisdom.ai/main/en/guide/get_started/quickstart.html",
           "last_updated": "2026-05-21",
-          "source_url": "https://github.com/geekan/MetaGPT",
+          "source_url": "https://docs.deepwisdom.ai/main/en/guide/get_started/quickstart.html",
           "sdk_version": "metagpt>=0.8"
         }
       ]
@@ -564,11 +570,12 @@
           "language": "python",
           "intent": "GPT-Engineer reads a single human-authored `prompt` file as the spec and operates entirely against it; the `improve` mode re-runs the agent against the same spec on edits.",
           "code": "# project layout (spec-first):\n#   project/\n#     prompt           <- human-authored spec, single source of truth\n#     src/...          <- agent's output\n#\n# Authoring flow:\n#   1. write `prompt`\n#   2. `gpte project` — agent reads `prompt` and produces src/\n#   3. edit `prompt` only — never edit src/ directly\n#   4. `gpte project --improve` — agent re-runs against the same spec\n\nimport subprocess\nfrom pathlib import Path\n\nproject = Path(\"./project\")\nspec = project / \"prompt\"\nassert spec.exists(), \"spec is required before the agent runs\"\n\n# bootstrap: first run reads `prompt` and writes src/\nsubprocess.run([\"gpte\", str(project)], check=True)\n\n# subsequent runs: edit `prompt`, then re-run improve\nsubprocess.run([\"gpte\", str(project), \"--improve\"], check=True)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "source_url": "https://github.com/AntonOsika/gpt-engineer",
-          "sdk_version": "gpt-engineer>=0.3"
+          "sdk_version": "gpt-engineer>=0.3",
+          "verified_notes": "Verified against https://github.com/AntonOsika/gpt-engineer README and one-hop https://gpt-engineer.readthedocs.io/en/latest/quickstart.html: gpte CLI (gpte <project_dir>), human-authored prompt file (no extension) as single source of truth, and --improve flag for re-running on the same spec (docs show the long-form --improve and the -i shortcut: 'the --improve flag (shortened to -i)'). Project layout with project/prompt and src/ output is the documented workflow."
         }
       ]
     },
@@ -585,30 +592,6 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "autogpt",
-          "framework_label": "AutoGPT (classic)",
-          "language": "python",
-          "intent": "Original AutoGPT keeps a self-maintained plan and runs one tool action per cycle, updating the plan and re-injecting it.",
-          "code": "# distilled from autogpt/agents/agent.py in Significant-Gravitas/AutoGPT\n# (classic loop). The agent owns its own plan file and updates it each cycle.\n\nfrom pathlib import Path\n\nplan_file = Path(\"workspace/plan.md\")\nmax_cycles = 30\n\nif not plan_file.exists():\n    plan_file.write_text(agent.draft_plan(goal=\"Research and report on X\"))\n\nfor cycle in range(max_cycles):\n    plan = plan_file.read_text()\n    unticked = [line for line in plan.splitlines() if line.startswith(\"- [ ]\")]\n    if not unticked:\n        break\n\n    # one cycle: pick next action, run a tool, update plan\n    thought = agent.think(plan=plan, history=agent.history)\n    action = agent.choose_action(thought)\n    observation = agent.execute(action)\n\n    plan = agent.update_plan(\n        plan=plan,\n        completed=unticked[0],\n        observation=observation,\n    )\n    plan_file.write_text(plan)              # durable across cycles",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21",
-          "source_url": "https://github.com/Significant-Gravitas/AutoGPT/blob/master/classic/original_autogpt/autogpt/agents/agent.py",
-          "sdk_version": "AutoGPT classic"
-        },
-        {
-          "framework": "babyagi",
-          "framework_label": "BabyAGI",
-          "language": "python",
-          "intent": "BabyAGI keeps an in-process task list, executes the top task, then asks the LLM to add new tasks and reprioritise — the list IS the plan.",
-          "code": "# distilled from yoheinakajima/babyagi — the task list IS the plan.\nfrom collections import deque\n\nobjective = \"Research the topic and write a report\"\ntask_list: deque[dict] = deque([{\"id\": 1, \"name\": \"Draft outline\"}])\nresults_store: dict = {}\n\nwhile task_list:\n    task = task_list.popleft()\n    # 1) execute the top task\n    result = execution_agent(objective, task[\"name\"])\n    results_store[task[\"id\"]] = result\n\n    # 2) ask the LLM to create follow-up tasks based on the result\n    new_tasks = task_creation_agent(\n        objective=objective,\n        result=result,\n        task_description=task[\"name\"],\n        task_list=[t[\"name\"] for t in task_list],\n    )\n    next_id = max((t[\"id\"] for t in task_list), default=task[\"id\"]) + 1\n    for nt in new_tasks:\n        task_list.append({\"id\": next_id, \"name\": nt})\n        next_id += 1\n\n    # 3) reprioritise the remaining list\n    task_list = prioritization_agent(\n        task_list=list(task_list),\n        objective=objective,\n    )",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21",
-          "source_url": "https://github.com/yoheinakajima/babyagi",
-          "sdk_version": "babyagi (original)"
         }
       ]
     },
@@ -625,30 +608,6 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "langflow",
-          "framework_label": "Langflow",
-          "language": "json",
-          "intent": "Langflow persists a flow as a JSON `data` object with `nodes` and `edges`; each node carries a `type` and a typed `data.node.template`. The canvas is a UI projection of this file.",
-          "code": "{\n  \"data\": {\n    \"nodes\": [\n      {\n        \"id\": \"ChatInput-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\n          \"type\": \"ChatInput\",\n          \"node\": {\n            \"template\": {\n              \"input_value\": {\"type\": \"str\", \"value\": \"\"}\n            },\n            \"base_classes\": [\"Message\"]\n          }\n        }\n      },\n      {\n        \"id\": \"OpenAIModel-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\n          \"type\": \"OpenAIModel\",\n          \"node\": {\n            \"template\": {\n              \"model_name\": {\"type\": \"str\", \"value\": \"gpt-4o-mini\"},\n              \"input_value\": {\"type\": \"Message\"}\n            },\n            \"base_classes\": [\"Message\"]\n          }\n        }\n      },\n      {\n        \"id\": \"ChatOutput-1\",\n        \"type\": \"genericNode\",\n        \"data\": {\"type\": \"ChatOutput\", \"node\": {\"template\": {}}}\n      }\n    ],\n    \"edges\": [\n      {\"source\": \"ChatInput-1\",   \"target\": \"OpenAIModel-1\",\n       \"sourceHandle\": \"message\", \"targetHandle\": \"input_value\"},\n      {\"source\": \"OpenAIModel-1\", \"target\": \"ChatOutput-1\",\n       \"sourceHandle\": \"message\", \"targetHandle\": \"input_value\"}\n    ]\n  }\n}",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21",
-          "source_url": "https://docs.langflow.org/concepts-overview",
-          "sdk_version": "langflow>=1.0"
-        },
-        {
-          "framework": "flowise",
-          "framework_label": "Flowise",
-          "language": "json",
-          "intent": "Flowise persists a chatflow as `nodes` and `edges` with typed handles; AgentFlow v2 nodes (Start, LLM, Agent, Condition, End) are wired by source/target handle ids.",
-          "code": "{\n  \"nodes\": [\n    {\n      \"id\": \"startAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"startAgentflow\", \"label\": \"Start\",\n               \"inputs\": {\"startInputType\": \"chatInput\"}}\n    },\n    {\n      \"id\": \"llmAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"llmAgentflow\", \"label\": \"LLM\",\n               \"inputs\": {\"llmModel\": \"chatOpenAI\",\n                          \"llmModelConfig\": {\"modelName\": \"gpt-4o-mini\"}}}\n    },\n    {\n      \"id\": \"conditionAgentflow_0\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"conditionAgentflow\", \"label\": \"Condition\",\n               \"inputs\": {\"conditions\":\n                 [{\"value1\": \"{{ llmAgentflow_0 }}\", \"operation\": \"contains\",\n                   \"value2\": \"billing\"}]}}\n    },\n    {\n      \"id\": \"agentAgentflow_billing\",\n      \"type\": \"agentFlow\",\n      \"data\": {\"name\": \"agentAgentflow\", \"label\": \"Billing Agent\"}\n    }\n  ],\n  \"edges\": [\n    {\"source\": \"startAgentflow_0\",     \"target\": \"llmAgentflow_0\"},\n    {\"source\": \"llmAgentflow_0\",       \"target\": \"conditionAgentflow_0\"},\n    {\"source\": \"conditionAgentflow_0\", \"target\": \"agentAgentflow_billing\",\n     \"sourceHandle\": \"conditionAgentflow_0-output-0\"}\n  ]\n}",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21",
-          "source_url": "https://docs.flowiseai.com/using-flowise/agentflowv2",
-          "sdk_version": "flowise>=2.0"
         }
       ]
     }

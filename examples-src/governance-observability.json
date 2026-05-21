@@ -125,8 +125,9 @@
           "source_url": "https://burr.dagworks.io",
           "sdk_version": "burr>=0.30",
           "code": "from burr.core import action, ApplicationBuilder, State\nfrom burr.tracking import LocalTrackingClient\n\n\n@action(reads=[\"prompt\"], writes=[\"answer\", \"usage\"])\ndef call_llm(state: State, feature: str, model: str) -> State:\n    # llm_client returns response with .usage{input, output} and price()\n    resp = llm_client.complete(state[\"prompt\"], model=model)\n    return state.update(\n        answer=resp.text,\n        usage={\n            \"feature\": feature,\n            \"model\": model,\n            \"input_tokens\": resp.usage.input,\n            \"output_tokens\": resp.usage.output,\n            \"cost_usd\": price(model, resp.usage),\n        },\n    )\n\n\ntracker = LocalTrackingClient(project=\"agent-cost-obs\")\napp = (\n    ApplicationBuilder()\n    .with_actions(call_llm)\n    .with_transitions((\"call_llm\", \"call_llm\"))\n    .with_entrypoint(\"call_llm\")\n    .with_state(prompt=\"hello\")\n    .with_tracker(tracker)            # each step + usage shipped to UI\n    .with_identifiers(app_id=\"user-42\")\n    .build()\n)\napp.run(halt_after=[\"call_llm\"], inputs={\"feature\": \"chat\", \"model\": \"gpt-4o-mini\"})",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url (one hop to /reference/tracking/ and /reference/application/): `from burr.tracking import LocalTrackingClient` with constructor LocalTrackingClient(project: str, storage_dir='~/.burr', serde_kwargs=None); `from burr.core import action, ApplicationBuilder, State`; @action decorator with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker() accepts a tracker object directly (docs explicitly state LocalTrackingClient is used 'through/in conjunction with ApplicationBuilder.with_tracker()'); with_identifiers(app_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io (+ /reference/tracking/, /reference/application/)",
           "last_updated": "2026-05-21"
         }
       ]
@@ -149,12 +150,13 @@
           "framework": "burr",
           "framework_label": "Burr",
           "language": "python",
-          "intent": "Each Burr Action persists its inputs, state writes, and rationale through the tracker; the resulting per-step records are the decision log.",
-          "source_url": "https://github.com/apache/burr",
+          "intent": "Each Burr Action persists its inputs, state writes, and rationale through the built-in local tracker; the resulting per-step records are the decision log.",
+          "source_url": "https://burr.dagworks.io/reference/application/",
           "sdk_version": "burr>=0.30",
-          "code": "from burr.core import action, ApplicationBuilder, State\nfrom burr.tracking import LocalTrackingClient\n\n\n@action(reads=[\"question\"], writes=[\"rationale\", \"action\"])\ndef deliberate(state: State) -> State:\n    thought = llm.think(state[\"question\"])      # chain-of-thought\n    return state.update(rationale=thought.text, action=thought.next_action)\n\n\n@action(reads=[\"action\"], writes=[\"result\"])\ndef execute(state: State) -> State:\n    return state.update(result=run_tool(state[\"action\"]))\n\n\ntracker = LocalTrackingClient(project=\"decision-log\")\napp = (\n    ApplicationBuilder()\n    .with_actions(deliberate, execute)\n    .with_transitions((\"deliberate\", \"execute\"))\n    .with_entrypoint(\"deliberate\")\n    .with_state(question=\"summarise the deal\")\n    .with_tracker(tracker)            # rationale + action both indexed\n    .with_identifiers(app_id=\"req-987\")\n    .build()\n)\napp.run(halt_after=[\"execute\"])",
-          "verified": false,
-          "verified_date": null,
+          "code": "from burr.core import action, ApplicationBuilder, State\n\n\n@action(reads=[\"question\"], writes=[\"rationale\", \"action\"])\ndef deliberate(state: State) -> State:\n    thought = llm.think(state[\"question\"])      # chain-of-thought\n    return state.update(rationale=thought.text, action=thought.next_action)\n\n\n@action(reads=[\"action\"], writes=[\"result\"])\ndef execute(state: State) -> State:\n    return state.update(result=run_tool(state[\"action\"]))\n\n\napp = (\n    ApplicationBuilder()\n    .with_actions(deliberate, execute)\n    .with_transitions((\"deliberate\", \"execute\"))\n    .with_entrypoint(\"deliberate\")\n    .with_state(question=\"summarise the deal\")\n    .with_tracker(\"local\", project=\"decision-log\")   # rationale + action both indexed\n    .with_identifiers(app_id=\"req-987\")\n    .build()\n)\napp.run(halt_after=[\"execute\"], inputs={})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core import action, ApplicationBuilder, State` (Core Imports section lists action, State, ApplicationBuilder from burr.core); @action with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker(tracker='local', project='default', ...) signature with 'local' string default; with_identifiers(app_id=..., partition_key=..., sequence_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io/reference/application/",
           "last_updated": "2026-05-21"
         },
         {
@@ -165,8 +167,9 @@
           "source_url": "https://github.com/DAGWorks-Inc/hamilton",
           "sdk_version": "sf-hamilton>=1.80",
           "code": "# decision_dag.py — functions are nodes; their args declare dependencies.\ndef rationale(question: str) -> str:\n    return llm.think(question).text\n\n\ndef action(rationale: str) -> dict:\n    return llm.pick_action(rationale)\n\n\ndef result(action: dict) -> str:\n    return run_tool(action)\n\n\n# driver.py\nfrom hamilton import driver\nfrom hamilton_sdk.adapters import HamiltonTracker\nimport decision_dag\n\ntracker = HamiltonTracker(\n    username=\"ops\",\n    project_id=1,\n    dag_name=\"agent-decision-log\",\n)\ndr = (\n    driver.Builder()\n    .with_modules(decision_dag)\n    .with_adapters(tracker)             # every node's IO is logged\n    .build()\n)\ndr.execute([\"result\"], inputs={\"question\": \"summarise the deal\"})",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from hamilton import driver`, `from hamilton_sdk.adapters import HamiltonTracker`, HamiltonTracker(username=..., project_id=..., dag_name=...) constructor kwargs, driver.Builder().with_modules(...).with_adapters(tracker).build() chain, dr.execute([...], inputs={...}). README contains the literal pattern. Module-level functions whose args declare dependencies is Hamilton's documented core idiom. Source: https://github.com/DAGWorks-Inc/hamilton",
           "last_updated": "2026-05-21"
         }
       ]
@@ -190,11 +193,12 @@
           "framework_label": "Temporal",
           "language": "python",
           "intent": "Temporal records every workflow step in an Event History; on worker restart the history is replayed to deterministically rebuild local state.",
-          "source_url": "https://docs.temporal.io/workflows",
+          "source_url": "https://learn.temporal.io/getting_started/python/hello_world_in_python/",
           "sdk_version": "temporalio>=1.5",
           "code": "from datetime import timedelta\nfrom temporalio import workflow, activity\nfrom temporalio.client import Client\nfrom temporalio.worker import Worker\n\n\n@activity.defn\nasync def fetch(url: str) -> str:\n    return http.get(url).text\n\n\n@workflow.defn\nclass ResearchWorkflow:\n    @workflow.run\n    async def run(self, topic: str) -> str:\n        # Local variables ARE the snapshot — Temporal replays\n        # the event history on restart to rebuild them.\n        page = await workflow.execute_activity(\n            fetch,\n            f\"https://example.com/?q={topic}\",\n            start_to_close_timeout=timedelta(seconds=30),\n        )\n        summary = await workflow.execute_activity(\n            \"summarise\",\n            page,\n            start_to_close_timeout=timedelta(seconds=60),\n        )\n        return summary\n\n\nasync def main():\n    client = await Client.connect(\"localhost:7233\")\n    async with Worker(client, task_queue=\"agents\", workflows=[ResearchWorkflow], activities=[fetch]):\n        result = await client.execute_workflow(\n            ResearchWorkflow.run,\n            \"persistent agents\",\n            id=\"research-2026-05-21-001\",\n            task_queue=\"agents\",\n        )\n        print(result)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: tutorial shows full Python SDK code with `from temporalio import workflow`, `from temporalio import activity`, `from temporalio.client import Client`, `from temporalio.worker import Worker`, `@workflow.defn` class decorator, `@workflow.run` method decorator, `@activity.defn` function decorator, `workflow.execute_activity(say_hello, name, start_to_close_timeout=timedelta(seconds=5))` with start_to_close_timeout kwarg, `Client.connect(\"localhost:7233\")`, `Worker(client, task_queue=..., workflows=[...], activities=[...])`, and `client.execute_workflow(SayHello.run, \"Temporal\", id=\"hello-workflow\", task_queue=\"hello-task-queue\")` with id= and task_queue= kwargs. Every named API element in the example matches the tutorial's code samples verbatim. Source: https://learn.temporal.io/getting_started/python/hello_world_in_python/",
           "last_updated": "2026-05-21"
         },
         {
@@ -202,11 +206,12 @@
           "framework_label": "Restack",
           "language": "python",
           "intent": "Restack wraps Temporal: @workflow.defn / @function.defn produce a durable workflow whose state survives restarts via the underlying engine's snapshots.",
-          "source_url": "https://docs.restack.io/architecture",
+          "source_url": "https://docs.restack.io/libraries/python/workflows",
           "sdk_version": "restack-ai>=0.1",
-          "code": "from restack_ai.function import function\nfrom restack_ai.workflow import workflow\n\n\n@function.defn()\nasync def fetch(url: str) -> str:\n    return http.get(url).text\n\n\n@function.defn()\nasync def summarise(page: str) -> str:\n    return llm.complete(f\"Summarise:\\n{page}\")\n\n\n@workflow.defn()\nasync def research_workflow(topic: str) -> str:\n    # Each await is a durable checkpoint; the engine snapshots\n    # workflow state between steps so a crash mid-flow resumes\n    # at the next awaited function rather than restarting.\n    page = await fetch(f\"https://example.com/?q={topic}\")\n    return await summarise(page)\n\n\n# `uv run dev` boots the Restack engine + worker; runs are\n# launched from the Developer UI or REST API and survive restarts.",
-          "verified": false,
-          "verified_date": null,
+          "code": "from datetime import timedelta\nfrom pydantic import BaseModel\nfrom restack_ai.workflow import workflow, import_functions\n\nwith import_functions():\n    from src.workflows.functions import fetch, summarise\n\n\nclass ResearchInput(BaseModel):\n    topic: str\n\n\n@workflow.defn()\nclass ResearchWorkflow:\n    @workflow.run\n    async def run(self, workflow_input: ResearchInput) -> str:\n        # Each workflow.step is a durable checkpoint; the engine\n        # snapshots workflow state between steps so a crash mid-flow\n        # resumes at the next awaited step rather than restarting.\n        page = await workflow.step(\n            fetch,\n            workflow_input,\n            start_to_close_timeout=timedelta(seconds=30),\n        )\n        return await workflow.step(\n            summarise,\n            page,\n            start_to_close_timeout=timedelta(seconds=60),\n        )",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: imports `from restack_ai.workflow import workflow, import_functions`; `with import_functions(): from src.workflows.functions import ...` context manager pattern; Pydantic BaseModel for workflow input; `@workflow.defn()` class decorator; `@workflow.run` method decorator; `await workflow.step(fn, input, start_to_close_timeout=timedelta(...))` with start_to_close_timeout kwarg. Every named API element matches the documented AutomatedWorkflow example on the page. Source: https://docs.restack.io/libraries/python/workflows",
           "last_updated": "2026-05-21"
         }
       ]
@@ -277,12 +282,13 @@
           "framework": "burr",
           "framework_label": "Burr",
           "language": "python",
-          "intent": "Each Burr Action writes the fields that constitute the lineage record into state; the tracker streams them keyed by app_id so the run history IS the lineage table.",
-          "source_url": "https://burr.dagworks.io",
+          "intent": "Each Burr Action writes the fields that constitute the lineage record into state; the built-in local tracker streams them keyed by app_id so the run history IS the lineage table.",
+          "source_url": "https://burr.dagworks.io/reference/application/",
           "sdk_version": "burr>=0.30",
-          "code": "from hashlib import sha256\nfrom burr.core import action, ApplicationBuilder, State\nfrom burr.tracking import LocalTrackingClient\n\n\n@action(reads=[\"question\"], writes=[\"docs\", \"retrieved_ids\"])\ndef retrieve(state: State) -> State:\n    docs = retriever.search(state[\"question\"])\n    return state.update(docs=docs, retrieved_ids=[d.id for d in docs])\n\n\n@action(reads=[\"question\", \"docs\"], writes=[\"answer\", \"lineage\"])\ndef answer(state: State, prompt_tpl: str, model: str) -> State:\n    prompt = prompt_tpl.format(q=state[\"question\"], docs=state[\"docs\"])\n    resp = llm.complete(prompt, model=model)\n    return state.update(\n        answer=resp.text,\n        lineage={\n            \"prompt_hash\": sha256(prompt_tpl.encode()).hexdigest(),\n            \"model\": model,\n            \"retrieved_ids\": state[\"retrieved_ids\"],\n        },\n    )\n\n\napp = (\n    ApplicationBuilder()\n    .with_actions(retrieve, answer)\n    .with_transitions((\"retrieve\", \"answer\"))\n    .with_entrypoint(\"retrieve\")\n    .with_state(question=\"What changed in v2?\")\n    .with_tracker(LocalTrackingClient(project=\"lineage\"))\n    .with_identifiers(app_id=\"req-2026-05-21-001\")  # join key\n    .build()\n)\napp.run(halt_after=[\"answer\"], inputs={\"prompt_tpl\": \"Q: {q}\\nDocs: {docs}\", \"model\": \"gpt-4o-mini\"})",
-          "verified": false,
-          "verified_date": null,
+          "code": "from hashlib import sha256\nfrom burr.core import action, ApplicationBuilder, State\n\n\n@action(reads=[\"question\"], writes=[\"docs\", \"retrieved_ids\"])\ndef retrieve(state: State) -> State:\n    docs = retriever.search(state[\"question\"])\n    return state.update(docs=docs, retrieved_ids=[d.id for d in docs])\n\n\n@action(reads=[\"question\", \"docs\"], writes=[\"answer\", \"lineage\"])\ndef answer(state: State, prompt_tpl: str, model: str) -> State:\n    prompt = prompt_tpl.format(q=state[\"question\"], docs=state[\"docs\"])\n    resp = llm.complete(prompt, model=model)\n    return state.update(\n        answer=resp.text,\n        lineage={\n            \"prompt_hash\": sha256(prompt_tpl.encode()).hexdigest(),\n            \"model\": model,\n            \"retrieved_ids\": state[\"retrieved_ids\"],\n        },\n    )\n\n\napp = (\n    ApplicationBuilder()\n    .with_actions(retrieve, answer)\n    .with_transitions((\"retrieve\", \"answer\"))\n    .with_entrypoint(\"retrieve\")\n    .with_state(question=\"What changed in v2?\")\n    .with_tracker(\"local\", project=\"lineage\")\n    .with_identifiers(app_id=\"req-2026-05-21-001\")   # join key\n    .build()\n)\napp.run(halt_after=[\"answer\"], inputs={\"prompt_tpl\": \"Q: {q}\\nDocs: {docs}\", \"model\": \"gpt-4o-mini\"})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core import action, ApplicationBuilder, State` (Core Imports section); @action with reads= and writes= kwargs; State and state.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker(tracker='local', project='default', ...) signature documents the 'local' string form with project= kwarg; with_identifiers(app_id=..., partition_key=..., sequence_id=...) accepts app_id; Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io/reference/application/",
           "last_updated": "2026-05-21"
         },
         {
@@ -293,8 +299,9 @@
           "source_url": "https://github.com/DAGWorks-Inc/hamilton",
           "sdk_version": "sf-hamilton>=1.80",
           "code": "# lineage_dag.py — each fact becomes a node, so each fact is tracked.\nfrom hashlib import sha256\n\n\ndef prompt_hash(prompt_template: str) -> str:\n    return sha256(prompt_template.encode()).hexdigest()\n\n\ndef retrieved(question: str) -> list:\n    return retriever.search(question)\n\n\ndef retrieved_ids(retrieved: list) -> list:\n    return [d.id for d in retrieved]\n\n\ndef answer(question: str, retrieved: list, model_id: str) -> str:\n    return llm.complete(format_prompt(question, retrieved), model=model_id).text\n\n\n# driver.py\nfrom hamilton import driver\nfrom hamilton_sdk.adapters import HamiltonTracker\nimport lineage_dag\n\ndr = (\n    driver.Builder()\n    .with_modules(lineage_dag)\n    .with_adapters(HamiltonTracker(username=\"ops\", project_id=1, dag_name=\"lineage\"))\n    .build()\n)\ndr.execute(\n    [\"answer\", \"prompt_hash\", \"retrieved_ids\"],\n    inputs={\"question\": \"What changed in v2?\", \"prompt_template\": \"Q: {q}\", \"model_id\": \"gpt-4o-mini\"},\n)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from hamilton import driver`, `from hamilton_sdk.adapters import HamiltonTracker`, HamiltonTracker(username=..., project_id=..., dag_name=...) constructor kwargs, driver.Builder().with_modules(...).with_adapters(tracker).build() chain, dr.execute([nodes], inputs={...}). Module-level functions whose parameter names declare dependencies is the documented Hamilton idiom. Source: https://github.com/DAGWorks-Inc/hamilton",
           "last_updated": "2026-05-21"
         }
       ]
@@ -385,8 +392,9 @@
           "source_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
           "sdk_version": "langgraph>=0.2",
           "code": "from operator import add\nfrom typing import Annotated\nfrom typing_extensions import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\n\n\nclass S(TypedDict):\n    foo: str\n    bar: Annotated[list[str], add]\n\n\ndef node_a(state: S):\n    return {\"foo\": \"a\", \"bar\": [\"a\"]}\n\n\ndef node_b(state: S):\n    return {\"foo\": \"b\", \"bar\": [\"b\"]}\n\n\ng = StateGraph(S)\ng.add_node(node_a); g.add_node(node_b)\ng.add_edge(START, \"node_a\"); g.add_edge(\"node_a\", \"node_b\"); g.add_edge(\"node_b\", END)\ngraph = g.compile(checkpointer=InMemorySaver())\n\ncfg = {\"configurable\": {\"thread_id\": \"t-1\"}}\ngraph.invoke({\"foo\": \"\", \"bar\": []}, cfg)\n\n# Time-travel: list checkpoints, pick one before node_b, replay forward.\nhistory = list(graph.get_state_history(cfg))\nbefore_b = next(s for s in history if s.next == (\"node_b\",))\n\nbranch_cfg = {\n    \"configurable\": {\n        \"thread_id\": \"t-1\",\n        \"checkpoint_id\": before_b.config[\"configurable\"][\"checkpoint_id\"],\n    }\n}\ngraph.invoke(None, branch_cfg)        # re-runs node_b only",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: imports `from langgraph.graph import StateGraph, START, END`, `from langgraph.checkpoint.memory import InMemorySaver`, `from operator import add`, `from typing import Annotated`, `from typing_extensions import TypedDict`; TypedDict state with `Annotated[list[str], add]` reducer; workflow.add_node / add_edge; workflow.compile(checkpointer=InMemorySaver()); config = {'configurable': {'thread_id': ...}}; graph.invoke(state, config); graph.get_state_history(config) returning StateSnapshot objects with .next and .config; replay via {'configurable': {'thread_id': ..., 'checkpoint_id': ...}}; graph.invoke(None, branch_cfg) to re-run from a checkpoint. All elements documented on the cited page. Source: https://docs.langchain.com/oss/python/langgraph/persistence",
           "last_updated": "2026-05-21"
         },
         {
@@ -397,8 +405,9 @@
           "source_url": "https://burr.dagworks.io/concepts/state-persistence/",
           "sdk_version": "burr>=0.30",
           "code": "from burr.core import action, ApplicationBuilder, State\nfrom burr.core.persistence import SQLLitePersister\n\n\n@action(reads=[\"history\"], writes=[\"history\"])\ndef step(state: State) -> State:\n    return state.update(history=state[\"history\"] + [llm.next_thought()])\n\n\npersister = SQLLitePersister.from_values(db_path=\".burr.db\", table_name=\"runs\")\npersister.initialize()\n\n# Original run.\noriginal_id = \"run-A\"\napp = (\n    ApplicationBuilder()\n    .with_actions(step)\n    .with_transitions((\"step\", \"step\"))\n    .with_entrypoint(\"step\")\n    .with_state(history=[])\n    .with_state_persister(persister)\n    .with_identifiers(app_id=original_id)\n    .build()\n)\nfor _ in range(3):\n    app.step()\n\n# Replay: fork from run-A at sequence 1, re-run forward as run-B.\nbranch = (\n    ApplicationBuilder()\n    .with_actions(step)\n    .with_transitions((\"step\", \"step\"))\n    .initialize_from(\n        persister,\n        resume_at_next_action=True,\n        default_entrypoint=\"step\",\n        default_state={\"history\": []},\n        fork_from_app_id=original_id,\n        fork_from_sequence_id=1,\n    )\n    .with_state_persister(persister)\n    .with_identifiers(app_id=\"run-B\")\n    .build()\n)\nfor _ in range(3):\n    branch.step()",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed at source_url: `from burr.core.persistence import SQLLitePersister` (double-L spelling, matching docs); SQLLitePersister.from_values(db_path=..., table_name=...); persister.initialize(); ApplicationBuilder().with_state_persister(state_persister); ApplicationBuilder().initialize_from(state_persister, resume_at_next_action=True, default_state={...}, default_entrypoint=...); fork_from_app_id and fork_from_sequence_id parameters documented as identifying the application and sequence to fork from. @action(reads=, writes=), state.update(...), with_actions/with_transitions/with_entrypoint/with_state/with_identifiers/build are standard Burr API used consistently with the persistence concept page's chatbot example. Source: https://burr.dagworks.io/concepts/state-persistence/",
           "last_updated": "2026-05-21"
         }
       ]

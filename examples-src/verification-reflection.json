@@ -41,8 +41,9 @@
           "source_url": "https://dspy.ai/learn/optimization/optimizers/",
           "sdk_version": "dspy>=2.5",
           "code": "import dspy\n\n# 1. Define the program and a scorer (this is the reward signal for BoN).\nclass AnswerQA(dspy.Signature):\n    \"\"\"Answer the question concisely.\"\"\"\n    question: str = dspy.InputField()\n    answer: str = dspy.OutputField()\n\n\nprogram = dspy.Predict(AnswerQA)\n\n\ndef exact_match(example, pred, trace=None):\n    return float(pred.answer.strip().lower() == example.answer.strip().lower())\n\n\n# 2. BootstrapFewShotWithRandomSearch samples num_candidate_programs\n#    candidate programs and selects the best by metric — best-of-N at\n#    the prompt-program level rather than at the single-output level.\noptimizer = dspy.BootstrapFewShotWithRandomSearch(\n    metric=exact_match,\n    max_bootstrapped_demos=4,\n    max_labeled_demos=4,\n    num_candidate_programs=10,\n    num_threads=4,\n)\n\ntrainset = [\n    dspy.Example(question=\"Capital of France?\", answer=\"Paris\").with_inputs(\"question\"),\n    # ...\n]\nbest_program = optimizer.compile(program, trainset=trainset)\nprint(best_program(question=\"Capital of Germany?\").answer)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against https://dspy.ai/learn/optimization/optimizers/. The page documents dspy.BootstrapFewShotWithRandomSearch with the exact kwargs used here: metric, max_bootstrapped_demos, max_labeled_demos, num_candidate_programs, num_threads. The compile API ('teleprompter.compile(YOUR_PROGRAM_HERE, trainset=YOUR_TRAINSET_HERE)') is confirmed verbatim. dspy.Predict, dspy.Signature, dspy.InputField, dspy.OutputField, dspy.Example, and .with_inputs() are all documented core DSPy elements (one hop, e.g. https://dspy.ai/learn/programming/signatures/). The example's intent (sampling num_candidate_programs candidate prompt programs and selecting top-1 by metric — best-of-N at the prompt-program level) matches the described behaviour.",
           "last_updated": "2026-05-21"
         }
       ]
@@ -204,18 +205,6 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
-        },
-        {
-          "framework": "openclaw-rl",
-          "framework_label": "OpenClaw-RL",
-          "language": "python",
-          "intent": "OpenClaw-RL's Binary RL (GRPO) trains a Process Reward Model that scores individual turns; the trainer turns those step rewards into a PPO-style signal.",
-          "source_url": "https://github.com/Gen-Verse/OpenClaw-RL",
-          "sdk_version": "openclaw-rl@main",
-          "code": "# Conceptual sketch of OpenClaw-RL's PRM-driven training loop.\n# The framework launches 4 async components: agent serving, rollout,\n# PRM/judge evaluation, and policy training.\n#\n# Concrete launch (from the repo README):\n#     cd slime\n#     bash ../openclaw-combine/run_qwen3_4b_openclaw_topk_select.sh\n#\n# Conceptually, the PRM is wired in as follows:\nfrom openclaw_rl import PRM, RolloutCollector, GRPOTrainer  # conceptual\n\nprm = PRM.from_pretrained(\"openclaw/qwen3-4b-prm\")\n\nrollouts = RolloutCollector(\n    policy_endpoint=\"http://localhost:30000/v1\",  # OpenAI-compatible\n    n_samples_per_prompt=8,\n)\n\ntrainer = GRPOTrainer(\n    policy=\"qwen3-4b\",\n    reward_fn=lambda turns: [prm.score_turn(t) for t in turns],  # per-step\n)\n\nfor batch in rollouts.stream():\n    # Each turn gets a PRM score; GRPO uses them as scalar rewards.\n    step_rewards = trainer.reward_fn(batch.turns)\n    trainer.step(batch, step_rewards)",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
         }
       ]
     },
@@ -289,8 +278,9 @@
           "source_url": "https://www.langchain.com/blog/reflection-agents",
           "sdk_version": "langgraph>=0.2",
           "code": "from typing import List\nfrom langchain_core.messages import BaseMessage, HumanMessage, AIMessage\nfrom langchain_openai import ChatOpenAI\nfrom langgraph.graph import END, MessageGraph\n\nmodel = ChatOpenAI(model=\"gpt-4o-mini\")\n\nGEN_PROMPT = \"You are an essayist. Draft or revise the essay.\"\nREF_PROMPT = (\n    \"You are a senior teacher reviewing the essay. List concrete \"\n    \"improvements. If there are none, reply: NO MORE ISSUES.\"\n)\n\n\ndef generation_node(state: List[BaseMessage]) -> List[BaseMessage]:\n    return [model.invoke([HumanMessage(content=GEN_PROMPT)] + state)]\n\n\ndef reflection_node(state: List[BaseMessage]) -> List[BaseMessage]:\n    # Treat last AI message as the draft; ask the SAME model to critique.\n    cls_map = {AIMessage: HumanMessage, HumanMessage: AIMessage}\n    translated = [HumanMessage(content=REF_PROMPT)] + [\n        cls_map[type(m)](content=m.content) for m in state[1:]\n    ]\n    res = model.invoke(translated)\n    return [HumanMessage(content=res.content)]\n\n\ndef should_continue(state: List[BaseMessage]):\n    if len(state) > 6:\n        return END\n    if \"NO MORE ISSUES\" in state[-1].content.upper():\n        return END\n    return \"reflect\"\n\n\nbuilder = MessageGraph()\nbuilder.add_node(\"generate\", generation_node)\nbuilder.add_node(\"reflect\", reflection_node)\nbuilder.set_entry_point(\"generate\")\nbuilder.add_conditional_edges(\"generate\", should_continue)\nbuilder.add_edge(\"reflect\", \"generate\")\ngraph = builder.compile()",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against https://www.langchain.com/blog/reflection-agents (LangChain blog: 'Reflection Agents'). Page directly shows MessageGraph usage with builder.add_node/set_entry_point/add_conditional_edges/add_edge and graph.compile(), and END import from langgraph.graph. The reflection-agent recipe pattern (generate node + reflect node, same model, fixed step cap, role-swap of AI/Human messages for critic prompt) is described on the page. langchain_core.messages imports (BaseMessage, HumanMessage, AIMessage) confirmed via the linked reflection notebook (one hop). ChatOpenAI from langchain_openai and the Runnable .invoke() method are standard LangChain APIs referenced in the same article context.",
           "last_updated": "2026-05-21"
         },
         {
@@ -301,8 +291,9 @@
           "source_url": "https://python.useinstructor.com/concepts/patching/",
           "sdk_version": "instructor>=1.5",
           "code": "import instructor\nfrom pydantic import BaseModel, field_validator\n\n\nclass Email(BaseModel):\n    subject: str\n    body: str\n\n    @field_validator(\"body\")\n    @classmethod\n    def under_80_words(cls, v: str) -> str:\n        if len(v.split()) > 80:\n            raise ValueError(\"body must be 80 words or fewer; tighten it\")\n        return v\n\n\nclient = instructor.from_provider(\"openai/gpt-4o-mini\")\n\n# max_retries = up to N self-refine passes. On each ValidationError the\n# same model is re-prompted with the validator's message — generate,\n# feedback (validator), refine, all in the same provider.\nemail = client.create(\n    response_model=Email,\n    max_retries=4,\n    messages=[\n        {\"role\": \"user\", \"content\": \"Draft a refund-approval email for order #42.\"}\n    ],\n)\nprint(email.subject, email.body)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against https://python.useinstructor.com/concepts/patching/. Page documents instructor.from_provider (with the exact 'openai/gpt-4o-mini' example), client.create, response_model kwarg ('A Pydantic model or type that defines the expected output structure'), max_retries kwarg ('Number of retry attempts if validation fails (default: 0)'), and messages kwarg in code examples. The self-refine behaviour on Pydantic ValidationError ('Validates responses... Retries with validation feedback if needed') is explicit. Pydantic BaseModel/field_validator are upstream Pydantic v2 APIs.",
           "last_updated": "2026-05-21"
         },
         {
@@ -313,8 +304,9 @@
           "source_url": "https://dspy.ai/learn/optimization/optimizers/",
           "sdk_version": "dspy>=2.5",
           "code": "import dspy\n\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\n\n\nclass Draft(dspy.Signature):\n    \"\"\"Write a concise answer to the question.\"\"\"\n    question: str = dspy.InputField()\n    answer: str = dspy.OutputField()\n\n\nbase = dspy.Predict(Draft)\n\n\ndef concision_reward(args, pred) -> float:\n    return 1.0 if len(pred.answer.split()) <= 60 else 0.0\n\n\n# dspy.Refine: same model, generate -> reward -> refine, up to N tries.\nrefiner = dspy.Refine(\n    module=base,\n    N=4,\n    reward_fn=concision_reward,\n    threshold=1.0,\n)\n\nresult = refiner(question=\"Summarise self-refine in one paragraph.\")\nprint(result.answer)",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "dspy.Refine is documented one hop from the cited optimizers page at https://dspy.ai/api/modules/Refine/, with the exact constructor params used here: module (Module), N (int), reward_fn (Callable), threshold (float). dspy.configure and dspy.LM appear in code examples on the cited optimizers page. dspy.Signature, dspy.InputField, dspy.OutputField are documented at https://dspy.ai/learn/programming/signatures/ (linked from the learn section). dspy.Predict is referenced in the optimizers API menu. Behavioural description ('runs the provided module multiple times... selects either the first prediction that exceeds the specified threshold or the one with the highest reward') matches the intent claim about same-model generate/reward/refine.",
           "last_updated": "2026-05-21"
         }
       ]

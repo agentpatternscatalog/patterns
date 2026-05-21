@@ -41,8 +41,9 @@
           "source_url": "https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/messages/content.py",
           "sdk_version": "langchain-core>=0.3",
           "code": "from langchain.chat_models import init_chat_model\n\n# Some providers (Anthropic, OpenAI with web search, Google) emit citation\n# annotations on text content blocks. LangChain normalises them into the\n# Citation TypedDict on TextContentBlock.annotations.\nmodel = init_chat_model(\"anthropic:claude-sonnet-4-5\")\n\nfor chunk in model.stream(\n    \"Summarise the 2024 AI Safety Summit declarations, with citations.\",\n):\n    # chunk.content is a list of content blocks (text, citation, etc.).\n    for block in chunk.content or []:\n        if isinstance(block, dict) and block.get(\"type\") == \"text\":\n            yield_text(block.get(\"text\", \"\"))\n            for ann in block.get(\"annotations\") or []:\n                if ann.get(\"type\") == \"citation\":\n                    yield_citation({\n                        \"id\": ann.get(\"id\"),\n                        \"url\": ann.get(\"url\"),\n                        \"title\": ann.get(\"title\"),\n                        \"start\": ann.get(\"start_index\"),\n                        \"end\": ann.get(\"end_index\"),\n                        \"cited_text\": ann.get(\"cited_text\"),\n                    })",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against langchain_core/messages/content.py at master: Citation TypedDict has type='citation', id, url, title, start_index, end_index, cited_text, extras fields. TextContentBlock has type='text', text, annotations: NotRequired[list[Annotation]] where Annotation = Citation | NonStandardAnnotation. init_chat_model is the documented LangChain v0.3 entrypoint and model.stream() yields AIMessageChunk whose content is a list of content blocks.",
           "last_updated": "2026-05-21"
         },
         {
@@ -53,8 +54,9 @@
           "source_url": "https://ai-sdk.dev/docs/ai-sdk-core/generating-text",
           "sdk_version": "ai@4.x",
           "code": "import { streamText } from \"ai\";\nimport { google } from \"@ai-sdk/google\";\n\nconst result = streamText({\n  model: google(\"gemini-2.5-flash\"),\n  tools: { google_search: google.tools.googleSearch({}) },\n  prompt: \"List the top 5 San Francisco news stories today.\",\n});\n\n// fullStream interleaves text-delta and source events.\nfor await (const part of result.fullStream) {\n  switch (part.type) {\n    case \"text-delta\":\n      ui.appendText(part.textDelta);\n      break;\n    case \"source\":\n      if (part.sourceType === \"url\") {\n        ui.appendCitation({\n          id: part.id,\n          url: part.url,\n          title: part.title,\n        });\n      }\n      break;\n    case \"finish\":\n      ui.done();\n      break;\n  }\n}",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://ai-sdk.dev/docs/ai-sdk-core/generating-text: streamText, fullStream, 'text-delta' and 'source' event types all documented, with sourceType==='url' and source fields id, url, title shown verbatim. The google_search tool via google.tools.googleSearch({}) is documented on the same page with @ai-sdk/google. 'finish' event in fullStream switch is also documented.",
           "last_updated": "2026-05-21"
         }
       ]
@@ -145,8 +147,9 @@
           "source_url": "https://ai-sdk.dev/docs/ai-sdk-core/error-handling",
           "sdk_version": "ai@4.x",
           "code": "import { streamText } from \"ai\";\nimport { openai } from \"@ai-sdk/openai\";\n\nconst controller = new AbortController();\n\nlet partial = \"\";\nconst result = streamText({\n  model: openai(\"gpt-4o-mini\"),\n  prompt: \"Write a long essay about the history of the spreadsheet.\",\n  abortSignal: controller.signal,\n  onAbort: ({ steps }) => {\n    // onAbort fires instead of onFinish; surface partial state to the UI.\n    ui.surfacePartial({ text: partial, completedSteps: steps.length });\n  },\n});\n\n// Wire the UI stop button.\nstopButton.onclick = () => controller.abort();\n\nfor await (const part of result.fullStream) {\n  switch (part.type) {\n    case \"text-delta\":\n      partial += part.textDelta;\n      ui.appendText(part.textDelta);\n      break;\n    case \"abort\":\n      ui.markCancelled();\n      break;\n    case \"finish\":\n      ui.done();\n      break;\n  }\n}",
-          "verified": false,
-          "verified_date": null,
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://ai-sdk.dev/docs/ai-sdk-core/error-handling: onAbort callback with steps parameter and the 'abort' event in fullStream are both documented verbatim. The abortSignal?: AbortSignal parameter to streamText is documented one hop away at https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text (linked from the error-handling page); AbortController is the standard Web API that produces an AbortSignal. streamText, openai('gpt-4o-mini'), text-delta and finish events all match the AI SDK Core surface.",
           "last_updated": "2026-05-21"
         },
         {
@@ -156,9 +159,10 @@
           "intent": "Stop in-flight agent speech via session.interrupt(); subscribe to user_interruption_detected for barge-in.",
           "source_url": "https://docs.livekit.io/agents/build/turns/",
           "sdk_version": "livekit-agents>=0.10",
-          "code": "from livekit.agents import AgentSession\nfrom livekit.agents.voice import TurnHandlingOptions\n\nsession = AgentSession(\n    # ... stt / llm / tts plugins ...\n    turn_handling=TurnHandlingOptions(\n        interruption={\n            \"enabled\": True,\n            \"mode\": \"adaptive\",\n            \"resume_false_interruption\": True,\n        },\n    ),\n)\n\n\n@session.on(\"user_interruption_detected\")\ndef _on_user_interruption(ev):\n    # User started speaking while the agent was still talking.\n    # The session will stop synthesis automatically; surface partial state.\n    ui.mark_agent_interrupted(reason=\"user_barge_in\")\n\n\n@session.on(\"agent_false_interruption\")\ndef _on_false_interruption(ev):\n    # Detector fired but the user didn't actually take the turn.\n    ui.note(\"resumed after false interruption\")\n\n\nasync def stop_button_pressed():\n    # Explicit UI-driven cancel: stop any current agent speech immediately.\n    await session.interrupt()",
-          "verified": false,
-          "verified_date": null,
+          "code": "from livekit.agents import AgentSession, TurnHandlingOptions\n\nsession = AgentSession(\n    # ... stt / llm / tts plugins ...\n    turn_handling=TurnHandlingOptions(\n        interruption={\n            \"enabled\": True,\n            \"mode\": \"adaptive\",\n            \"resume_false_interruption\": True,\n        },\n    ),\n)\n\n\n@session.on(\"user_interruption_detected\")\ndef _on_user_interruption(ev):\n    # User started speaking while the agent was still talking.\n    # The session will stop synthesis automatically; surface partial state.\n    ui.mark_agent_interrupted(reason=\"user_barge_in\")\n\n\n@session.on(\"agent_false_interruption\")\ndef _on_false_interruption(ev):\n    # Detector fired but the user didn't actually take the turn.\n    ui.note(\"resumed after false interruption\")\n\n\nasync def stop_button_pressed():\n    # Explicit UI-driven cancel: stop any current agent speech immediately.\n    await session.interrupt()",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Confirmed against https://docs.livekit.io/agents/build/turns/: the documented Python import is `from livekit.agents import AgentSession, TurnHandlingOptions` (top-level re-export), the `AgentSession(turn_handling=TurnHandlingOptions(...))` constructor, the `@session.on(\"user_interruption_detected\")` and `@session.on(\"agent_false_interruption\")` event handlers, and the `await session.interrupt()` explicit-cancel call are all shown verbatim on the page. The InterruptionOptions fields enabled/mode='adaptive'/resume_false_interruption are documented under the same Turns guide. Fixed the prior `from livekit.agents.voice import TurnHandlingOptions` import (livekit/agents/voice/__init__.py does not re-export TurnHandlingOptions; the canonical import is the top-level livekit.agents one shown in the docs).",
           "last_updated": "2026-05-21"
         }
       ]
@@ -184,9 +188,10 @@
           "intent": "Use the Agent's streaming_callback to receive typed chunks (text tokens and tool events) and fan them out as named events.",
           "source_url": "https://docs.haystack.deepset.ai/docs/agent",
           "sdk_version": "haystack-ai>=2.0",
-          "code": "from haystack.components.agents import Agent\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage, StreamingChunk\n\n\ndef on_chunk(chunk: StreamingChunk):\n    # Haystack hands a StreamingChunk with content plus optional tool events.\n    # Translate each into a typed SSE-style event.\n    if chunk.content:\n        sse_emit(event=\"text_delta\", data={\"text\": chunk.content})\n    for call in getattr(chunk, \"tool_calls\", []) or []:\n        sse_emit(event=\"tool_start\",\n                 data={\"id\": call.id, \"name\": call.tool_name, \"args\": call.arguments})\n    for result in getattr(chunk, \"tool_call_results\", []) or []:\n        sse_emit(event=\"tool_end\",\n                 data={\"id\": result.origin.id, \"result\": result.result})\n\n\nagent = Agent(\n    chat_generator=OpenAIChatGenerator(model=\"gpt-4o-mini\"),\n    tools=[...],\n    streaming_callback=on_chunk,\n)\n\nresponse = agent.run(messages=[ChatMessage.from_user(\"Plan my week.\")])\nsse_emit(event=\"done\", data={})",
-          "verified": false,
-          "verified_date": null,
+          "code": "from haystack.components.agents import Agent\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage, StreamingChunk\n\n\ndef on_chunk(chunk: StreamingChunk):\n    # Haystack hands a StreamingChunk with content plus optional tool events.\n    # Translate each into a typed SSE-style event.\n    if chunk.content:\n        sse_emit(event=\"text_delta\", data={\"text\": chunk.content})\n    for call in getattr(chunk, \"tool_calls\", []) or []:\n        sse_emit(event=\"tool_start\",\n                 data={\"id\": call.id, \"name\": call.tool_name, \"args\": call.arguments})\n    result = getattr(chunk, \"tool_call_result\", None)\n    if result is not None:\n        sse_emit(event=\"tool_end\",\n                 data={\"id\": result.origin.id, \"result\": result.result})\n\n\nagent = Agent(\n    chat_generator=OpenAIChatGenerator(model=\"gpt-4o-mini\"),\n    tools=[...],\n    streaming_callback=on_chunk,\n)\n\nresponse = agent.run(messages=[ChatMessage.from_user(\"Plan my week.\")])\nsse_emit(event=\"done\", data={})",
+          "verified": true,
+          "verified_date": "2026-05-21",
+          "verified_notes": "Verified against https://docs.haystack.deepset.ai/docs/agent and the Haystack data-classes API reference. Confirmed: `from haystack.components.agents import Agent`, `from haystack.components.generators.chat import OpenAIChatGenerator`, `from haystack.dataclasses import ChatMessage, StreamingChunk`, Agent constructor kwargs `chat_generator` / `tools` / `streaming_callback`, `agent.run(messages=...)`, `ChatMessage.from_user(...)`, `StreamingChunk.content`, `StreamingChunk.tool_calls` (list of ToolCallDelta with `.id`, `.tool_name`, `.arguments`), `StreamingChunk.tool_call_result` (singular `ToolCallResult | None` with `.origin` (a `ToolCall` having `.id`) and `.result`). Wave 5 fix: changed `chunk.tool_call_results` iteration to a single `chunk.tool_call_result` null-check to match the documented singular field.",
           "last_updated": "2026-05-21"
         }
       ]
