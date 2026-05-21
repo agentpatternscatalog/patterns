@@ -367,6 +367,108 @@
       "last_updated": "2026-05-20"
     },
     {
+      "id": "commitment-tracking",
+      "name": "Commitment Tracking",
+      "aliases": [
+        "Stated-Intent Ledger",
+        "Follow-Through Audit"
+      ],
+      "category": "verification-reflection",
+      "intent": "Extract stated intents (\"I'll fetch X\", \"let me check Y\") from each agent turn into a structured ledger with open / followed-through / expired status, so the gap between what the agent said it would do and what it actually did becomes visible and auditable.",
+      "context": "A conversational agent routinely makes small in-turn promises — \"let me pull the latest figures\", \"I'll come back to this once the build finishes\", \"I'll keep an eye on that\". These commitments are not user-imposed tasks; they are voluntary intentions the agent announces. The agent then continues the conversation, and the moment passes. Without an external surface tracking these intents, the agent has no signal that it just promised something and no way to notice when the promise is overdue.",
+      "problem": "Agents that produce text fluently produce stated-intents fluently too — and producing the intent is satisfying enough that the agent's own attention moves on without acting on it. The resulting confabulation gap (\"the agent said it would do X; the agent never did X\") is invisible from inside the conversation, because the same model that announced the intent is also the one summarising what it did, and that summary tends to round in the agent's favour. The user, who can spot the gap if they re-read, has no easy way to enforce follow-through either.",
+      "forces": [
+        "Stated intents are cheap to emit and expensive to track manually.",
+        "The agent that announced the intent cannot be trusted to audit itself in the same turn.",
+        "Most intents are short-lived; a few are load-bearing. Both look the same at extraction time.",
+        "Expiration must be automatic or the ledger grows unbounded.",
+        "Marking follow-through must be cheap, or the discipline collapses."
+      ],
+      "therefore": "Therefore: after each agent turn, run a cheap extraction pass that pulls explicit stated-intents into a structured ledger with status open / followed-through / expired, expose explicit mark-followed-through and mark-expired moves, and sweep overdue ones on a schedule, so the agent's promises are auditable against its actions rather than against its own retrospective summary.",
+      "solution": "After each turn the agent produces, run a separate, cheap-tier extraction pass (a small model or a structured prompt) that scans the turn for stated-intents and writes each as a Commitment record into an append-only ledger. Each record carries: a short statement of the intent, the turn it was raised in, an optional deadline or condition, and a status field (open). Expose two moves: mark_followed_through(id, evidence) flips the status when the agent or human can point to the action having happened; mark_expired(id) closes the record when the deadline passed. Run a periodic check_expirations sweep that auto-expires open commitments past their deadline. Surface open commitments in the agent's working context so it can act on them.",
+      "consequences": {
+        "benefits": [
+          "Confabulation gap between stated intent and action becomes auditable.",
+          "Cheap-tier extraction avoids loading the main model with bookkeeping.",
+          "Periodic expiration sweep keeps the ledger bounded and surfaces drift."
+        ],
+        "liabilities": [
+          "Extraction noise: figurative or rhetorical intents may get logged as real ones.",
+          "An overzealous ledger makes the agent feel chased by its own off-hand remarks.",
+          "Mark-followed-through depends on the agent's honesty; pair with separate verification when stakes are high."
+        ]
+      },
+      "constrains": "The agent cannot mark its own commitments as followed-through in the same turn that produced them; the audit must run as a separate pass against an independent record of action.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "decision-log",
+          "relation": "complements",
+          "note": "Decisions are made; commitments are stated. Different ledgers, same auditability instinct."
+        },
+        {
+          "pattern": "preoccupation-tracking",
+          "relation": "complements"
+        },
+        {
+          "pattern": "reflection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "alternative-to",
+          "note": "Todo-list-driven agents commit before acting; commitment-tracking audits after speaking."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Implementation Intentions: Strong Effects of Simple Plans",
+          "authors": "Peter Gollwitzer",
+          "year": 1999,
+          "url": "https://psycnet.apa.org/record/1999-03629-008"
+        },
+        {
+          "type": "paper",
+          "title": "Faithfulness vs. Plausibility: On the (Un)Reliability of Explanations from Large Language Models",
+          "authors": "Agarwal et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2402.04614"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "verification",
+        "audit",
+        "honesty",
+        "confabulation"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent makes frequent in-turn promises that the user expects to be honoured later.",
+          "There is a cheap-tier model available to run the extraction pass.",
+          "Follow-through gaps have been observed and are eroding trust."
+        ],
+        "do_not_use_when": [
+          "The agent is purely transactional and never makes future-tense promises.",
+          "Extraction noise would generate more false positives than the audit pays back.",
+          "User-visible commitments are already managed by an explicit todo list."
+        ]
+      },
+      "example_scenario": "A chat agent answers a question, then ends with \"I'll pull the updated benchmark numbers in the next hour.\" The extraction pass logs a Commitment {statement: 'pull updated benchmark numbers', deadline: +1h, status: open}. An hour later the sweep finds the commitment still open; the agent's tick reads it, runs the action, and marks it followed-through with a link to the result. A separate offhand intent — \"I should think about that more\" — sits in the ledger as open and auto-expires after the sweep window without action, which is correct: it was rhetorical.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant U as User\n  participant A as Agent (main)\n  participant E as Extractor (cheap tier)\n  participant L as Commitment Ledger\n  U->>A: question\n  A->>U: answer, plus 'I will fetch X in 1h'\n  A->>E: pass turn for extraction\n  E->>L: write Commitment(open, deadline=+1h)\n  Note over A,L: ... 1 hour later ...\n  A->>L: list open\n  A->>A: actually fetch X\n  A->>L: mark_followed_through(id, evidence)",
+        "caption": "Extractor lifts stated-intents into the ledger; agent reads and closes them later with evidence."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "confidence-reporting",
       "name": "Confidence Reporting",
       "aliases": [

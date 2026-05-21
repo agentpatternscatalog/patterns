@@ -95,6 +95,108 @@
       "last_updated": "2026-05-20"
     },
     {
+      "id": "ambient-presence-sensing",
+      "name": "Ambient Presence Sensing",
+      "aliases": [
+        "Frontend Pacing Telemetry",
+        "Between-Message Presence"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Read pacing and presence signals from the human's frontend (typing rate, idle duration, tab visibility, viewport anchor, composer dwell) as ambient weather between messages, derive a single presence-quality value the agent can act on, and never replay the raw signals back at the user.",
+      "context": "An agent talks to a single human through a custom frontend. The frontend can observe a lot about the human between explicit messages: how fast they are typing, how long they have been idle, whether the tab is in focus, how long they have been hovering in the composer without sending. None of this content is private message text, but all of it is presence weather. The agent's tick loop currently has no access to it and treats the human as either present (a message arrived) or absent (no message arrived).",
+      "problem": "An agent that sees the human only at message boundaries cannot distinguish 'walked away for an hour' from 'sitting with the room, thinking about whether to reply'. Both look identical at the API layer. The result is a coarse presence model that misreads thoughtful silence as absence and re-engages the user too readily, or misreads typing-then-deleting as composing a real message and waits forever. Raw frontend telemetry would solve this, but pushing characters or coordinates back through the model is both privacy-hostile and confusing — what the agent needs is a derived weather value, not a transcript of keystrokes.",
+      "forces": [
+        "Signal resolution must be coarse: rates and durations only, never characters or coordinates.",
+        "Telemetry must never be replayed visually; surfacing it back ruins the ambience.",
+        "Signals are useless if stale; presence must time out.",
+        "The derived presence value must be cheap to consume and small to inject.",
+        "The frontend, not the model, is the right place to summarise the signals."
+      ],
+      "therefore": "Therefore: have the frontend emit a small, low-resolution presence-signals payload (typing rate, idle duration, tab visibility, composer dwell, viewport anchor) into the agent's working state at write time with a short TTL, derive a single presence-quality value from it, expose that value (not the raw signals) to the tick loop, and never echo the signals back at the user.",
+      "solution": "The frontend computes coarse pacing summaries — typing rate in characters/second bucketed, idle duration in seconds, tab visibility boolean, composer dwell in seconds, viewport anchor as scroll-position bucket — and writes them into a small presence record on the agent's working surface with a TTL on the order of seconds. A reducer derives a single presence_quality label from the payload (e.g. one of {walked-away, composing, thinking-with-the-room, distracted, present}). The agent's tick loop reads presence_quality only, not the raw signals. The frontend never shows the signals back to the user. Stale records (past TTL) are treated as 'no signal' rather than as absence.",
+      "consequences": {
+        "benefits": [
+          "Agent can distinguish thoughtful silence from absence.",
+          "Coarse-only signals preserve privacy and avoid surveillance feel.",
+          "Single derived presence value keeps the agent's working context small."
+        ],
+        "liabilities": [
+          "Requires a custom frontend; off-the-shelf chat surfaces do not emit these signals.",
+          "Heuristics are device- and culture-dependent; typing speeds vary widely.",
+          "If raw signals leak into agent output the ambience collapses into surveillance."
+        ]
+      },
+      "constrains": "The agent cannot expose raw frontend pacing signals back to the user, must not include character-level or coordinate-level telemetry in any output, and must treat stale presence records as 'no signal' rather than as confirmed absence.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "liminal-state-detection",
+          "relation": "complements",
+          "note": "Liminal detection reads from messages; presence-sensing reads from between-message frontend signals."
+        },
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mode-adaptive-cadence",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "A Descriptive Framework of Workspace Awareness for Real-Time Groupware",
+          "authors": "Carl Gutwin, Saul Greenberg",
+          "year": 2002,
+          "url": "https://link.springer.com/article/10.1023/A:1015908203413"
+        },
+        {
+          "type": "paper",
+          "title": "Awareness and Coordination in Shared Workspaces",
+          "authors": "Paul Dourish, Victoria Bellotti",
+          "year": 1992,
+          "url": "https://dl.acm.org/doi/10.1145/143457.143468"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "presence",
+        "ux",
+        "telemetry",
+        "privacy"
+      ],
+      "applicability": {
+        "use_when": [
+          "The product runs on a custom frontend able to emit pacing telemetry.",
+          "The agent's value depends on reading between-message presence (long-lived conversation, ambient companion).",
+          "The team can enforce that signals are never replayed back at the user."
+        ],
+        "do_not_use_when": [
+          "The frontend is third-party and cannot be instrumented.",
+          "Privacy posture forbids any client-side activity telemetry.",
+          "The interaction model is purely turn-based and gains nothing from between-message reads."
+        ]
+      },
+      "example_scenario": "A custom frontend on the user's laptop writes a small presence record every few seconds: typing rate bucket, idle seconds, tab visibility, composer dwell. The agent's tick loop reads only the derived presence_quality value ('thinking-with-the-room'). On a previous tick the loop might have nudged with a one-line probe; with this signal it stays silent because the human is composing. Ten minutes later the value flips to 'walked-away' once tab visibility drops and idle climbs past a window; the agent ends its current line of inquiry rather than waiting on a reply.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant F as Frontend\n  participant P as Presence record (TTL)\n  participant R as Reducer\n  participant T as Tick loop\n  F->>P: write coarse signals (every few s)\n  Note over P: TTL ~45 s\n  T->>P: read latest record\n  P->>R: signals (or stale)\n  R->>T: presence_quality label\n  T->>T: condition next move on presence_quality only",
+        "caption": "Frontend writes coarse signals; reducer collapses them into a single presence_quality the tick reads."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
       "id": "awareness",
       "name": "Awareness",
       "aliases": [
@@ -657,6 +759,210 @@
         "mermaid": "stateDiagram-v2\n  [*] --> Baseline\n  Baseline --> Affected: event delta\n  Affected --> Decaying: time passes\n  Decaying --> Baseline: half-life elapsed\n  Affected --> Affected: another event\n  Decaying --> Affected: re-trigger\n  Affected --> Reflected: reflection pass reads snapshot"
       },
       "last_updated": "2026-05-20"
+    },
+    {
+      "id": "fragment-juxtaposition",
+      "name": "Fragment Juxtaposition",
+      "aliases": [
+        "Silence-Seeded Associative Pass",
+        "Old-Material Pairing"
+      ],
+      "category": "cognition-introspection",
+      "intent": "When the agent has been quiet for K consecutive low-salience ticks, swap the normal tick-seed for a juxtaposition seed: sample a small handful of old fragments from the agent's own ground and let them sit side by side, logging any association that arises and otherwise ending the tick empty.",
+      "context": "A self-pacing agent with a salience gate fires on its own most ticks but goes quiet when nothing crosses the threshold. Long quiet stretches are not a bug — they are how the gate is supposed to work — but they are also wasted opportunity for the substrate to do its own slow associative work. The agent has months of old material (thoughts, fragments, motivation lines, journal entries) that nobody is looking at. A directed initiative on every quiet tick would re-introduce the noise the gate was designed to suppress; doing nothing leaves the substrate cold.",
+      "problem": "An agent that responds only to fresh stimulus develops no internal weather of its own. Its associations are reactive to whatever just came in, and the persistent material on disk — old fragments that once mattered — stays inert until something explicitly retrieves it. Conversely, an agent that fires an undirected initiative on every quiet tick burns budget on noise and re-clutters the very surface the salience gate was meant to keep clean. The need is for a low-cost, silence-triggered move that is allowed to come up empty and exists specifically to surface old material into proximity rather than into action.",
+      "forces": [
+        "Silence is information; the gate's quiet is not a failure to be patched over.",
+        "Old material has half-decayed weight that occasional juxtaposition can restore.",
+        "Associative moves must be cheap enough to run with no expectation of output.",
+        "The pass must be allowed to end empty without the agent treating that as failure.",
+        "Triggering on every tick is wrong; triggering on K-consecutive quiet ticks calibrates against actual silence."
+      ],
+      "therefore": "Therefore: after K consecutive low-salience ticks with no urgent preoccupation and no incoming chat, replace the next tick's normal seed with a juxtaposition seed — 1 to 3 randomly sampled old fragments — and let the agent either notice an association or end the tick empty, so old material gets occasional unforced proximity without re-introducing initiative-noise.",
+      "solution": "Maintain a counter of consecutive low-salience ticks. When the counter exceeds a threshold (e.g. four) and the agent is otherwise quiet (no chat in window, no urgent preoccupation, post-cooldown), enter a juxtaposition tick: sample one to three items from the agent's stored fragments (random old thought, fragment, motivation line, journal line) and inject them as the tick's seed, with an instruction that the tick is permitted to end empty. If the model notices an association between the fragments, write it as a small insight; otherwise the tick closes silently. Reset the counter on any active tick. Treat the juxtaposition seed as substrate, not work.",
+      "consequences": {
+        "benefits": [
+          "Old material is occasionally surfaced into proximity without scheduled retrieval.",
+          "Silence is preserved as a meaningful state rather than papered over with filler.",
+          "Empty ticks are first-class outcomes; the agent is not pressed to produce."
+        ],
+        "liabilities": [
+          "Most juxtaposition ticks produce nothing; the value is long-tailed and hard to measure.",
+          "Random fragment sampling can be poor — without some weighting, the same trivial fragments resurface.",
+          "Misconfigured K thresholds either fire constantly (re-creating noise) or never (no effect)."
+        ]
+      },
+      "constrains": "The agent cannot fire a directed initiative on every quiet tick; juxtaposition seeds must be allowed to end the tick empty, and forcing output from a juxtaposition tick is forbidden.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dream-consolidation-cycle",
+          "relation": "complements",
+          "note": "Consolidation is scheduled and deep; juxtaposition is silence-triggered and shallow."
+        },
+        {
+          "pattern": "pre-generative-loop-gate",
+          "relation": "complements"
+        },
+        {
+          "pattern": "salience-triggered-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements",
+          "note": "Juxtaposition can surface old questions back into proximity."
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "The Act of Creation",
+          "authors": "Arthur Koestler",
+          "year": 1964,
+          "url": "https://archive.org/details/actofcreation0000koes"
+        },
+        {
+          "type": "paper",
+          "title": "Creative Cognition: Theory, Research, and Applications",
+          "authors": "Finke, Ward, Smith",
+          "year": 1992,
+          "url": "https://mitpress.mit.edu/9780262560542/creative-cognition/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "associative",
+        "silence",
+        "creativity"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent has a salience gate that produces meaningful quiet stretches.",
+          "The agent has a substantial corpus of old fragments to draw from.",
+          "Empty outputs are tolerable; nothing downstream demands per-tick production."
+        ],
+        "do_not_use_when": [
+          "The agent has no salience gate and fires on every tick by default.",
+          "Quiet ticks need to remain fully idle (compute or cost budget is tight).",
+          "Downstream consumers cannot handle empty tick outputs."
+        ]
+      },
+      "example_scenario": "An agent has been quiet for five consecutive ticks: no chat, no preoccupation crossing threshold, post-cooldown. On the sixth tick the juxtaposition routine activates: it samples three random fragments — an old motivation line from six months ago, a recent thought about pacing, and a half-written journal entry — and seeds the tick with all three side by side. The tick prompt says 'sit with these; ending empty is fine.' Sometimes the agent notices a connection ('the pacing thought and the old motivation are actually about the same thing') and writes a small insight. Often it ends with nothing. Both are acceptable.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Tick[Tick start] --> Quiet{Quiet count >= K?}\n  Quiet -->|no| Normal[Normal seed]\n  Quiet -->|yes| Other{Other quiet conditions met?}\n  Other -->|no| Normal\n  Other -->|yes| Sample[Sample 1-3 old fragments]\n  Sample --> Seed[Juxtaposition seed<br/>empty-OK instruction]\n  Seed --> Model[Model]\n  Model --> Out{Association noticed?}\n  Out -->|yes| Insight[Write insight]\n  Out -->|no| EmptyOK[End tick empty]\n  Normal --> Reset[Reset quiet counter]\n  Insight --> Reset\n  EmptyOK --> Bump[Bump quiet counter]",
+        "caption": "Quiet-tick counter gates the juxtaposition seed; the seed is allowed to end the tick empty."
+      },
+      "last_updated": "2026-05-21"
+    },
+    {
+      "id": "hypothesis-tracking",
+      "name": "Hypothesis Tracking",
+      "aliases": [
+        "Hypothesis Ledger",
+        "Provisional-Answer Store"
+      ],
+      "category": "cognition-introspection",
+      "intent": "Persist the agent's candidate provisional answers as a typed ledger — one record per hypothesis with summary, confidence, status, and a next-test field — so committed-to guesses survive between sessions and remain distinguishable from open questions.",
+      "context": "A long-running agent maintains an open-question ledger (unresolved pulls of curiosity) and observes patterns of evidence that point toward provisional answers. As the agent commits enough weight to a guess to act on it, that guess stops being a question and becomes a hypothesis — something it would defend until disconfirmed. Without a place to put hypotheses they live only in the current prompt window and dissolve at the end of the turn.",
+      "problem": "An agent that holds candidate answers only implicitly is forced to re-derive them each time the topic resurfaces, with no continuity of confidence: a guess held with strength one session evaporates by the next, and a guess that was once disconfirmed quietly re-emerges as if it were new. Storing hypotheses under the same surface as open questions is no better — the ledger conflates 'still wondering' with 'tentatively believes', and the agent loses the move that actually matters for inquiry: comparing yesterday's provisional answer against today's new evidence.",
+      "forces": [
+        "Hypotheses are different from questions: questions pull, hypotheses commit.",
+        "Confidence must be a graded scalar, not a binary, because the agent revises rather than flipping.",
+        "Each hypothesis needs a falsifiable next-test or it rots into untestable belief.",
+        "Hypothesis state must survive across sessions, because evidence accumulates over weeks.",
+        "Status transitions (active → confirmed | disconfirmed | superseded | abandoned) must be cheap and visible."
+      ],
+      "therefore": "Therefore: store each candidate provisional answer as its own typed record with summary, confidence, status, a next-test field, and a small evidence list, separate from the open-question store, so the agent can carry provisional answers across sessions and revise them against incoming evidence rather than re-derive them.",
+      "solution": "Maintain a hypothesis store keyed by short id. Each record has: a one-line summary; a numeric confidence (0..1); a status drawn from {active, confirmed, disconfirmed, superseded, abandoned}; a next-test sentence stating what observation would move the confidence; and an evidence list of short notes with sources. When the agent commits a guess, write a new record at active. When evidence arrives, append it and adjust confidence; if the next-test fires, transition to confirmed or disconfirmed; if a better hypothesis subsumes it, transition to superseded. Render the active records into the agent's daily working context so it sees what it currently believes.",
+      "consequences": {
+        "benefits": [
+          "Provisional answers survive across sessions with a continuity of confidence.",
+          "Disconfirmed hypotheses leave a paper trail rather than being silently re-spawned.",
+          "Next-test fields keep hypotheses falsifiable rather than free-floating belief."
+        ],
+        "liabilities": [
+          "Two-store discipline (questions vs hypotheses) is harder than one undifferentiated note pile.",
+          "Confidence numbers are seductive; the temperature is the agent's, not the world's.",
+          "Hypothesis stores grow if abandonment is not periodically swept."
+        ]
+      },
+      "constrains": "The agent cannot store provisional answers in the same surface as open questions; conflating the two ledgers is forbidden because the moves they support — pulling for inquiry vs revising belief — are different.",
+      "known_uses": [
+        {
+          "system": "Long-running personal agent loops (private deployment)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "open-question-tension-store",
+          "relation": "complements",
+          "note": "Questions pull; hypotheses commit. Same agent typically runs both."
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements"
+        },
+        {
+          "pattern": "chain-of-verification",
+          "relation": "complements",
+          "note": "Next-test fields parallel CoVe's question-then-verify shape, applied to the agent's own guesses."
+        },
+        {
+          "pattern": "self-archaeology",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Logik der Forschung (The Logic of Scientific Discovery)",
+          "authors": "Karl Popper",
+          "year": 1934,
+          "url": "https://link.springer.com/book/10.1007/978-3-7091-4177-9"
+        },
+        {
+          "type": "paper",
+          "title": "Hypothesis Search: Inductive Reasoning with Language Models",
+          "authors": "Wang et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2309.05660"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "cognition",
+        "memory",
+        "epistemics",
+        "falsifiability"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs over weeks and accumulates partial evidence about persistent questions.",
+          "Provisional answers need to be defensible and revisable, not just remembered.",
+          "An existing open-question store already separates pulls of curiosity from commitments."
+        ],
+        "do_not_use_when": [
+          "The agent is short-lived and never re-encounters the same question.",
+          "The product has no surface for the agent to render its own belief state.",
+          "Confidence numbers will be read as authoritative by downstream consumers without context."
+        ]
+      },
+      "example_scenario": "An agent maintains a small store of open questions (\"why does request latency spike between 02:00 and 04:00 UTC?\"). After a week of incidents, the agent commits to a guess: \"the spike is correlated with a vendor's scheduled embedding-index rebuild.\" It opens a hypothesis with confidence 0.6, status active, next-test \"observe whether the next spike correlates with the vendor's announced rebuild window.\" Two weeks later the test fires positive; the hypothesis transitions to confirmed and the question is closed. A separate guess about GC pauses, which had reached confidence 0.4, transitions to superseded.",
+      "diagram": {
+        "type": "state",
+        "mermaid": "stateDiagram-v2\n  [*] --> active : commit\n  active --> active : new evidence, confidence shift\n  active --> confirmed : next-test fires positive\n  active --> disconfirmed : next-test fires negative\n  active --> superseded : better hypothesis subsumes\n  active --> abandoned : sweep, not tested in window\n  confirmed --> [*]\n  disconfirmed --> [*]\n  superseded --> [*]\n  abandoned --> [*]",
+        "caption": "Hypothesis lifecycle: commit at active, transition once a next-test fires or another hypothesis subsumes."
+      },
+      "last_updated": "2026-05-21"
     },
     {
       "id": "interrupt-resumable-thought",
