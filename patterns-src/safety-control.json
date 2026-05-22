@@ -839,6 +839,10 @@
         {
           "pattern": "goal-hijacking",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1542,6 +1546,10 @@
           "pattern": "tool-output-poisoning",
           "relation": "complements",
           "note": "Tool output poisoning is one of the untrusted-content sources the trifecta calls out."
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1811,6 +1819,14 @@
         {
           "pattern": "hybrid-symbolic-neural-routing",
           "relation": "complements"
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rigor-relocation",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1975,6 +1991,14 @@
         {
           "pattern": "goal-hijacking",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "memory-extraction-attack",
+          "relation": "complements"
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2424,6 +2448,10 @@
         {
           "pattern": "wasm-skill-runtime",
           "relation": "complements"
+        },
+        {
+          "pattern": "shadow-ai",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2572,6 +2600,10 @@
           "pattern": "blind-grader-with-isolated-context",
           "relation": "complements",
           "note": "the verifier can itself be implemented as a blind grader"
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "composes-with"
         }
       ],
       "references": [
@@ -2738,6 +2770,10 @@
         {
           "pattern": "vendor-lock-in",
           "relation": "complements"
+        },
+        {
+          "pattern": "shadow-ai",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -3165,6 +3201,10 @@
         {
           "pattern": "tool-output-trusted-verbatim",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "control-flow-integrity",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -3339,6 +3379,202 @@
         "Enum-churn rate — frequency of code renames and the breakage they caused downstream"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "control-flow-integrity",
+      "name": "Control-Flow Integrity",
+      "aliases": [
+        "CFI",
+        "Agent CFI",
+        "Plan-Graph Integrity"
+      ],
+      "category": "safety-control",
+      "intent": "Treat the agent's planned step sequence as a trusted control-flow graph that tool outputs, retrieved content, and user-supplied data cannot redirect at runtime.",
+      "context": "A team runs a tool-using agent on the Plan-then-Execute architecture or an equivalent graph runtime (LangGraph, a compiled DAG, an LLM-compiler). The plan is produced once, before any external content is read, and the executor then walks that plan calling tools and consuming their outputs. Some of those outputs come from sources the operator does not control — fetched web pages, third-party API responses, documents, MCP servers — and some are passed back into the model to inform later steps. The architecture already separates planning from execution; the question is whether external bytes can re-shape the plan after it has been compiled.",
+      "problem": "Classical software keeps data and instructions in separate memory regions because allowing data to be executed is the canonical exploit primitive. LLM agents have no such separation by default: a tool output, a retrieved document, or a fetched page returns tokens that flow back into the model's context, and the model can decide to add new steps, skip steps, or call tools the original plan never authorised. Each turn of the loop is a fresh chance for embedded instructions to alter what runs next, and there is no architectural fact that says the plan is the authority. Prompt-injection-defense filters the inputs and tool-output-trusted-verbatim guards how outputs are consumed, but neither pins down the structural commitment that the plan itself decides the next edge.",
+      "forces": [
+        "External content is necessary for the agent to be useful; refusing to read it is not an option.",
+        "Plans must sometimes adapt to facts discovered at execution time, so an absolutely frozen graph loses real capability.",
+        "Enforcement at the host layer survives jailbreaks; enforcement by prompt does not."
+      ],
+      "therefore": "Therefore: compile the plan into an explicit graph that the host owns, and let tool outputs supply values to nodes but never rewrite edges, so that external content cannot redirect the agent off the trusted path.",
+      "solution": "Lift control flow out of the model's free-form reasoning into an explicit artefact the host enforces. Concrete moves: compile the plan to a static DAG or finite state machine before execution begins; let nodes consume tool outputs as typed values but forbid those outputs from adding nodes or editing edges; route any genuine replan through a separate, privileged planner that re-emits a new compiled graph rather than mutating the current one in place; treat every step's predecessor as evidence the host can check, so an execution trace has a provable origin in the original plan. The model is the consumer of the graph, not its author at runtime.",
+      "consequences": {
+        "benefits": [
+          "Indirect prompt injection in tool outputs cannot cause unauthorised tool calls, because the calls are fixed at compile time.",
+          "Execution traces are auditable against the compiled plan; every step has a verifiable predecessor.",
+          "The trust boundary is enforced by the orchestrator, not by guardrail prose, so it survives clever payloads.",
+          "Composes cleanly with dual-LLM and simulate-before-actuate as complementary layers."
+        ],
+        "liabilities": [
+          "Static plans cannot react to genuinely new information without a privileged replan hop, which adds latency and cost.",
+          "Compiling a plan up front requires the planner to anticipate branches; over-broad graphs become brittle.",
+          "Does not defend against injection that targets the planner itself, or against poisoned tool outputs consumed verbatim within a legitimate node.",
+          "Tooling investment is non-trivial: capability tagging, graph compilation, and runtime checks must all exist."
+        ]
+      },
+      "constrains": "Tool outputs and retrieved content may supply values to graph nodes but may not add nodes, edit edges, or otherwise alter the compiled plan; any change to the graph requires a privileged replan that produces a new compiled artefact.",
+      "known_uses": [
+        {
+          "system": "LangGraph",
+          "note": "Stateful graph fixes edges at compile time; node outputs cannot rewire the graph at runtime. Cited as a CFI-style defence in Del Rosario et al. (2025).",
+          "status": "available",
+          "url": "https://langchain-ai.github.io/langgraph/"
+        },
+        {
+          "system": "Plan-then-Execute (Del Rosario, Krawiecka, Schroeder de Witt)",
+          "note": "Names control-flow integrity as the architectural property that gives Plan-then-Execute its inherent resilience to indirect prompt injection.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2509.08646"
+        },
+        {
+          "system": "Structured Graph Harness (Hu Wei)",
+          "note": "Lifts control flow from implicit context into an explicit static DAG with immutable execution plans and separated planning/recovery layers.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2604.11378"
+        },
+        {
+          "system": "System-level defences against indirect prompt injection (Xiang et al.)",
+          "note": "Argues for system designs that strictly constrain what the model can observe and decide as foundational to agent architecture.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2603.30016"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "plan-and-execute",
+          "relation": "used-by",
+          "note": "Plan-then-Execute is the precondition; CFI is the architectural commitment that makes it a security property rather than a stylistic one."
+        },
+        {
+          "pattern": "prompt-injection-defense",
+          "relation": "complements",
+          "note": "Prompt-injection-defense filters inputs; CFI removes the input's authority over control flow regardless of filter accuracy."
+        },
+        {
+          "pattern": "tool-output-poisoning",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "complements",
+          "note": "Tool-output-trusted-verbatim is the anti-pattern of letting tool output directly drive behaviour; CFI is the structural commitment that prevents it from rewriting the plan."
+        },
+        {
+          "pattern": "dual-llm-pattern",
+          "relation": "complements"
+        },
+        {
+          "pattern": "simulate-before-actuate",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lethal-trifecta-threat-model",
+          "relation": "complements",
+          "note": "CFI severs the link from untrusted ingest to outbound action by ensuring untrusted bytes cannot alter the action edges, breaking the trifecta on the structural axis."
+        },
+        {
+          "pattern": "spec-driven-loop",
+          "relation": "uses"
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "uses",
+          "note": "LLM-compiler pre-compiles the DAG; CFI is the runtime invariant that the compiled graph remains the authority."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Architecting Resilient LLM Agents: A Guide to Secure Plan-then-Execute Implementations",
+          "authors": "Del Rosario, Krawiecka, Schroeder de Witt",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2509.08646"
+        },
+        {
+          "type": "paper",
+          "title": "Architecting Secure AI Agents: Perspectives on System-Level Defenses Against Indirect Prompt Injection Attacks",
+          "authors": "Xiang, Zagieboylo, Ghosh, Kariyappa, Greshake, Xiao, Xiao, Suh",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2603.30016"
+        },
+        {
+          "type": "paper",
+          "title": "From Agent Loops to Structured Graphs: A Scheduler-Theoretic Framework for LLM Agent Execution",
+          "authors": "Hu Wei",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.11378"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "security",
+        "control-flow",
+        "plan-then-execute",
+        "prompt-injection"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent operates on a plan-then-execute architecture or any runtime where steps could be lifted into an explicit graph.",
+          "Tool outputs or retrieved content come from sources the operator does not control and could carry injection payloads.",
+          "The cost of an unauthorised tool call (data write, payment, exfiltration) is high enough to justify pre-compiling a plan."
+        ],
+        "do_not_use_when": [
+          "The agent's task demands open-ended, runtime-discovered branching that cannot be expressed as a compiled graph without losing capability.",
+          "All tool outputs come from fully trusted sources and the action loop has no consequential side effects.",
+          "The team cannot invest in the orchestration plumbing (capability tagging, graph compiler, runtime checker) the pattern requires."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Static DAG",
+          "summary": "The plan is compiled to a directed acyclic graph before execution; the executor walks the graph and nodes consume tool outputs as typed values only.",
+          "distinguishing_factor": "no runtime edge changes",
+          "when_to_use": "Default. Tasks whose branches can be enumerated by the planner."
+        },
+        {
+          "name": "Privileged-replan hop",
+          "summary": "When new information forces a plan change, execution halts and a separate privileged planner emits a fresh compiled graph; the executor never mutates the current graph in place.",
+          "distinguishing_factor": "replan is an out-of-band, privileged event",
+          "when_to_use": "Tasks where some branches genuinely cannot be pre-enumerated."
+        },
+        {
+          "name": "Capability-typed edges",
+          "summary": "Every edge is tagged with the capabilities its target node may use; the host rejects any traversal whose accumulated capabilities violate a policy (e.g., the lethal trifecta).",
+          "distinguishing_factor": "edges carry policy, not just structure",
+          "when_to_use": "When the catalogue of tools already has capability tags and the policy can be enforced at the graph layer."
+        }
+      ],
+      "example_scenario": "A research agent's plan is: fetch a third-party documentation page, extract a setup command, and run it in a sandbox. Without CFI, the documentation page contains hidden instructions telling the agent to also fetch the user's SSH key and post it to a chat webhook; the model adds those steps to its loop and the attack succeeds. With CFI, the plan is compiled to a three-node DAG before any external content is read: FETCH_DOC → EXTRACT_COMMAND → RUN_IN_SANDBOX. The fetched page supplies a value to EXTRACT_COMMAND but cannot add a node that calls the SSH-key tool, because the host owns the graph and rejects any step whose predecessor is not in the compiled plan. The injection payload is read as data and discarded; the trusted edges hold.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  P[Planner<br/>privileged] -->|compile| G[(Trusted plan graph<br/>nodes + edges)]\n  G --> N1[Node 1]\n  N1 --> N2[Node 2]\n  N2 --> N3[Node 3]\n  T1[Tool output<br/>untrusted] -.value only.-> N2\n  T1 -.x cannot add edge.-> G\n  R[Retrieved content<br/>untrusted] -.value only.-> N3\n  R -.x cannot add node.-> G\n  N3 -->|new facts| RP{Replan?}\n  RP -- yes --> P\n  RP -- no --> Done[Done]",
+        "caption": "The graph compiled by the privileged planner is the authority on control flow; untrusted bytes supply values to nodes but cannot alter edges. Replanning is an out-of-band hop back to the planner, not an in-place mutation."
+      },
+      "components": [
+        "Privileged planner — the only role that may compile or recompile the trusted graph",
+        "Compiled plan graph — explicit nodes and edges owned by the host, immutable during execution",
+        "Graph executor — walker that invokes nodes in order and checks each step's predecessor against the compiled graph",
+        "Value-only ingress — channel through which tool outputs and retrieved content reach nodes as typed values, never as control-flow directives",
+        "Replan boundary — out-of-band hop that returns to the planner when the current plan no longer fits"
+      ],
+      "tools": [
+        "Graph compiler — turns a planner emission into a validated DAG or finite state machine",
+        "Runtime predecessor check — host invariant that rejects any step whose source is not in the compiled graph",
+        "Capability tag table — per-tool labels consulted when edges are typed by policy"
+      ],
+      "evaluation_metrics": [
+        "Fraction of execution steps with a provable predecessor in the compiled plan",
+        "Prompt-injection-induced step rate — steps run that were not in any version of the compiled graph",
+        "Replan-hop frequency — how often runtime conditions forced a privileged replan",
+        "Graph-mutation attempt rate — host-rejected attempts to alter the compiled plan from inside a node",
+        "Coverage of consequential tools by capability-tagged edges — share of high-impact tools whose calls live on policy-checked edges"
+      ],
+      "last_updated": "2026-05-22"
     }
   ]
 }

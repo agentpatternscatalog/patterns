@@ -284,6 +284,7 @@ def rule_a2() -> list[Violation]:
         ".github",
         "compositions-src",
         "examples-src",
+        "pattern-todo-archive",
     }
     for f in root_files:
         if f not in allowed_top:

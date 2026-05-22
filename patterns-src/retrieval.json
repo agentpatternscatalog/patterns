@@ -101,6 +101,18 @@
         {
           "pattern": "co-located-memory-surfacing",
           "relation": "generalises"
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "over-search-and-under-search",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "specialises"
         }
       ],
       "references": [
@@ -386,6 +398,10 @@
         {
           "pattern": "memory-poisoning",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "composes-with"
         }
       ],
       "references": [
@@ -633,6 +649,22 @@
         {
           "pattern": "hyde",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hippocampus-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "composes-with"
         }
       ],
       "references": [
@@ -756,6 +788,14 @@
         {
           "pattern": "knowledge-graph-memory",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "hippocampus-rag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -826,6 +866,390 @@
       "last_updated": "2026-05-21"
     },
     {
+      "id": "hierarchical-retrieval",
+      "name": "Hierarchical Retrieval",
+      "aliases": [
+        "Cascade Retrieval",
+        "Multi-Level Retrieval",
+        "Router-Then-Retrieve",
+        "Tree Retrieval"
+      ],
+      "category": "retrieval",
+      "intent": "Route a query through a multi-level cascade — coarse source or index selection, then per-source narrower retrieval, then chunk-level — so each retrieval decision is pushed to the cheapest tier that can answer it.",
+      "context": "A team runs retrieval over a heterogeneous knowledge base: several distinct corpora (product docs, support tickets, internal wikis, code, web), each with its own index and its own access cost. A single flat index across the union is either prohibitively expensive to maintain or loses too much fidelity, and querying every index in parallel on every request wastes calls on sources that cannot answer the question. Within each source, documents are themselves structured — chapters contain sections contain paragraphs — and the right granularity for retrieval varies per query.",
+      "problem": "Flat retrieval over a single union index pays the cost of querying everything for every question, even when most sources are irrelevant. Fanning out to every retriever in parallel is even worse: latency stacks, costs multiply, and the downstream reranker has to filter noise from sources the query never needed. At the same time, retrieving at one fixed granularity (always paragraphs, or always full documents) mismatches half of the query mix; some questions want a corpus-level answer and some want a single span. The team needs a way to spend retrieval budget proportional to how much routing the query actually requires.",
+      "forces": [
+        "Each retrieval tier has its own cost, latency, and recall profile; querying all of them is wasteful.",
+        "Routing decisions made by an LLM are expensive; routing decisions made by a classifier are cheap but less flexible.",
+        "Granularity should follow the query — coarse for overview questions, fine for span-level lookup."
+      ],
+      "therefore": "Therefore: structure retrieval as a cascade of tiers, with a router at each level deciding which retriever or which child node to descend into, so retrieval cost and granularity track the query's actual scope.",
+      "solution": "Index the corpus hierarchically: a parser builds parent-child relationships (document → section → chunk, or topic-cluster → document → chunk) and stores both levels. At query time, a top-level router picks the source or sub-index that matches the query (by classifier, by embedding similarity to source summaries, or by an LLM call). The selected source runs its own retriever, optionally a further router or a coarse-to-fine descent (retrieve summaries, then retrieve the children of the top-ranked summaries). The chunk-level retriever returns the final candidates. Compose with cross-encoder reranking on the final candidate set; compose with hybrid search inside each leaf retriever.",
+      "consequences": {
+        "benefits": [
+          "Retrieval cost scales with the cascade depth touched, not the union of all sources.",
+          "Granularity adapts per query: overview questions stop at the summary tier, span lookups descend to chunks.",
+          "Each tier can use the retriever best suited to it (BM25 for source routing, dense for chunk-level)."
+        ],
+        "liabilities": [
+          "A wrong top-level routing decision is unrecoverable at lower tiers; the right answer is never reached.",
+          "Two or three levels of index plus routers raise the operational surface area.",
+          "Router calibration drifts as new sources are added; routing accuracy must be monitored over time."
+        ]
+      },
+      "constrains": "Retrieval at any tier sees only the candidates the upstream router selected; sources or sub-trees the router skipped are unreachable for this query.",
+      "known_uses": [
+        {
+          "system": "LlamaIndex HierarchicalNodeParser and AutoMergingRetriever",
+          "note": "Ships a hierarchical node parser that emits a coarse-to-fine tree (e.g. 2048/512/128-char chunks) and an auto-merging retriever that escalates from leaf nodes to parent context.",
+          "status": "available",
+          "url": "https://developers.llamaindex.ai/python/examples/retrievers/auto_merging_retriever/"
+        },
+        {
+          "system": "LlamaIndex RouterRetriever",
+          "note": "Top-level router selects among sub-retrievers (one per source) by LLM- or classifier-driven choice.",
+          "status": "available",
+          "url": "https://docs.llamaindex.ai/en/stable/examples/retrievers/router_retriever/"
+        },
+        {
+          "system": "Haystack HierarchicalDocumentSplitter",
+          "note": "Preprocessor component that creates a multi-level document structure with parent-child relationships between text segments.",
+          "status": "available",
+          "url": "https://docs.haystack.deepset.ai/docs/hierarchicaldocumentsplitter"
+        },
+        {
+          "system": "LangChain MultiVectorRetriever",
+          "note": "Stores multiple vectors per document (full doc, summary, child chunks) so retrieval can match at one granularity and return another.",
+          "status": "available",
+          "url": "https://python.langchain.com/docs/how_to/multi_vector/"
+        },
+        {
+          "system": "A-RAG hierarchical retrieval interfaces",
+          "note": "Exposes keyword search, semantic search, and chunk read as separate tools so the agent can pick the right granularity per sub-query.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2602.03442"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agentic-rag",
+          "relation": "generalises",
+          "note": "Agentic RAG can drive a hierarchical retriever; this pattern is the static cascade form."
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with",
+          "note": "Reranks the final chunk-level candidates the cascade surfaces; different stage of the same pipeline."
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "composes-with",
+          "note": "Each leaf retriever inside the cascade can be hybrid lexical-plus-dense."
+        },
+        {
+          "pattern": "graphrag",
+          "relation": "alternative-to",
+          "note": "GraphRAG queries an explicit knowledge graph; hierarchical retrieval routes over a tree of indexes."
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "composes-with",
+          "note": "Query rewriting before the top-level router improves routing accuracy."
+        },
+        {
+          "pattern": "contextual-retrieval",
+          "relation": "composes-with",
+          "note": "Contextualised chunks at the leaf tier sharpen the final retrieval."
+        },
+        {
+          "pattern": "hippocampus-rag",
+          "relation": "alternative-to",
+          "note": "HippoRAG handles multi-hop via PPR over an entity graph; hierarchical retrieval handles heterogeneity via routed indexes."
+        },
+        {
+          "pattern": "routing",
+          "relation": "uses",
+          "note": "Hierarchical retrieval is the routing pattern applied to the retrieve step."
+        },
+        {
+          "pattern": "topic-based-routing",
+          "relation": "uses"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "alternative-to",
+          "note": "Structurally analogous: routing the generate step across models versus routing the retrieve step across indexes."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "A Two-Dimensional Framework for AI Agent Design Patterns: Cognitive Function and Execution Topology",
+          "authors": "Huang, Zhou",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.13850"
+        },
+        {
+          "type": "paper",
+          "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2602.03442"
+        },
+        {
+          "type": "paper",
+          "title": "SoK: Agentic Retrieval-Augmented Generation: Taxonomy, Architectures, Evaluation, and Research Directions",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2603.07379"
+        },
+        {
+          "type": "doc",
+          "title": "LlamaIndex — Auto Merging Retriever",
+          "url": "https://developers.llamaindex.ai/python/examples/retrievers/auto_merging_retriever/"
+        },
+        {
+          "type": "doc",
+          "title": "Haystack — HierarchicalDocumentSplitter",
+          "url": "https://docs.haystack.deepset.ai/docs/hierarchicaldocumentsplitter"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "retrieval",
+        "routing",
+        "cascade",
+        "hierarchy"
+      ],
+      "applicability": {
+        "use_when": [
+          "Several distinct corpora or indexes exist and only a subset is relevant to any given query.",
+          "Documents have meaningful parent-child structure (chapter, section, paragraph) worth preserving in the index.",
+          "Query mix spans different granularities — some questions are summary-level, some are span-level.",
+          "Retrieval cost or latency makes querying every source in parallel impractical."
+        ],
+        "do_not_use_when": [
+          "A single homogeneous corpus is small enough that flat retrieval already serves every query.",
+          "Routing accuracy at the top tier would be too low to trust; one bad route would dominate failures.",
+          "Query mix is uniform in scope and a single granularity already wins."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Router-then-retrieve",
+          "summary": "A top-level router classifies the query, picks one downstream retriever, and that retriever does the actual work.",
+          "distinguishing_factor": "single routing decision at the top",
+          "when_to_use": "Sources are clearly delineated and a classifier or LLM can pick the right one cheaply."
+        },
+        {
+          "name": "Tree retrieval (coarse-to-fine)",
+          "summary": "Retrieve summaries first, descend into the children of the top-ranked summaries, repeat to chunk level.",
+          "distinguishing_factor": "granularity descent through a tree of nodes",
+          "when_to_use": "Documents have rich hierarchical structure (books, codebases, large reports)."
+        },
+        {
+          "name": "Auto-merging retrieval",
+          "summary": "Retrieve at leaf-chunk granularity; when several leaf hits share a parent, escalate the parent node into the result.",
+          "distinguishing_factor": "leaf-up escalation, not top-down routing",
+          "when_to_use": "Chunk-level retrieval is the default but the model benefits from wider context when leaves cluster."
+        },
+        {
+          "name": "Multi-vector per document",
+          "summary": "Store summary, full doc, and child-chunk vectors for each document; match on one, return another.",
+          "distinguishing_factor": "match granularity decoupled from return granularity",
+          "when_to_use": "Embedding quality is best on small chunks but the generator wants larger context windows."
+        }
+      ],
+      "components": [
+        "Top-level router — classifies the query and selects one or more downstream sources or sub-indexes",
+        "Per-source retriever — the actual retrieval pipeline (dense, BM25, or hybrid) for each leaf source",
+        "Hierarchical parser — builds the parent-child node tree at index time",
+        "Granularity selector — at query time, decides which tier of the tree the query targets",
+        "Aggregator and reranker — merges results from whichever sub-retrievers fired and produces the final top-K"
+      ],
+      "tools": [
+        "Hierarchical node parser — LlamaIndex HierarchicalNodeParser, Haystack HierarchicalDocumentSplitter",
+        "Router retriever — LlamaIndex RouterRetriever or an LLM-driven router prompt",
+        "Multi-vector store — LangChain MultiVectorRetriever or equivalent that holds multiple representations per document",
+        "Embedding model and BM25 index — one per leaf retriever",
+        "Cross-encoder reranker — optional final stage over the cascade's output"
+      ],
+      "evaluation_metrics": [
+        "Top-level routing accuracy — fraction of queries routed to a source that actually contains the answer",
+        "Recall@K vs flat baseline — does the cascade lose recall compared with querying every source in parallel",
+        "Average retrievers fired per query — cost signal showing the cascade is actually pruning",
+        "Granularity-match rate — share of queries whose returned chunks match the human-judged right granularity",
+        "End-to-end latency — sum of router plus leaf retrieval, compared with flat parallel retrieval"
+      ],
+      "example_scenario": "A developer-support agent answers questions over four sources: API reference, runbooks, support-ticket history, and the public web. Flat retrieval hits all four on every query and the reranker has to fight ticket noise on API questions. The team switches to hierarchical retrieval: a classifier routes 'how do I authenticate?' to the API reference, 'why did deploy fail last Tuesday?' to support tickets, and 'is this issue known?' first to runbooks and then to the web only if runbooks return nothing. Inside the API reference, a tree retriever descends from section summaries to the specific code-block chunk. Three of the four retrievers are skipped on most queries; latency drops; reranker noise drops with it.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Query] --> R0{Top-level router}\n  R0 -- API docs --> A[API retriever]\n  R0 -- runbooks --> B[Runbook retriever]\n  R0 -- tickets --> C[Ticket retriever]\n  R0 -- web --> D[Web retriever]\n  A --> S[Section index]\n  S --> Ch[Chunk index]\n  B --> Ch2[Chunk index]\n  C --> Ch3[Chunk index]\n  D --> Ch4[Chunk index]\n  Ch --> Agg[Aggregator + reranker]\n  Ch2 --> Agg\n  Ch3 --> Agg\n  Ch4 --> Agg\n  Agg --> Out[Top-K to generator]"
+      },
+      "last_updated": "2026-05-22"
+    },
+    {
+      "id": "hippocampus-rag",
+      "name": "HippoRAG",
+      "aliases": [
+        "Hippocampus-Indexed Retrieval",
+        "PPR-over-LLM-KG",
+        "海马体启发的检索增强生成"
+      ],
+      "category": "retrieval",
+      "intent": "Build an LLM-extracted schemaless knowledge graph from the corpus and run Personalized PageRank seeded on the query's key concepts so multi-hop retrieval completes in a single pass.",
+      "context": "A team runs RAG over a corpus where the answer to many queries lives across several documents that share entities or relations rather than vocabulary. Multi-hop questions — 'which Stanford professor co-authored a paper with someone now at DeepMind on RLHF?' — require crossing edges in entity space, not just embedding similarity. Iterative retrieve-then-reason loops do work but pay an LLM call per hop and lose context between hops.",
+      "problem": "Single-query dense retrieval lands in one embedding neighbourhood and cannot follow entity-mediated chains across documents. Iterative agentic retrieval reaches the answer but costs an LLM call per hop and the agent has no global view of the graph that connects passages. Community-summary approaches such as GraphRAG handle global queries via map-reduce over pre-built summaries, but their cost and latency are dominated by the summary build and they do not naturally surface a tight path between two concrete entities.",
+      "forces": [
+        "Multi-hop answers depend on entity-mediated paths the embedding similarity flattens away.",
+        "Iterative agentic retrieval costs one LLM call per hop and drifts off-topic.",
+        "Pre-building dense community summaries is expensive and re-runs on corpus updates.",
+        "Graph construction quality bounds retrieval quality; bad NER means bad recall."
+      ],
+      "therefore": "Therefore: have an LLM extract a schemaless entity-relation graph from the corpus once, and at query time run Personalized PageRank seeded on the query's key concepts so the graph itself does the multi-hop traversal in a single retrieval step.",
+      "solution": "Offline, prompt an LLM to extract (subject, predicate, object) triples from each passage and store the resulting schemaless graph alongside per-node passage pointers — this is the artificial hippocampal index. At query time, extract the query's key concepts (also via LLM), seed Personalized PageRank on the corresponding graph nodes, run PPR to propagate relevance through entity-mediated edges, and surface the top passages by aggregated PPR mass. Pass the surfaced passages forward to the generator, optionally through a reranker.",
+      "consequences": {
+        "benefits": [
+          "Multi-hop QA lift over flat dense retrieval without an iterative LLM loop.",
+          "Single-pass retrieval — no per-hop LLM call at query time.",
+          "Cheaper than community-summary GraphRAG on incremental corpus updates (only new nodes/edges).",
+          "Graph is human-inspectable, so failures localise to bad extraction or bad seeding."
+        ],
+        "liabilities": [
+          "Extraction quality bounds retrieval quality; poor NER on the corpus poisons the graph.",
+          "PPR over a large graph can be expensive without precomputed indexes or sparsification.",
+          "Schemaless triples drift over time; semantically-equivalent edges may not merge.",
+          "Cold-start cost is the full LLM-driven extraction pass over the corpus."
+        ]
+      },
+      "constrains": "Retrieval cannot rely on the query embedding alone; relevance is propagated through the LLM-extracted entity graph via Personalized PageRank, and passages with no graph anchor are unreachable.",
+      "known_uses": [
+        {
+          "system": "HippoRAG (OSU-NLP-Group, NeurIPS 2024)",
+          "status": "available"
+        },
+        {
+          "system": "HippoRAG 2 (continual KG variant)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "graphrag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models",
+          "authors": "Gutiérrez, Shu, Gu, Yasunaga, Su",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2405.14831"
+        },
+        {
+          "type": "repo",
+          "title": "OSU-NLP-Group/HippoRAG",
+          "url": "https://github.com/OSU-NLP-Group/HippoRAG"
+        },
+        {
+          "type": "blog",
+          "title": "HippoRAG2：仿人脑检索的RAG，超越GraphRAG、KAG等",
+          "url": "https://zhuanlan.zhihu.com/p/27647453810"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "knowledge-graph",
+        "pagerank",
+        "multi-hop"
+      ],
+      "applicability": {
+        "use_when": [
+          "Queries require multi-hop reasoning across entity-mediated paths in the corpus.",
+          "An iterative retrieve-then-reason loop is too expensive or too slow in production.",
+          "The corpus has stable enough entities that LLM extraction yields a useful graph.",
+          "Single-pass latency is required (multi-hop without per-hop LLM calls)."
+        ],
+        "do_not_use_when": [
+          "Queries are single-hop and dense retrieval already saturates recall.",
+          "The corpus lacks named entities (e.g. abstract conceptual text without proper nouns).",
+          "Cold-start cost of full LLM extraction is unaffordable and the corpus changes rarely.",
+          "GraphRAG's community-summary global-query shape fits the workload better."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  subgraph Offline\n    C[Corpus] --> E[LLM triple extraction]\n    E --> G[Schemaless KG hippocampal index]\n  end\n  Q[Query] --> K[LLM key-concept extraction]\n  K --> S[Seed PPR on graph nodes]\n  G --> S\n  S --> P[Personalized PageRank traversal]\n  P --> R[Top-N passages by PPR mass]\n  R --> Gen[Generator]",
+        "caption": "HippoRAG builds an LLM-extracted KG offline, then seeds Personalized PageRank on query concepts at retrieval time for single-pass multi-hop traversal."
+      },
+      "example_scenario": "A research assistant gets the query 'which professor at Stanford co-authored an RLHF paper with someone now at DeepMind?' A single embedding lookup retrieves vaguely-related ML papers but cannot follow the author edges. HippoRAG's offline extraction has produced a graph with Person, Affiliation, and Authored-Paper nodes. The query's key concepts ('Stanford', 'DeepMind', 'RLHF') seed Personalized PageRank, which propagates mass through Authored-Paper edges and lands on the specific paper plus its two co-author nodes. The generator answers from those passages in a single retrieval pass.",
+      "variants": [
+        {
+          "name": "HippoRAG (original)",
+          "summary": "OpenIE-style triple extraction plus PPR; single-shot multi-hop retrieval.",
+          "distinguishing_factor": "OpenIE triples, single-shot",
+          "when_to_use": "First baseline for multi-hop QA over a stable corpus."
+        },
+        {
+          "name": "HippoRAG 2",
+          "summary": "Continual updates with deduplication, alias merging, and improved PPR weighting; approaches state-of-the-art at a fraction of GraphRAG's cost.",
+          "distinguishing_factor": "continual KG updates",
+          "when_to_use": "When the corpus grows incrementally and re-extraction must be cheap."
+        },
+        {
+          "name": "PPR with hybrid seeding",
+          "summary": "Combine query-concept seeds with dense-retrieval-derived seeds so non-entity queries still benefit from graph traversal.",
+          "distinguishing_factor": "hybrid seed set",
+          "when_to_use": "When the query mix includes both entity-rich and conceptual queries."
+        }
+      ],
+      "components": [
+        "LLM extractor — converts each passage into (subject, predicate, object) triples plus passage pointers",
+        "Schemaless graph store — nodes are entities, edges are predicates, each node carries a list of source-passage ids",
+        "Query concept extractor — LLM call that emits the query's seed concepts as a small set of nodes",
+        "PPR engine — runs Personalized PageRank seeded on those nodes and aggregates mass back to passages",
+        "Top-N selector — surfaces the highest-mass passages to the generator or to a downstream reranker"
+      ],
+      "tools": [
+        "LLM for OpenIE-style triple extraction (offline) and query concept identification (online)",
+        "Graph store with PPR support — NetworkX, igraph, or graph-native databases that expose Personalized PageRank",
+        "Embedding model for the dense fallback or for entity disambiguation"
+      ],
+      "evaluation_metrics": [
+        "Multi-hop QA accuracy vs. flat dense and vs. iterative agentic baselines on MuSiQue, 2WikiMultihopQA, HotpotQA",
+        "End-to-end retrieval cost (extraction + PPR) vs. GraphRAG community summarisation",
+        "Per-query latency — PPR cost grows with graph size; measure p95 against query mix",
+        "Graph quality — extraction precision/recall on a held-out triple set",
+        "Cold-start time — wall-clock for the offline extraction pass on the target corpus"
+      ],
+      "last_updated": "2026-05-22"
+    },
+    {
       "id": "hybrid-search",
       "name": "Hybrid Search",
       "aliases": [
@@ -875,6 +1299,18 @@
         },
         {
           "pattern": "contextual-retrieval",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
           "relation": "composes-with"
         }
       ],
@@ -993,6 +1429,10 @@
         {
           "pattern": "cross-encoder-reranking",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -1059,6 +1499,165 @@
         "Hybrid-HyDE win rate — does averaging the draft and query embeddings beat single-draft on this corpus"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "modular-rag",
+      "name": "Modular RAG",
+      "aliases": [
+        "LEGO RAG",
+        "Reconfigurable RAG",
+        "模块化RAG",
+        "Module-Type / Module / Operator RAG"
+      ],
+      "category": "retrieval",
+      "intent": "Decompose RAG into a typed three-layer hierarchy of Module Types, Modules, and Operators so the pipeline (routing, scheduling, fusion, retrieval, post-retrieval, generation) can be rearranged per query rather than running a fixed linear retrieve-then-generate.",
+      "context": "A team has shipped a basic RAG pipeline and the workload has fragmented. Some queries need query rewriting plus reranking; others need a knowledge-graph hop; others want a direct semantic lookup without rerank; some need a routing decision between two corpora. Hard-coding one linear pipeline for the worst-case query wastes latency and cost on the cheap ones, and shipping a second pipeline duplicates everything.",
+      "problem": "A fixed Naive RAG pipeline is too rigid for heterogeneous workloads: every retrieval flows through the same retrieve-rerank-generate stages regardless of query shape, paying the worst-case cost on every request. Forking the pipeline per query type duplicates code, splits operational metrics across pipelines, and loses the ability to share modules. There is no contract between stages, so swapping a reranker, adding a query rewriter, or routing between corpora requires touching the pipeline orchestration directly.",
+      "forces": [
+        "Heterogeneous query mix wants different pipelines, but operating many forked pipelines is expensive.",
+        "Sharing modules across pipelines requires a typed contract between stages.",
+        "Per-query routing and fusion add latency that must be paid for in recall or cost saved elsewhere.",
+        "Reconfigurability invites combinatorial explosion of pipeline shapes that are hard to evaluate."
+      ],
+      "therefore": "Therefore: organise the RAG system as Module Types (Indexing, Pre-Retrieval, Retrieval, Post-Retrieval, Generation, Orchestration), each populated by named Modules implemented from typed Operators, so per-query pipelines compose at runtime from a shared inventory.",
+      "solution": "Define six Module Types covering the RAG lifecycle (Indexing, Pre-Retrieval, Retrieval, Post-Retrieval, Generation, Orchestration). Within each, name concrete Modules (e.g. under Pre-Retrieval: Query Rewriting, HyDE, Decomposition). Implement each Module from typed Operators (atomic, swappable steps). At request time, an Orchestration Module assembles a pipeline by picking one Module per stage, possibly with branching, conditional routing, and fusion. Modules expose a typed input/output contract so any compatible Module can swap in; new modules ship without touching orchestration.",
+      "consequences": {
+        "benefits": [
+          "Per-query pipeline composition — heavy stages pay for themselves only when needed.",
+          "Module reuse across pipelines; one shared inventory replaces N forked pipelines.",
+          "Typed contracts make swapping a reranker or adding a query rewriter a one-line config change.",
+          "Operational metrics aggregate across pipelines per Module, surfacing which Modules earn their cost."
+        ],
+        "liabilities": [
+          "Orchestration complexity — runtime pipeline assembly adds a meta-control surface to debug.",
+          "Combinatorial pipeline space is hard to evaluate exhaustively; eval coverage may lag pipeline shapes.",
+          "Typed contracts impose schema overhead on every Operator boundary.",
+          "Without discipline, the Module inventory grows into a graveyard of near-duplicates."
+        ]
+      },
+      "constrains": "Pipelines may only be composed from named Modules implementing typed Operator contracts; bespoke retrieval logic outside the Module inventory is forbidden, so all pipeline shapes are inspectable and replaceable.",
+      "known_uses": [
+        {
+          "system": "Modular RAG paper reference design (Gao, Xiong, Wang et al., Tongji + Fudan, 2024)",
+          "status": "available"
+        },
+        {
+          "system": "LlamaIndex / LangChain advanced retrieval stacks (operator-level swappability)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "agentic-rag",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Modular RAG: Transforming RAG Systems into LEGO-like Reconfigurable Frameworks",
+          "authors": "Gao, Xiong, Wang, Sun, Bi, Lou, Xiong, Wang, Guo, Zhang",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2407.21059"
+        },
+        {
+          "type": "doc",
+          "title": "Modular RAG paper — HuggingFace Papers",
+          "url": "https://huggingface.co/papers/2407.21059"
+        },
+        {
+          "type": "blog",
+          "title": "最全梳理：一文搞懂RAG技术的5种范式",
+          "url": "https://segmentfault.com/a/1190000046138023"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "rag",
+        "architecture",
+        "reconfigurable",
+        "modular"
+      ],
+      "applicability": {
+        "use_when": [
+          "The query mix is heterogeneous enough that one linear pipeline overpays on the easy queries.",
+          "Multiple RAG pipelines have started to fork and share their modules informally.",
+          "The team wants per-query routing, fusion, or conditional branching as first-class concerns.",
+          "Module-level eval (recall per Module, cost per Module) is more useful than pipeline-level eval."
+        ],
+        "do_not_use_when": [
+          "The workload is uniform and a single Naive RAG pipeline serves the entire query mix.",
+          "Team capacity cannot maintain a Module inventory plus the orchestration meta-layer.",
+          "Latency budget cannot absorb the per-request orchestration step that picks the pipeline shape.",
+          "Eval coverage cannot expand to match the combinatorial pipeline space."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Query] --> O[Orchestration Module]\n  O --> PR[Pre-Retrieval Module<br/>query-rewriting / HyDE / decomp]\n  PR --> R[Retrieval Module<br/>dense / sparse / hybrid / graph]\n  R --> PO[Post-Retrieval Module<br/>rerank / compress / filter]\n  PO --> G[Generation Module]\n  I[Indexing Module] -.builds.-> R\n  G --> Out[Answer]",
+        "caption": "Modular RAG organises retrieval as six Module Types; Orchestration picks one Module per stage per request from a shared inventory of typed Operators."
+      },
+      "example_scenario": "A documentation assistant serves three query shapes: lookup queries ('what is the default timeout?'), exploratory queries ('how does the deployment pipeline handle failures?'), and entity-multi-hop queries ('which team owns the service that calls X?'). Under a fixed pipeline, all three pay for query rewriting + dense + sparse + rerank + reasoning. Under Modular RAG, the Orchestration Module routes lookup queries through Retrieval(dense)→Generation only; exploratory queries through Pre-Retrieval(query-rewriting)→Retrieval(hybrid)→Post-Retrieval(rerank)→Generation; multi-hop queries through Retrieval(graph)→Generation. Modules are shared; only the assembled pipeline differs.",
+      "variants": [
+        {
+          "name": "Linear Modular",
+          "summary": "Modules compose in a fixed order but each Module is swappable; no per-query branching.",
+          "distinguishing_factor": "swappable Modules, fixed order",
+          "when_to_use": "Workload is uniform but the team wants future-proof swappability."
+        },
+        {
+          "name": "Conditional Modular",
+          "summary": "Orchestration Module picks one of N branches per query based on query classification.",
+          "distinguishing_factor": "per-query branching",
+          "when_to_use": "Query mix has 2-4 distinct shapes that benefit from different pipelines."
+        },
+        {
+          "name": "Fusion Modular",
+          "summary": "Multiple retrieval Modules run in parallel and a Fusion Operator combines their outputs (RRF, weighted).",
+          "distinguishing_factor": "parallel retrievers + fusion",
+          "when_to_use": "When the team wants ensemble recall lift without committing to one retrieval strategy."
+        }
+      ],
+      "components": [
+        "Module Type — the lifecycle stage (Indexing, Pre-Retrieval, Retrieval, Post-Retrieval, Generation, Orchestration)",
+        "Module — a named implementation within a Module Type (e.g. 'Hybrid Search' is a Retrieval Module)",
+        "Operator — atomic swappable building block (e.g. BM25 scorer, RRF fuser, cross-encoder reranker)",
+        "Typed contract — input/output shape every Module implementing a Type must honour",
+        "Orchestration Module — assembles a per-request pipeline from the inventory, with optional branching and fusion"
+      ],
+      "tools": [
+        "Pipeline orchestration framework — LangGraph, LlamaIndex Workflows, or in-house DAG runner",
+        "Schema enforcement — Pydantic or equivalent to enforce typed Module contracts at boundaries",
+        "Module inventory — registry that tracks each Module's Type, contract version, and eval results"
+      ],
+      "evaluation_metrics": [
+        "Per-Module recall and latency vs. fixed-pipeline baselines",
+        "Per-pipeline cost (sum of Module costs) vs. one-size-fits-all pipeline",
+        "Module reuse ratio — how many distinct pipelines share the same Module",
+        "Orchestration overhead — wall-clock added by per-request pipeline assembly",
+        "Module inventory health — fraction of Modules referenced by at least one shipped pipeline (graveyard detector)"
+      ],
+      "last_updated": "2026-05-22"
     },
     {
       "id": "naive-rag",
@@ -1162,6 +1761,26 @@
         {
           "pattern": "citation-attribution",
           "relation": "used-by"
+        },
+        {
+          "pattern": "query-rewriting",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "hippocampus-rag",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "over-search-and-under-search",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -1237,6 +1856,180 @@
         "Cost per answered query — combined embedding, index, and generator spend"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "query-rewriting",
+      "name": "Query Rewriting",
+      "aliases": [
+        "Multi-Query Retrieval",
+        "Query Expansion",
+        "Query Reformulation",
+        "RAG-Fusion (query side)"
+      ],
+      "category": "retrieval",
+      "intent": "Use an LLM to generate several alternative formulations of the user's query, retrieve documents for each, and rank-fuse the results so recall does not depend on one phrasing.",
+      "context": "A team runs retrieval over a corpus where the user's natural phrasing is only one of many ways to express the same information need. The corpus chunks may use different vocabulary, abbreviations, or framing for the same concept, and an embedding-based lookup against a single query vector lands in only one neighbourhood of the embedding space. Users themselves under-specify, ask compound questions, or use idioms the corpus does not echo.",
+      "problem": "A single query embedding samples only one point in the semantic space and retrieves only the chunks closest to that point. Relevant chunks expressed in different vocabulary, at a different specificity level, or framed as a different sub-question are missed entirely, and no downstream reranker can rescue a chunk that was never retrieved. The user's first phrasing is a noisy estimator of intent, and recall is bottlenecked by how well that one phrasing aligns with how the answer chunks were written.",
+      "forces": [
+        "More query variants improve recall but multiply retrieval cost linearly.",
+        "Variants generated by the LLM may drift off-topic and inject noise into the result set.",
+        "Fusion strategy (union, RRF, weighted) decides whether rare-but-relevant chunks survive deduplication.",
+        "Latency budget bounds how many parallel retrievals the system can afford per request."
+      ],
+      "therefore": "Therefore: have the LLM rewrite the query into several variants, retrieve for each in parallel, and fuse the rankings so the answer set reflects the intent rather than the surface phrasing.",
+      "solution": "At query time, prompt an LLM to produce N reformulations of the user's query (typically 3–5) covering paraphrase, decomposition into sub-questions, and specificity shifts. Retrieve top-k chunks for each variant in parallel. Fuse the result lists with Reciprocal Rank Fusion or a deduplicated union, then pass the fused top-N forward to the generator or to a downstream reranker. The original query is included as one of the variants so the system never does worse than a single-query baseline.",
+      "consequences": {
+        "benefits": [
+          "Recall lift on queries whose first phrasing is under-specified or vocabulary-mismatched against the corpus.",
+          "Decomposes compound questions into retrievable sub-questions without changing the generator.",
+          "Composable: stacks in front of any existing retriever (dense, sparse, or hybrid) and in front of any reranker."
+        ],
+        "liabilities": [
+          "Retrieval cost and latency multiply by the number of variants.",
+          "LLM-generated variants can drift off-topic and inject distractors into the result set.",
+          "Fusion tuning (RRF constant, weight, union policy) is empirical and corpus-specific.",
+          "An extra LLM call sits on the request path before any retrieval can start."
+        ]
+      },
+      "constrains": "The retriever cannot be driven by the user's original query alone; the result set is the rank-fusion across all generated variants plus the original.",
+      "known_uses": [
+        {
+          "system": "LangChain MultiQueryRetriever",
+          "status": "available"
+        },
+        {
+          "system": "RAG-Fusion (Raudaschl, 2024)",
+          "status": "available"
+        },
+        {
+          "system": "Most production RAG pipelines using LangChain or LlamaIndex retrievers",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "naive-rag",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "hybrid-search",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "cross-encoder-reranking",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hyde",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "RAG-Fusion: a New Take on Retrieval-Augmented Generation",
+          "authors": "Raudaschl",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2402.03367"
+        },
+        {
+          "type": "doc",
+          "title": "LangChain — MultiQueryRetriever",
+          "url": "https://python.langchain.com/docs/how_to/MultiQueryRetriever/"
+        },
+        {
+          "type": "blog",
+          "title": "Martin Fowler — Emerging Patterns in Building GenAI Products",
+          "authors": "Bryce Mecum, Birgitta Boeckeler, Martin Fowler, Ryder Dale Walton",
+          "year": 2025,
+          "url": "https://martinfowler.com/articles/gen-ai-patterns/"
+        },
+        {
+          "type": "paper",
+          "title": "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods",
+          "authors": "Cormack, Clarke, Buettcher",
+          "year": 2009,
+          "url": "https://dl.acm.org/doi/10.1145/1571941.1572114"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "rag",
+        "retrieval",
+        "query-transformation"
+      ],
+      "applicability": {
+        "use_when": [
+          "Users under-specify or phrase queries in vocabulary that does not echo the corpus.",
+          "Queries are compound and naturally decompose into sub-questions answered by different chunks.",
+          "Single-query retrieval shows recall@k below the level a reranker could rescue.",
+          "Latency budget can absorb one LLM call plus N parallel retrievals."
+        ],
+        "do_not_use_when": [
+          "Queries are short and exact (codes, identifiers, exact-match lookups) where variants would only add noise.",
+          "Sub-100ms p95 retrieval is required and the extra LLM call blows the budget.",
+          "Corpus is small enough that a single embedding lookup already saturates recall."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Original query] --> R[LLM rewriter]\n  R --> V1[Variant 1]\n  R --> V2[Variant 2]\n  R --> V3[Variant N]\n  Q --> V0[Original kept as variant 0]\n  V0 --> Ret[Retriever]\n  V1 --> Ret\n  V2 --> Ret\n  V3 --> Ret\n  Ret --> F[Rank fusion / RRF]\n  F --> Out[Top-N to generator or reranker]",
+        "caption": "Query Rewriting expands the user query into N variants, retrieves for each in parallel, and rank-fuses the results."
+      },
+      "example_scenario": "A documentation assistant gets the query 'why is my deploy slow?' A single embedding lookup retrieves a handful of chunks about deploy speed in general. The rewriter produces variants — 'deployment latency causes', 'slow CI pipeline diagnosis', 'docker image build time bottlenecks', 'kubernetes rollout delay reasons' — and runs retrieval for each in parallel. The fused result set now contains chunks about image-build caching and rollout strategy that the original query embedding sat too far from. Reciprocal Rank Fusion across the five rankings surfaces the chunks that appear in multiple lists.",
+      "variants": [
+        {
+          "name": "Paraphrase variants",
+          "summary": "The LLM rewrites the query into N surface-level paraphrases that preserve the same information need.",
+          "distinguishing_factor": "variants are different phrasings of the same question",
+          "when_to_use": "Default when vocabulary mismatch between query and corpus is the suspected recall drag."
+        },
+        {
+          "name": "Sub-question decomposition",
+          "summary": "The LLM decomposes a compound query into N narrower sub-questions, each retrieved independently.",
+          "distinguishing_factor": "variants are sub-questions, not paraphrases",
+          "when_to_use": "When the query is multi-hop or compound and different chunks answer different parts."
+        },
+        {
+          "name": "RAG-Fusion",
+          "summary": "Multi-query retrieval followed by Reciprocal Rank Fusion across the per-variant rankings to surface chunks that recur in several lists.",
+          "distinguishing_factor": "named composition with RRF as the fusion step",
+          "when_to_use": "When variant retrievers produce non-comparable scores and rank-based fusion is preferred."
+        },
+        {
+          "name": "Step-back / abstraction",
+          "summary": "The LLM emits one more abstract reformulation that retrieves higher-level context chunks alongside the literal query.",
+          "distinguishing_factor": "one variant deliberately steps up the abstraction level",
+          "when_to_use": "When the answer needs background context the literal query phrasing would miss."
+        }
+      ],
+      "components": [
+        "Query rewriter — LLM call that emits N variants of the user query in a structured format",
+        "Parallel retriever — runs the underlying retriever (dense, sparse, or hybrid) once per variant",
+        "Rank fusion stage — Reciprocal Rank Fusion or deduplicated union merges the N ranked lists into one",
+        "Top-N selector — emits the fused top-N to the generator or to a downstream reranker"
+      ],
+      "tools": [
+        "LLM rewriter — small fast model is sufficient (e.g. Haiku-class); the rewriter does not need the strongest model",
+        "Retriever — any existing retriever (vector index, BM25, or hybrid) reused unchanged per variant",
+        "Fusion library — RRF implementation or vector-store SDK that exposes hybrid/multi-query helpers"
+      ],
+      "evaluation_metrics": [
+        "Recall@k against single-query baseline — quantifies the lift from variant expansion",
+        "Per-variant contribution — fraction of fused top-N chunks unique to each variant, to detect dead variants",
+        "Distractor rate — fraction of retrieved chunks that the generator does not cite, to detect off-topic drift",
+        "p95 retrieval latency — overhead of the rewriter LLM call plus N parallel retrievers",
+        "Cost per query — extra LLM call plus N retrievals against the single-query baseline"
+      ],
+      "last_updated": "2026-05-22"
     },
     {
       "id": "raft",
