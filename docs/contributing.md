@@ -44,6 +44,7 @@ Four files (or directories) hold all contributor-editable state. Pick the one th
 - `compositions-src/` — one JSON shard per composition family. Holds both `kind: recipe` (abstract design templates) and `kind: framework` (real shipping software, with per-pattern evidence). Validated against [`compositions.schema.json`](../compositions.schema.json).
 - `examples-src/` — one JSON shard per category. Source of truth for per-pattern code examples (pseudo-code + one entry per supporting framework). Code is embedded inline as a string; there are no separate `.py` / `.ts` files on disk. Validated against [`examples.schema.json`](../examples.schema.json). The HTML site renders each pattern's examples as a tabbed code panel.
 - `pattern-todo.json` — proposed pattern candidates that have not yet been authored. Validated against [`pattern-todo.schema.json`](../pattern-todo.schema.json).
+- `pattern-todo-archive/` — rejected candidates, one JSON file per id, each conforming to `pattern-todo.schema.json#/$defs/candidate`. Moved here to preserve the rejection rationale without crowding the active todo.
 - `verification-todo.json` — per-aspect verification status for every pattern and composition. Validated against [`verification-todo.schema.json`](../verification-todo.schema.json).
 
 The built artefacts (`patterns.json`, `examples.json`, `INDEX.md`, `patterns.graph.json`) are derived from `patterns-src/` and `examples-src/` and should not be hand-edited.
@@ -82,7 +83,7 @@ The HTML site renders these as a tabbed Code Examples section on each pattern pa
 
 ### C. Suggest a pattern without authoring it yet
 
-If you spotted a candidate while researching a composition but cannot yet write the full entry, append it to `pattern-todo.json`. Required fields: kebab-case `id`, human-readable `name`, `summary`, and `raised_by[]` with at least one composition id and upstream evidence (URL + quote). Status starts at `proposed`, moves to `drafting` when someone is authoring it, and to `authored` (then the candidate is deleted from this file) when the pattern lands in `patterns-src/`. Use `rejected` with a `rejected_reason` if the team decides not to pursue it.
+If you spotted a candidate while researching a composition but cannot yet write the full entry, append it to `pattern-todo.json`. Required fields: kebab-case `id`, human-readable `name`, `summary`, and `raised_by[]` with at least one composition id and upstream evidence (URL + quote). Status starts at `proposed`, moves to `drafting` when someone is authoring it, and to `authored` (then the candidate is deleted from this file) when the pattern lands in `patterns-src/`. Use `rejected` with a `rejected_reason` if the team decides not to pursue it — once rejected, move the entry to `pattern-todo-archive/<id>.json` so the active todo stays focused on live candidates.
 
 ### D. Flag an issue that needs systematic re-checking
 
