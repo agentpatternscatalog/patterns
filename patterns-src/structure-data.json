@@ -281,6 +281,133 @@
       "last_updated": "2026-05-21"
     },
     {
+      "id": "llm-as-periphery",
+      "name": "LLM as Periphery",
+      "aliases": [
+        "Deterministic-Core LLM-Edge",
+        "LLM — это периферия, а не ядро"
+      ],
+      "category": "structure-data",
+      "intent": "Invert the typical LLM-in-the-middle architecture: a deterministic state machine and event store form the core; the LLM is restricted to edge tasks — input interpretation and output synthesis only.",
+      "context": "An agent system is being designed where some decisions are safety-critical or property-testable (state transitions, threshold enforcement, eligibility, persisted facts) and others are inherently interpretive (free-text classification, summary generation, ambiguous intent parsing). The default architectural reflex is to place the LLM at the centre of the loop and call code from it. The author of the Habr write-up that surfaced this shape argues the default is inverted: the LLM should be the periphery, not the core.",
+      "problem": "When the LLM holds state and orchestrates transitions, every state mutation is non-deterministic, every safety-critical decision is unverifiable, and every regression in the LLM ripples through the whole system. The decision the Habr author reached after building a self-knowledge bot: keep all state transitions, thresholds, and safety-critical decisions in explicit, property-tested code; use the LLM only at the edges where its strengths (interpretation, synthesis) match the task. Distinct from the existing deterministic-llm-sandwich pattern (which wraps a centrally-placed LLM in deterministic gates): here the deterministic component is canonical and the LLM is auxiliary.",
+      "forces": [
+        "LLM strengths (interpretation, synthesis) and weaknesses (state, exact rules, repeatability) point at different parts of the system; one architecture cannot serve both.",
+        "State held inside an LLM context cannot be property-tested; state held in code can.",
+        "Centring the LLM gives developer velocity early; the cost shows up later as untestability and ripple-regressions.",
+        "Inverting the default requires more upfront design — most frameworks assume LLM-at-the-centre."
+      ],
+      "therefore": "Therefore: design the deterministic state machine and event store first; identify the points where interpretation or synthesis is genuinely needed; insert the LLM only at those edge points, with explicit input/output schemas and no persistent state.",
+      "solution": "Place a deterministic state machine and an event store at the core. Decisions about state transitions, threshold checks, and persistence happen in explicit code with property-based tests. The LLM is invoked at well-defined edges: interpreting free-text input into a typed event, synthesizing user-facing text from a typed state, classifying ambiguous inputs into a known taxonomy. The LLM is stateless across edges; the event store is the only state. New LLM calls re-read from the event store and produce edge outputs that get written back as typed events.",
+      "consequences": {
+        "benefits": [
+          "Safety-critical and state-transition logic becomes property-testable in explicit code.",
+          "LLM regressions are bounded to the edge they live on; the core does not move.",
+          "Event store gives full replayability and audit; debugging is conventional rather than LLM-prompt archaeology.",
+          "Cost is bounded: LLM calls are per-edge, not per-state-transition."
+        ],
+        "liabilities": [
+          "Higher upfront design cost; most frameworks make LLM-at-the-centre easier to bootstrap.",
+          "Genuinely interpretive workflows where the dialog drives state may not fit the inversion cleanly.",
+          "Boundary between 'edge' and 'core' is a design judgement that has to be maintained as the product evolves.",
+          "Single source citing this pattern explicitly to date; risk that the shape is better expressed as a refinement of deterministic-llm-sandwich rather than a distinct pattern."
+        ]
+      },
+      "constrains": "Forbids the LLM from holding state, performing state transitions, or making safety-critical decisions. The LLM is restricted to typed-input, typed-output edge transformations.",
+      "known_uses": [
+        {
+          "system": "Habr self-knowledge bot (MAX webhook → adapter → Stability Engine → Dialog Engine → Event Core architecture) — the article naming the inversion explicitly",
+          "status": "available",
+          "url": "https://habr.com/ru/articles/1027210/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "deterministic-llm-sandwich",
+          "relation": "complements",
+          "note": "the sandwich wraps a central LLM in deterministic gates; this pattern inverts which side is canonical. Authoring pass may decide to merge if forces fully overlap."
+        },
+        {
+          "pattern": "world-model-separation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "uses"
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "uses"
+        },
+        {
+          "pattern": "json-only-action-schema",
+          "relation": "uses",
+          "note": "typed edge outputs from the LLM"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Я строю AI-бот для самопознания. Вот спек, архитектура и почему LLM — это периферия, а не ядро",
+          "year": 2026,
+          "url": "https://habr.com/ru/articles/1027210/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "architecture",
+        "state-machine",
+        "event-sourcing",
+        "deterministic",
+        "single-source"
+      ],
+      "applicability": {
+        "use_when": [
+          "Systems where some decisions are safety-critical or property-testable and others are interpretive.",
+          "Agents that need full replayability and audit of state transitions.",
+          "Teams comfortable with event-sourced / state-machine design and willing to pay the upfront design cost.",
+          "Products where LLM-cost or LLM-regression risk is high and bounding it to edges is worth the design effort."
+        ],
+        "do_not_use_when": [
+          "Pure dialog or summarization workloads where the LLM is the work, not the edge.",
+          "Greenfield prototypes where bootstrapping speed matters more than testability.",
+          "Workloads where the boundary between edge and core cannot be drawn stably.",
+          "Teams that lack the engineering bandwidth to maintain the deterministic core's tests and event-store discipline."
+        ]
+      },
+      "example_scenario": "A self-knowledge assistant could be built LLM-first: the LLM holds conversation state, decides when to advance the user's reflection week, and writes summaries. Instead the author built it inverted: a deterministic Stability Engine holds session state, an Event Core stores every user answer as an immutable typed event, and the LLM is called only at two edges — to turn the user's free-text answer into a typed event, and to synthesize the next probing question from the current event-store state. Crisis detection, threshold enforcement, and session advancement live in code with property-based tests. An LLM regression changes only the phrasing of questions or the parsing of answers; it cannot move the user backwards in the protocol or skip a safety check.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  In[User input] --> EdgeIn[LLM edge: text → typed event]\n  EdgeIn --> Core[Deterministic core: state machine + event store]\n  Core --> Guard[Safety / threshold / property tests]\n  Guard --> Core\n  Core --> EdgeOut[LLM edge: typed state → user-facing text]\n  EdgeOut --> Out[User-facing output]\n  Core -. replay / audit .-> Audit[Replayable event log]\n"
+      },
+      "components": [
+        "Deterministic state machine — owns all state transitions; explicit, property-tested code",
+        "Event store — append-only typed events; the only persistent state",
+        "LLM input edge — converts free-text input into a typed event",
+        "LLM output edge — synthesizes user-facing text from typed state",
+        "Property tests — exhaustive checks on the deterministic core",
+        "Boundary monitor — tracks what crosses the edge; flags when LLM is being asked to make state decisions"
+      ],
+      "tools": [
+        "Event-store implementation — append-only log with replay (DynamoDB streams, Kafka, Postgres event table)",
+        "Property-based testing library — Hypothesis, fast-check, QuickCheck-family",
+        "Typed event schema — Pydantic, Zod, protobuf — defining the LLM-edge contracts",
+        "LLM with strict structured output — the edge transformers"
+      ],
+      "evaluation_metrics": [
+        "Edge purity — share of LLM calls whose output is a typed event or typed text (vs free-form state mutation)",
+        "Core test coverage — share of state-transition code reachable by property-based tests",
+        "Replay determinism — share of historical sessions that replay to identical core state from the event log",
+        "LLM-regression blast radius — share of edges affected when the LLM model or prompt changes (low = inversion is working)",
+        "Boundary-violation count — flagged attempts to push state decisions into the LLM"
+      ],
+      "last_updated": "2026-05-22"
+    },
+    {
       "id": "polymorphic-record",
       "name": "Polymorphic Record",
       "aliases": [
