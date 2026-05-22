@@ -1,6 +1,6 @@
 # Vector Memory
 
-**Also known as:** Semantic Memory, Embedding-Indexed Memory
+**Also known as:** Embedding-Indexed Memory, Vector Store Memory
 
 **Category:** Memory  
 **Status in practice:** mature

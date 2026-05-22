@@ -81,6 +81,10 @@
         {
           "pattern": "partial-output-salvage",
           "relation": "composes-with"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -465,6 +469,10 @@
         {
           "pattern": "sleep-time-compute",
           "relation": "used-by"
+        },
+        {
+          "pattern": "semantic-memory",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -624,6 +632,10 @@
         {
           "pattern": "sleep-time-compute",
           "relation": "complements"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -852,6 +864,10 @@
         {
           "pattern": "five-tier-memory-cascade",
           "relation": "used-by"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -970,6 +986,10 @@
         {
           "pattern": "synthetic-filesystem-overlay",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "semantic-memory",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1351,6 +1371,14 @@
         {
           "pattern": "rogue-agent-drift",
           "relation": "conflicts-with"
+        },
+        {
+          "pattern": "semantic-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1609,6 +1637,10 @@
         {
           "pattern": "self-corpus-vocabulary",
           "relation": "complements"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1861,6 +1893,10 @@
           "pattern": "dream-consolidation-cycle",
           "relation": "complements",
           "note": "Consolidation cycles are a natural place to refresh the vocabulary."
+        },
+        {
+          "pattern": "semantic-memory",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2341,8 +2377,8 @@
       "id": "vector-memory",
       "name": "Vector Memory",
       "aliases": [
-        "Semantic Memory",
-        "Embedding-Indexed Memory"
+        "Embedding-Indexed Memory",
+        "Vector Store Memory"
       ],
       "category": "memory",
       "intent": "Store memories as embeddings in a vector index and retrieve the most semantically similar items at query time.",
@@ -2411,6 +2447,14 @@
         {
           "pattern": "self-corpus-vocabulary",
           "relation": "complements"
+        },
+        {
+          "pattern": "semantic-memory",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "episodic-memory",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -2463,7 +2507,321 @@
         "Temporal-query miss rate — fraction of 'what did I do yesterday' style questions where similarity alone fails",
         "Storage and index cost per million items — the operational floor under which the pattern stops paying off"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-22"
+    },
+    {
+      "id": "semantic-memory",
+      "name": "Semantic Memory",
+      "aliases": [
+        "Fact Memory",
+        "Agent Knowledge Store",
+        "Knowledge Memory"
+      ],
+      "category": "memory",
+      "intent": "Maintain a dedicated store of what the agent holds to be true about the user and the world, separate from event records (episodic) and learned how-to (procedural).",
+      "context": "An agent operates across many sessions and accumulates durable knowledge: who the user is, what they prefer, what is definitionally true about the domain, what conclusions have settled. This knowledge needs to survive across sessions, be retrievable when relevant, and stay separate from the raw event history that produced it. The team is choosing how this fact layer is represented and queried independently of any single storage technology.",
+      "problem": "Without a dedicated semantic store, every fact the agent 'knows' either lives in a static system prompt (frozen, cannot grow with experience) or is re-derived from raw episodes on every turn (slow, lossy, and prone to drift between runs). Mixing facts with raw events also confuses retrieval — 'user prefers dark mode' gets stored as 'on 2026-03-12 the user said: I prefer dark mode' and surfaces only by similarity to that timestamp's wording, not as a stable assertion. The CoALA framework names semantic memory as a distinct long-term type for exactly this reason: the agent needs a layer that holds *what is true*, separately from *what happened* and *how to act*.",
+      "forces": [
+        "Substrate is a separate choice from function: vector index, knowledge graph, JSON profile, or text can all back semantic memory, with different retrieval and update characteristics.",
+        "Facts decay: yesterday's truth ('user is on Pacific time') becomes today's fiction, so invalidation and recency must be explicit.",
+        "Conflict resolution: two contradicting assertions must be resolved at write time or read time, not papered over.",
+        "Provenance matters: extracted facts can be wrong; the agent must record whether a fact came from the user, was inferred, or was imported, and what episode produced it."
+      ],
+      "therefore": "Therefore: maintain a dedicated semantic-memory layer keyed by entity and attribute, populated by explicit extraction or assertion with provenance, and queried at decision-time independently from episodic recall — choose the substrate (vector, graph, profile) to fit the retrieval pattern, not the other way round.",
+      "solution": "The CoALA framework (Sumers et al. 2023) names semantic memory as one of three long-term memory types alongside episodic and procedural, defined by function rather than storage. Implementations vary by substrate: LangMem's semantic channel uses profile (single JSON document) or collection (many documents) stores; knowledge-graph implementations (cognee, Zep) store assertions as typed triples; vector stores can back it when retrieval is by similarity over fact text. The function is the same regardless: extract durable assertions from interactions, store them with entity/attribute keys and provenance, retrieve them when the situation calls for 'what does the agent know about X'. Refer to [[vector-memory]] and [[knowledge-graph-memory]] as substrate options.",
+      "consequences": {
+        "benefits": [
+          "Stable facts survive across sessions without re-derivation from raw episodes.",
+          "Retrieval becomes assertion-shaped rather than event-shaped — 'what is the user's timezone' returns the fact, not the conversation in which it was set.",
+          "Substrate decisions can change (vector → graph, profile → collection) without changing the agent's contract with the memory."
+        ],
+        "liabilities": [
+          "Extraction errors are sticky — a wrong fact poisons every later turn until invalidated.",
+          "Conflict resolution policy is its own design problem.",
+          "Provenance and update governance add real implementation cost beyond the substrate itself."
+        ]
+      },
+      "constrains": "Forbids treating raw event records as facts. The semantic layer stores assertions about *what is true*; the episodic layer stores happenings; assertions are written by an explicit extraction or assertion step, not by appending raw events.",
+      "known_uses": [
+        {
+          "system": "LangChain LangMem SDK — semantic channel (profile and collection stores)",
+          "status": "available",
+          "url": "https://www.langchain.com/blog/langmem-sdk-launch"
+        },
+        {
+          "system": "CoALA framework — semantic memory as third long-term memory type",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2309.02427"
+        },
+        {
+          "system": "cognee — knowledge-graph-backed semantic store for agents",
+          "status": "available",
+          "url": "https://www.cognee.ai/"
+        },
+        {
+          "system": "Mem0 — facts and preferences API for agent memory",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "episodic-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "procedural-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "vector-memory",
+          "relation": "uses",
+          "note": "Vector store is one substrate option for semantic memory."
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "uses",
+          "note": "Knowledge graph is one substrate option for semantic memory."
+        },
+        {
+          "pattern": "cross-session-memory",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "self-corpus-vocabulary",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Cognitive Architectures for Language Agents (CoALA)",
+          "authors": "Sumers, Yao, Narasimhan, Griffiths",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2309.02427"
+        },
+        {
+          "type": "doc",
+          "title": "LangGraph Memory Concepts — semantic, episodic, procedural types",
+          "year": 2025,
+          "url": "https://docs.langchain.com/oss/python/concepts/memory"
+        },
+        {
+          "type": "blog",
+          "title": "LangMem SDK launch — semantic, episodic, procedural channels",
+          "year": 2025,
+          "url": "https://www.langchain.com/blog/langmem-sdk-launch"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "long-term",
+        "facts",
+        "coala",
+        "function-level"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent needs to remember durable facts (user preferences, domain truths, settled conclusions) across sessions.",
+          "Retrieval by 'what does the agent know about X' must be cheap and substrate-agnostic.",
+          "Facts must be updatable and invalidatable independently of the events that produced them."
+        ],
+        "do_not_use_when": [
+          "Memory needs are session-scoped and a typed short-term state suffices.",
+          "The agent has no extraction pipeline and assertions would be polluted by raw event text.",
+          "Provenance and conflict resolution cannot be enforced — without them the store rots quickly."
+        ]
+      },
+      "example_scenario": "A long-running personal assistant has logged hundreds of conversations with one user. Buried in those logs are durable facts: the user's timezone, their preferred language, their dietary restrictions, the names of their kids, their employer. Treating all of this as episodic recall is wasteful — every time the agent needs the timezone, it would have to semantically retrieve old messages, parse out a date claim, and trust whichever match came up first. The team instead adds a semantic-memory layer: a small extraction step writes assertions like (user, timezone, 'Europe/Berlin', source-episode-id, 2026-04-12) into a profile store. Retrieval at decision time is now a direct lookup, the episode that produced the fact is still recoverable via provenance, and invalidating the timezone when the user moves is one write.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Ev[Episode / interaction] --> Ext[Extractor]\n  Ext --> A[Assertion: entity, attribute, value, provenance]\n  A --> Sem[(Semantic memory)]\n  Sem -.substrate.-> V[Vector store]\n  Sem -.substrate.-> KG[Knowledge graph]\n  Sem -.substrate.-> P[JSON profile]\n  Q[Decision: what does the agent know about X?] --> Lookup[Entity/attribute lookup]\n  Lookup --> Sem\n  Lookup --> Out[Fact + provenance]\n  Out --> Ctx[Prepend to context]\n  Sem --> Inv[Invalidate on contradiction]"
+      },
+      "components": [
+        "Extractor — converts raw episodes into typed assertions with entity, attribute, value, and provenance",
+        "Assertion store — substrate-agnostic layer holding facts keyed by entity/attribute",
+        "Substrate adapter — concrete backing: vector index, knowledge graph, JSON profile, or document collection",
+        "Provenance tracker — records which episode produced each assertion so facts can be audited and invalidated",
+        "Conflict resolver — handles contradicting assertions at write time or read time per chosen policy"
+      ],
+      "tools": [
+        "LangMem semantic channel — production library implementing profile and collection stores",
+        "Knowledge graph backend — Neo4j, RDF triple store, or in-memory graph for symbolic substrate",
+        "Vector database — Pinecone, Weaviate, pgvector when similarity-over-fact-text is the right retrieval shape",
+        "Extraction LLM — typically a smaller model that distils assertions from raw episodes"
+      ],
+      "evaluation_metrics": [
+        "Fact recall — fraction of labelled durable facts retrievable when the situation requires them",
+        "Stale-fact rate — share of returned facts that no longer hold (the user moved, the preference changed)",
+        "Conflict-resolution latency — time between a contradicting assertion arriving and the store stabilising",
+        "Provenance coverage — share of stored assertions with traceable source episodes",
+        "Substrate-swap cost — engineering days to change vector→graph or profile→collection without breaking the agent contract"
+      ],
+      "last_updated": "2026-05-22"
+    },
+    {
+      "id": "episodic-memory",
+      "name": "Episodic Memory",
+      "aliases": [
+        "Event Memory",
+        "Experience Store",
+        "Memory Stream"
+      ],
+      "category": "memory",
+      "intent": "Record past events as time-stamped first-person experiences the agent can recall later, separately from extracted facts (semantic) and learned how-to (procedural).",
+      "context": "An agent needs to remember what happened — when, in what order, with what context and outcome. This is the autobiographical layer: a record that yesterday the user asked about X, the agent answered Y, the user pushed back, and the two converged on Z. Whether the events are conversations, tool calls, observations, or internal reasoning steps, the function is the same: preserve the temporal-experiential structure of past interactions so the agent can reflect, learn, and surface relevant prior episodes.",
+      "problem": "If the agent has only a fact store, it can answer 'what is true' but not 'what happened' — it loses the ability to learn from specific past interactions, to surface relevant prior episodes by recency or salience, or to reflect on its own behaviour. If the agent collapses every interaction into facts at write-time, it destroys the causal chain — the user said this, then the agent did that, then it broke — that makes debugging and reflection possible. The CoALA framework names episodic memory as a distinct long-term type for this reason: the agent needs a layer that preserves events as events, with their temporal structure intact.",
+      "forces": [
+        "Episodic stores grow unboundedly with time — needs compaction, paging, or salience-based pruning.",
+        "Retrieval by similarity alone misses temporal queries ('what did I do yesterday') and recency-sensitive queries.",
+        "Raw episode replay is too noisy for prompt context — needs salience scoring, summarisation, or reflection passes to be useful.",
+        "Privacy and tenant isolation: episodes contain user content and must respect session and user boundaries."
+      ],
+      "therefore": "Therefore: maintain an append-only episodic store of time-stamped events, retrievable by some combination of recency, similarity, and salience, and feed it into compaction or reflection passes that distil reusable insights into the semantic and procedural layers.",
+      "solution": "Park et al.'s Generative Agents memory stream (2023) is the canonical implementation: every observation is logged with a timestamp and an importance score; retrieval combines recency, relevance, and importance; a periodic reflection pass derives higher-level insights from clusters of recent episodes. LangMem's episodic channel stores past interactions for few-shot retrieval and procedure distillation. Substrate is orthogonal to function: vector store ([[vector-memory]]), append-only log ([[append-only-thought-stream]]), or structured journal can all back episodic memory. Compaction is typically delegated to [[episodic-summaries]]; consolidation into facts feeds [[semantic-memory]]; consolidation into skills feeds [[procedural-memory]].",
+      "consequences": {
+        "benefits": [
+          "Causal chains survive — the agent can reconstruct what happened, in order, with context.",
+          "Reflection and consolidation become possible: episodes feed semantic and procedural extraction.",
+          "Temporal queries ('what did I do yesterday', 'what changed since last week') are answerable directly."
+        ],
+        "liabilities": [
+          "Unbounded growth — needs compaction, decay, or tiered storage.",
+          "Raw episode prompts are noisy — direct injection without salience scoring degrades reasoning.",
+          "Privacy and retention boundaries are harder to enforce on event logs than on extracted facts."
+        ]
+      },
+      "constrains": "Forbids collapsing every interaction into facts at write-time. Episodes keep their identity (timestamp, context, outcome) and are queried as events; extraction into facts or skills is a separate, downstream step.",
+      "known_uses": [
+        {
+          "system": "Generative Agents memory stream (Park et al. 2023)",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2304.03442"
+        },
+        {
+          "system": "LangChain LangMem SDK — episodic channel",
+          "status": "available",
+          "url": "https://www.langchain.com/blog/langmem-sdk-launch"
+        },
+        {
+          "system": "CoALA framework — episodic memory as second long-term type",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2309.02427"
+        },
+        {
+          "system": "Letta recall and archival memory — partial implementation (episodic + semantic conflated)",
+          "status": "available",
+          "url": "https://docs.letta.com/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "semantic-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "procedural-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "vector-memory",
+          "relation": "uses",
+          "note": "Vector store is one substrate option for episodic memory."
+        },
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "uses",
+          "note": "Append-only log is one substrate option preserving causal order."
+        },
+        {
+          "pattern": "episodic-summaries",
+          "relation": "uses",
+          "note": "Summarisation is the standard compaction mechanism for episodic stores."
+        },
+        {
+          "pattern": "salience-attention-mechanism",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hippocampal-rehearsal",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+          "authors": "Park, O'Brien, Cai, Morris, Liang, Bernstein",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2304.03442"
+        },
+        {
+          "type": "paper",
+          "title": "Cognitive Architectures for Language Agents (CoALA)",
+          "authors": "Sumers, Yao, Narasimhan, Griffiths",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2309.02427"
+        },
+        {
+          "type": "doc",
+          "title": "LangGraph Memory Concepts — semantic, episodic, procedural types",
+          "year": 2025,
+          "url": "https://docs.langchain.com/oss/python/concepts/memory"
+        },
+        {
+          "type": "blog",
+          "title": "LangMem SDK launch — semantic, episodic, procedural channels",
+          "year": 2025,
+          "url": "https://www.langchain.com/blog/langmem-sdk-launch"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "memory",
+        "long-term",
+        "events",
+        "coala",
+        "function-level"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent needs to recall specific past interactions, not just distilled facts.",
+          "Reflection or consolidation passes need raw episodes as input to derive insights or procedures.",
+          "Temporal queries ('what did I do yesterday', 'what changed since last week') matter."
+        ],
+        "do_not_use_when": [
+          "Retention or privacy constraints make event logs untenable and only extracted facts are allowed.",
+          "Session is single-turn and there is no future to reflect from.",
+          "Storage and compaction infrastructure cannot be maintained at the required scale."
+        ]
+      },
+      "example_scenario": "A coding agent has worked with a developer across hundreds of tickets over six months. The developer later asks the agent to explain how the team ended up with the weird workaround in the auth module. A pure semantic store would return facts like (auth-module, uses-workaround, true) — useless. An episodic store returns the actual sequence: on 2026-02-14 the developer flagged a CVE, on 2026-02-15 the agent proposed a fix, the proposed fix broke a downstream test, on 2026-02-16 they agreed on a workaround instead with a TODO. The agent can now answer the why. The episodic store also feeds a weekly reflection pass that consolidates 'workaround in auth-module' into a semantic fact and 'CVE-flag → propose fix → test → workaround-with-TODO' into a procedural template.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Obs[Observation / interaction] --> Stamp[Stamp with time + importance]\n  Stamp --> Ep[(Episodic memory)]\n  Ep -.substrate.-> V[Vector store]\n  Ep -.substrate.-> Log[Append-only log]\n  Ep -.substrate.-> J[Structured journal]\n  Q[Query: what happened around X?] --> Ret[Retrieve by recency + similarity + salience]\n  Ret --> Ep\n  Ret --> Top[Top-k relevant episodes]\n  Top --> Ctx[Prepend to context]\n  Ep --> Refl[Reflection / consolidation pass]\n  Refl --> Sem[Semantic memory: extracted facts]\n  Refl --> Proc[Procedural memory: learned recipes]\n  Refl --> Sum[Episodic summaries: compacted tier]"
+      },
+      "components": [
+        "Event logger — time-stamps each observation/interaction and writes it to the episodic store",
+        "Importance scorer — assigns a salience score per event to drive later retrieval and consolidation",
+        "Episodic store — substrate-agnostic layer holding time-stamped events with metadata",
+        "Substrate adapter — concrete backing: vector index, append-only log, or structured journal",
+        "Retriever — combines recency, similarity, and salience to surface top-k relevant past episodes",
+        "Reflection pass — periodically reads recent episodes and consolidates into semantic/procedural memory"
+      ],
+      "tools": [
+        "Vector database — Pinecone, Weaviate, pgvector when similarity is the dominant retrieval axis",
+        "Append-only log store — Postgres, S3+object-log, or event store preserving strict order",
+        "Reflection LLM — periodically reads recent episodes and writes back consolidated assertions",
+        "LangMem episodic channel — production library implementing few-shot-from-episodes retrieval"
+      ],
+      "evaluation_metrics": [
+        "Episode recall — fraction of labelled relevant past episodes returned by the retriever for matching queries",
+        "Temporal-query accuracy — share of 'what did I do at time T' style queries answered correctly",
+        "Reflection yield — number of episodic clusters that produce a useful semantic or procedural artifact per pass",
+        "Storage growth — episodes per day vs the compaction policy's target steady-state",
+        "Privacy-boundary breach rate — incidents where episodes from one user surfaced to another"
+      ],
+      "last_updated": "2026-05-22"
     }
   ]
 }
