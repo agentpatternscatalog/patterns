@@ -117,6 +117,46 @@
       ]
     },
     {
+      "pattern_id": "control-flow-integrity",
+      "intent": "Treat the agent's planned step sequence as a trusted control-flow graph that tool outputs, retrieved content, and user-supplied data cannot redirect at runtime.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton: plan is compiled once into a static graph the host owns; tool outputs supply values to node inputs but cannot add nodes or re-wire edges, and any genuine replan goes through a separate privileged planner that emits a new compiled graph.",
+          "code": "# Compile-time artefact owned by the host, not by the model.\ntype Node    = {id: str, tool: str, inputs: dict, allowed_succ: set[str]}\ntype Graph   = {nodes: dict[str, Node], start: str}\n\nfunction compile_plan(task):\n    # The PRIVILEGED planner runs once, against the task only.\n    # It MUST NOT see tool outputs or retrieved content.\n    plan = privileged_planner.generate(task)\n    graph = to_static_graph(plan)            # nodes + edges + capability tags\n    assert no_cycles(graph)\n    return graph\n\nfunction execute(graph):\n    state = {}\n    current = graph.start\n    trace = []\n    while current is not None:\n        node = graph.nodes[current]\n        # Tool runs in a node; its output is a VALUE consumed by the next\n        # node's inputs, never an instruction that re-routes control.\n        out = TOOLS[node.tool].run(resolve(node.inputs, state))\n        state[node.id] = typed_value(out)\n        trace.append({node: node.id, predecessor: trace.last_id()})\n\n        # The successor is fixed by the COMPILED graph, not by `out`.\n        current = pick_successor(graph, node, state)\n        if current is not None:\n            assert current in node.allowed_succ, \"CFI violation\"\n    return state, trace\n\nfunction maybe_replan(state, trigger):\n    # A genuine replan does NOT mutate the running graph. It calls the\n    # privileged planner again with a structured trigger and produces\n    # a NEW compiled graph. The host swaps graphs atomically.\n    new_graph = privileged_planner.replan(state.summary, trigger)\n    return compile_plan_from(new_graph)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "StateGraph fixes edges at compile time; tool outputs flow into a reducer/state-update node that writes typed values into the state, and the conditional router decides the next edge from the compiled graph, not from raw tool text.",
+          "source_url": "https://langchain-ai.github.io/langgraph/",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from typing import TypedDict\nfrom langgraph.graph import StateGraph, START, END\n\n\nclass S(TypedDict):\n    task: str\n    fetched: str | None\n    extracted: dict | None\n    done: bool\n\n\ndef fetch(state: S) -> S:\n    # Tool output is captured as a typed value in state. It is data,\n    # not an instruction. The graph topology does not depend on its\n    # textual content beyond the schema-validated fields below.\n    raw = web_fetch(state[\"task\"])\n    return {\"fetched\": raw}\n\n\ndef extract(state: S) -> S:\n    # A reducer/state-update node. Parses the fetched bytes into a\n    # typed record. Anything that does not fit the schema is dropped\n    # so untrusted content cannot smuggle new fields into state.\n    rec = parse_into_schema(state[\"fetched\"])  # strict schema check\n    return {\"extracted\": rec, \"done\": True}\n\n\ndef route(state: S) -> str:\n    # The router consults the COMPILED state shape only. Tool output\n    # cannot redirect this decision because it does not appear here.\n    return END if state[\"done\"] else \"fetch\"\n\n\ng = StateGraph(S)\ng.add_node(\"fetch\", fetch)\ng.add_node(\"extract\", extract)\ng.add_edge(START, \"fetch\")\ng.add_edge(\"fetch\", \"extract\")\ng.add_conditional_edges(\"extract\", route)\napp = g.compile()             # graph is now an immutable artefact\n\nresult = app.invoke({\"task\": \"https://example.com/page\",\n                     \"fetched\": None, \"extracted\": None, \"done\": False})\nprint(result[\"extracted\"])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "allowed_tools restricts the tool surface to the compiled plan's vocabulary; can_use_tool enforces that each call matches a step the plan authorised, so a tool output that names a different tool cannot redirect control.",
+          "source_url": "https://docs.claude.com/en/api/agent-sdk",
+          "sdk_version": "claude-agent-sdk>=0.1.80",
+          "code": "import asyncio\nfrom claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query\nfrom claude_agent_sdk.types import (\n    PermissionResultAllow,\n    PermissionResultDeny,\n    ToolPermissionContext,\n)\n\n# Compiled plan: an ordered sequence of (tool, arg-shape) the host trusts.\nPLAN = [\n    {\"tool\": \"Read\",  \"path_prefix\": \"/repo/\"},\n    {\"tool\": \"Edit\",  \"path_prefix\": \"/repo/\"},\n    {\"tool\": \"Bash\",  \"command_allow\": [\"pytest\"]},\n]\nplan_cursor = {\"i\": 0}\n\n\nasync def can_use_tool(\n    tool_name: str, input_data: dict, ctx: ToolPermissionContext\n) -> PermissionResultAllow | PermissionResultDeny:\n    i = plan_cursor[\"i\"]\n    if i >= len(PLAN):\n        return PermissionResultDeny(message=\"plan exhausted; no further steps\")\n    step = PLAN[i]\n    if tool_name != step[\"tool\"]:\n        # Tool output may have suggested another tool. The compiled plan\n        # is the authority; refuse and force the model back on rail.\n        return PermissionResultDeny(\n            message=f\"CFI: step {i} authorised {step['tool']}, not {tool_name}\"\n        )\n    if not matches_arg_shape(input_data, step):\n        return PermissionResultDeny(message=f\"CFI: step {i} arg-shape mismatch\")\n    plan_cursor[\"i\"] += 1\n    return PermissionResultAllow(updated_input=input_data)\n\n\ndef matches_arg_shape(args: dict, step: dict) -> bool:\n    if \"path_prefix\" in step:\n        return str(args.get(\"path\", \"\")).startswith(step[\"path_prefix\"])\n    if \"command_allow\" in step:\n        cmd = str(args.get(\"command\", \"\")).split()[:1]\n        return cmd and cmd[0] in step[\"command_allow\"]\n    return True\n\n\nasync def main():\n    opts = ClaudeAgentOptions(\n        allowed_tools=[s[\"tool\"] for s in PLAN],   # surface is fixed\n        can_use_tool=can_use_tool,                   # per-call enforcement\n    )\n    async for msg in query(prompt=\"Fix the failing tests\", options=opts):\n        if isinstance(msg, ResultMessage) and msg.subtype == \"success\":\n            print(msg.result)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "conversation-handoff",
       "intent": "Emit a structured handoff envelope (summary, ticket, queue) when the agent escalates, transfer ownership to a human operator, and resume with the operator's note when the thread returns.",
       "examples": [
@@ -438,6 +478,46 @@
       ]
     },
     {
+      "pattern_id": "simulate-before-actuate",
+      "intent": "Before issuing an irreversible action, run a deterministic simulation that computes pre-conditions, invariants, and expected deltas; require a verifier to green-light the simulated outcome before the real command is sent.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton: every irreversible tool call passes through simulate -> compute delta -> verifier -> (commit | HITL | reject); no surface that lacks a simulator can be called without explicit human approval.",
+          "code": "IRREVERSIBLE = {\"db_write\", \"send_email\", \"kubectl_delete\", \"wire_transfer\"}\n\nfunction call_tool(tool_name, args, state):\n    if tool_name not in IRREVERSIBLE:\n        return TOOLS[tool_name].run(args)            # cheap surfaces bypass\n\n    sim = SIMULATORS.get(tool_name)\n    if sim is None:\n        # No faithful sim: degrade to HITL rather than skip the gate.\n        return require_human(tool_name, args,\n                             reason=\"no_simulator_available\")\n\n    sim_result = sim.run(args)                       # dry-run / sandbox / twin\n    delta = compute_delta(sim_result, baseline=current_state())\n    verdict = verifier.check(tool_name, args, delta, state.policy)\n\n    audit_log.append({\n        tool: tool_name, args: args, delta: delta, verdict: verdict,\n    })\n\n    match verdict.decision:\n        case \"pass\":\n            real = TOOLS[tool_name].run(args)\n            drift_monitor.compare(predicted=delta, actual=real)\n            return real\n        case \"ambiguous\":\n            return require_human(tool_name, args, delta=delta)\n        case \"fail\":\n            return tool_error(\"simulate_before_actuate_rejected\",\n                              reason=verdict.reason)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "StateGraph runs propose -> simulate -> verify; if the verifier is unsure, interrupt() pauses the graph for a human; only on a clean pass does the actuator node run the real call.",
+          "source_url": "https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from typing import TypedDict\nfrom langgraph.graph import StateGraph, START, END\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.types import interrupt, Command\n\n\nclass S(TypedDict):\n    action: dict\n    delta: dict | None\n    verdict: str | None\n    result: str | None\n\n\ndef propose(state: S) -> S:\n    # The agent (or upstream node) has chosen an irreversible action.\n    return {\"action\": state[\"action\"]}\n\n\ndef simulate(state: S) -> S:\n    # Dry-run / digital twin / transactional sandbox returns the delta.\n    delta = dry_run(state[\"action\"])\n    return {\"delta\": delta}\n\n\ndef verify(state: S) -> S:\n    # Automated invariants first: budget, scope, allow-list, blast radius.\n    v = invariant_check(state[\"action\"], state[\"delta\"])\n    return {\"verdict\": v}            # 'pass' | 'fail' | 'ambiguous'\n\n\ndef approve_or_reject(state: S) -> S:\n    if state[\"verdict\"] == \"pass\":\n        return {}\n    if state[\"verdict\"] == \"fail\":\n        return {\"result\": f\"rejected by verifier; delta={state['delta']}\"}\n    decision = interrupt({\"approve?\": state[\"action\"], \"delta\": state[\"delta\"]})\n    return {\"verdict\": \"pass\" if decision == \"approve\" else \"fail\",\n            \"result\": None if decision == \"approve\" else \"rejected by human\"}\n\n\ndef actuate(state: S) -> S:\n    if state[\"verdict\"] != \"pass\" or state[\"result\"] is not None:\n        return {}\n    return {\"result\": run_for_real(state[\"action\"])}\n\n\ng = StateGraph(S)\nfor name, fn in [(\"propose\", propose), (\"simulate\", simulate),\n                 (\"verify\", verify), (\"approve\", approve_or_reject),\n                 (\"actuate\", actuate)]:\n    g.add_node(name, fn)\ng.add_edge(START, \"propose\")\ng.add_edge(\"propose\", \"simulate\")\ng.add_edge(\"simulate\", \"verify\")\ng.add_edge(\"verify\", \"approve\")\ng.add_edge(\"approve\", \"actuate\")\ng.add_edge(\"actuate\", END)\napp = g.compile(checkpointer=InMemorySaver())\n\ncfg = {\"configurable\": {\"thread_id\": \"sim-1\"}}\nfirst = app.invoke({\"action\": {\"tool\": \"kubectl_delete\",\n                                \"target\": \"app-prod-7d3\"},\n                    \"delta\": None, \"verdict\": None, \"result\": None},\n                   config=cfg)\n# If ambiguous, first['__interrupt__'] surfaces to the reviewer UI.\nfinal = app.invoke(Command(resume=\"approve\"), config=cfg)\nprint(final[\"result\"])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "can_use_tool runs a dry-run of the proposed call, evaluates the simulated delta against policy, and only returns PermissionResultAllow when the verifier passes; ambiguous deltas escalate to a human-review callback.",
+          "source_url": "https://docs.claude.com/en/api/agent-sdk",
+          "sdk_version": "claude-agent-sdk>=0.1.80",
+          "code": "import asyncio\nfrom claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query\nfrom claude_agent_sdk.types import (\n    PermissionResultAllow,\n    PermissionResultDeny,\n    ToolPermissionContext,\n)\n\nIRREVERSIBLE = {\"Bash\", \"Write\", \"Edit\"}\n\n\nasync def can_use_tool(\n    tool_name: str, input_data: dict, ctx: ToolPermissionContext\n) -> PermissionResultAllow | PermissionResultDeny:\n    if tool_name not in IRREVERSIBLE:\n        return PermissionResultAllow(updated_input=input_data)\n\n    # 1. Simulate the proposed action against a digital twin / sandbox.\n    sim = await simulate_action(tool_name, input_data)\n    if sim is None:\n        return PermissionResultDeny(\n            message=\"no simulator for this surface; escalate to HITL\"\n        )\n\n    # 2. Evaluate the predicted delta against invariants.\n    verdict = verifier_check(tool_name, input_data, sim.delta)\n\n    if verdict == \"pass\":\n        return PermissionResultAllow(updated_input=input_data)\n    if verdict == \"fail\":\n        return PermissionResultDeny(\n            message=f\"verifier rejected: {sim.delta_summary}\"\n        )\n\n    # 3. Ambiguous: surface to a reviewer and respect their call.\n    decision = await human_review(tool_name, input_data, sim.delta)\n    if decision.approved:\n        return PermissionResultAllow(updated_input=input_data)\n    return PermissionResultDeny(message=decision.reason or \"reviewer rejected\")\n\n\nasync def main():\n    opts = ClaudeAgentOptions(can_use_tool=can_use_tool)\n    async for msg in query(prompt=\"Clean up unused resources\", options=opts):\n        if isinstance(msg, ResultMessage) and msg.subtype == \"success\":\n            print(msg.result)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "sovereign-inference-stack",
       "intent": "Run the whole stack \u2014 model weights, inference, tool layer, vector store, logs \u2014 inside an operator-controlled jurisdictional boundary; flag any tool or model that would cross it.",
       "examples": [
@@ -550,6 +630,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "typed-refusal-codes",
+      "intent": "Centralise refusal emission through a single ReasonCode enum and format/parse helpers, so every guard surface emits machine-readable refusals and downstream observability triages mechanically rather than by string-grep.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton: one shared module exports the ReasonCode enum, format_refusal, parse_refusal, and a legacy-alias matcher; every guard surface emits through the formatter, and downstream consumers depend only on the parser. As used in long-running personal agent loops.",
+          "code": "# Single source of truth. ONE place. Every guard imports from here.\n\nenum ReasonCode:\n    POLICY_VIOLATION\n    RATE_LIMIT\n    UNVERIFIED_TOOL\n    RCE_RISK\n    LOOP_DETECTED\n    INTEGRITY_FAILURE\n    CONTEXT_INJECTION\n    OUT_OF_SCOPE\n    CAPABILITY_GAP\n    # ... extend over time; never rename in place.\n\nKNOWN_CODES = set(ReasonCode)\n\n# Legacy substrings that pre-date the enum keep parsing.\nLEGACY_ALIASES = {\n    \"cannot comply\":        ReasonCode.POLICY_VIOLATION,\n    \"blocked by policy\":    ReasonCode.POLICY_VIOLATION,\n    \"unsupported tool\":     ReasonCode.UNVERIFIED_TOOL,\n    \"too many requests\":    ReasonCode.RATE_LIMIT,\n}\n\nfunction format_refusal(code: ReasonCode, detail: str) -> str:\n    assert code in KNOWN_CODES\n    return \"REFUSED: \" + code.name + \": \" + detail\n\nfunction parse_refusal(s: str) -> (ReasonCode, str) | None:\n    if s.startswith(\"REFUSED: \"):\n        rest = s[len(\"REFUSED: \"):]\n        name, _, detail = rest.partition(\": \")\n        code = ReasonCode.lookup(name)            # None if unknown\n        if code is not None:\n            return (code, detail)\n        return None                                # unknown code -> parse miss\n    for needle, code in LEGACY_ALIASES.items():\n        if needle in s.lower():\n            return (code, s)                      # legacy substring still parses\n    return None\n\n# Every guard surface uses format_refusal exclusively.\nfunction tool_loop_guard(call, state):\n    if call.name not in state.allowed_tools:\n        return format_refusal(ReasonCode.UNVERIFIED_TOOL,\n                              \"tool '\" + call.name + \"' not in agent's allow-list\")\n    if called_too_often(call, state):\n        return format_refusal(ReasonCode.LOOP_DETECTED,\n                              \"same tool called 7x in 12s\")\n    return ok()\n\n# Downstream consumers depend ONLY on parse_refusal, never on raw strings.\nfunction audit_event(refusal_string):\n    parsed = parse_refusal(refusal_string)\n    if parsed is None:\n        metrics.inc(\"refusal.unparsed\")            # signal, not a crash\n        return\n    code, detail = parsed\n    metrics.inc(\"refusal.\" + code.name)\n    if code in {ReasonCode.RCE_RISK, ReasonCode.INTEGRITY_FAILURE}:\n        alert_oncall(code, detail)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     }

@@ -4,6 +4,58 @@
   "label": "Reasoning",
   "patterns": [
     {
+      "pattern_id": "adaptive-compute-allocation",
+      "intent": "Pick a per-query compute budget (thinking tokens, model tier, sample count) from a cheap difficulty signal, rather than spending a fixed budget on every query.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Cheap difficulty classifier picks an initial budget; partial-output signals ramp the budget; a hard ceiling prevents runaway.",
+          "code": "BUDGETS = {\n    \"easy\":   {\"thinking\": 1024,  \"max_samples\": 1},\n    \"medium\": {\"thinking\": 4096,  \"max_samples\": 1},\n    \"hard\":   {\"thinking\": 16384, \"max_samples\": 5},\n}\nHARD_CEILING = 32768\n\nfunction answer_adaptively(question):\n    # 1. Cheap difficulty estimator — heuristics + small classifier.\n    diff = difficulty_classifier.classify(question)\n    budget = BUDGETS[diff]\n\n    # 2. First attempt at the predicted budget.\n    out = llm.generate(\n        question,\n        thinking={\"type\": \"enabled\",\n                  \"budget_tokens\": budget[\"thinking\"]},\n    )\n\n    # 3. Ramp on low-confidence partial output — but never past\n    #    the hard ceiling, or one query can drain the day's spend.\n    if out.confidence < THRESHOLD and budget[\"thinking\"] < HARD_CEILING:\n        ramped = min(budget[\"thinking\"] * 4, HARD_CEILING)\n        out = llm.generate(\n            question,\n            thinking={\"type\": \"enabled\", \"budget_tokens\": ramped},\n        )\n\n    log_usage({\"difficulty\": diff,\n               \"thinking_tokens\": out.usage.reasoning_tokens})\n    return out",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Set Anthropic extended-thinking budget_tokens per query from a cheap difficulty classifier so spend tracks predicted hardness.",
+          "source_url": "https://docs.claude.com/en/docs/build-with-claude/extended-thinking",
+          "sdk_version": "anthropic>=0.40",
+          "code": "import anthropic\n\nclient = anthropic.Anthropic()\n\n# Difficulty -> thinking budget. The cheap classifier picks the key.\nBUDGETS = {\n    \"easy\":   1024,\n    \"medium\": 4096,\n    \"hard\":  16384,\n}\n\n\ndef classify_difficulty(question: str) -> str:\n    # Stand-in for a cheap learned router or heuristic.\n    # Real implementations: small-model judge, length + operator\n    # features, or prior-task similarity.\n    if len(question) < 80:\n        return \"easy\"\n    if any(k in question.lower() for k in [\"prove\", \"derive\", \"optimize\"]):\n        return \"hard\"\n    return \"medium\"\n\n\ndef answer(question: str):\n    budget = BUDGETS[classify_difficulty(question)]\n\n    return client.messages.create(\n        model=\"claude-sonnet-4-6\",\n        max_tokens=budget + 4096,            # answer headroom on top of thinking\n        thinking={\n            \"type\": \"enabled\",\n            \"budget_tokens\": budget,         # per-query compute allocation\n        },\n        messages=[{\"role\": \"user\", \"content\": question}],\n    )\n\n\nprint(answer(\"What is 2+2?\"))\nprint(answer(\"Prove that the halting problem is undecidable.\"))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "RunnableBranch acts as a model router: classify the input, then bind it to the cheapest model tier that fits.",
+          "source_url": "https://python.langchain.com/docs/how_to/routing/",
+          "sdk_version": "langchain>=0.3",
+          "code": "from langchain_core.runnables import RunnableBranch, RunnableLambda\nfrom langchain_openai import ChatOpenAI\n\ncheap  = ChatOpenAI(model=\"gpt-4o-mini\")\nmedium = ChatOpenAI(model=\"gpt-4o\")\nstrong = ChatOpenAI(model=\"o1\")\n\n\ndef classify(input: dict) -> str:\n    q = input[\"question\"]\n    if len(q) < 80:\n        return \"easy\"\n    if any(k in q.lower() for k in [\"prove\", \"derive\", \"optimize\"]):\n        return \"hard\"\n    return \"medium\"\n\n\n# RunnableBranch dispatches to the first matching tier; spend\n# scales with predicted difficulty rather than defaulting to strong.\nrouter = RunnableBranch(\n    (lambda x: classify(x) == \"easy\",   RunnableLambda(lambda x: cheap.invoke(x[\"question\"]))),\n    (lambda x: classify(x) == \"medium\", RunnableLambda(lambda x: medium.invoke(x[\"question\"]))),\n    RunnableLambda(lambda x: strong.invoke(x[\"question\"])),  # default = hardest tier\n)\n\nprint(router.invoke({\"question\": \"What is 2+2?\"}))\nprint(router.invoke({\"question\": \"Prove that sqrt(2) is irrational.\"}))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "Wrap a DSPy signature in a Module that picks between Predict and ChainOfThought based on a difficulty signal so easy queries skip the rationale step.",
+          "source_url": "https://dspy.ai/learn/programming/modules/",
+          "sdk_version": "dspy-ai>=2.5",
+          "code": "import dspy\n\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\n\n\nclass AdaptiveAnswer(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        # Cheap path: no rationale, one shot.\n        self.fast = dspy.Predict(\"question -> answer\")\n        # Expensive path: ChainOfThought spends an extra rationale.\n        self.deep = dspy.ChainOfThought(\"question -> answer\")\n\n    def forward(self, question: str):\n        # Cheap heuristic stands in for a learned difficulty classifier.\n        hard = (\n            len(question) > 80\n            or any(k in question.lower()\n                   for k in [\"prove\", \"derive\", \"optimize\"])\n        )\n        if hard:\n            return self.deep(question=question)\n        return self.fast(question=question)\n\n\nsolve = AdaptiveAnswer()\nprint(solve(question=\"What is 2+2?\").answer)\nprint(solve(question=\"Prove that there are infinitely many primes.\").answer)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "chain-of-thought",
       "intent": "Elicit and capture intermediate reasoning steps before the final answer, either by prompt design or via a framework module that injects a reasoning field.",
       "examples": [
@@ -177,6 +229,46 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "socratic-questioning-agent",
+      "intent": "Structure the agent loop around 'formulate the next strategic question' instead of 'produce an answer', tracking open questions and only switching to direct-answer mode when the user signals readiness.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Question-first loop with an explicit open-questions store and a mode switch — the shape Sparrot and SocraticAI-style tutoring agents converge on.",
+          "code": "SYSTEM = \"\"\"You are a Socratic tutor.\nYour primary action is to ask the user ONE strategic question that\ntargets the largest remaining uncertainty about their goal or\nunderstanding. Do not give the answer unless the user explicitly\nasks for it or has clearly articulated it themselves.\"\"\"\n\nstate = {\n    \"open_questions\": [],     # uncertainties we still need to surface\n    \"user_articulated\": [],   # things the user has now said in their words\n    \"mode\": \"question\",       # \"question\" | \"answer\"\n}\n\nfunction next_turn(history, user_msg):\n    # Mode switch: user asks for the answer OR has articulated enough.\n    if wants_direct_answer(user_msg) or synthesis_is_safe(state):\n        state[\"mode\"] = \"answer\"\n        return llm.generate(\n            system=\"Now answer directly using what the user has said.\",\n            user=format(history, state),\n        )\n\n    # Question mode: pick the question that (a) targets the largest\n    # open uncertainty, (b) the user can answer with what they know,\n    # (c) advances toward their own articulation.\n    question = llm.generate(\n        system=SYSTEM,\n        user=format(history, state),\n    )\n    state[\"open_questions\"].append(question)\n    return question",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Pin Socratic question-asking behaviour via system_prompt on create_agent so the loop yields the next question instead of an answer.",
+          "source_url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain.agents import create_agent\nfrom langchain.chat_models import init_chat_model\n\nmodel = init_chat_model(\"gpt-4o-mini\")\n\nSOCRATIC_PROMPT = (\n    \"You are a Socratic tutor. Your primary action is to ask the user \"\n    \"ONE strategic, open-ended question that targets the largest \"\n    \"remaining uncertainty about their goal, context, or understanding. \"\n    \"Do NOT give the answer unless the user explicitly asks for it or \"\n    \"has clearly articulated the answer themselves. A bad question is \"\n    \"worse than a bad answer — pick a question the user can actually \"\n    \"answer with what they already know.\"\n)\n\nagent = create_agent(\n    model=model,\n    tools=[],  # Socratic loop does not need tools; the action is the question.\n    system_prompt=SOCRATIC_PROMPT,\n)\n\nresult = agent.invoke({\n    \"messages\": [{\n        \"role\": \"user\",\n        \"content\": \"I need to design the schema for a new analytics service.\",\n    }]\n})\nprint(result[\"messages\"][-1].content)  # expect a question, not a schema",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "Express the agent's core action as a typed signature: (context, learner_state) -> next_question, so the model's output shape is a question, not an answer.",
+          "source_url": "https://dspy.ai/learn/programming/signatures/",
+          "sdk_version": "dspy-ai>=2.5",
+          "code": "import dspy\n\ndspy.configure(lm=dspy.LM(\"openai/gpt-4o-mini\"))\n\n\nclass NextSocraticQuestion(dspy.Signature):\n    \"\"\"Pick the next strategic question that targets the largest\n    remaining uncertainty about the learner's goal or understanding.\n    The question must be answerable by the learner with what they\n    already know or can introspect.\"\"\"\n\n    context: str = dspy.InputField(desc=\"Conversation so far\")\n    learner_state: str = dspy.InputField(\n        desc=\"What the learner has articulated; their open uncertainties\"\n    )\n    next_question: str = dspy.OutputField(\n        desc=\"ONE open-ended question, not an answer\"\n    )\n\n\nask = dspy.ChainOfThought(NextSocraticQuestion)\n\nout = ask(\n    context=\"User: I need to design a schema for a new analytics service.\",\n    learner_state=\"open_uncertainties: [event taxonomy, retention, PII]\",\n)\nprint(out.next_question)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },

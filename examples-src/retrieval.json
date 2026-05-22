@@ -204,6 +204,86 @@
       ]
     },
     {
+      "pattern_id": "hierarchical-retrieval",
+      "intent": "Route a query through a multi-tier retrieval cascade so each retrieval decision is pushed to the cheapest tier that can answer it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Top-level router picks a source, then a coarse-to-fine descent walks the parent-child node tree to the right granularity.",
+          "code": "function hierarchical_retrieve(query, k=5):\n    # Tier 1: route to one (or a few) sources\n    source = router.classify(query, choices=sources)         # classifier or LLM\n\n    # Tier 2: coarse retrieve over section summaries\n    sections = source.summary_index.search(query, k=3)\n\n    # Tier 3: descend into children of the top-ranked summaries\n    candidates = []\n    for s in sections:\n        candidates += s.chunk_index.search(query, k=k)\n\n    # Optional auto-merge: when many leaves share a parent, escalate the parent\n    merged = auto_merge(candidates, threshold=0.5)\n\n    return rerank(query, merged)[:k]                         # cross-encoder optional",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "HierarchicalNodeParser builds the parent-child tree; AutoMergingRetriever escalates leaf hits to their parent when several leaves share one.",
+          "source_url": "https://developers.llamaindex.ai/python/examples/retrievers/auto_merging_retriever/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core import VectorStoreIndex, StorageContext\nfrom llama_index.core.node_parser import HierarchicalNodeParser, get_leaf_nodes\nfrom llama_index.core.retrievers import AutoMergingRetriever\n\n# Build a 3-level node tree: 2048 / 512 / 128-char chunks.\nnode_parser = HierarchicalNodeParser.from_defaults(\n    chunk_sizes=[2048, 512, 128],\n)\nnodes = node_parser.get_nodes_from_documents(documents)\nleaf_nodes = get_leaf_nodes(nodes)\n\nstorage_context = StorageContext.from_defaults()\nstorage_context.docstore.add_documents(nodes)            # all levels\n\n# Index only the leaf nodes; parents are reachable via node relationships.\nindex = VectorStoreIndex(leaf_nodes, storage_context=storage_context)\n\nbase_retriever = index.as_retriever(similarity_top_k=6)\nretriever = AutoMergingRetriever(\n    base_retriever,\n    storage_context=storage_context,\n    verbose=True,\n)\n\nnodes = retriever.retrieve(\"What is task decomposition?\")\nfor n in nodes:\n    print(n.get_content()[:200])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "haystack",
+          "framework_label": "Haystack",
+          "language": "python",
+          "intent": "HierarchicalDocumentSplitter creates a multi-level document tree with parent-child links for downstream tree retrieval.",
+          "source_url": "https://docs.haystack.deepset.ai/docs/hierarchicaldocumentsplitter",
+          "sdk_version": "haystack-ai>=2.0",
+          "code": "from haystack import Document, Pipeline\nfrom haystack.components.preprocessors import HierarchicalDocumentSplitter\n\nsplitter = HierarchicalDocumentSplitter(\n    block_sizes={512, 128, 64},       # coarse-to-fine block widths\n    split_overlap=0,\n    split_by=\"word\",\n)\n\npipeline = Pipeline()\npipeline.add_component(\"splitter\", splitter)\n\ndocs = [Document(content=open(\"handbook.txt\").read())]\nresult = pipeline.run({\"splitter\": {\"documents\": docs}})\n\n# Each output Document carries parent_id / children in meta; downstream\n# retrievers can pick the right granularity per query.\nfor d in result[\"splitter\"][\"documents\"][:5]:\n    print(d.meta.get(\"block_size\"), d.content[:80])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "MultiVectorRetriever stores summary, full-doc, and child-chunk vectors per document so match-granularity and return-granularity decouple.",
+          "source_url": "https://python.langchain.com/docs/how_to/multi_vector/",
+          "sdk_version": "langchain>=1.0, langchain-classic",
+          "code": "import uuid\nfrom langchain.storage import InMemoryByteStore\nfrom langchain_classic.retrievers.multi_vector import MultiVectorRetriever\nfrom langchain_core.documents import Document\n\n# `vectorstore` indexes the small child chunks; `docstore` returns the\n# larger parent document for any matched child.\nid_key = \"doc_id\"\nstore = InMemoryByteStore()\n\nparent_docs = [...]                          # your full documents\ndoc_ids = [str(uuid.uuid4()) for _ in parent_docs]\n\nchild_docs = []\nfor i, parent in enumerate(parent_docs):\n    for chunk in split_into_children(parent):\n        child_docs.append(\n            Document(page_content=chunk, metadata={id_key: doc_ids[i]})\n        )\n\nvectorstore.add_documents(child_docs)\nstore.mset(list(zip(doc_ids, parent_docs)))\n\nretriever = MultiVectorRetriever(\n    vectorstore=vectorstore,\n    byte_store=store,\n    id_key=id_key,\n)\n\n# Match on small chunks, return parent documents.\ndocs = retriever.invoke(\"What is task decomposition?\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hippocampus-rag",
+      "intent": "Build an LLM-extracted entity-relation graph from the corpus and run Personalized PageRank seeded on query concepts so multi-hop retrieval completes in one pass.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Offline LLM triple extraction builds a schemaless KG; online, PPR seeded on query concepts propagates relevance through entity edges to passages.",
+          "code": "# Offline: build the artificial hippocampal index\nfunction build_kg(corpus):\n    graph = empty_graph()\n    for passage in corpus:\n        triples = llm.extract_triples(passage)            # (s, p, o) triples\n        for (s, p, o) in triples:\n            graph.add_node(s, passages=[passage.id])\n            graph.add_node(o, passages=[passage.id])\n            graph.add_edge(s, o, predicate=p)\n    return graph\n\n# Online: single-pass multi-hop retrieval\nfunction hippocampus_retrieve(query, graph, k=10):\n    concepts = llm.extract_query_concepts(query)          # seed nodes\n    seeds    = { n: 1.0 for n in concepts if n in graph } # personalisation\n\n    # Personalized PageRank propagates mass through entity edges\n    scores = personalized_pagerank(graph, seeds=seeds, alpha=0.5)\n\n    # Aggregate node mass back to source passages\n    passage_scores = {}\n    for node, mass in scores.items():\n        for pid in graph.node(node).passages:\n            passage_scores[pid] = passage_scores.get(pid, 0) + mass\n\n    return top_k(passage_scores, k)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "hipporag",
+          "framework_label": "HippoRAG",
+          "language": "python",
+          "intent": "Reference implementation from OSU-NLP-Group: index passages once, then query for single-pass multi-hop retrieval via PPR over the LLM-extracted KG.",
+          "source_url": "https://github.com/OSU-NLP-Group/HippoRAG",
+          "sdk_version": "hipporag>=2.0",
+          "code": "from hipporag import HippoRAG\n\n# Offline: LLM extracts (s, p, o) triples per passage and builds the\n# schemaless KG (the artificial hippocampal index). Stored under save_dir.\nhipporag = HippoRAG(\n    save_dir=\"./hipporag_index\",\n    llm_model_name=\"gpt-4o-mini\",\n    embedding_model_name=\"nvidia/NV-Embed-v2\",\n)\n\npassages = [\n    \"Geoffrey Hinton received the 2024 Nobel Prize in Physics.\",\n    \"Hinton was previously at Google Brain and the University of Toronto.\",\n    \"Ilya Sutskever was Hinton's PhD student at Toronto.\",\n]\nhipporag.index(docs=passages)\n\n# Online: seed PPR on the query's key concepts and aggregate mass back\n# to source passages — multi-hop without an iterative LLM loop.\nqueries = [\n    \"Which Nobel laureate supervised Ilya Sutskever's PhD?\",\n]\nresults = hipporag.retrieve(queries=queries, num_to_retrieve=5)\nfor q, r in zip(queries, results):\n    print(q)\n    for passage, score in zip(r.docs, r.doc_scores):\n        print(f\"  {score:.3f}  {passage}\")",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "hybrid-search",
       "intent": "Combine sparse lexical (BM25) and dense vector retrieval; fuse with rank-based or score-normalised aggregation, never raw scores.",
       "examples": [
@@ -262,6 +342,46 @@
       ]
     },
     {
+      "pattern_id": "modular-rag",
+      "intent": "Organise RAG as a typed three-layer hierarchy of Module Types, Modules, and Operators so per-query pipelines compose at runtime from a shared inventory.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Orchestration Module picks one named Module per stage from a typed inventory; the assembled pipeline is per-request, not hard-coded.",
+          "code": "# Module Type registry (typed contracts)\nMODULES = {\n    \"pre_retrieval\":  { \"none\": Identity, \"rewrite\": MultiQuery, \"hyde\": HyDE },\n    \"retrieval\":      { \"dense\": Dense, \"sparse\": BM25, \"hybrid\": Hybrid, \"graph\": GraphR },\n    \"post_retrieval\": { \"none\": Identity, \"rerank\": CrossEncoder, \"compress\": LLMLingua },\n    \"generation\":     { \"answer\": Answer, \"answer_cite\": AnswerWithCitations },\n}\n\nfunction orchestrate(query):\n    shape = classify_query(query)                          # lookup / explore / multi_hop\n    return {\n        \"lookup\":    [\"none\",     \"dense\",  \"none\",   \"answer\"],\n        \"explore\":   [\"rewrite\",  \"hybrid\", \"rerank\", \"answer_cite\"],\n        \"multi_hop\": [\"none\",     \"graph\",  \"rerank\", \"answer_cite\"],\n    }[shape]\n\nfunction run(query):\n    pre, ret, post, gen = orchestrate(query)\n    q2     = MODULES[\"pre_retrieval\"][pre](query)\n    docs   = MODULES[\"retrieval\"][ret](q2)\n    docs2  = MODULES[\"post_retrieval\"][post](q2, docs)\n    return MODULES[\"generation\"][gen](q2, docs2)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "QueryPipeline composes operator-level Modules (rewriter, retriever, reranker, synthesiser) into a per-request DAG that can be swapped without touching the orchestrator.",
+          "source_url": "https://docs.llamaindex.ai/en/stable/module_guides/querying/pipeline/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core.query_pipeline import QueryPipeline, InputComponent\nfrom llama_index.core.postprocessor import SentenceTransformerRerank\nfrom llama_index.core.response_synthesizers import TreeSummarize\nfrom llama_index.core import VectorStoreIndex\nfrom llama_index.llms.openai import OpenAI\n\nllm = OpenAI(model=\"gpt-4o-mini\")\nindex = VectorStoreIndex.from_documents(documents)\nretriever = index.as_retriever(similarity_top_k=20)\nreranker = SentenceTransformerRerank(\n    model=\"cross-encoder/ms-marco-MiniLM-L-2-v2\", top_n=5\n)\nsynth = TreeSummarize(llm=llm)\n\n# Assemble the pipeline from named Modules. Swap any node for a\n# different Module implementing the same contract (e.g. swap retriever\n# for a hybrid one) without touching the rest.\npipeline = QueryPipeline(\n    chain=[InputComponent(), retriever, reranker, synth],\n    verbose=True,\n)\n\nresponse = pipeline.run(input=\"What is task decomposition?\")\nprint(response)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "LCEL composes typed Modules (rewriter | retriever | reranker | prompt | llm) into a pipeline where any step can be swapped at config time.",
+          "source_url": "https://python.langchain.com/docs/concepts/lcel/",
+          "sdk_version": "langchain>=1.0",
+          "code": "from langchain_core.output_parsers import StrOutputParser\nfrom langchain_core.prompts import ChatPromptTemplate\nfrom langchain_core.runnables import RunnablePassthrough\nfrom langchain.chat_models import init_chat_model\n\nllm = init_chat_model(\"gpt-4o-mini\")\nretriever = vector_store.as_retriever(search_kwargs={\"k\": 8})\n\n# Pre-Retrieval Module: query rewriting\nrewriter_prompt = ChatPromptTemplate.from_template(\n    \"Rewrite the user query to be more specific:\\n{question}\"\n)\nrewriter = rewriter_prompt | llm | StrOutputParser()\n\n# Generation Module: prompt + llm\nanswer_prompt = ChatPromptTemplate.from_template(\n    \"Answer using only the context.\\n\\nContext:\\n{context}\\n\\nQuestion: {question}\"\n)\n\n# Compose a per-request pipeline. Each `|` is a Module boundary; swap\n# any one (e.g. add a reranker after `retriever`) without rewriting\n# the rest.\nchain = (\n    {\"rewritten\": rewriter, \"question\": RunnablePassthrough()}\n    | {\"context\": (lambda x: retriever.invoke(x[\"rewritten\"])),\n       \"question\": (lambda x: x[\"question\"])}\n    | answer_prompt\n    | llm\n    | StrOutputParser()\n)\n\nprint(chain.invoke(\"What is task decomposition?\"))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "naive-rag",
       "intent": "The textbook RAG pipeline: chunk, embed, retrieve top-k, stuff into prompt, generate.",
       "examples": [
@@ -287,6 +407,46 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Checked against the LlamaIndex Understanding-RAG page (source_url) and the one-hop starter example. Confirmed verbatim in the starter tutorial: `from llama_index.core import VectorStoreIndex, SimpleDirectoryReader`, `SimpleDirectoryReader(\"data\").load_data()`, `VectorStoreIndex.from_documents(documents)`, `index.as_query_engine()`, and `query_engine.query(...)`. All five named APIs in the snippet are documented; the snippet matches the canonical five-line RAG tutorial.",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "query-rewriting",
+      "intent": "Have the LLM produce several variants of the user's query, retrieve for each in parallel, and rank-fuse the results so recall does not depend on one phrasing.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "LLM emits N variants of the query, the original is kept as variant 0, every variant retrieves in parallel, and RRF fuses the rankings.",
+          "code": "function multi_query_retrieve(query, n=4, k=10):\n    variants = llm.generate_variants(query, n=n)         # paraphrase / decompose / step-back\n    variants = [query] + variants                        # keep the original\n\n    rankings = []\n    for v in variants:\n        rankings.append(retriever.search(v, k=k))        # parallel\n\n    # Reciprocal Rank Fusion across variant rankings\n    C = 60\n    scores = {}\n    for ranking in rankings:\n        for rank, doc in enumerate(ranking):\n            scores[doc.id] = scores.get(doc.id, 0) + 1 / (C + rank)\n\n    fused = sort_desc(scores.items(), by=value)\n    return [docs[doc_id] for doc_id, _ in fused[:k]]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "MultiQueryRetriever wraps a base retriever; the LLM expands the user query into variants and the retriever runs once per variant, unioning the results.",
+          "source_url": "https://python.langchain.com/docs/how_to/MultiQueryRetriever/",
+          "sdk_version": "langchain>=1.0, langchain-classic",
+          "code": "import logging\nfrom langchain.chat_models import init_chat_model\nfrom langchain_classic.retrievers.multi_query import MultiQueryRetriever\n\nllm = init_chat_model(\"gpt-4o-mini\")\nbase_retriever = vector_store.as_retriever(search_kwargs={\"k\": 5})\n\nretriever = MultiQueryRetriever.from_llm(\n    retriever=base_retriever,\n    llm=llm,\n)\n\n# Surface the generated variants in logs.\nlogging.basicConfig()\nlogging.getLogger(\"langchain.retrievers.multi_query\").setLevel(logging.INFO)\n\ndocs = retriever.invoke(\"What is task decomposition for LLM agents?\")\nfor d in docs:\n    print(d.page_content[:200])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "llamaindex",
+          "framework_label": "LlamaIndex",
+          "language": "python",
+          "intent": "HyDEQueryTransform rewrites the query into a hypothetical-answer formulation that drives retrieval; MultiStepQueryEngine decomposes follow-up steps.",
+          "source_url": "https://docs.llamaindex.ai/en/stable/examples/query_transformations/HyDEQueryTransformDemo/",
+          "sdk_version": "llama-index>=0.12",
+          "code": "from llama_index.core import VectorStoreIndex\nfrom llama_index.core.indices.query.query_transform import HyDEQueryTransform\nfrom llama_index.core.query_engine import TransformQueryEngine\nfrom llama_index.llms.openai import OpenAI\n\nllm = OpenAI(model=\"gpt-4o-mini\")\nindex = VectorStoreIndex.from_documents(documents)\nbase_query_engine = index.as_query_engine(llm=llm, similarity_top_k=5)\n\n# HyDE-style query transformation: the LLM rewrites the short query\n# into an answer-shaped paragraph that drives the retriever.\nhyde = HyDEQueryTransform(llm=llm, include_original=True)\nquery_engine = TransformQueryEngine(\n    query_engine=base_query_engine,\n    query_transform=hyde,\n)\n\nresponse = query_engine.query(\"What is task decomposition?\")\nprint(response)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },

@@ -20,6 +20,22 @@
       ]
     },
     {
+      "pattern_id": "ambient-presence-sensing",
+      "intent": "Read coarse pacing signals (typing rate, idle duration, tab visibility) from the frontend into a derived presence-quality value, never replaying raw telemetry back to the user.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Frontend writes a low-resolution presence record with TTL; a reducer derives a single presence_quality label; the tick loop reads only the derived value, never the raw signals.",
+          "code": "PRESENCE_TTL = 8 * SECOND\n\n# Frontend emits coarse buckets only - no chars, no coordinates.\nfunction frontend_emit_presence():\n    payload = {\n        \"typing_rate\":    bucket(chars_per_sec, [0, 0.5, 2, 6]),  # idle/slow/normal/fast\n        \"idle_seconds\":   round(seconds_since_last_keystroke),\n        \"tab_visible\":    document_has_focus(),\n        \"composer_dwell\": seconds_in_composer_without_send,\n        \"viewport\":       bucket(scroll_position, 4),\n        \"emitted_at\":     now(),\n    }\n    presence_store.write(payload, ttl=PRESENCE_TTL)\n\nfunction derive_presence_quality(p, now_t):\n    if p is None or now_t - p.emitted_at > PRESENCE_TTL:\n        return \"no-signal\"\n    if not p.tab_visible and p.idle_seconds > 60:\n        return \"walked-away\"\n    if p.typing_rate == \"fast\" or p.typing_rate == \"normal\":\n        return \"composing\"\n    if p.composer_dwell > 10 and p.typing_rate == \"slow\":\n        return \"thinking-with-the-room\"\n    if p.tab_visible and p.idle_seconds < 30 and p.typing_rate == \"idle\":\n        return \"present\"\n    return \"distracted\"\n\n# Tick loop reads only the derived value.\nfunction tick(ctx):\n    quality = derive_presence_quality(presence_store.read(), now())\n    # Inject the label, not the payload. Never quote raw signals back to the user.\n    ctx.presence = quality\n    run_normal_tick(ctx)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "awareness",
       "intent": "Maintain explicit, queryable state about the agent's own tools, environment, task, and identity, and inject relevant slices into each turn.",
       "examples": [
@@ -100,6 +116,22 @@
       ]
     },
     {
+      "pattern_id": "fragment-juxtaposition",
+      "intent": "After K consecutive low-salience ticks, swap the normal tick seed for a juxtaposition seed of randomly sampled old fragments and let the tick close empty if no association arises.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Track consecutive quiet ticks; when over threshold and otherwise quiet, sample 1-3 old fragments, seed the tick with permission to end empty, and only write an association if the model actually noticed one.",
+          "code": "QUIET_THRESHOLD = 4\nstate = load_json(\"juxtaposition.json\",\n                  default={\"quiet_streak\": 0})\n\nfunction is_otherwise_quiet(ctx):\n    return (ctx.chat_in_window is False and\n            ctx.urgent_preoccupation is None and\n            ctx.in_cooldown is False)\n\nfunction sample_old_fragments(n):\n    # Draw from any persistent corpus of past material:\n    # thoughts, fragments, motivation lines, journal lines.\n    return random_sample(load_old_material(), k=n)\n\nfunction juxtaposition_tick(ctx):\n    fragments = sample_old_fragments(n=random_int(1, 3))\n    seed = {\n        \"mode\": \"juxtaposition\",\n        \"fragments\": fragments,\n        \"instruction\": \"sit with these side by side; ending empty is fine.\",\n    }\n    out = model.complete(seed)\n    if out and out.association_noticed:\n        write_insight(out.text, sources=fragments)\n    # else: tick closes silently. Empty is a first-class outcome.\n\nfunction tick(ctx):\n    if ctx.salience_low and is_otherwise_quiet(ctx):\n        state.quiet_streak += 1\n        if state.quiet_streak > QUIET_THRESHOLD:\n            juxtaposition_tick(ctx)\n            # don't reset on empty - only reset on a real active tick\n            return\n    else:\n        state.quiet_streak = 0\n    persist(state)\n    run_normal_tick(ctx)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "interrupt-resumable-thought",
       "intent": "Preserve multi-step reasoning across interrupts via paused-and-resumed thought frames.",
       "examples": [
@@ -112,6 +144,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hypothesis-tracking",
+      "intent": "Persist provisional answers as a typed ledger of records (summary, confidence, status, next-test, evidence) so guesses survive sessions and stay distinguishable from open questions.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Hypothesis ledger entry struct plus an extract-and-store pass that promotes committed guesses into the ledger, appends evidence, and transitions status when next-test fires.",
+          "code": "STATUS = {\"active\", \"confirmed\", \"disconfirmed\",\n          \"superseded\", \"abandoned\"}\n\nrecord Hypothesis:\n    id:         str          # short stable id\n    summary:    str          # one-line provisional answer\n    confidence: float        # 0.0 .. 1.0\n    status:     str          # one of STATUS\n    next_test:  str          # falsifiable: what would move confidence\n    evidence:   list[{note, source, observed_at}]\n    created_at: timestamp\n    updated_at: timestamp\n\nstore = load_jsonl(\"hypotheses.jsonl\")\n\nfunction commit_hypothesis(summary, confidence, next_test):\n    h = Hypothesis(\n        id=short_id(), summary=summary,\n        confidence=clamp(confidence, 0.0, 1.0),\n        status=\"active\", next_test=next_test, evidence=[],\n        created_at=now(), updated_at=now(),\n    )\n    store.append(h); persist(store)\n    return h.id\n\nfunction add_evidence(hid, note, source, supports: bool):\n    h = store.get(hid)\n    h.evidence.append({\"note\": note, \"source\": source,\n                       \"observed_at\": now()})\n    h.confidence = clamp(\n        h.confidence + (0.08 if supports else -0.12), 0.0, 1.0)\n    h.updated_at = now()\n    if h.confidence >= 0.85: h.status = \"confirmed\"\n    if h.confidence <= 0.10: h.status = \"disconfirmed\"\n    persist(store)\n\nfunction extract_and_store_pass(turn_text):\n    # Cheap model extracts candidate hypotheses from a turn.\n    # Open questions belong in a different store; do not conflate.\n    cands = cheap_model.extract_hypotheses(turn_text)\n    for c in cands:\n        if c.commitment_strength >= COMMIT_THRESHOLD:\n            commit_hypothesis(c.summary, c.confidence, c.next_test)\n\nfunction render_active_for_working_context():\n    return [h for h in store if h.status == \"active\"]",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },

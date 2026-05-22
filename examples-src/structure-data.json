@@ -49,6 +49,33 @@
       ]
     },
     {
+      "pattern_id": "llm-as-periphery",
+      "intent": "Invert LLM-in-the-middle: a deterministic state machine and event store form the core; LLM calls live only at the edges (typed input interpretation, typed output synthesis).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Deterministic core owns state transitions and persistence; LLM is invoked only at input and output edges with explicit typed schemas and no state of its own.",
+          "code": "# Core: deterministic state machine + append-only event store.\n# LLM: stateless edge transformers only.\n\nschema TypedEvent:\n    kind: enum { user_answer, user_question, system_advance, ... }\n    payload: any           # validated per kind\n    observed_at: timestamp\n\nfunction core_apply(state, event):\n    # Pure function: (state, event) -> state'\n    # Property-tested. No LLM call inside.\n    require(safety_check(state, event))\n    return transition_table[event.kind](state, event)\n\nfunction handle_user_text(text):\n    # EDGE IN: LLM interprets free-text -> typed event.\n    event = llm_edge_in(text, schema=TypedEvent)\n    require(event.kind in known_kinds)\n    event_store.append(event)\n    state = replay(event_store)              # deterministic\n    return state\n\nfunction synthesize_reply(state):\n    # EDGE OUT: LLM synthesises user-facing text from typed state.\n    return llm_edge_out(state, schema=UserMessage)\n\n# Top-level loop is deterministic. LLM cannot move state on its own.\nfunction turn(user_text):\n    state = handle_user_text(user_text)\n    return synthesize_reply(state)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "python",
+          "framework_label": "Python",
+          "language": "python",
+          "intent": "Vanilla Python: a deterministic state machine with an append-only event log; the LLM is called only at two edges (text-in -> typed event, typed state -> reply text) and holds no state across turns.",
+          "code": "from dataclasses import dataclass, field\nfrom typing import Literal, Any\nimport json, time\n\nEventKind = Literal[\"user_answer\", \"user_question\", \"system_advance\"]\n\n@dataclass\nclass TypedEvent:\n    kind: EventKind\n    payload: dict\n    observed_at: float\n\n@dataclass\nclass State:\n    step: int = 0\n    answers: list = field(default_factory=list)\n    crisis_flag: bool = False\n\nclass EventStore:\n    def __init__(self, path: str):\n        self.path = path\n    def append(self, ev: TypedEvent) -> None:\n        with open(self.path, \"a\") as f:\n            f.write(json.dumps(ev.__dict__) + \"\\n\")\n    def replay(self) -> list[TypedEvent]:\n        out = []\n        try:\n            with open(self.path) as f:\n                for line in f:\n                    out.append(TypedEvent(**json.loads(line)))\n        except FileNotFoundError:\n            pass\n        return out\n\n# Deterministic core. Property-tested. No LLM call inside.\ndef apply_event(state: State, ev: TypedEvent) -> State:\n    if ev.kind == \"user_answer\":\n        state.answers.append(ev.payload)\n        if looks_like_crisis(ev.payload):  # explicit code rule\n            state.crisis_flag = True\n    elif ev.kind == \"system_advance\" and not state.crisis_flag:\n        state.step += 1\n    return state\n\ndef replay_state(store: EventStore) -> State:\n    s = State()\n    for ev in store.replay():\n        s = apply_event(s, ev)\n    return s\n\n# LLM edges - stateless, typed in / typed out.\ndef llm_edge_in(text: str) -> TypedEvent:\n    # Call your LLM with a strict structured-output schema here.\n    parsed = call_llm_structured(\n        prompt=f\"Classify into a TypedEvent: {text}\",\n        schema={\"kind\": EventKind, \"payload\": dict},\n    )\n    return TypedEvent(kind=parsed[\"kind\"],\n                      payload=parsed[\"payload\"],\n                      observed_at=time.time())\n\ndef llm_edge_out(state: State) -> str:\n    return call_llm_structured(\n        prompt=f\"Compose next question from state: {state}\",\n        schema={\"text\": str},\n    )[\"text\"]\n\ndef turn(store: EventStore, user_text: str) -> str:\n    ev = llm_edge_in(user_text)\n    store.append(ev)\n    state = replay_state(store)\n    return llm_edge_out(state)",
+          "verified": false,
+          "verified_date": null,
+          "source_url": "https://habr.com/ru/articles/1027210/",
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "polymorphic-record",
       "intent": "Show core schema + discriminator + namespaced extension blocks: forward-compatible representation of a family of related entities where old clients still read shared fields and round-trip unknown sub-types.",
       "examples": [

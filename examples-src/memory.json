@@ -4,6 +4,33 @@
   "label": "Memory",
   "patterns": [
     {
+      "pattern_id": "agentic-memory",
+      "intent": "Show how memory operations (ADD / UPDATE / DELETE / RETRIEVE / SUMMARY / FILTER) are exposed as first-class tool actions the LLM picks at every step, so short-term and long-term memory live under one learned policy.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: six memory operations live in the agent's action space; the loop dispatches whichever the LLM chose this step.",
+          "code": "# Memory operations are first-class actions, not auxiliary controllers.\n# The same LLM that picks task tools also picks memory tools.\n\nMEMORY_OPS = {\"ADD\", \"UPDATE\", \"DELETE\", \"RETRIEVE\", \"SUMMARY\", \"FILTER\"}\n\nclass AgenticMemory:\n    def __init__(self, ltm, stm):\n        self.ltm = ltm   # long-term store (e.g. vector index)\n        self.stm = stm   # short-term working context\n\n    def apply(self, op, args):\n        if op == \"ADD\":      return self.ltm.add(args[\"item\"], meta=args.get(\"meta\"))\n        if op == \"UPDATE\":   return self.ltm.update(args[\"id\"], args[\"patch\"])\n        if op == \"DELETE\":   return self.ltm.delete(args[\"id\"])\n        if op == \"RETRIEVE\": return self.stm.inject(self.ltm.search(args[\"query\"], k=args.get(\"k\", 5)))\n        if op == \"SUMMARY\":  return self.stm.compress_span(args[\"span\"])\n        if op == \"FILTER\":   return self.stm.narrow(args[\"criteria\"])\n        raise ValueError(op)\n\nfunction step(agent, mem, observation):\n    action = agent.choose_action(observation, tools=TASK_TOOLS | MEMORY_OPS)\n    if action.name in MEMORY_OPS:\n        result = mem.apply(action.name, action.args)\n    else:\n        result = tool_dispatch(action)\n    return result\n\n# Step-wise reward shaper (e.g. step-wise GRPO) credits both task and\n# memory actions against eventual task reward, so the two policies co-adapt.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "python",
+          "intent": "Sketch the A-MEM tool schema as Claude tool definitions so a prompted (not trained) agent can issue ADD/UPDATE/DELETE/RETRIEVE/SUMMARY/FILTER calls; verification is the prompted-policy variant from the pattern.",
+          "source_url": "https://docs.claude.com/en/api/agent-sdk",
+          "code": "# Prompted (not trained) variant of Agentic Memory: the six memory ops\n# are declared as tools so Claude can choose them inside the agent loop.\n# RL credit assignment lives outside this snippet — this is the action\n# surface only.\n\nMEMORY_TOOLS = [\n    {\n        \"name\": \"memory_add\",\n        \"description\": \"Write a new item into long-term memory.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"content\": {\"type\": \"string\"},\n                \"tags\":    {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n            },\n            \"required\": [\"content\"],\n        },\n    },\n    {\n        \"name\": \"memory_update\",\n        \"description\": \"Patch an existing long-term item.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"id\":    {\"type\": \"string\"},\n                \"patch\": {\"type\": \"string\"},\n            },\n            \"required\": [\"id\", \"patch\"],\n        },\n    },\n    {\n        \"name\": \"memory_delete\",\n        \"description\": \"Remove a long-term item by id.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\"id\": {\"type\": \"string\"}},\n            \"required\": [\"id\"],\n        },\n    },\n    {\n        \"name\": \"memory_retrieve\",\n        \"description\": \"Semantic search; results enter short-term context.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"query\": {\"type\": \"string\"},\n                \"k\":     {\"type\": \"integer\"},\n            },\n            \"required\": [\"query\"],\n        },\n    },\n    {\n        \"name\": \"memory_summary\",\n        \"description\": \"Compress a span of short-term memory in place.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\"span\": {\"type\": \"string\"}},\n            \"required\": [\"span\"],\n        },\n    },\n    {\n        \"name\": \"memory_filter\",\n        \"description\": \"Narrow short-term memory by a criterion.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\"criteria\": {\"type\": \"string\"}},\n            \"required\": [\"criteria\"],\n        },\n    },\n]\n\n# The agent loop hands these six tools to the model alongside the task\n# tools. When the model emits a `memory_*` tool call the loop dispatches\n# it to a memory backend; otherwise it dispatches to the task tool.\n# Every memory mutation is attributable to a single LLM action in the\n# trace, which is the inspectability claim of Agentic Memory.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "append-only-thought-stream",
       "intent": "Show that thought entries are append-only \u2014 the agent has no API to mutate or delete history; compaction emits new files at higher tiers.",
       "examples": [
@@ -142,6 +169,46 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Confirmed at source_url: boto3 client for the `bedrock-agent-runtime` service exposes `invoke_agent` with parameters `agentId` (required), `agentAliasId` (required), `sessionId` (required), `inputText`, `memoryId`, and `endSession`. The response is an EventStream under `response[\"completion\"]` yielding events that include a `chunk` dictionary with a `bytes` field \u2014 exactly the shape iterated by the catalog code. Source: https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-agent-runtime/client/invoke_agent.html.",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "episodic-memory",
+      "intent": "Show how time-stamped events are appended to a dedicated episodic store, retrieved by recency-plus-similarity-plus-salience, and fed into a reflection pass that consolidates into semantic and procedural memory.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: append observations with timestamp and importance; retrieve by a Generative-Agents-style blend of recency, similarity, and importance; periodic reflection distils into semantic and procedural layers.",
+          "code": "# Episodic memory keeps events as events. Facts and skills are derived\n# later by a reflection pass; they are NOT written at ingest time.\n\nepisodes = AppendOnlyStore()    # (id, ts, content, importance, embedding)\n\ndef record(observation):\n    importance = llm.rate_importance(observation)   # 0..1\n    episodes.append({\n        \"id\":          uuid(),\n        \"ts\":          now(),\n        \"content\":     observation,\n        \"importance\":  importance,\n        \"embedding\":   embed(observation),\n    })\n\ndef recall(query, k=5, now_ts=None):\n    q = embed(query)\n    now_ts = now_ts or now()\n    scored = []\n    for ep in episodes.iter():\n        recency   = 0.5 ** ((now_ts - ep[\"ts\"]) / HALF_LIFE_DAYS)\n        relevance = cosine(q, ep[\"embedding\"])\n        score     = (recency + relevance + ep[\"importance\"]) / 3\n        scored.append((score, ep))\n    scored.sort(reverse=True)\n    return [ep for _, ep in scored[:k]]\n\ndef reflect(window):\n    # Periodic consolidation: read recent episodes, distil into the\n    # semantic and procedural layers without touching the episodic log.\n    recent = episodes.since(window)\n    for fact in llm.extract_assertions(recent):\n        semantic_store.assert_(fact, provenance=[ep[\"id\"] for ep in recent])\n    for recipe in llm.extract_procedures(recent):\n        procedural_store.append(recipe)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langmem",
+          "framework_label": "LangMem",
+          "language": "python",
+          "intent": "LangMem's episodic channel stores past interactions as time-stamped events for few-shot retrieval and later procedure distillation.",
+          "source_url": "https://github.com/langchain-ai/langmem",
+          "sdk_version": "langmem>=0.1",
+          "code": "from langmem import create_memory_store_manager\nfrom langgraph.store.memory import InMemoryStore\n\nstore = InMemoryStore(\n    index={\"dims\": 1536, \"embed\": \"openai:text-embedding-3-small\"}\n)\n\n# Episodic channel: each call records a past interaction as an event;\n# LangMem keeps timestamp + content so later retrieval can blend recency\n# and similarity. Facts/skills are derived by separate channels.\nepisodic = create_memory_store_manager(\n    \"openai:gpt-4o-mini\",\n    namespace=(\"memories\", \"{user_id}\", \"episodes\"),\n    instructions=(\n        \"Record significant interactions as discrete events. Preserve \"\n        \"who-said-what and outcome; do not collapse into facts.\"\n    ),\n    enable_inserts=True,\n    store=store,\n)\n\nepisodic.invoke(\n    {\n        \"messages\": [\n            {\"role\": \"user\",      \"content\": \"The auth CVE patch broke the SSO test.\"},\n            {\"role\": \"assistant\", \"content\": \"Reverted; opened a workaround ticket with TODO.\"},\n        ]\n    },\n    config={\"configurable\": {\"user_id\": \"alice\"}},\n)\n\n# Recall returns past episodes (not extracted facts) for few-shot use.\nepisodes = store.search(\n    (\"memories\", \"alice\", \"episodes\"),\n    query=\"what happened with the auth workaround?\",\n    limit=5,\n)\nfor ep in episodes:\n    print(ep.value)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "letta",
+          "framework_label": "Letta",
+          "language": "python",
+          "intent": "Letta's recall (conversation history) and archival (long-term passages) memories together form the episodic store: each conversation event is preserved with timestamp and is searchable across sessions.",
+          "source_url": "https://docs.letta.com/guides/agents/archival-memory",
+          "sdk_version": "letta-client>=0.1",
+          "code": "import os\nfrom letta_client import Letta\n\nclient = Letta(api_key=os.getenv(\"LETTA_API_KEY\"))\n\nagent = client.agents.create(\n    model=\"openai/gpt-4o-mini\",\n    memory_blocks=[\n        {\"label\": \"persona\", \"value\": \"coding assistant\", \"limit\": 1000},\n        {\"label\": \"human\",   \"value\": \"developer Alice\",  \"limit\": 1000},\n    ],\n)\n\n# Each message exchange is recorded into Letta's recall memory with a\n# timestamp — this is the live episodic log of the conversation.\nclient.agents.messages.create(\n    agent_id=agent.id,\n    messages=[{\"role\": \"user\",\n               \"content\": \"On 2026-02-14 we shipped the auth CVE fix.\"}],\n)\n\n# Notable episodes promoted to archival so they survive recall eviction\n# and can be retrieved by similarity at any later session.\nclient.agents.passages.insert(\n    agent_id=agent.id,\n    content=(\n        \"2026-02-14: CVE-flag → propose fix → SSO test broke → \"\n        \"workaround-with-TODO. Open follow-up on auth module.\"\n    ),\n    tags=[\"episode\", \"auth\", \"2026-02\"],\n)\n\n# Episodic recall later — returns events, not extracted facts.\nhits = client.agents.passages.search(\n    agent_id=agent.id,\n    query=\"why is there a workaround in auth?\",\n    tags=[\"episode\"],\n)\nfor p in hits:\n    print(p.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },
@@ -320,6 +387,45 @@
       ]
     },
     {
+      "pattern_id": "procedural-memory",
+      "intent": "Show how learned how-to is stored as a third memory type alongside episodic and semantic — keyed by situation pattern, retrieved at planning time, written via governed updates.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: situation pattern → action sequence, retrieved before re-planning, appended only on successful execution with provenance.",
+          "code": "# Procedural store entries: (situation_pattern, action_sequence,\n# success_record, provenance). Updates are gated to limit rogue-drift.\n\nprocedures = ProceduralStore()    # vector index over situation features\n\ndef decide(situation):\n    # 1. Match current situation against stored patterns.\n    hit = procedures.best_match(features(situation), min_score=0.75)\n    if hit and hit.success_rate >= 0.8:\n        return hit.action_sequence              # reuse, skip planning\n\n    # 2. No reliable procedure -> plan from scratch.\n    plan = planner.plan(situation)\n    return plan\n\ndef on_outcome(situation, action_sequence, outcome):\n    # 3. Only successful outcomes are eligible to write or strengthen.\n    if not outcome.success:\n        procedures.demote(situation, action_sequence)\n        return\n\n    hit = procedures.best_match(features(situation), min_score=0.9)\n    if hit:\n        hit.success_record.append(outcome)\n    else:\n        # 4. Gated append: needs provenance + review for self-rewrites.\n        procedures.propose({\n            \"pattern\":    features(situation),\n            \"actions\":    action_sequence,\n            \"provenance\": outcome.trace_id,\n            \"author\":     \"agent\",\n        })\n        # propose() routes to review queue, not to live retrieval, until\n        # a human or an automated check approves the new procedure.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langmem",
+          "framework_label": "LangMem",
+          "language": "python",
+          "intent": "LangMem's procedural channel stores reusable how-to so the agent can self-edit its own playbook over time without touching its system prompt by hand.",
+          "source_url": "https://github.com/langchain-ai/langmem",
+          "sdk_version": "langmem>=0.1",
+          "code": "from langmem import create_prompt_optimizer\nfrom langgraph.store.memory import InMemoryStore\n\nstore = InMemoryStore(\n    index={\"dims\": 1536, \"embed\": \"openai:text-embedding-3-small\"}\n)\n\n# LangMem ships procedural memory as a self-editing prompt: the agent\n# accumulates learned how-to over time, distilled from past traces.\noptimizer = create_prompt_optimizer(\n    \"openai:gpt-4o-mini\",\n    kind=\"prompt_memory\",     # procedural channel\n)\n\nbase_prompt = (\n    \"You review pull requests. Follow any learned procedures below.\"\n)\n\n# Past traces with feedback drive the procedural rewrite.\ntrajectories = [\n    (\n        [\n            {\"role\": \"user\",      \"content\": \"Review this auth PR.\"},\n            {\"role\": \"assistant\", \"content\": \"Looks fine.\"},\n        ],\n        {\"feedback\": \"You missed an OWASP check — always run it on auth PRs.\"},\n    ),\n]\n\nimproved_prompt = optimizer.invoke({\n    \"prompt\":       base_prompt,\n    \"trajectories\": trajectories,\n})\n# `improved_prompt` now embeds the learned procedure ('on auth PRs, run\n# OWASP checks first'). The next agent loop uses it as its system prompt.\nprint(improved_prompt)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "claude-agent-sdk",
+          "framework_label": "Claude Agent SDK",
+          "language": "yaml",
+          "intent": "Anthropic Claude Skills are the procedural-memory surface: a SKILL.md authored as a how-to is loaded into the agent when its trigger matches, so a learned procedure becomes a retrievable artifact.",
+          "source_url": "https://docs.claude.com/en/api/agent-sdk",
+          "code": "---\n# skills/auth-pr-review/SKILL.md\n# Procedural memory entry: situation pattern -> action sequence.\n# The agent loads this skill ONLY when the situation triggers match.\nname: auth-pr-review\ndescription: >\n  Procedure for reviewing pull requests that touch authentication code.\n  Distilled from past review feedback; updates go through code review,\n  not silent agent self-rewrites.\ntriggers:\n  - auth\n  - authentication\n  - oauth\n  - login\n  - session\n  - jwt\n---\n\n# How to review an auth PR\n\nWhen the diff touches authentication code, follow this procedure:\n\n1. Load the team's OWASP checklist before reading the diff.\n2. Confirm the PR adds or updates an auth-specific test; flag if not.\n3. Grep the diff for new secrets, tokens, or hardcoded credentials.\n4. Check that error paths do not leak whether the username exists.\n5. Run `make test-auth` locally; do not approve on green CI alone.\n6. If anything is unclear, request a security-team review before approve.\n\n# This file lives in source control. The agent does not silently rewrite\n# it; revisions go through a normal pull request, satisfying the\n# update-governance requirement of procedural memory.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "reasoning-trace-carry-forward",
       "intent": "Show how reasoning_content is preserved within a tool-call episode but dropped at the next user turn.",
       "examples": [
@@ -364,6 +470,74 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "self-corpus-vocabulary",
+      "intent": "Show how a small top-N vocabulary mined from the agent's own writing is cached as a separate scoring axis, so own-frame relevance is detectable above generic embedding similarity.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: periodic mining pass aggregates tag and content frequency from the agent's corpus, writes a top-N JSON cache, downstream scorer blends generic similarity with own-vocabulary overlap.",
+          "code": "# Periodic miner over the agent's own corpus -> top-N vocabulary cache.\n# Downstream scoring blends generic similarity with own-vocab overlap.\n\nimport json, math\n\ndef mine_vocabulary(corpus_window, top_n=30):\n    # 1. Collect candidate tokens: frontmatter tags + content tokens.\n    df_tag    = {}    # tag frequency across entries\n    df_token  = {}    # content-token frequency\n    N         = 0\n    for entry in corpus_window:\n        N += 1\n        for tag in entry.tags:\n            df_tag[tag] = df_tag.get(tag, 0) + 1\n        for tok in tokenise(entry.content):\n            if not is_stopword(tok):\n                df_token[tok] = df_token.get(tok, 0) + 1\n\n    # 2. Blend: tags weighted higher than raw content tokens.\n    blended = {}\n    for tag, n in df_tag.items():\n        blended[tag] = (n / N) * 2.0\n    for tok, n in df_token.items():\n        blended[tok] = blended.get(tok, 0) + (n / N)\n\n    # 3. Top-N as the cached vocabulary.\n    top = sorted(blended.items(), key=lambda kv: kv[1], reverse=True)[:top_n]\n    return {\"refreshed_at\": now(), \"vocab\": dict(top)}\n\ndef refresh(cache_path, corpus_window):\n    vocab = mine_vocabulary(corpus_window)\n    json.dump(vocab, open(cache_path, \"w\"))\n\ndef own_frame_score(thought, vocab):\n    toks = set(tokenise(thought))\n    return sum(w for tok, w in vocab[\"vocab\"].items() if tok in toks)\n\ndef salience(thought, recent_ctx, vocab, alpha=0.5, beta=0.5):\n    # Two-axis score: generic similarity + own-frame fit.\n    return (\n        alpha * cosine(embed(thought), embed(recent_ctx))\n      + beta  * own_frame_score(thought, vocab)\n    )\n\n# Refresh cadence: weekly for stable agents; after each consolidation\n# pass for more volatile ones. A reflection step can audit churn vs\n# lock-in and adjust the cadence.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
+      "pattern_id": "semantic-memory",
+      "intent": "Show how durable assertions (entity, attribute, value, provenance) are extracted from interactions and stored in a substrate-agnostic semantic layer, queried by 'what does the agent know about X' rather than by event similarity.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Language-agnostic skeleton: extract typed assertions with provenance, store them keyed by entity/attribute, resolve conflicts at write time, look up at decision time without replaying the originating episode.",
+          "code": "# Semantic memory: a dedicated layer of *what is true*, separate from\n# event records. Substrate (vector / graph / JSON profile) is a choice;\n# the contract is entity + attribute -> value + provenance.\n\nclass Assertion:\n    def __init__(self, entity, attribute, value, source_episode, ts):\n        self.entity         = entity\n        self.attribute      = attribute\n        self.value          = value\n        self.source_episode = source_episode\n        self.ts             = ts\n\nsemantic = AssertionStore()    # keyed by (entity, attribute)\n\ndef ingest(episode):\n    # 1. Distil the episode into typed assertions.\n    for a in llm.extract_assertions(\n        episode,\n        schema=\"(entity, attribute, value)\"\n    ):\n        new = Assertion(a.entity, a.attribute, a.value,\n                        source_episode=episode.id, ts=now())\n\n        # 2. Conflict resolution at write time: keep the latest claim,\n        # archive the previous one for provenance.\n        old = semantic.get(new.entity, new.attribute)\n        if old and old.value != new.value:\n            semantic.archive(old, reason=\"superseded\", by=new)\n        semantic.put(new)\n\ndef known_about(entity):\n    return semantic.by_entity(entity)   # direct lookup, no replay\n\ndef invalidate(entity, attribute, reason):\n    semantic.archive(semantic.get(entity, attribute),\n                     reason=reason, by=None)\n\n# Episodes remain queryable in the episodic layer; semantic answers\n# stable questions without paying the cost of replaying the past.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langmem",
+          "framework_label": "LangMem",
+          "language": "python",
+          "intent": "LangMem's semantic channel exposes profile (single JSON document) and collection (many documents) stores; this example uses a collection of typed assertions about a user.",
+          "source_url": "https://github.com/langchain-ai/langmem",
+          "sdk_version": "langmem>=0.1",
+          "code": "from langmem import create_memory_store_manager\nfrom langgraph.store.memory import InMemoryStore\nfrom pydantic import BaseModel\n\n\nclass UserFact(BaseModel):\n    entity:    str\n    attribute: str\n    value:     str\n\n\nstore = InMemoryStore(\n    index={\"dims\": 1536, \"embed\": \"openai:text-embedding-3-small\"}\n)\n\n# Semantic channel: extract typed assertions from interactions and\n# store them in a per-user namespace. LangMem handles deduplication\n# and update over conflicting assertions.\nsemantic = create_memory_store_manager(\n    \"openai:gpt-4o-mini\",\n    namespace=(\"memories\", \"{user_id}\", \"semantic\"),\n    schemas=[UserFact],\n    instructions=(\n        \"Extract durable facts as (entity, attribute, value). Do not \"\n        \"record events; that is the episodic channel's job.\"\n    ),\n    enable_inserts=True,\n    store=store,\n)\n\nsemantic.invoke(\n    {\n        \"messages\": [\n            {\"role\": \"user\",\n             \"content\": \"I just moved to Berlin, so use Europe/Berlin.\"},\n        ]\n    },\n    config={\"configurable\": {\"user_id\": \"alice\"}},\n)\n\n# Direct lookup of facts; no episode replay.\nfacts = store.search((\"memories\", \"alice\", \"semantic\"),\n                     query=\"timezone\", limit=5)\nfor f in facts:\n    print(f.value)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "mem0",
+          "framework_label": "Mem0",
+          "language": "python",
+          "intent": "Mem0's add/search API stores distilled facts per user — semantic memory backed by a vector substrate; the raw turn is summarised into an assertion at write time, not on every read.",
+          "source_url": "https://docs.mem0.ai/core-concepts/memory-types",
+          "sdk_version": "mem0ai>=0.1",
+          "code": "from mem0 import Memory\n\nm = Memory()\n\n# Each .add distils the conversation into one or more durable facts\n# (Mem0's semantic memory type), namespaced by user_id.\nm.add(\n    [\n        {\"role\": \"user\",\n         \"content\": \"I'm allergic to peanuts and I prefer Thai food.\"},\n        {\"role\": \"assistant\",\n         \"content\": \"Noted — peanut allergy, Thai cuisine.\"},\n    ],\n    user_id=\"alice\",\n)\n\n# Semantic lookup: query by topic, not by episode text. The store\n# returns the extracted facts, not the conversation that produced them.\nhits = m.search(\"what do I avoid eating?\", user_id=\"alice\", limit=5)\nfor h in hits.get(\"results\", []):\n    print(h[\"memory\"])\n\n# Facts can be updated or removed without touching the originating turn.\n# m.update(memory_id=..., data=\"allergic to peanuts AND tree nuts\")\n# m.delete(memory_id=...)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "cognee",
+          "framework_label": "cognee",
+          "language": "python",
+          "intent": "cognee ingests raw text and builds a knowledge-graph-backed semantic store; .search returns extracted entities and relations, the graph substrate for semantic memory.",
+          "source_url": "https://docs.cognee.ai/",
+          "sdk_version": "cognee>=0.1",
+          "code": "import asyncio\nimport cognee\n\n\nasync def main():\n    # Ingest raw interactions; cognee extracts entities and relations\n    # into a knowledge-graph-backed semantic store under the hood.\n    await cognee.add(\n        \"Alice lives in Berlin and is allergic to peanuts. \"\n        \"Her preferred cuisine is Thai.\"\n    )\n    await cognee.cognify()   # builds the graph from the ingested text\n\n    # Query the semantic layer: cognee returns extracted assertions /\n    # graph hits, not the raw text that produced them.\n    facts = await cognee.search(\n        query_text=\"what do we know about Alice's food preferences?\"\n    )\n    for f in facts:\n        print(f)\n\n\nasyncio.run(main())",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },

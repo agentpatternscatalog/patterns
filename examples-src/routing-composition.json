@@ -49,6 +49,58 @@
       ]
     },
     {
+      "pattern_id": "complexity-based-routing",
+      "intent": "Place an explicit complexity classifier in front of model tiers and bind each request to the cheapest tier that meets its predicted difficulty, so spend follows difficulty rather than defaulting to the strongest model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Single up-front classification picks the tier; no cheap-first attempt to escalate from — the decision is taken once from a difficulty signal.",
+          "code": "TIERS = {\n    \"small\":  client(\"small-open-weight\"),\n    \"medium\": client(\"medium-hosted\"),\n    \"large\":  client(\"frontier\"),\n}\n\n# Misclassifying hard-as-easy hurts more than easy-as-hard, so the\n# threshold for promoting to a stronger tier is deliberately loose.\nTIER_FOR_SCORE = lambda s: (\n    \"small\"  if s < 0.30 else\n    \"medium\" if s < 0.70 else\n    \"large\"\n)\n\nfunction route(request):\n    # Cheap classifier — a learned router on win-rate data, OR\n    # heuristic features (length, operators, retrieval-hit count),\n    # OR an LLM-judge on the smallest tier.\n    score = complexity_classifier.score(request)\n    tier  = TIER_FOR_SCORE(score)\n    out   = TIERS[tier].generate(request)\n\n    # Log per-tier outcomes so the classifier can be retrained on\n    # observed wins and losses — the routing signal compounds.\n    log_outcome(request_id=request.id,\n                score=score, tier=tier,\n                outcome=judge.score(out))\n    return out",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "routellm",
+          "framework_label": "RouteLLM",
+          "language": "python",
+          "intent": "RouteLLM's Controller exposes one model id whose suffix is a learned router threshold; requests above the threshold go to the strong model, the rest to the cheap one.",
+          "source_url": "https://github.com/lm-sys/RouteLLM",
+          "sdk_version": "routellm>=0.2",
+          "code": "import os\nfrom routellm.controller import Controller\n\nos.environ[\"OPENAI_API_KEY\"]    = \"...\"\nos.environ[\"ANTHROPIC_API_KEY\"] = \"...\"\n\n# The Controller wraps a strong and a weak model. Its learned router\n# (mf, bert, sw_ranking, ...) scores each prompt and dispatches to\n# the strong model only when the predicted win-rate gap is large.\nclient = Controller(\n    routers=[\"mf\"],\n    strong_model=\"gpt-4o\",\n    weak_model=\"anyscale/mistralai/Mixtral-8x7B-Instruct-v0.1\",\n)\n\n# Model id encodes the router + threshold; everything above 0.11645\n# (the calibrated 50/50-cost point) goes to the strong model.\nresponse = client.chat.completions.create(\n    model=\"router-mf-0.11645\",\n    messages=[{\"role\": \"user\",\n               \"content\": \"Explain how matrix factorization routes queries.\"}],\n)\nprint(response.choices[0].message.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "openrouter",
+          "framework_label": "OpenRouter",
+          "language": "python",
+          "intent": "OpenRouter's Auto router classifies each prompt server-side and dispatches to the cheapest model that can handle it; the client just passes 'openrouter/auto'.",
+          "source_url": "https://openrouter.ai/docs/models#auto-router",
+          "sdk_version": "openai>=1.40",
+          "code": "import os\nfrom openai import OpenAI\n\n# OpenRouter is OpenAI-SDK-compatible. The Auto router is exposed as\n# a single model id; OpenRouter handles complexity classification\n# and per-request tier selection on the server side.\nclient = OpenAI(\n    base_url=\"https://openrouter.ai/api/v1\",\n    api_key=os.environ[\"OPENROUTER_API_KEY\"],\n)\n\nresponse = client.chat.completions.create(\n    model=\"openrouter/auto\",                 # Auto router\n    messages=[\n        {\"role\": \"user\",\n         \"content\": \"Summarize this paragraph in one sentence: ...\"},\n    ],\n)\n\n# The actual model picked for this request is surfaced in the response,\n# so the caller can log per-tier outcomes and audit drift over time.\nprint(\"chosen:\", response.model)\nprint(\"answer:\", response.choices[0].message.content)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "not-diamond",
+          "framework_label": "Not Diamond",
+          "language": "python",
+          "intent": "Not Diamond's model_select picks the best candidate model per prompt; the caller then dispatches the actual chat call to the selected provider.",
+          "source_url": "https://docs.notdiamond.ai/",
+          "sdk_version": "notdiamond>=0.3",
+          "code": "import os\nfrom notdiamond import NotDiamond\n\nclient = NotDiamond(api_key=os.environ[\"NOTDIAMOND_API_KEY\"])\n\n# model_select scores each candidate against the prompt's predicted\n# difficulty / domain and returns the best fit; spend tracks the\n# routing decision instead of always defaulting to the strongest tier.\nsession_id, provider = client.chat.completions.model_select(\n    messages=[\n        {\"role\": \"user\",\n         \"content\": \"Prove that the halting problem is undecidable.\"},\n    ],\n    model=[\n        \"openai/gpt-4o-mini\",\n        \"openai/gpt-4o\",\n        \"anthropic/claude-sonnet-4-6\",\n    ],\n)\n\nprint(\"routed to:\", provider.provider, provider.model)\n# Caller then dispatches the actual chat call to the selected\n# provider; session_id ties the outcome back to the routing decision.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "dynamic-scaffolding",
       "intent": "Inject task-specific scaffolding (examples, hints, schemas) into the prompt only when the task type warrants it.",
       "examples": [
@@ -119,6 +171,34 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hybrid-symbolic-neural-routing",
+      "intent": "Route each query between a symbolic path (rules, constraint solver, knowledge graph) and a neural path (LLM); on genuinely hybrid queries the LLM proposes a plan that the symbolic layer validates and executes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Explicit router classifies each query as symbolic / neural / hybrid; hybrid queries become LLM-proposes, symbolic-validates-and-executes — the LLM never asserts the answer alone.",
+          "code": "SYMBOLIC = RuleEngine(rules=TAX_RULES, ontology=ONTOLOGY)\nNEURAL   = LLMAgent(model=\"frontier\", retriever=RAG, tools=TOOLS)\n\nfunction route(query):\n    kind = router.classify(query)   # \"symbolic\" | \"neural\" | \"hybrid\"\n\n    if kind == \"symbolic\":\n        # Hard rule satisfaction — exact, verifiable execution.\n        return SYMBOLIC.evaluate(query)\n\n    if kind == \"neural\":\n        # Free-text interpretation — no exact rules apply.\n        return NEURAL.answer(query)\n\n    # Hybrid: LLM proposes a plan, symbolic layer validates + runs it.\n    plan = NEURAL.propose_plan(query)\n    if not SYMBOLIC.validates(plan):\n        return refuse(reason=\"plan violates constraints\")\n    result = SYMBOLIC.execute(plan)\n\n    # Track router accuracy as a first-class metric — boundary drift\n    # is a regression, not a free move.\n    metrics.record(query, kind, result, ground_truth=judge.score(result))\n    return result",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "StateGraph with a conditional edge routes each query to a symbolic-validator node or an LLM node; the router function is the boundary that has to be kept current.",
+          "source_url": "https://langchain-ai.github.io/langgraph/",
+          "sdk_version": "langgraph>=0.2",
+          "code": "from typing import TypedDict, Literal\nfrom langgraph.graph import StateGraph, END\nfrom langchain_openai import ChatOpenAI\n\nllm = ChatOpenAI(model=\"gpt-4o\")\n\n\nclass State(TypedDict):\n    query: str\n    answer: str\n\n\ndef classify(state: State) -> Literal[\"symbolic\", \"neural\"]:\n    q = state[\"query\"].lower()\n    # Cheap heuristic stand-in for a learned router; production\n    # would use a small classifier with rule-satisfaction features.\n    if any(k in q for k in [\"calculate\", \"tax\", \"dosage\", \"eligible\"]):\n        return \"symbolic\"\n    return \"neural\"\n\n\ndef symbolic_node(state: State) -> State:\n    # Deterministic rule engine — exact, verifiable, no LLM call.\n    state[\"answer\"] = rule_engine.evaluate(state[\"query\"])\n    return state\n\n\ndef neural_node(state: State) -> State:\n    state[\"answer\"] = llm.invoke(state[\"query\"]).content\n    return state\n\n\ngraph = StateGraph(State)\ngraph.add_node(\"symbolic\", symbolic_node)\ngraph.add_node(\"neural\",   neural_node)\n\n# Conditional edge IS the router: classify() picks the next node.\ngraph.set_conditional_entry_point(\n    classify,\n    {\"symbolic\": \"symbolic\", \"neural\": \"neural\"},\n)\ngraph.add_edge(\"symbolic\", END)\ngraph.add_edge(\"neural\",   END)\n\napp = graph.compile()\nprint(app.invoke({\"query\": \"Calculate VAT on 199 EUR at 19%.\"}))\nprint(app.invoke({\"query\": \"Summarize the attached customer email.\"}))",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
         }
       ]
     },
