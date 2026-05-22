@@ -524,6 +524,7 @@ PROPER_NOUNS_WITH_AI = (
     "EU AI Act",
     "AI Act",
     "AI Safety Institute",
+    "Concrete Problems in AI Safety",
     "Open AI",
     "OpenAI",
     "GenAI",
