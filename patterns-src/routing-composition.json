@@ -603,6 +603,159 @@
       "last_updated": "2026-05-22"
     },
     {
+      "id": "hybrid-symbolic-neural-routing",
+      "name": "Hybrid Symbolic-Neural Routing",
+      "aliases": [
+        "Neuro-Symbolic Routing",
+        "Symbolic/Neural Hybrid",
+        "ハイブリッド・シンボリック・ニューラル"
+      ],
+      "category": "routing-composition",
+      "intent": "Per query, route between a symbolic processing path (rule engine, knowledge graph, ASP/Prolog, hand-coded ontology) and a neural path (LLM) based on the kind of work the query needs — using the LLM for interpretation, ambiguity, and synthesis, and the symbolic layer for exact constraints and verifiable logic.",
+      "context": "An agent serves a mixed workload: some queries are inherently logical (tax rules, dosage limits, schema validation, eligibility checks) where a wrong answer is unacceptable; other queries are inherently interpretive (free-text intent, summarization, ranking) where exact rules do not exist. Sending everything to the LLM costs accuracy on the logical queries; sending everything to a rule engine is impossible for the interpretive ones.",
+      "problem": "LLMs are bad at exact constraint satisfaction at scale — they confabulate edge cases, lose track of conjunctions, and silently round numbers. Rule engines are bad at interpretation — they cannot handle free text. Yet most real workloads need both. A single path forces one of two losses: confabulated rule violations from the LLM path, or brittle template-only coverage from the symbolic path. Recent practitioner write-ups (Japanese Qiita, Anthropic-style architecture posts) and the Nov 2025 arXiv preprint 'Bridging Symbolic Control and Neural Reasoning in LLM Agents' converge on per-query routing as the resolution: estimate complexity, decide where the query belongs, and only blend the two when neither pure path suffices.",
+      "forces": [
+        "Hard rules need verifiable execution; LLMs cannot give that guarantee without external enforcement.",
+        "Interpretive queries need free-text understanding; rule engines cannot give that.",
+        "Per-query routing is itself a model — a bad router collapses to either pure-LLM or pure-symbolic.",
+        "Maintaining two stacks (LLM + symbolic) doubles the surface for drift; the routing decision is also the boundary that has to be kept current."
+      ],
+      "therefore": "Therefore: introduce an explicit router that classifies each query as symbolic, neural, or hybrid, runs it through the matching path, and is itself tested with both rule-satisfaction and interpretation benchmarks so the boundary does not silently move.",
+      "solution": "Build three first-class components: (a) a symbolic path holding the rules, ontologies, and constraint solvers; (b) a neural path holding the LLM with retrieval, tools, and synthesis; (c) a router that estimates per-query complexity and resource needs and dispatches. For genuinely hybrid queries, the LLM proposes a plan that the symbolic layer validates and executes — the LLM never asserts the answer alone. Track router accuracy as a first-class metric; treat boundary drift as a regression.",
+      "consequences": {
+        "benefits": [
+          "Hard constraints stay verifiable: violations are caught by the symbolic layer regardless of LLM phrasing.",
+          "Free-text and ambiguous inputs still flow; the LLM is not removed, just contained.",
+          "Cost can drop because the symbolic path is dramatically cheaper than an LLM call for queries that fit it.",
+          "Failure modes become legible: a wrong answer is either a symbolic-rule miss or an LLM confabulation, not 'something happened'."
+        ],
+        "liabilities": [
+          "Router accuracy becomes a load-bearing component; misrouting either confabulates rules or fails interpretation.",
+          "Two stacks must be kept in sync; rule changes and prompt/tool changes both move the boundary.",
+          "Hybrid queries (LLM-proposes, symbolic-validates) introduce latency and a new failure mode — the LLM proposing plans the symbolic layer cannot represent."
+        ]
+      },
+      "constrains": "Forbids the LLM from asserting outputs that fall under the symbolic path's jurisdiction without symbolic validation. The router and symbolic layer together restrict the LLM's freedom to ungoverned interpretive and synthesis tasks.",
+      "known_uses": [
+        {
+          "system": "NeSyC — neuro-symbolic hypothesis induction with symbolic validation and continual trajectory monitoring",
+          "status": "available",
+          "url": "https://arxiv.org/pdf/2511.17673"
+        },
+        {
+          "system": "Structured Cognitive Loop (Kim, 2025) — five-module R-CCAM design bridging expert-system principles with LLM capabilities",
+          "status": "available"
+        },
+        {
+          "system": "Cellular-X — retrieval-augmented, tool-centric agent with modular symbolic/neural routing for configuration generation",
+          "status": "available"
+        },
+        {
+          "system": "Reported in Japanese practitioner write-ups (Qiita syukan3 22-pattern survey, note.com makokon failure-modes analysis) as one of the operational design patterns under active use",
+          "status": "available",
+          "url": "https://qiita.com/syukan3/items/174e43235bde8a1a0694"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "deterministic-llm-sandwich",
+          "relation": "complements",
+          "note": "the sandwich is one specific implementation when the symbolic layer brackets the LLM call"
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "complements",
+          "note": "world-model-as-tool gives the LLM a callable simulator; here the symbolic layer is non-callable and authoritative"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements"
+        },
+        {
+          "pattern": "knowledge-graph-memory",
+          "relation": "uses",
+          "note": "the symbolic path often reads from a knowledge graph"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Bridging Symbolic Control and Neural Reasoning in LLM Agents",
+          "year": 2025,
+          "url": "https://arxiv.org/pdf/2511.17673"
+        },
+        {
+          "type": "tutorial",
+          "title": "多様な AI エージェント設計パターン22選を比較",
+          "year": 2025,
+          "url": "https://qiita.com/syukan3/items/174e43235bde8a1a0694"
+        },
+        {
+          "type": "blog",
+          "title": "LLMエージェントはなぜ失敗するのか？ 自律型AIのデバッグと改善手法",
+          "year": 2025,
+          "url": "https://note.com/makokon/n/ne9b86a4cc82b"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "neuro-symbolic",
+        "hybrid",
+        "constraint-satisfaction",
+        "knowledge-graph"
+      ],
+      "applicability": {
+        "use_when": [
+          "Workloads that mix hard-rule queries (tax, dosage, eligibility, schema) with free-text/interpretive queries.",
+          "Domains where a single wrong rule-application is unacceptable and the rules can be represented symbolically.",
+          "Cost regimes where the symbolic path is materially cheaper per query than the LLM path.",
+          "Settings where a knowledge graph or rule base already exists and is maintained."
+        ],
+        "do_not_use_when": [
+          "Pure interpretive workloads (summarization, chat) where no symbolic representation of the rules exists.",
+          "Workloads where the rules change too fast for the symbolic representation to keep up.",
+          "Small deployments where maintaining two stacks costs more than the accuracy gain.",
+          "Settings where router-quality cannot be measured — the routing decision becomes silent risk."
+        ]
+      },
+      "example_scenario": "A medication-recommendation assistant takes free-text clinician queries. The router classifies each query: 'is amoxicillin contraindicated with X?' → symbolic path (drug-interaction graph, deterministic answer). 'Summarize this patient's last three visits' → neural path (LLM with retrieval). 'Patient is allergic to penicillin and on warfarin — what should I avoid?' → hybrid: LLM proposes candidate drugs, symbolic layer validates each against allergy + interaction rules and returns the filtered set. Router accuracy is tracked weekly; a regression on hard-rule queries triggers a rule-base refresh.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Incoming query] --> R[Router: estimate complexity / kind]\n  R -- exact rule --> S[Symbolic path: KG / Prolog / constraint solver]\n  R -- interpretive --> N[Neural path: LLM + retrieval + tools]\n  R -- hybrid --> H[LLM proposes plan]\n  H --> V[Symbolic layer validates plan]\n  V -- ok --> Exec[Execute validated plan]\n  V -- rejects --> H\n  S --> Out[Answer]\n  N --> Out\n  Exec --> Out\n"
+      },
+      "components": [
+        "Router — per-query classifier that picks symbolic / neural / hybrid path",
+        "Symbolic path — rule engine, knowledge graph, constraint solver, ontology",
+        "Neural path — LLM with retrieval, tools, synthesis",
+        "Validator — symbolic check on LLM-proposed plans in the hybrid case",
+        "Boundary monitor — flags drift between what the router sends symbolic vs what the symbolic layer can actually handle"
+      ],
+      "tools": [
+        "Rule engine — Prolog, Answer Set Programming, Drools, custom DSL",
+        "Knowledge graph store — Neo4j, RDF triple store, in-memory graph",
+        "LLM with tool-use — the neural path",
+        "Router classifier — small model or heuristic that scores per-query",
+        "Router-accuracy harness — held-out labelled queries used to track router drift"
+      ],
+      "evaluation_metrics": [
+        "Router accuracy — share of queries routed to the path that produces the highest-quality answer on a held-out set",
+        "Hard-rule violation rate — symbolic violations escaping past the validator",
+        "Cost per query by path — should show meaningful savings on the symbolic path",
+        "Hybrid-validation rejection rate — share of LLM-proposed plans rejected by the symbolic layer (high = LLM-symbolic mismatch growing)",
+        "Boundary-drift rate — change over time in what the router classifies as symbolic vs neural for the same input class"
+      ],
+      "last_updated": "2026-05-22"
+    },
+    {
       "id": "mixture-of-experts-routing",
       "name": "Mixture of Experts Routing",
       "aliases": [
