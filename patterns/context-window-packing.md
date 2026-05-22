@@ -83,6 +83,7 @@ Total tokens passed to the model must not exceed the window minus the reserved r
 
 - **LangChain ConversationSummaryBufferMemory** — *Available*
 - **Most production agent frameworks** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Prompt-cache management and a context-packer fit the per-tick prompt into the model's window deliberately (stable prefix, recent ledger, current workspace, active variant) rather than relying on the provider to truncate.
 
 ## Related patterns
 

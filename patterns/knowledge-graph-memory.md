@@ -83,6 +83,7 @@ Memory queries that require traversal must use graph operations; ad-hoc text mat
 
 - **Microsoft GraphRAG (graph as memory + retrieval)** — *Available*
 - **Zep memory (hybrid)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Beliefs are stored as typed entity / relation triples in a claim graph, not only as flat embeddings, so the agent can reason over its own asserted relationships rather than only over similarity.
 
 ## Related patterns
 

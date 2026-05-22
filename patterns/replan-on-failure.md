@@ -23,7 +23,6 @@ Plans are made under incomplete information, so some plans are wrong from the st
 - When to trigger replanning is itself a judgment.
 - Stale context: the new plan must include lessons from the failed run.
 
-
 ## Applicability
 
 **Use when**
@@ -83,6 +82,7 @@ The executor cannot deviate from the current plan without raising a replan reque
 ## Known uses
 
 - **LangGraph plan-and-execute templates** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — When execution evidence contradicts the current plan (tool error, refusal, surprise observation), the active-plan layer replans rather than retrying the same step blindly.
 
 ## Related patterns
 

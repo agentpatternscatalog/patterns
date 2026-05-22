@@ -111,6 +111,7 @@ stateDiagram-v2
 ## Known uses
 
 - **Self-observed in long-running cognitive agents** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — In-flight plans are preserved across user interrupts (chat arrives mid-tick) so the agent can resume the prior thread on a later tick rather than losing the train of thought.
 
 ## Related patterns
 

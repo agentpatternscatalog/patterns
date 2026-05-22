@@ -81,6 +81,7 @@ New skills enter the library only after passing the critic; they cannot mutate e
 ## Known uses
 
 - **Voyager (Minecraft agent)** — *Available*. Skill library that grows through self-play.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Author-written procedures (skills) are loaded on demand for specific task types from a sibling skills/ tree; each skill is a folder with its own code, prompts, and tests, separable from the core loop.
 
 ## Related patterns
 

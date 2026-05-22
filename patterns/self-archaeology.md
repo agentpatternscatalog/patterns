@@ -111,6 +111,7 @@ A long-running agent is asked 'how has your view of the project's risks evolved'
 ## Known uses
 
 - **Self-observed in long-running cognitive agents** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent reads its own historical layers (old thoughts, past insights, prior journal entries) as evidence about who it has been, not as inert log data.
 
 ## Related patterns
 

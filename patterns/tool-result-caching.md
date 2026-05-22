@@ -23,7 +23,6 @@ Repeat calls on identical arguments pay full latency and full per-call cost ever
 - Per-user vs global caches differ on isolation guarantees.
 - Cache hits hide tool latency the agent might benefit from learning about.
 
-
 ## Applicability
 
 **Use when**
@@ -49,7 +48,6 @@ Wrap deterministic tools in a cache layered on `(tool_name, normalised_args)`. S
 ## Example scenario
 
 An agent that researches companies calls the same `get_company_profile(domain)` tool four times per session because different sub-tasks need it. Latency and per-call cost stack up. The team wraps deterministic tools in a cache keyed on `(tool_name, normalised_args)` with TTLs by tool type; per-user scoping keeps tenant-sensitive results from crossing accounts. Repeat calls return immediately, the underlying tool quota lasts longer, and session latency drops.
-
 
 ## Diagram
 
@@ -83,6 +81,7 @@ Only tools declared deterministic may be cached; nondeterministic tools bypass t
 ## Known uses
 
 - **Most production agent platforms** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Tool results are cached keyed by (tool, args) so repeated calls within a tick or across nearby ticks reuse the prior result instead of paying the latency / cost again.
 
 ## Related patterns
 

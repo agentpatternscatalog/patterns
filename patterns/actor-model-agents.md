@@ -94,6 +94,7 @@ Agents do not share mutable state and may not call each other synchronously; all
 
 - **AutoGen Core** — AutoGen Core documents explicitly that agents are developed using the Actor model. *Available* — [link](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html)
 - **Akka / Pekko + LLM tool integrations** — JVM actor runtimes used as the substrate for multi-agent LLM systems. *Available* — [link](https://doc.akka.io/libraries/akka-core/current/typed/actors.html)
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Peer messaging is mailbox-based: each peer (atelier, others) has an inbox folder and the agent processes messages one at a time with no shared mutable state across peers.
 
 ## Related patterns
 

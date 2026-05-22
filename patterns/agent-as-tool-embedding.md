@@ -95,6 +95,7 @@ The parent may not access the sub-agent's intermediate turns; only the return va
 - **[Hugging Face Transformers Agents (multi-agent)](https://huggingface.co/docs/transformers/v4.47.1/agents_advanced)** — *Available*. ReactCodeAgent embeds sub-agents as callable Python functions.
 - **smolagents** — *Available*. Same pattern; sub-agents exposed as ordinary tool functions to a CodeAgent.
 - **OpenAI Agents SDK / handoffs** — *Available*. Adjacent pattern with explicit handoff semantics rather than function-call nesting.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The subagent runtime wraps each sub-agent as a single opaque tool call from the parent's point of view, so the parent reasons about 'invoke subagent X' rather than micromanaging its turns.
 
 ## Related patterns
 

@@ -108,6 +108,7 @@ Place the time block outside the cached prefix so the cache key is stable; injec
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Wall-clock and named-human context are injected on every tick so reasoning stays grounded in the current moment and in the one specific human the agent is in relation with.
 
 ## Related patterns
 

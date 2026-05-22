@@ -81,6 +81,7 @@ Self-edits and other recorded actions are rejected if they lack a valid justific
 - **Langfuse traces** — *Available*
 - **OpenTelemetry GenAI semantic conventions** — *Available*
 - **Datadog LLM Observability** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — An append-only ledger records every write and self-edit so the agent's behaviour is auditable from the ledger alone.
 
 ## Related patterns
 

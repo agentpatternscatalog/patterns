@@ -23,7 +23,6 @@ A single-provider deployment is hostage to that provider's worst hour: when its 
 - Partial output reconciliation across providers.
 - Routing logic must not amplify provider quirks.
 
-
 ## Applicability
 
 **Use when**
@@ -89,6 +88,7 @@ Clients must not see the underlying provider; only the provider-agnostic interfa
 - **Cursor model switching on rate-limit** — *Available*
 - **Portkey gateway fallback** — *Available*
 - **Helicone gateway fallback** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Per-provider cooldown state is tracked so cooled-down providers are skipped in routing; the loop falls through to the next eligible provider rather than blocking.
 
 ## Related patterns
 

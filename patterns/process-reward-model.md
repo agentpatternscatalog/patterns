@@ -23,7 +23,6 @@ Outcome-only scoring cannot tell the difference between reasoning that got to th
 - Step boundaries vary across tasks.
 - PRM and outcome reward sometimes conflict on what counts as 'correct'.
 
-
 ## Applicability
 
 **Use when**
@@ -82,6 +81,7 @@ Final answers are accepted only when intermediate steps pass the PRM threshold.
 
 - **OpenAI 'Let's Verify Step by Step' baseline** — *Available*
 - **DeepMind reasoning evaluators** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A thought-scoring pass scores individual reasoning steps along multiple axes (salience, conceptual fit, others) rather than only judging the final answer, so weak intermediate moves can be re-routed.
 
 ## Related patterns
 

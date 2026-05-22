@@ -31,7 +31,6 @@ Therefore: cap the loop at a numeric N tool calls or iterations and terminate wi
 
 Define a numeric cap (max_steps=N) in the agent loop. Increment per tool call or per loop iteration. When N is hit, terminate the loop and return the best partial answer with a note that the cap was reached.
 
-
 ## Applicability
 
 **Use when**
@@ -81,6 +80,7 @@ The loop terminates after N iterations regardless of agent's own opinion.
 - **Bobbin (Stash2Go)** — *Available*. max_steps=4 in the agent lane.
 - **Claude Code (max_turns)** — *Available*
 - **OpenAI Agents SDK (max_iterations)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A bounded number of steps per tick / per loop terminates work regardless of the agent's own opinion that more is needed.
 
 ## Related patterns
 

@@ -44,7 +44,6 @@ flowchart TD
   E -- yes --> ANS
 ```
 
-
 ## Example scenario
 
 A consulting agent is asked, 'Compare our 2023 and 2024 revenue by region.' Naive RAG would do one search and pass whatever it found to the model. Agentic RAG instead runs in a loop: it queries the 2023 figures, decides it also needs 2024 figures, queries those, notices the EMEA numbers are missing, queries again with a more specific phrase, then produces the comparison from a complete set.
@@ -87,6 +86,7 @@ Retrieval is one tool among many; the agent decides invocation, but each retriev
 - **ChatGPT Search** — *Available*
 - **Glean** — *Available*
 - **Notion AI** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent retrieves over its own Markdown corpus (and external sources) inside a reasoning loop rather than via a one-shot fetch-then-answer step.
 
 ## Related patterns
 
@@ -139,7 +139,6 @@ from langchain.tools import tool
 
 vector_store = ...  # built once at startup
 
-
 @tool(response_format="content_and_artifact")
 def retrieve_context(query: str):
     """Retrieve information to help answer a query."""
@@ -148,7 +147,6 @@ def retrieve_context(query: str):
         f"Source: {d.metadata}\nContent: {d.page_content}" for d in docs
     )
     return serialized, docs
-
 
 model = init_chat_model("gpt-4o-mini")
 agent = create_agent(
@@ -179,7 +177,6 @@ from llama_index.llms.openai import OpenAI
 
 index = ...  # built once at startup
 
-
 async def search_corpus(query: str) -> str:
     """Search the indexed corpus for passages relevant to the query.
 
@@ -188,7 +185,6 @@ async def search_corpus(query: str) -> str:
     """
     nodes = await index.as_retriever().aretrieve(query)
     return "\n\n".join(n.get_content() for n in nodes)
-
 
 agent = FunctionAgent(
     tools=[search_corpus],
@@ -199,11 +195,9 @@ agent = FunctionAgent(
     ),
 )
 
-
 async def main():
     response = await agent.run(user_msg="What is task decomposition?")
     print(str(response))
-
 
 asyncio.run(main())
 ```
@@ -221,7 +215,6 @@ from haystack.tools import tool
 
 retrieval_pipeline = ...  # built once at startup
 
-
 @tool
 def retrieve_documents(query: Annotated[str, "Search query"]) -> str:
     """Retrieve documents relevant to the query.
@@ -231,7 +224,6 @@ def retrieve_documents(query: Annotated[str, "Search query"]) -> str:
     """
     result = retrieval_pipeline.run({"query": query})
     return "\n\n".join(d.content for d in result["documents"])
-
 
 agent = Agent(
     chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),

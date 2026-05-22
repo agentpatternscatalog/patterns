@@ -78,6 +78,7 @@ The agent cannot write the charter; updates require explicit operator action out
 ## Known uses
 
 - **Anthropic Constitutional AI** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A charter document holds identity and inviolable constraints; the agent reads it on every tick and is forbidden from rewriting it.
 
 ## Related patterns
 

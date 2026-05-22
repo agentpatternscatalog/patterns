@@ -82,6 +82,7 @@ The chosen output must be from the candidate set; no synthesis across candidates
 ## Known uses
 
 - **RLHF training pipelines** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The eval path samples N candidates for selected tasks, scores them via internal reward models, and returns the best — distinct from running the whole loop N times.
 
 ## Related patterns
 

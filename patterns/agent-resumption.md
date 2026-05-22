@@ -89,6 +89,7 @@ Agent state must be serialisable; non-serialisable in-memory references are forb
 - **Temporal-backed agents** — *Available*
 - **Inngest agents** — *Available*
 - **LangGraph Cloud checkpointing** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent picks up after a crash or restart from its file-native state without losing its place; restarts close and reopen the window without erasing identity.
 
 ## Related patterns
 

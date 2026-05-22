@@ -23,7 +23,6 @@ A single agent trying to handle every request type has either too few tools — 
 - Inter-agent communication needs a protocol.
 - Specialisation reduces transfer learning across requests.
 
-
 ## Applicability
 
 **Use when**
@@ -46,7 +45,6 @@ Therefore: put a coordinating agent above a set of specialised lanes that each o
 
 A supervisor classifies requests and dispatches them to a specialised agent. Each specialist has its own prompt, tools, and possibly its own model. The supervisor may receive results back and decide whether to escalate or respond.
 
-
 ## Diagram
 
 ```mermaid
@@ -60,7 +58,6 @@ flowchart TD
   S3 --> Sup
   Sup --> Out[Aggregate or escalate]
 ```
-
 
 ## Example scenario
 
@@ -86,6 +83,7 @@ Specialists may only act within their declared scope; the supervisor owns dispat
 
 - **Bobbin (Stash2Go)** — *Available*. agent_v2.py + supervisor.py implement the lane-supervisor pattern.
 - **LangGraph Supervisor** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A dispatcher routes requests to specialised internal lanes (chat, tick, MCP, voice) and coordinates across them, acting as the central traffic controller that the agent loop itself does not see.
 
 ## Related patterns
 

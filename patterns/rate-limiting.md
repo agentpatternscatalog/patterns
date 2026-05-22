@@ -23,7 +23,6 @@ Without per-identity limits, a single caller can drain the month's token budget 
 - Per-tier limits add complexity.
 - Distributed counters need coordination.
 
-
 ## Applicability
 
 **Use when**
@@ -81,6 +80,7 @@ Requests beyond the limit are rejected or queued; no code path may bypass the li
 ## Known uses
 
 - **Most production agent APIs** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A sliding-window token cap is enforced per minute per provider so a chatty stretch cannot exhaust the budget for a calmer one.
 
 ## Related patterns
 

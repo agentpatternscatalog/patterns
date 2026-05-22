@@ -84,6 +84,7 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Memory is staged across sensory / working / short-term / episodic / long-term tiers with explicit decay between tiers, rather than one flat store retrieved by similarity.
 
 ## Related patterns
 

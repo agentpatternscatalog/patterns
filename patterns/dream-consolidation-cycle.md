@@ -109,6 +109,7 @@ A long-running personal agent has been talking with its user daily for three mon
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Periodic deeper passes consolidate short and mid-term thoughts into long-term insights and clear working state; framed publicly as 'System 2 sleep'.
 
 ## Related patterns
 

@@ -23,7 +23,6 @@ Function-calling accuracy falls off sharply once the model is shown more than ro
 - Filter cost (one extra model call per request, or rule-based).
 - Tool-discovery latency on each request.
 
-
 ## Applicability
 
 **Use when**
@@ -49,7 +48,6 @@ Before the main loop, classify the request and select N relevant tools (rule-bas
 ## Example scenario
 
 A general-purpose agent has access to a 100-tool registry and selection accuracy is poor because the model cannot keep that many tool descriptions in working attention. The team adds a quick classifier ahead of the main loop that picks N relevant tools per request (rule-based by routed lane, or model-based). The agent's main loop now sees only the curated subset; selection accuracy and latency both improve.
-
 
 ## Diagram
 
@@ -84,6 +82,7 @@ The agent's tool palette is exactly the filtered subset for the current request;
 - **Claude Code per-task allowed_tools** — *Available*
 - **Cursor contextual tool selection** — *Available*
 - **MCP server filtering** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The skill scanner plus a frameworks picker narrow the registered tool surface to a task-relevant subset per tick, so the model never sees the full ~50-skill list when only a handful apply.
 
 ## Related patterns
 

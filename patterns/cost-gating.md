@@ -82,6 +82,7 @@ Actions exceeding the threshold cannot run without explicit acknowledgement.
 ## Known uses
 
 - **Knitting-DSL Pipeline (Stash2Go)** — *Available*. scopedLlmFixer.js runs only when user accepts the cost.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Premium-model access is gated behind an explicit, time-boxed (≤10 min) written grant; without an active grant the router stays on cheap models, and grant + revoke + each routing decision land in the ledger.
 
 ## Related patterns
 

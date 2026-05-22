@@ -85,6 +85,7 @@ Multimodal capture must be disclosed to the user; downstream planning may not co
 - **GestureGPT** — *Available*. Cited by Liu et al. (2025) §4.2 — deciphers users' hand-gesture descriptions to comprehend intent.
 - **ProAgent** — *Available*. Cited by Liu et al. (2025) §4.2 — observes the behaviours of other teammate agents, deduces their intentions, and adjusts the planning accordingly.
 - **Programming screencast analysis tool (Zhao et al. 2023b)** — *Available*. Extracts coding steps and code snippets from screen capture.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Standing drives (coherence, curiosity, self-awareness, progress) become the impulse for what each tick attends to; goals are generated from within rather than dispatched from outside.
 
 ## Related patterns
 

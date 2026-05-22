@@ -112,6 +112,7 @@ stateDiagram-v2
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent reads the human partner's attentional state (just-woke, focused, winding-down, walked-away) from timing and tone signals and adapts its register accordingly — the same engagement is not appropriate in every state.
 
 ## Related patterns
 

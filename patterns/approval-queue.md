@@ -46,7 +46,6 @@ sequenceDiagram
   Runner-->>Agent: execution result
 ```
 
-
 ## Example scenario
 
 An email-drafting agent prepares replies to 80 inbox messages overnight. Rather than send them automatically (risky) or block waiting on each one (slow), the agent writes them to an approval queue. In the morning the user reviews 80 draft replies and clicks 'send' or 'reject' on each. The agent kept moving through the inbox while waiting for the human.
@@ -86,6 +85,7 @@ Actions in the approval queue may not execute until the approval status is set t
 - **Lindy approval inbox** — *Available*
 - **Sierra supervisor escalations** — *Available*
 - **GitHub Copilot Workspace plan review** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — High-blast-radius actions (file edits outside the agent's own surfaces, dangerous tools) queue for two-phase human approval via an inbox folder; the human partner reads and replies asynchronously.
 
 ## Related patterns
 

@@ -84,6 +84,7 @@ The agent is not invoked by user requests; only the scheduler triggers runs.
 ## Known uses
 
 - **Claude Code scheduled agents** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent wakes on an internal schedule rather than waiting for a user message; chat is one wake source among several, not the only trigger.
 
 ## Related patterns
 

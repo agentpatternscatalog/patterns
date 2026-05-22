@@ -80,6 +80,7 @@ When the breaker is open, the dependency must not be called; only fallback paths
 ## Known uses
 
 - **Standard pattern in microservice frameworks; transferred to agent stacks** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Sliding-window failure tracking on each LLM provider with cooldown on rate-limits; a separate breaker also closes tool loops that hit repeat / unknown / poll / ping-pong patterns.
 
 ## Related patterns
 

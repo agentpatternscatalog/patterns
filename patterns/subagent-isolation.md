@@ -31,7 +31,6 @@ Therefore: give each subagent its own workspace (git worktree, branch, container
 
 Each subagent runs in its own workspace (git worktree, container, branch, sandbox). The supervisor reconciles results back to the main workspace on completion (merge, cherry-pick, replay). Only one workspace can land changes at a time.
 
-
 ## Applicability
 
 **Use when**
@@ -88,6 +87,7 @@ Subagents may only write to their own isolated workspace; cross-workspace writes
 - **Devin sessions** — *Available*
 - **Cursor parallel agents** — *Available*
 - **OpenHands** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A subagent runtime spawns bounded child agents for delegable work (deeper passes, isolated investigations) and returns their result to the main loop without merging their context window into the parent.
 
 ## Related patterns
 

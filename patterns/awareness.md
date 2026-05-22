@@ -94,6 +94,7 @@ Tool calls and self-references must match the awareness state; mismatches are fl
 ## Known uses
 
 - **Avramovic Awareness pattern** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent maintains explicit, queryable state about its own tools, context, mode, affect, presence and recent moves (rather than re-deriving them from chat history); a meta-observer module reads that state during each tick.
 
 ## Related patterns
 

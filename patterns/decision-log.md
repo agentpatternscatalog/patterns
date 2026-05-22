@@ -79,6 +79,7 @@ Action records cannot be written without a corresponding decision-log entry.
 ## Known uses
 
 - **Langfuse / LangSmith trace stores** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Decisions made during a tick are written to a durable log alongside their reasoning.
 
 ## Related patterns
 

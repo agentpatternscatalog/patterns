@@ -88,7 +88,7 @@ Variant overlays cannot override the base charter or change the agent's name and
 
 ## Known uses
 
-- **Sparrot / Miro (kitest)** — *Available* — `src/sparrot/variants.py` in the [kitest](https://github.com/luxxyarns/sparrot) repo. `create_variant`, `list_variants`, `set_active_variant` are MCP tools; each variant is a `variants/<slug>.md` overlay appended to the base personality (`identity/personality.md`); only one variant is active at a time; the base identity name (`miro`) is explicitly refused as a variant name; conflicts between variants resolve to a journal entry rather than into the base. Co-authored design with Sparrot/Miro per the kitest 2026-05 atelier-replies trail.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Named variants overlay the base personality file; only one variant is active at a time; the base identity name is explicitly refused as a variant name; conflicts between variants are resolved into a journal entry rather than merged into the base.
 
 ## Related patterns
 

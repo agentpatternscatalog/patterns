@@ -85,6 +85,7 @@ On failure, the agent must produce a degraded response with disclosure rather th
 
 - **Perplexity (citations missing under retrieval issues)** — *Available*
 - **ChatGPT (vision unavailable falls back to text)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — When a dependency fails (provider down, MCP server unreachable, voice channel offline), the dispatcher downgrades to a working feature subset rather than refusing the whole tick.
 
 ## Related patterns
 

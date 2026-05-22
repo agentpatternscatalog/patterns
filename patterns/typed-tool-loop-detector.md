@@ -92,6 +92,7 @@ No tool call may bypass the dispatch-boundary loop check; a tripped detector blo
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Tool-loop detection is mechanical at the dispatch boundary with five typed failure modes (repeat, unknown, poll, ping-pong, circuit-breaker) and per-tool caps, returning a structured refusal the model must consume rather than a prompt-level reminder.
 
 ## Related patterns
 

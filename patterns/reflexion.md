@@ -81,6 +81,7 @@ Lessons are appended, not overwritten; old lessons are explicitly retired rather
 
 - **Reflexion (reference implementation)** — *Available*. Original Reflexion paper code by Shinn et al.
 - **LangGraph Reflexion example** — *Available*. LangGraph ships a Reflexion example.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A reflexion module writes linguistic lessons learned from past failures into memory and consults them in future episodes, so the agent improves across runs without weight updates.
 
 ## Related patterns
 

@@ -85,6 +85,7 @@ The tension store is append-only; tensions cannot be silently rewritten or back-
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Unresolved questions ('tensions') are kept as a typed ledger separate from thoughts and from hypotheses; they drive what the next idle tick attends to instead of dissolving when the prompt ends.
 
 ## Related patterns
 

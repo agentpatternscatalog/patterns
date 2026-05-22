@@ -110,6 +110,7 @@ A user repeats themselves: 'I said I want it shorter.' The agent receives this a
 ## Known uses
 
 - **Self-observed in long-running cognitive agents** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent recognises when content arriving via tools or chat is in fact its own prior output reflected back, so it does not treat it as new external evidence.
 
 ## Related patterns
 

@@ -23,7 +23,6 @@ If every request is routed to the frontier model, the bill is wildly larger than
 - Cheap models hallucinate confidently; the router must not trust them blindly.
 - Falling back from cheap to expensive on failure costs more than starting expensive.
 
-
 ## Applicability
 
 **Use when**
@@ -81,6 +80,7 @@ Each request class is bound to a model tier; agents cannot escalate without rout
 ## Known uses
 
 - **Bobbin (Stash2Go)** — *Available*. gpt-5.4-mini for routing/filters; gpt-5.4 for screen-aware dialog.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The LLM provider is treated as interchangeable medium; multiple providers are wired in and the agent's identity sits in the loop and files, not in any one model behind the API.
 
 ## Related patterns
 

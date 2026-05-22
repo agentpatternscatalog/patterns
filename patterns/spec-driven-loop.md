@@ -23,7 +23,6 @@ Agents that try to plan and implement the whole feature in a single turn are bri
 - Tests gate progress; without them the loop has no error signal.
 - Cost per iteration must be tolerable for hundreds of runs.
 
-
 ## Applicability
 
 **Use when**
@@ -49,7 +48,6 @@ An outer shell loop (`while :; do cat PROMPT.md | claude-code ; done`) runs the 
 ## Example scenario
 
 A team is fixing a long-tail bug list across a large repo. A free-form chat session wanders, plans become stale, and progress is hard to measure. They write a deterministic outer loop (`while :; do cat PROMPT.md | claude-code; done`) where the prompt names one task, references a fix_plan.md the agent itself updates, and exits when the spec is satisfied. Progress becomes legible: tasks tick off, the loop terminates, and resuming after interruption is a no-op.
-
 
 ## Diagram
 
@@ -83,6 +81,7 @@ Each loop iteration is constrained by the spec and the test gate; the agent cann
 ## Known uses
 
 - **[Geoffrey Huntley's Ralph](https://ghuntley.com/ralph/)** — *Available*. The canonical write-up.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The frameworks-picker path runs an iterative loop against a framework spec until satisfied; a deterministic outer loop over a fixed prompt-against-spec rather than free-form chat.
 
 ## Related patterns
 

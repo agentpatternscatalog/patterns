@@ -39,6 +39,10 @@ The agent maintains a versioned archive of self-modifications. Each generation: 
 Archive (variants with score + lineage) -> sample parent (diversity-weighted) -> propose mutation -> viability gate -> score on objective -> if viable, add to archive. Outer loop iterates; archive is the memory of evolution, not just the leaderboard.
 ```
 
+## Variants
+
+- **Soft-Norm Approach Ledger** — Versions named behavioral norms — rules, moves, motivations, hypotheses — instead of source code or prompts. Because targets are prose, there is no viability gate; confidence updates asymmetrically from agent-reported outcomes (improved nudges up, regressed nudges down harder, neutral attempts decay a small amount) rather than from a benchmark score. Registration is agent-discretionary rather than driven by a generation loop, and sampling exposes named modes — greedy, diverse, historical (revisit a former dead end on the bet that context has changed), aged (longest time since last attempt) — as caller verbs picked at the moment of choice rather than as a fixed selection policy.
+
 ## Diagram
 
 ```mermaid
@@ -96,6 +100,7 @@ Each proposed variant must pass the viability gate (compiles, safety-checks, smo
 ## Known uses
 
 - **[Sakana AI Darwin-Gödel Machine](https://sakana.ai/dgm-jp/)** — *Available* — Self-improving agent that rewrites its own code, archives variants, and samples from the archive as evolutionary stepping-stones.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The Soft-Norm Approach Ledger variant: behavioral norms (rules, moves, motivations, hypotheses) are versioned in an append-only ledger; confidence updates asymmetrically from agent-reported outcomes; sampling exposes named modes (greedy / diverse / historical / aged) as caller verbs rather than as a fixed selection policy.
 
 ## Related patterns
 

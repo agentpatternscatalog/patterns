@@ -119,6 +119,7 @@ A coaching agent reads only the user's text and projects the same flat affect on
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — When the agent needs to act in the physical / external world, it does so through a proxy (browser, voice, sensor, action skill) rather than claiming to act directly.
 
 ## Related patterns
 

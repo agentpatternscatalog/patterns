@@ -23,7 +23,6 @@ An agent with full host access can damage the host either deliberately (a prompt
 - Strict sandboxes block legitimate work.
 - Escape vulnerabilities are real and ongoing.
 
-
 ## Applicability
 
 **Use when**
@@ -83,6 +82,7 @@ Code may only access resources granted by the sandbox policy; outbound network a
 - **OpenAI Code Interpreter sandbox** — *Available*
 - **E2B sandboxes** — *Available*
 - **Claude Code's project-level write boundaries** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Code execution and side-effecting tool calls run in an isolated sandbox mode that restricts the available surface; the mode is a runtime state, not a per-call flag.
 
 ## Related patterns
 

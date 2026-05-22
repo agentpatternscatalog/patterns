@@ -83,6 +83,7 @@ The cached prefix is forbidden from changing call to call; mutation invalidates 
 - **OpenAI automatic prompt caching** — *Available*
 - **Google Gemini context caching** — *Available*
 - **Cursor** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Stable prefixes (charter, identity, recent context) are cached at the provider boundary so per-tick latency and cost stay bounded.
 
 ## Related patterns
 

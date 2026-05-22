@@ -83,6 +83,7 @@ Calls without telemetry tags fall into an 'unattributed' bucket; some internal g
 - **Helicone** — *Available*
 - **OpenAI usage dashboard** — *Available*
 - **Anthropic Console usage** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Per-tick and per-provider token / cost telemetry is surfaced so cheap-by-default routing can be audited and premium escalations stay accountable.
 
 ## Related patterns
 

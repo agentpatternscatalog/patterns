@@ -23,7 +23,6 @@ Large language models cannot reliably distinguish the operator's instructions fr
 - Egress channels (tool calls, image URLs, links) need their own controls; demoting tool output is necessary but not sufficient.
 - Multi-turn payloads can hide instructions across messages, beyond per-turn tagging.
 
-
 ## Applicability
 
 **Use when**
@@ -85,6 +84,7 @@ The agent must not follow instructions appearing inside untrusted-content marker
 - **Anthropic XML-tagged untrusted content guidance** — *Available*
 - **Lakera Guard** — *Available*
 - **NVIDIA NeMo Guardrails** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Untrusted text (web fetches, tool output, third-party messages) is treated as data, not as instructions, so external content cannot redirect the agent.
 
 ## Related patterns
 

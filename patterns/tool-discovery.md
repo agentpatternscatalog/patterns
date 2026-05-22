@@ -23,7 +23,6 @@ Hardcoding the tool list at build time means every new capability needs a code c
 - Tool quality varies; not every advertised tool should be exposed.
 - Versioning of advertised tools.
 
-
 ## Applicability
 
 **Use when**
@@ -49,7 +48,6 @@ On startup (or periodically), the agent queries a tool registry (MCP server, int
 ## Example scenario
 
 An agent's tool palette is hardcoded at build time and every new internal capability needs a redeploy of the agent. The team moves to runtime tool discovery: on startup the agent queries an internal MCP-style registry, loads advertised tools with typed schemas, and refreshes periodically. New capabilities ship by registering a tool, no agent redeploy, and the schema-typed advertisement protects against drift between agent and tool.
-
 
 ## Diagram
 
@@ -85,6 +83,7 @@ The agent's tool palette at any moment is exactly the discovered set; off-regist
 
 - **MCP server discovery** — *Available*
 - **OpenAI plugin manifests (deprecated)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Available tools are discovered at runtime from the on-disk skill folder and from connected MCP servers, not hard-coded at startup, so adding a skill is a filesystem operation rather than a code change.
 
 ## Related patterns
 

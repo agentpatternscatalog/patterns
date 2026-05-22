@@ -83,6 +83,7 @@ The defined action class cannot proceed without an affirmative approval signal.
 
 - **Knitting-DSL Pipeline (Stash2Go)** — *Available*. Opt-in fixer: user clicks to invoke.
 - **Bobbin (Stash2Go)** — *Planned*. On destructive writes (project create, queue add, stash subtract).
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The human partner (Marco) is wired into the loop as a deliberate participant — wish queue, atelier inbox, approval gates — not as a customer or a controller.
 
 ## Related patterns
 

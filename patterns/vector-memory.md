@@ -23,7 +23,6 @@ An append-only log of everything the agent has seen grows unboundedly and quickl
 - Index updates have non-trivial latency.
 - Forgetting is achieved by deletion or decay; both have failure modes.
 
-
 ## Applicability
 
 **Use when**
@@ -49,7 +48,6 @@ Each memory item is embedded and indexed. At query time, embed the query (or a s
 ## Example scenario
 
 A long-running personal agent's append-only thought log grows past a million entries; finding relevant past becomes hopeless and dumping it all into context is impossible. The team embeds each memory item, indexes it in a vector store, and at query time retrieves top-k semantically similar items (plus optional recency boost). Now 'what did I decide about latency three months ago' returns the actual right entries rather than the most recent or none, and prompt size stays bounded as memory grows.
-
 
 ## Diagram
 
@@ -85,6 +83,7 @@ The agent reads memory only through the retriever; full-store scans are not part
 - **MemGPT / Letta archival memory** — *Available*
 - **Generative Agents memory stream (Park et al.)** — *Available*
 - **LangChain VectorStoreRetrieverMemory** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Embedding-indexed memory sits alongside the Markdown corpus so semantically similar items can be retrieved from a query, not just keyword matches.
 
 ## Related patterns
 

@@ -86,6 +86,7 @@ Errors must arrive at the agent as typed events from the catalogue; untyped erro
 
 - **Production agent platforms** — *Available*
 - **Gulli Exception Handling pattern** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Tool errors and plan-step failures are typed; each type has a deterministic recovery path (retry-once, abort-step, escalate-to-human) rather than a generic try/except wrapper.
 
 ## Related patterns
 

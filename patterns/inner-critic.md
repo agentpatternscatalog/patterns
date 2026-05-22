@@ -79,6 +79,7 @@ No write to self-modifiable files succeeds without a passing critic review.
 ## Known uses
 
 - **Long-running personal agent loops (private deployment)** — *Available*
+- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A separate critic persona reviews proposed edits and outputs before they land, gating self-modification.
 
 ## Related patterns
 
