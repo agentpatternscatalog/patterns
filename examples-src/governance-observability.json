@@ -413,6 +413,71 @@
       ]
     },
     {
+      "pattern_id": "review-bottleneck-migration",
+      "intent": "Treat code review as a capacity-planned production stage: measure review load, cap model-authored PR size, run an automated first-pass, and gate merges on review-SLA signals so the bottleneck does not silently shift from typing to reading.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton of a merge-queue gate that reads per-reviewer load and per-PR review minutes, refuses oversized model-authored PRs, and requires an automated first-pass before paging a human reviewer.",
+          "code": "MAX_LINES_AI_PR     = 250\nMAX_OPEN_PR_REVIEWER = 6\nREVIEW_SLA_HOURS    = 4\n\nfunction can_enter_human_review_queue(pr):\n    if pr.author_kind == \"agent\":\n        if pr.changed_lines > MAX_LINES_AI_PR:\n            return refuse(\"split: AI PR exceeds size cap\")\n        if not pr.automated_first_pass_passed:\n            return refuse(\"first-pass required before human review\")\n\n    reviewer = pick_reviewer(pr)\n    if reviewer.open_pr_count >= MAX_OPEN_PR_REVIEWER:\n        return defer(\"reviewer over capacity\")\n\n    metrics.emit(\"review.queue.depth\", queue.depth())\n    metrics.emit(\"review.minutes.p95\", review_minutes_p95())\n    if queue.aging_breach_count(REVIEW_SLA_HOURS) > 0:\n        page_on_call(\"review SLA breach\")\n    return enter_queue(pr, reviewer)\n\nfunction automated_first_pass(pr):\n    return all([\n        lint.pass_(pr),\n        types.pass_(pr),\n        eval_as_contract.pass_(pr),\n        agent_as_judge.score(pr.trajectory) >= JUDGE_THRESHOLD,\n    ])",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "github-actions",
+          "framework_label": "GitHub Actions",
+          "language": "yaml",
+          "intent": "GitHub Actions workflow that gates merges on review-load signals: refuses oversized model-authored PRs, requires an automated first-pass, and flags reviewers already over an open-PR cap.",
+          "code": "name: review-bottleneck-gate\non:\n  pull_request:\n    types: [opened, synchronize, ready_for_review]\n\njobs:\n  review-load-gate:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Detect author kind\n        id: author\n        run: |\n          if [[ \"${{ github.event.pull_request.user.login }}\" == *\"[bot]\"* ]] \\\n             || [[ \"${{ contains(github.event.pull_request.labels.*.name, 'agent-authored') }}\" == \"true\" ]]; then\n            echo \"kind=agent\" >> \"$GITHUB_OUTPUT\"\n          else\n            echo \"kind=human\" >> \"$GITHUB_OUTPUT\"\n          fi\n\n      - name: Enforce AI PR size cap\n        if: steps.author.outputs.kind == 'agent'\n        env:\n          MAX_LINES: 250\n          ADDITIONS: ${{ github.event.pull_request.additions }}\n          DELETIONS: ${{ github.event.pull_request.deletions }}\n        run: |\n          CHANGED=$((ADDITIONS + DELETIONS))\n          if [ \"$CHANGED\" -gt \"$MAX_LINES\" ]; then\n            echo \"Agent-authored PR ($CHANGED lines) exceeds cap ($MAX_LINES). Split required.\"\n            exit 1\n          fi\n\n      - name: Automated first-pass review\n        run: |\n          npm run lint\n          npm run typecheck\n          npm run eval:contract -- --pr \"${{ github.event.pull_request.number }}\"\n          npm run judge:trajectory -- --pr \"${{ github.event.pull_request.number }}\" --min-score 0.7\n\n      - name: Reviewer load check\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          MAX_OPEN_PRS_PER_REVIEWER: 6\n        run: |\n          for reviewer in $(gh pr view \"${{ github.event.pull_request.number }}\" \\\n              --json reviewRequests --jq '.reviewRequests[].login'); do\n            OPEN=$(gh search prs \"is:open review-requested:$reviewer\" --json url --jq 'length')\n            echo \"$reviewer has $OPEN open review requests\"\n            if [ \"$OPEN\" -ge \"$MAX_OPEN_PRS_PER_REVIEWER\" ]; then\n              echo \"::warning::Reviewer $reviewer is over capacity ($OPEN open PRs).\"\n            fi\n          done\n\n      - name: Emit review-load metrics\n        run: |\n          echo \"review.queue.pr=${{ github.event.pull_request.number }}\"\n          echo \"review.queue.author_kind=${{ steps.author.outputs.kind }}\"",
+          "verified": false,
+          "verified_date": null,
+          "source_url": "https://docs.github.com/en/actions",
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
+      "pattern_id": "rigor-relocation",
+      "intent": "Relocate verification rigor onto agent-readable surfaces: scaffolding-level signatures with Suggests/Asserts (DSPy) and wrapper-level evaluators / structured-output validation (LangChain), so failures fail the wrapper instead of the model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton: explicit register mapping each prior rigor practice to a new agent-readable surface (context file, machine-enforced invariant, or continuous evaluation) and a stale-rule detector.",
+          "code": "relocation_map = [\n    {practice: \"public-fn arg validation\",\n     old_surface: \"reviewer attention\",\n     new_surface: \"machine_enforced\",\n     rule_id:     \"types/assert-validated-inputs\"},\n    {practice: \"naming-convention compliance\",\n     old_surface: \"folklore\",\n     new_surface: \"context_file\",\n     rule_id:     \"CLAUDE.md#naming\"},\n    {practice: \"safety eligibility check\",\n     old_surface: \"manual quarterly audit\",\n     new_surface: \"continuous_eval\",\n     rule_id:     \"eval/eligibility-contract\"},\n]\n\nfunction enforce(pr):\n    for r in relocation_map:\n        ok = surface_check(r.new_surface, r.rule_id, pr)\n        if not ok:\n            block_merge(pr, reason=f\"{r.practice} failed at {r.new_surface}\")\n\nfunction detect_stale_rules(repo, context_files):\n    # Flag rules contradicted by current code or architecture intent.\n    for rule in parse_rules(context_files):\n        if not rule_still_holds(rule, repo):\n            report(\"stale-rule\", rule)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "dspy",
+          "framework_label": "DSPy",
+          "language": "python",
+          "intent": "Relocate rigor into the scaffolding layer: a DSPy Signature pins typed inputs and outputs, while dspy.Suggest / dspy.Assert express invariants that bind every call rather than living in reviewer attention.",
+          "code": "import dspy\n\nclass ValidateUserInput(dspy.Signature):\n    \"\"\"Classify a user message into a typed intent with a confidence score.\"\"\"\n    user_text: str = dspy.InputField()\n    intent: str = dspy.OutputField(desc=\"one of: question | feedback | crisis\")\n    confidence: float = dspy.OutputField(desc=\"0.0..1.0\")\n    rationale: str = dspy.OutputField()\n\nclass GuardedClassifier(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.classify = dspy.ChainOfThought(ValidateUserInput)\n\n    def forward(self, user_text: str):\n        pred = self.classify(user_text=user_text)\n\n        # Soft invariant: scaffolding nudges the model and retries.\n        dspy.Suggest(\n            pred.intent in {\"question\", \"feedback\", \"crisis\"},\n            \"intent must be one of the three allowed labels\",\n        )\n        # Hard invariant: scaffolding fails closed.\n        dspy.Assert(\n            0.0 <= float(pred.confidence) <= 1.0,\n            \"confidence must be in [0.0, 1.0]\",\n        )\n        dspy.Assert(\n            len(pred.rationale) >= 10,\n            \"rationale must be substantive (>= 10 chars)\",\n        )\n        return pred\n\n# Rigor lives in the Signature + Suggest/Assert layer, not in human review.\nclassifier = GuardedClassifier()",
+          "verified": false,
+          "verified_date": null,
+          "source_url": "https://dspy.ai/",
+          "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "langchain",
+          "framework_label": "LangChain",
+          "language": "python",
+          "intent": "Relocate rigor into wrapper-level guardrails: a Pydantic structured-output schema enforces shape on every call, and a LangChain evaluator scores each output against a rubric as continuous evaluation.",
+          "code": "from typing import Literal\nfrom pydantic import BaseModel, Field, conlist\nfrom langchain_core.prompts import ChatPromptTemplate\nfrom langchain_openai import ChatOpenAI\nfrom langchain.evaluation import load_evaluator, EvaluatorType\n\n# Wrapper-level invariant: schema fails closed on shape.\nclass ClassifiedIntent(BaseModel):\n    intent: Literal[\"question\", \"feedback\", \"crisis\"] = Field(\n        description=\"one of the three allowed labels\"\n    )\n    confidence: float = Field(ge=0.0, le=1.0)\n    evidence: conlist(str, min_length=1) = Field(\n        description=\"at least one evidence snippet\"\n    )\n\nllm = ChatOpenAI(model=\"gpt-4o-mini\", temperature=0)\nprompt = ChatPromptTemplate.from_messages([\n    (\"system\", \"Classify the user message. Cite evidence.\"),\n    (\"user\", \"{user_text}\"),\n])\nstructured_llm = llm.with_structured_output(ClassifiedIntent)\nchain = prompt | structured_llm\n\n# Continuous evaluation: every call (not every release) is scored.\nevaluator = load_evaluator(\n    EvaluatorType.LABELED_CRITERIA,\n    criteria={\"faithful\": \"Evidence quotes appear verbatim in the input.\"},\n)\n\ndef classify_with_rigor(user_text: str) -> ClassifiedIntent:\n    result: ClassifiedIntent = chain.invoke({\"user_text\": user_text})\n    score = evaluator.evaluate_strings(\n        prediction=\" | \".join(result.evidence),\n        input=user_text,\n        reference=user_text,\n    )\n    if score.get(\"score\", 0) < 1:\n        raise ValueError(f\"faithfulness check failed: {score}\")\n    return result",
+          "verified": false,
+          "verified_date": null,
+          "source_url": "https://python.langchain.com/docs/",
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "sandbox-escape-monitoring",
       "intent": "Treat sandbox boundary violations as telemetry: log syscalls outside the allowed set, network egress off the allowlist, and filesystem writes outside the working directory; alert on threshold breaches.",
       "examples": [

@@ -65,6 +65,22 @@
       ]
     },
     {
+      "pattern_id": "commitment-tracking",
+      "intent": "Extract stated intents from each agent turn into a structured ledger with open / followed-through / expired status, making the gap between promise and follow-through visible and auditable.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Skeleton: cheap-tier extractor scans each turn for stated-intents and writes Commitment records into an append-only ledger; explicit mark_followed_through and mark_expired moves close them; a periodic sweep auto-expires overdue ones. As used in long-running personal agent loops.",
+          "code": "# Append-only ledger keyed by id; status transitions are write-once.\n\ntype Commitment = {\n    id: str,\n    statement: str,                   # short paraphrase of the stated intent\n    raised_in_turn: str,              # turn id for provenance\n    deadline: timestamp | None,       # optional; None for open-ended\n    status: \"open\" | \"followed-through\" | \"expired\",\n    evidence: any | None,             # set when followed-through\n    closed_at: timestamp | None,\n}\n\nledger = append_only_store()\n\nfunction extract_commitments(turn):\n    # Cheap-tier model runs OUT-OF-BAND from the main agent. Its only\n    # job is to surface explicit stated-intents — not to evaluate them.\n    prompt = (\n        \"List explicit promises in this turn as JSON. Each item: \"\n        \"{statement, deadline_iso_or_null}. Skip rhetorical phrases.\"\n    )\n    candidates = cheap_llm.generate(prompt=prompt, input=turn.text,\n                                    response_schema=COMMITMENT_LIST)\n    for c in candidates:\n        ledger.append(Commitment(\n            id=new_id(),\n            statement=c.statement,\n            raised_in_turn=turn.id,\n            deadline=parse_iso(c.deadline_iso_or_null),\n            status=\"open\",\n            evidence=None,\n            closed_at=None,\n        ))\n\nfunction mark_followed_through(commit_id, evidence):\n    # Constraint: cannot close in the same turn the commitment was raised.\n    c = ledger.get(commit_id)\n    assert c.status == \"open\"\n    assert current_turn().id != c.raised_in_turn, \\\n        \"agent may not self-close commitments in their own turn\"\n    ledger.update(commit_id, status=\"followed-through\",\n                  evidence=evidence, closed_at=now())\n\nfunction mark_expired(commit_id):\n    ledger.update(commit_id, status=\"expired\", closed_at=now())\n\nfunction check_expirations():\n    # Scheduled sweep. Auto-expires open commitments past their deadline,\n    # keeping the ledger bounded and surfacing drift.\n    for c in ledger.where(status=\"open\"):\n        if c.deadline is not None and now() > c.deadline:\n            mark_expired(c.id)\n\nfunction surface_open_commitments_for_agent():\n    # Inject open commitments into the agent's working context so it can\n    # act on them rather than re-discovering them later.\n    return ledger.where(status=\"open\", deadline_within=next_hour())\n\n# Wiring: after each agent turn, run extract_commitments;\n# on a separate timer, run check_expirations.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-22"
+        }
+      ]
+    },
+    {
       "pattern_id": "confidence-reporting",
       "intent": "Emit a confidence label alongside the answer so downstream consumers can route low-confidence cases to fallback or human review.",
       "examples": [
