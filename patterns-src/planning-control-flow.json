@@ -3566,6 +3566,728 @@
         "Code escape-hatch share — fraction of nodes that bypass the typed vocabulary via Code nodes",
         "Subflow modularisation depth — at what graph size readability collapses without it"
       ]
+    },
+    {
+      "id": "incremental-model-querying",
+      "name": "Incremental Model Querying",
+      "aliases": [
+        "Step-By-Step Plan Generation",
+        "Sequential Model Plan"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Generate plan steps by sequentially querying the model at each step rather than producing the whole plan upfront in one call.",
+      "context": "A team has an agent that must produce a multi-step plan to achieve a goal. The team has the choice of either querying the model once for the full plan (one-shot) or querying step-by-step (incremental).",
+      "problem": "One-shot plan generation forces the model to commit to all steps before seeing the consequences of any. When the world is uncertain or earlier steps reveal new information, the one-shot plan is wrong from step 2 onward. Incremental querying is better but is often unnamed as a deliberate alternative.",
+      "forces": [
+        "Incremental querying is N× more model calls than one-shot.",
+        "Per-step context grows as prior step results accumulate.",
+        "Some tasks need a complete plan upfront (commitment, parallelization)."
+      ],
+      "therefore": "Therefore: name incremental model querying as a deliberate planning shape — model is invoked at each step with the accumulated context, producing one step at a time, opposite of one-shot model querying.",
+      "solution": "At each plan step, query the model with (goal, history-of-steps-so-far, current-observation) and receive only the next step. Execute the step. Observe. Repeat until goal-met or budget exhausted. Distinct from one-shot model querying (whole plan in one call) and from multi-path plan generation (which generates multiple next-step candidates at each node). Pair with single-path-plan-generator, multi-path-plan-generator, react, plan-and-execute.",
+      "consequences": {
+        "benefits": [
+          "Plan can react to step-by-step observations.",
+          "Errors in early steps do not contaminate later steps' planning.",
+          "Per-step latency is bounded by one model call's latency, not the full plan's."
+        ],
+        "liabilities": [
+          "N× model calls vs one-shot.",
+          "Per-step context grows with accumulated history.",
+          "Cannot parallelize steps the model has not yet planned."
+        ]
+      },
+      "constrains": "The model never sees beyond the current step in its planning context; one-shot whole-plan queries are excluded.",
+      "known_uses": [
+        {
+          "system": "elcamy: 【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "status": "available",
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "react",
+          "relation": "complements"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "single-path-plan-generator",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-path-plan-generator",
+          "relation": "complements"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "year": 2026,
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "status_in_practice": "established",
+      "tags": [
+        "planning",
+        "incremental",
+        "control-flow"
+      ],
+      "example_scenario": "A debugging agent troubleshoots a flaky test. With one-shot planning, it generates 8 steps upfront based on the initial error message; steps 4-8 turn out wrong once step 1 reveals the actual root cause. With incremental querying, the agent runs step 1 (read the test), observes (sees an undocumented dependency), then asks the model 'next step?' which adjusts to investigate the dependency. The plan adapts to what the world reveals.",
+      "applicability": {
+        "use_when": [
+          "Plans depend on observations not available at planning time.",
+          "Cost of N× model calls is acceptable for the adaptivity gain.",
+          "Steps cannot be parallelized in advance."
+        ],
+        "do_not_use_when": [
+          "Plan is well-known and parallelizable in advance (use one-shot).",
+          "Per-step latency is unacceptable.",
+          "Cost budget cannot absorb N× calls."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Goal[Goal + history so far] --> Q[Query model: next step?]\n  Q --> Step[Step N]\n  Step --> Obs[Observe outcome]\n  Obs --> Done{Goal met?}\n  Done -->|no| Goal\n  Done -->|yes| End[Done]\n"
+      },
+      "components": [
+        "Per-step model invoker — produces one step at a time",
+        "History accumulator — prior steps + outcomes",
+        "Observation collector — feeds back into next-step query",
+        "Termination check — goal-met or budget-exhausted"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "single-path-plan-generator",
+      "name": "Single-Path Plan Generator",
+      "aliases": [
+        "Linear Plan Generator",
+        "Sequential Plan Producer"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Generate one linear sequence of intermediate steps from current state to goal — the lightweight planning alternative to tree-of-thoughts and multi-path generation.",
+      "context": "A team has a planning agent. The default in recent literature is multi-path / tree-of-thoughts search, which is expensive. For straightforward tasks, exploring multiple paths is overkill.",
+      "problem": "Default-to-tree-search planning is expensive for straightforward tasks. A single linear path is often the right level of effort — but is rarely named as a deliberate choice. Differs from tree-of-thoughts (multi-path search) by intentionally producing one path.",
+      "forces": [
+        "Multi-path planning is more thorough but expensive.",
+        "Single-path can miss better paths the search would find.",
+        "For straightforward tasks the marginal value of multi-path is low."
+      ],
+      "therefore": "Therefore: name single-path plan generation as a deliberate choice — produce one linear plan, accept it cannot recover from path-choice errors mid-plan, and pair with replan-on-failure for recovery.",
+      "solution": "Plan generator produces one sequence of intermediate steps. No exploration of alternatives. If a step fails or reveals goal mismatch, trigger replan-on-failure to produce a new single path from the new state. Pair with multi-path-plan-generator (alternative), tree-of-thoughts (alternative), replan-on-failure, plan-and-execute.",
+      "consequences": {
+        "benefits": [
+          "Cheap — one plan generation call, no search.",
+          "Simple control flow — execute steps in order.",
+          "Pairs cleanly with replan-on-failure for recovery."
+        ],
+        "liabilities": [
+          "Cannot recover from path-choice errors mid-plan without full replan.",
+          "Misses better paths multi-path search would find.",
+          "Not suitable for tasks where path quality varies significantly."
+        ]
+      },
+      "constrains": "Only one path is generated; alternative paths are not explored unless replan-on-failure triggers a fresh single-path plan.",
+      "known_uses": [
+        {
+          "system": "elcamy: 【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "status": "available",
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "multi-path-plan-generator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "complements"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "relation": "complements"
+        },
+        {
+          "pattern": "incremental-model-querying",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "year": 2026,
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "status_in_practice": "established",
+      "tags": [
+        "planning",
+        "linear",
+        "control-flow"
+      ],
+      "example_scenario": "A scheduling agent plans 'book the next available 1h slot with team A'. Single-path planner: [check calendar, find slot, book, confirm]. No exploration. If 'check calendar' returns no slots in next 2 weeks, replan-on-failure produces a fresh plan: [extend search window, find slot, book, confirm]. Cheaper than tree-of-thoughts for this kind of task.",
+      "applicability": {
+        "use_when": [
+          "Plan paths are roughly equivalent in quality.",
+          "Cost budget favors cheap planning.",
+          "Replan-on-failure can handle path-choice errors."
+        ],
+        "do_not_use_when": [
+          "Path quality varies significantly — multi-path search is worth its cost.",
+          "Replan-on-failure is unavailable.",
+          "Tasks where mid-plan recovery requires backtracking, not full replan."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Goal[Goal] --> Gen[Single-path generator]\n  Gen --> Plan[Linear plan: step 1 → step 2 → step N]\n  Plan --> Exec[Execute in order]\n  Exec -->|step fails| Re[replan-on-failure]\n  Re --> Gen\n"
+      },
+      "components": [
+        "Single-path generator — produces one linear sequence",
+        "Sequential executor — runs steps in order",
+        "Replan trigger — fires on step failure"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "multi-path-plan-generator",
+      "name": "Multi-Path Plan Generator",
+      "aliases": [
+        "Branching Plan Generator",
+        "Candidate-Path Producer"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Generate multiple candidate next-steps at each plan node enabling later selection — the planning generator pattern paired with tree-of-thoughts / LATS-style search.",
+      "context": "A team uses tree-of-thoughts or LATS for plan search. The generator step that produces candidate next-steps is often conflated with the search policy. Naming the generator separately allows mixing different generators with different search policies.",
+      "problem": "When generator and search policy are fused, neither can be tuned independently. The generator's quality limits the search; the search's strategy limits how generator candidates are used. Isolating the generator (this pattern) from the search policy enables independent tuning. Distinct from single-path-plan-generator and from tree-of-thoughts (the full search algorithm).",
+      "forces": [
+        "Generator and search policy are often described together, making them hard to swap.",
+        "Multi-path generators are expensive — N candidate steps per node.",
+        "Quality of candidates depends heavily on generator design."
+      ],
+      "therefore": "Therefore: isolate the multi-path generator as a named component that produces K candidate next-steps per node, given the current node and history; the search policy decides which candidates to expand.",
+      "solution": "Multi-path generator interface: (current_node, history, K) → [candidate_step_1, ..., candidate_step_K]. Search policy (tree-of-thoughts, LATS, beam search, MCTS) decides which candidates to expand. Generator and search policy are separate components and can be swapped independently. Pair with tree-of-thoughts, lats, single-path-plan-generator (alternative), beam search.",
+      "consequences": {
+        "benefits": [
+          "Generator and search policy tuneable independently.",
+          "Same generator can drive different search algorithms.",
+          "Candidate quality is a measurable per-generator property."
+        ],
+        "liabilities": [
+          "K× cost per node vs single-path.",
+          "Generator must be designed to produce diverse candidates.",
+          "Storage of candidate tree grows with depth × branching."
+        ]
+      },
+      "constrains": "The generator produces K candidates and does not decide which to expand; search policy is a separate component.",
+      "known_uses": [
+        {
+          "system": "elcamy: 【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "status": "available",
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "complements"
+        },
+        {
+          "pattern": "lats",
+          "relation": "complements"
+        },
+        {
+          "pattern": "single-path-plan-generator",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "best-of-n",
+          "relation": "complements"
+        },
+        {
+          "pattern": "adaptive-branching-tree-search",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "【論文紹介】LLMベースのAIエージェントのデザインパターン18選",
+          "year": 2026,
+          "url": "https://blog.elcamy.com/posts/20431baf/"
+        }
+      ],
+      "status_in_practice": "established",
+      "tags": [
+        "planning",
+        "multi-path",
+        "search",
+        "branching"
+      ],
+      "example_scenario": "A code-refactoring agent uses LATS search. Generator: at each node it produces K=4 candidate refactoring approaches (rename, extract method, inline, restructure). Search policy: evaluates expected reward per candidate (heuristic + LLM scorer) and expands the top 2. Generator and search policy are separate; team experiments with generator quality (different prompts) without touching search policy.",
+      "applicability": {
+        "use_when": [
+          "Plan path quality varies significantly — search pays off.",
+          "Cost budget allows K× per-node generation.",
+          "Search algorithm benefits from diverse candidate generation."
+        ],
+        "do_not_use_when": [
+          "Single-path is sufficient (use single-path-plan-generator).",
+          "Cost budget cannot absorb K× per-node generation.",
+          "No clear evaluator for candidate quality (search has no signal to act on)."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Node[Current plan node] --> Gen[Multi-path generator]\n  Gen --> C1[Candidate 1]\n  Gen --> C2[Candidate 2]\n  Gen --> CK[Candidate K]\n  C1 --> Pol[Search policy]\n  C2 --> Pol\n  CK --> Pol\n  Pol --> Exp[Expand top candidates]\n"
+      },
+      "components": [
+        "Multi-path generator — produces K candidates per node",
+        "Search policy — separate component that decides which to expand",
+        "Candidate evaluator — scores candidates for the search policy",
+        "Candidate tree — stores expanded paths"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "mental-model-in-the-loop-simulator",
+      "name": "Mental-Model-In-The-Loop Simulator",
+      "aliases": [
+        "Internal Simulator",
+        "Strategy-Test-In-Mental-Model"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Run candidate multi-step strategies inside an internal simulator of the environment before committing in the real world — broader than simulate-before-actuate (single action) by simulating multi-step strategies.",
+      "context": "A team has an agent that must commit to multi-step strategies with real-world consequences (trading, infrastructure changes, treatment plans). simulate-before-actuate covers per-action preview; this pattern covers per-strategy preview where multiple steps interact.",
+      "problem": "Per-action preview misses strategy-level interactions: step 2's safety depends on step 1's outcome, which the per-action check cannot see. A strategy that looks fine action-by-action can be disastrous in aggregate. Without a strategy simulator, the agent commits to multi-step strategies blind to their joint effect.",
+      "forces": [
+        "Simulators must model the environment accurately enough to be useful.",
+        "Simulation latency adds to per-strategy decision time.",
+        "Some real-world effects cannot be simulated (external systems, human behavior)."
+      ],
+      "therefore": "Therefore: maintain an internal simulator (mental model) that the agent runs candidate multi-step strategies against, scoring strategies on simulated aggregate outcome before committing any real action.",
+      "solution": "Maintain a simulator of the relevant environment slice — could be a learned world model, a deterministic state machine, a what-if engine. Before committing to a strategy, run it in the simulator and score the simulated outcome. Reject strategies that simulate to bad outcomes. Pair with simulate-before-actuate (single-action), dry-run-harness (whole-plan preview), world-model-as-tool, world-model-graph-memory.",
+      "consequences": {
+        "benefits": [
+          "Catches multi-step interaction failures simulate-before-actuate misses.",
+          "Strategy can be revised before any real commit.",
+          "Simulation outcomes are auditable evidence of pre-commit reasoning."
+        ],
+        "liabilities": [
+          "Simulator fidelity dominates — bad simulators give bad signals.",
+          "Simulation latency adds to per-strategy decision time.",
+          "Some real-world effects (external state, humans) are not simulatable."
+        ]
+      },
+      "constrains": "No multi-step strategy commits without simulator scoring; simulator scope is declared and limited (does not claim to simulate what it cannot).",
+      "known_uses": [
+        {
+          "system": "Joakim Vivas: 17 Patrones de Arquitecturas Agénticas de IA (Simulator / Mental-Model-in-the-Loop)",
+          "status": "available",
+          "url": "https://www.joakimvivas.com/tech/17-patrones-arquitecturas-agenticas-ia/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "simulate-before-actuate",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "dry-run-harness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "complements"
+        },
+        {
+          "pattern": "world-model-graph-memory",
+          "relation": "complements"
+        },
+        {
+          "pattern": "planner-executor-verifier",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "17 Patrones de Arquitecturas Agénticas de IA",
+          "year": 2026,
+          "url": "https://www.joakimvivas.com/tech/17-patrones-arquitecturas-agenticas-ia/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "planning",
+        "simulation",
+        "world-model",
+        "preview"
+      ],
+      "example_scenario": "A trading agent considers a 5-step strategy: [sell A, buy B, hedge C, wait T, rebalance]. Simulator runs the strategy against a market state model. Simulated outcome: 90% of paths see acceptable P&L, but 10% trigger margin call at step 4. Strategy revised before any real trade fires. simulate-before-actuate would have approved each individual trade.",
+      "applicability": {
+        "use_when": [
+          "Multi-step strategies with material consequences.",
+          "Simulator of sufficient fidelity is available.",
+          "Latency budget allows simulation pass per strategy."
+        ],
+        "do_not_use_when": [
+          "Single-action decisions (use simulate-before-actuate).",
+          "Environment cannot be simulated meaningfully.",
+          "Per-strategy latency cannot absorb simulation pass."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Strat[Candidate multi-step strategy] --> Sim[Internal simulator]\n  Sim --> Score[Simulated outcome score]\n  Score -->|acceptable| Commit[Commit to real execution]\n  Score -->|risk| Revise[Revise strategy]\n  Revise --> Strat\n"
+      },
+      "components": [
+        "Simulator — model of environment relevant slice",
+        "Strategy runner — applies candidate strategy in simulation",
+        "Outcome scorer — judges simulated aggregate result",
+        "Revise loop — modifies strategy on bad simulation"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "deterministic-control-flow-not-prompt",
+      "name": "Deterministic Control Flow, Not Prompt",
+      "aliases": [
+        "Own Your Control Flow",
+        "12-Factor Control Flow"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Branching decisions live in deterministic application code; the LLM is invoked at strategic points but does not drive if/else logic. The 12-Factor-Agents 'own your control flow' factor.",
+      "context": "A team has an LLM-driven agent. The default temptation is to put branching logic in prompts ('if X then do Y, else do Z'). This makes control flow stochastic, hard to test, and hard to debug. The Polish/12-Factor-Agents 2026 source explicitly names this as a factor.",
+      "problem": "LLM-driven control flow is unreliable: the model may take the wrong branch, skip a branch, invent a branch. Tests cannot enumerate the paths. Debugging requires reading prompt traces. Distinct from spec-driven-loop (which specifies what the agent does at each step) by being specifically about keeping if/else logic out of prompts.",
+      "forces": [
+        "LLM-driven branching is convenient — write 'choose action' in the prompt.",
+        "Deterministic control flow requires the engineer to enumerate paths.",
+        "Some branching legitimately depends on LLM judgment (intent classification)."
+      ],
+      "therefore": "Therefore: branching logic lives in deterministic code; the LLM is invoked at each branch to produce a structured signal (classification, score, decision) that the deterministic code branches on.",
+      "solution": "Structure: deterministic application code drives the control flow. At each branching point, call the LLM to produce a structured signal (typed enum, numeric score). Deterministic code reads the signal and branches. The LLM never sees 'choose your next branch' as a prompt; it sees 'classify this' or 'score this'. Pair with structured-output, json-only-action-schema, spec-driven-loop, stateless-reducer-agent.",
+      "consequences": {
+        "benefits": [
+          "Control flow is testable, debuggable, and reproducible.",
+          "LLM is used for what it's good at (judgment) not what it's bad at (deterministic branching).",
+          "Prompt traces are about content, not about flow."
+        ],
+        "liabilities": [
+          "Engineering work to enumerate branches.",
+          "Structured signals require structured-output discipline.",
+          "Some natural-language flexibility lost when LLM cannot 'just figure it out'."
+        ]
+      },
+      "constrains": "LLM is invoked at branching points to produce structured signals only; no if/else logic in prompts.",
+      "known_uses": [
+        {
+          "system": "devstockacademy: 12-Factor Agents (Polish roundup) — 'Own Your Control Flow'",
+          "status": "available",
+          "url": "https://devstockacademy.pl/blog/narzedzia-i-automatyzacja/12-factor-agents-jak-budowac-agenty-ai-w-produkcji/"
+        },
+        {
+          "system": "humanlayer/12-factor-agents",
+          "status": "available",
+          "url": "https://github.com/humanlayer/12-factor-agents"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "spec-driven-loop",
+          "relation": "complements"
+        },
+        {
+          "pattern": "json-only-action-schema",
+          "relation": "complements"
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "complements"
+        },
+        {
+          "pattern": "stateless-reducer-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "own-your-prompts",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "12-Factor Agents: jak budować agenty AI, które naprawdę działają w produkcji",
+          "year": 2026,
+          "url": "https://devstockacademy.pl/blog/narzedzia-i-automatyzacja/12-factor-agents-jak-budowac-agenty-ai-w-produkcji/"
+        },
+        {
+          "type": "repo",
+          "title": "humanlayer/12-factor-agents",
+          "year": 2026,
+          "url": "https://github.com/humanlayer/12-factor-agents"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "planning",
+        "control-flow",
+        "12-factor",
+        "deterministic"
+      ],
+      "example_scenario": "A support agent has paths: refund / technical / sales / escalate. Naive: prompt says 'choose path A/B/C/D'. With this pattern: LLM is asked 'classify intent as one of {refund, technical, sales, escalate}'. The deterministic router reads the enum and dispatches. Tests cover all 4 paths; if the LLM classifies as 'other' the deterministic code has an explicit fallback.",
+      "applicability": {
+        "use_when": [
+          "Agent has well-defined branching points.",
+          "LLM judgment is needed at the branch but the branching itself is deterministic.",
+          "Testability and debuggability are priorities."
+        ],
+        "do_not_use_when": [
+          "Branching is fundamentally open-ended (no enumerable set).",
+          "Prototype phase where deterministic structure is premature.",
+          "LLM 'figure it out' is acceptable for the use case."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Input[Input] --> Code[Deterministic code]\n  Code --> LLM[LLM: classify or score]\n  LLM --> Signal[Structured signal]\n  Signal --> Br1{Branch?}\n  Br1 -->|A| Path1[Path A]\n  Br1 -->|B| Path2[Path B]\n  Br1 -->|C| Path3[Path C]\n"
+      },
+      "components": [
+        "Deterministic code — drives control flow",
+        "LLM invocation point — produces structured signal at branch",
+        "Structured signal schema — typed enum or numeric",
+        "Deterministic branch router — reads signal, branches",
+        "Fallback handler — covers signals outside the expected set"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "stateless-reducer-agent",
+      "name": "Stateless Reducer Agent",
+      "aliases": [
+        "Pure-Function Agent",
+        "Event-Sourced Agent",
+        "12-Factor Stateless Agent"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Design the agent as a pure function (state, event) → newState; entire execution history is held in an external event log; enables pause / resume / replay / time-travel without bespoke checkpointing.",
+      "context": "A team builds an agent. The default is to hold state in process memory (Python objects, in-memory dicts). Pausing, resuming, or replaying the agent requires custom checkpointing logic that is inevitably incomplete.",
+      "problem": "In-memory agent state cannot be paused, resumed across processes, or time-travelled. Each capability requires bespoke checkpointing that misses edge cases. Differs from durable-workflow-snapshot (which is a snapshot mechanism) by being a programming-model constraint — the agent is *designed* as a reducer, not made into one after the fact.",
+      "forces": [
+        "Stateless-reducer discipline constrains how agent code is structured.",
+        "External event log adds infrastructure dependency.",
+        "Some operations are naturally stateful (caches, connections) and need separate handling."
+      ],
+      "therefore": "Therefore: the agent is a pure function (state, event) → newState; all execution history is in an external event log; pause/resume/replay/time-travel come from replaying the log against the reducer.",
+      "solution": "Agent's core is a pure function: takes (current state, next event) → (new state, side-effect descriptors). Side effects are descriptors, not executions — the runtime dispatches them. All events are appended to a durable log. Pause = stop dispatching. Resume = restart dispatching from current log position. Replay = re-run reducer against earlier log slice. Time-travel = re-run against any log slice. Pair with durable-workflow-snapshot, event-driven-agent, deterministic-control-flow-not-prompt, own-your-prompts.",
+      "consequences": {
+        "benefits": [
+          "Pause / resume / replay / time-travel are first-class with no bespoke checkpointing.",
+          "Debugging by replaying production logs locally.",
+          "Multiple runtimes can dispatch the same agent in different environments."
+        ],
+        "liabilities": [
+          "Discipline required — no hidden state in closures or globals.",
+          "External event log dependency.",
+          "Side-effect dispatch is a separate concern that must be designed carefully."
+        ]
+      },
+      "constrains": "All agent state changes flow through the reducer; no hidden state in process memory; all events are persisted to the durable log.",
+      "known_uses": [
+        {
+          "system": "devstockacademy: 12-Factor Agents (Polish roundup) — Stateless Reducer Pattern",
+          "status": "available",
+          "url": "https://devstockacademy.pl/blog/narzedzia-i-automatyzacja/12-factor-agents-jak-budowac-agenty-ai-w-produkcji/"
+        },
+        {
+          "system": "humanlayer/12-factor-agents",
+          "status": "available",
+          "url": "https://github.com/humanlayer/12-factor-agents"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "complements"
+        },
+        {
+          "pattern": "event-driven-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "deterministic-control-flow-not-prompt",
+          "relation": "complements"
+        },
+        {
+          "pattern": "own-your-prompts",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "12-Factor Agents: jak budować agenty AI",
+          "year": 2026,
+          "url": "https://devstockacademy.pl/blog/narzedzia-i-automatyzacja/12-factor-agents-jak-budowac-agenty-ai-w-produkcji/"
+        },
+        {
+          "type": "repo",
+          "title": "humanlayer/12-factor-agents",
+          "year": 2026,
+          "url": "https://github.com/humanlayer/12-factor-agents"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "planning",
+        "stateless",
+        "event-sourcing",
+        "12-factor",
+        "resumable"
+      ],
+      "example_scenario": "A coding agent encounters a long-running test step. The runtime pauses by stopping event dispatch. A user requests resumption from a different worker. The new worker reads the agent's event log, replays the reducer from log start to current position, then resumes dispatch. Time-travel: the user later replays the log up to step 12 to debug a problem; the agent reconstructs its state at step 12 exactly.",
+      "applicability": {
+        "use_when": [
+          "Long-running agents that need pause/resume.",
+          "Debugging by replay is valuable.",
+          "Multiple runtimes / environments need to dispatch the same agent."
+        ],
+        "do_not_use_when": [
+          "Short-lived agents where bespoke state is fine.",
+          "External event log infrastructure unavailable.",
+          "Programming-model constraints are too heavy for prototype."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Event[Event] --> Reducer[Pure reducer]\n  State[Current state] --> Reducer\n  Reducer --> NewState[New state]\n  Reducer --> SideDesc[Side-effect descriptors]\n  NewState --> Log[(Event log)]\n  SideDesc --> Dispatch[Runtime dispatches side-effects]\n  Log --> Resume[Resume anywhere by replaying log]\n"
+      },
+      "components": [
+        "Pure reducer function — (state, event) → (new state, side-effect descriptors)",
+        "Durable event log — append-only, persistent",
+        "Side-effect dispatcher — runtime component that executes descriptors",
+        "Replay tool — re-runs reducer against log slices for debug/time-travel"
+      ],
+      "last_updated": "2026-05-23"
+    },
+    {
+      "id": "hybrid-htn-generative-agent",
+      "name": "Hybrid HTN + Generative Agent",
+      "aliases": [
+        "HTN-Backbone Generative Agent",
+        "Hierarchical-Task-Network Hybrid"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Hierarchical Task Network decomposition provides the procedural backbone; the generative LLM is invoked only at leaf nodes for the parts of the task that are genuinely open-ended.",
+      "context": "A team has a task whose structure is well-known (HTN-style decomposition exists) but whose leaves require open-ended language understanding or generation. Pure LLM-driven planning re-invents the structure each run; pure HTN cannot handle the open-ended leaves.",
+      "problem": "Pure-LLM planning is expensive and inconsistent for tasks with known structure. Pure HTN cannot handle the leaves that require natural-language reasoning. Neither alone fits tasks with both well-known structure and open-ended leaves.",
+      "forces": [
+        "HTN backbone requires upfront task decomposition.",
+        "Generative leaves are unpredictable; HTN expectations may not match.",
+        "Hybrid increases system complexity — two planning paradigms in one agent."
+      ],
+      "therefore": "Therefore: HTN backbone provides the procedural structure (decomposition into sub-tasks); generative LLM is invoked only at the leaves whose work is genuinely open-ended.",
+      "solution": "HTN decomposition specifies the task structure: root task → sub-tasks → ... → leaves. Internal nodes are deterministic decomposition (no LLM). Leaf nodes invoke the LLM for the open-ended work (drafting text, classifying ambiguous input, summarizing). LLM outputs at leaves feed back into the HTN structure (parent nodes assemble leaf outputs). Pair with goal-decomposition, hierarchical-agents, deterministic-control-flow-not-prompt, plan-and-execute.",
+      "consequences": {
+        "benefits": [
+          "Combines deterministic structure (HTN) with generative flexibility (LLM at leaves).",
+          "Cheaper than pure-LLM planning (LLM only at leaves).",
+          "More flexible than pure HTN (handles open-ended leaves)."
+        ],
+        "liabilities": [
+          "HTN decomposition is upfront engineering work.",
+          "Two paradigms in one agent — more complex to maintain.",
+          "LLM outputs must conform to what parent HTN nodes expect."
+        ]
+      },
+      "constrains": "HTN decomposition is deterministic; LLM invocation is restricted to leaf nodes; non-leaf nodes may not invoke the LLM.",
+      "known_uses": [
+        {
+          "system": "aissentials (Dutch): Wat zijn agentic LLM's en hoe transformeren ze AI",
+          "status": "available",
+          "url": "https://aissentials.nl/agentic-llms/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "goal-decomposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "complements"
+        },
+        {
+          "pattern": "deterministic-control-flow-not-prompt",
+          "relation": "complements"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "hybrid-symbolic-neural-routing",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Wat zijn agentic LLM's en hoe transformeren ze AI",
+          "year": 2026,
+          "url": "https://aissentials.nl/agentic-llms/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "planning",
+        "htn",
+        "hybrid",
+        "symbolic-neural"
+      ],
+      "example_scenario": "A legal-research agent's task decomposes via HTN: research-question → [find-cases, find-statutes, find-commentary] → [for each: search, filter, summarize]. HTN structure is fixed. At each leaf (e.g. 'summarize this case'), the LLM is invoked. Parent nodes assemble leaf summaries deterministically. Pure LLM planning would re-invent this decomposition every run; pure HTN couldn't summarize.",
+      "applicability": {
+        "use_when": [
+          "Task structure is well-known and decomposable as HTN.",
+          "Leaves require open-ended natural-language work.",
+          "Cost or consistency matters enough to justify HTN engineering."
+        ],
+        "do_not_use_when": [
+          "Task structure is unknown or highly variable.",
+          "Pure-LLM planning is good enough at the cost.",
+          "No engineering capacity for HTN authoring."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Root[Root task] --> S1[Sub-task 1]\n  Root --> S2[Sub-task 2]\n  S1 --> L1[Leaf 1: LLM-invoked]\n  S1 --> L2[Leaf 2: LLM-invoked]\n  S2 --> L3[Leaf 3: LLM-invoked]\n  L1 --> Assemble[HTN parent assembles]\n  L2 --> Assemble\n  L3 --> Assemble\n  Assemble --> Out[Final output]\n"
+      },
+      "components": [
+        "HTN decomposition — deterministic task structure",
+        "Leaf invoker — calls LLM only at HTN leaves",
+        "Parent assembler — combines leaf outputs deterministically",
+        "Leaf-output schema — what each leaf must produce for parent assembly"
+      ],
+      "last_updated": "2026-05-23"
     }
   ]
 }
