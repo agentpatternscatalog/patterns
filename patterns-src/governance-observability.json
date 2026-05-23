@@ -86,6 +86,14 @@
         {
           "pattern": "agent-evaluator",
           "relation": "complements"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "complements"
+        },
+        {
+          "pattern": "trust-and-reputation-routing",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -147,6 +155,129 @@
         "Cost per trajectory verdict — overhead of trajectory evaluation vs answer-only grading"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "agent-middleware-chain",
+      "name": "Agent Middleware Chain",
+      "aliases": [
+        "Agent Interceptor Pipeline",
+        "Pre/Post Middleware"
+      ],
+      "category": "governance-observability",
+      "intent": "Wrap every model call, tool call, and memory access in a composable pre/execute/post interceptor pipeline so cross-cutting concerns attach without touching agent or orchestrator code.",
+      "context": "An agent runtime accumulates cross-cutting concerns: structured logging of every model call, rate-limit enforcement on third-party APIs, PII redaction on inputs and outputs, guardrail evaluation, latency metrics, an approval gate that may pause a call. Each concern needs to fire on the same set of touchpoints — model calls, tool calls, memory reads/writes — without each concern reimplementing the wiring.",
+      "problem": "If each concern is implemented as a wrapper at the agent or orchestrator layer, the runtime accretes a deep stack of decorators, the order is implicit, and adding or removing a concern requires editing agent code. Worse, concerns differ in shape — some need to see the request before the call, some need to mutate the response, some need to catch errors. Without a uniform middleware surface, each concern carries its own ad-hoc hook code and the cross-cutting layer is no longer composable or testable in isolation.",
+      "forces": [
+        "Pre-execution interceptors (request modification, validation) need the request; post-execution interceptors (response logging, redaction) need the response; error handlers need the exception.",
+        "Ordering matters — guardrails before logging, redaction before persistence.",
+        "Middleware must compose at runtime so a team can add or remove a concern by configuration.",
+        "Each middleware must remain testable in isolation against a synthetic call."
+      ],
+      "therefore": "Therefore: define a single middleware contract with process_request, process_response, and process_error methods and route every model and tool call through a configurable chain, so cross-cutting concerns attach uniformly and order is explicit.",
+      "solution": "Define a BaseMiddleware with three hooks: process_request (called before the underlying call, may modify or short-circuit), process_response (called after, may mutate the response), process_error (called on exception). A MiddlewareChain runs the chain forward through process_request, invokes the underlying call, then runs the chain in reverse through process_response. Mount the chain at the runtime layer — every model call, tool call, and memory access flows through it. Cross-cutting concerns are then registered, not coded into agents.",
+      "consequences": {
+        "benefits": [
+          "Cross-cutting concerns are configuration, not code, at the agent layer.",
+          "Order is explicit and reviewable in one place.",
+          "Each middleware is unit-testable against a synthetic call."
+        ],
+        "liabilities": [
+          "A long chain adds latency on every call — the chain itself is now a critical-path component.",
+          "Misordered middleware (redaction after logging) silently leaks the thing it was supposed to hide.",
+          "Implicit dependencies between middlewares (one expects another's mutation) are hard to surface."
+        ]
+      },
+      "constrains": "Cross-cutting concerns may not be coded directly into agent or orchestrator logic; they must register through the middleware contract so order is explicit and the chain is reviewable.",
+      "known_uses": [
+        {
+          "system": "picoagents (Dibia, Designing Multi-Agent Systems)",
+          "status": "available",
+          "url": "https://github.com/victordibia/designing-multiagent-systems"
+        },
+        {
+          "system": "LangChain Runnable middleware / LangGraph hooks",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "input-output-guardrails",
+          "relation": "uses"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        },
+        {
+          "pattern": "pii-redaction",
+          "relation": "uses"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "uses"
+        },
+        {
+          "pattern": "kill-switch",
+          "relation": "complements"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Designing Multi-Agent Systems",
+          "authors": "Victor Dibia",
+          "year": 2025,
+          "url": "https://www.oreilly.com/library/view/designing-multi-agent-systems/9781098150495/"
+        },
+        {
+          "type": "repo",
+          "title": "victordibia/designing-multiagent-systems — picoagents middleware",
+          "url": "https://github.com/victordibia/designing-multiagent-systems"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "middleware",
+        "interceptor",
+        "cross-cutting"
+      ],
+      "example_scenario": "An agent runtime mounts five middlewares in order: rate-limit, PII-redact-in, guardrail-eval, metrics, approval-gate. Every model and tool call flows through the chain forward, then through the reverse chain on response. Adding a new compliance log later is a single registration in the chain config — no agent code is touched.",
+      "applicability": {
+        "use_when": [
+          "Multiple cross-cutting concerns need to fire on every model/tool/memory call.",
+          "Order of operations between concerns is policy-relevant.",
+          "Teams need to add or remove concerns by configuration, not code."
+        ],
+        "do_not_use_when": [
+          "Only one or two concerns exist and they can live as simple wrappers.",
+          "Latency budget cannot absorb a chain on every call.",
+          "Concerns are too heterogeneous to fit a single (req, resp, err) contract."
+        ]
+      },
+      "components": [
+        "BaseMiddleware — contract with process_request, process_response, process_error.",
+        "MiddlewareChain — orders middlewares; runs request phase forward, response phase reverse.",
+        "Runtime mount — wraps every model/tool/memory call through the chain."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Req[Request] --> M1[M1.process_request] --> M2[M2.process_request] --> M3[M3.process_request] --> Call[Underlying call]\n  Call --> R3[M3.process_response] --> R2[M2.process_response] --> R1[M1.process_response] --> Resp[Response]\n  Call -.error.-> E3[M3.process_error] -.-> E2[M2.process_error] -.-> E1[M1.process_error] -.-> Err"
+      },
+      "last_updated": "2026-05-23",
+      "tools": [
+        "OpenTelemetry exporter — emits trace spans from each middleware",
+        "Feature-flag service — toggles middlewares on or off without redeploy",
+        "Policy-engine bridge — calls out to OPA or similar from guardrail middleware"
+      ],
+      "evaluation_metrics": [
+        "Chain latency overhead — added ms per call",
+        "Order incidents — bugs traced to misordered middleware",
+        "Concern coverage — share of model/tool/memory calls touched by each registered middleware"
+      ]
     },
     {
       "id": "agent-resumption",
@@ -258,6 +389,10 @@
         {
           "pattern": "test-time-memorization",
           "relation": "complements"
+        },
+        {
+          "pattern": "interruptible-agent-execution",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -431,6 +566,130 @@
       "last_updated": "2026-05-21"
     },
     {
+      "id": "bayesian-bandit-experimentation",
+      "name": "Bayesian Bandit Experimentation",
+      "aliases": [
+        "Multi-Armed Bandit for Prompt Variants",
+        "Bandit-Based Agent Rollout"
+      ],
+      "category": "governance-observability",
+      "intent": "Replace fixed-split A/B tests between agent variants with a bandit that dynamically reallocates traffic toward better-performing variants based on observed reward, bounding regret from bad variants.",
+      "context": "An agent team has multiple variants in play: two prompt templates, three model choices, two retrieval strategies. They want to learn which performs best on production traffic without exposing many users to the worse variants for the full length of a classical A/B test.",
+      "problem": "A fixed 50/50 (or N-way uniform) split between variants pays regret on every losing variant for the entire experiment window. With multiple simultaneous variants the regret compounds. Worse, the experiment cannot be stopped early without invalidating the statistics; teams keep losing variants live for weeks because the rollout calendar said so. A static split is wrong as a learning policy when the team genuinely cares about user outcomes during the experiment.",
+      "forces": [
+        "Some variants are clearly worse early; continuing uniform allocation pays regret.",
+        "Some variants need many trials to reveal their advantage; aggressive exploitation kills them.",
+        "Reward signals (task success, user satisfaction, cost) arrive with delay and noise.",
+        "Operators need to be able to read off 'which variant is winning' at any point."
+      ],
+      "therefore": "Therefore: route traffic to variants by a bandit policy that updates from observed reward, so allocation shifts toward winners as evidence accumulates and regret on losers is bounded.",
+      "solution": "Treat each variant as a bandit arm. After each request, record the variant chosen and (when it arrives) the reward (task success, satisfaction, cost). A Thompson sampler or upper-confidence-bound policy decides allocation for the next request. Run for a budget of requests or until posterior separation crosses a threshold; promote the winner. Surface posterior means and credible intervals in the experiment dashboard.",
+      "consequences": {
+        "benefits": [
+          "Regret on losing variants is bounded; allocation tracks evidence.",
+          "Many simultaneous variants can be experimented over without combinatorial regret.",
+          "Operators see a live posterior rather than waiting for a fixed window to close."
+        ],
+        "liabilities": [
+          "Variants the bandit prunes early can be the slow-burn winners; tune exploration carefully.",
+          "Delayed reward complicates the update; naive bandits over-allocate to fast-response variants.",
+          "Stat-stoppage at posterior-separation introduces optional-stopping bias if undisciplined."
+        ]
+      },
+      "constrains": "Variant allocation must not be a fixed-fraction split when reward can be observed online; the policy must update from observed reward and shift allocation accordingly.",
+      "known_uses": [
+        {
+          "system": "Building Applications with AI Agents (Albada) — Bayesian Bandits in improvement loops",
+          "status": "available",
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/"
+        },
+        {
+          "system": "OpenAI Evals and major-lab prompt-eval pipelines using bandit-based variant selection",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "shadow-canary",
+          "relation": "alternative-to",
+          "note": "Shadow is parallel; bandit reallocates live traffic."
+        },
+        {
+          "pattern": "eval-harness",
+          "relation": "uses"
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "complements"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "complements"
+        },
+        {
+          "pattern": "exploration-exploitation",
+          "relation": "specialises"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "trust-and-reputation-routing",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Building Applications with AI Agents",
+          "authors": "Michael Albada",
+          "year": 2025,
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "experimentation",
+        "bandit",
+        "evaluation"
+      ],
+      "example_scenario": "A support-agent team has four candidate prompt templates and two candidate models. They run all eight (template × model) combinations as bandit arms with Thompson sampling over downstream user-rating reward. By day three two arms have collected enough credible evidence to promote; the bandit allocates >70% of traffic to them and continues exploring the rest at low rate.",
+      "applicability": {
+        "use_when": [
+          "Multiple variants are live and reward can be observed online with reasonable delay.",
+          "User-outcome regret on losing variants is a real cost.",
+          "Operators want a live posterior rather than a fixed test window."
+        ],
+        "do_not_use_when": [
+          "Reward is unobservable or arrives only after weeks; bandit cannot learn.",
+          "Variants must be tested at equal sample size for regulatory or scientific reasons.",
+          "Allocation cannot be dynamic — only one variant can be in production at a time."
+        ]
+      },
+      "evaluation_metrics": [
+        "Cumulative regret — total reward gap vs always-best.",
+        "Time to credible separation — how fast posteriors diverge.",
+        "Variant survival curve — share of arms still receiving traffic at time t."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Req[Incoming request] --> Pol[Bandit policy]\n  Pol --> V1[Variant A]\n  Pol --> V2[Variant B]\n  Pol --> V3[Variant C]\n  V1 --> R[Observe reward]\n  V2 --> R\n  V3 --> R\n  R --> Upd[Update posteriors]\n  Upd --> Pol"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Bandit policy — Thompson sampling or UCB over arms",
+        "Reward observer — captures outcome signal per request",
+        "Posterior store — per-arm reward posterior",
+        "Allocation dashboard — surfaces live posteriors and traffic share"
+      ],
+      "tools": [
+        "Reward logging pipeline — pushes outcome signal to posterior updater",
+        "Experiment registry — tracks arms, durations, and posterior thresholds",
+        "Eval-harness — used to compute reward signal on tasks"
+      ]
+    },
+    {
       "id": "cost-observability",
       "name": "Cost Observability",
       "aliases": [
@@ -567,6 +826,125 @@
       "last_updated": "2026-05-22"
     },
     {
+      "id": "crawl-walk-run-automation-gating",
+      "name": "Crawl-Walk-Run Automation Gating",
+      "aliases": [
+        "Three-Tier Autonomy Rollout",
+        "Automation Gates"
+      ],
+      "category": "governance-observability",
+      "intent": "Roll an agent out in three explicit autonomy tiers with explicit gates between tiers: Crawl (suggests only, human acts), Walk (acts on internal staff), Run (acts on external customers).",
+      "context": "A team has built an agent that could plausibly act autonomously on customer-facing actions (replying to tickets, refunding orders, sending outbound messages, modifying production resources). The blast radius of a bad action ranges from a confused colleague to a regulatory incident. Stakeholders want both fast deployment and confidence that nothing irreversible happens before the agent is trusted.",
+      "problem": "Two failure shapes recur. Teams ship the agent fully autonomous to external customers from day one and discover behaviour they cannot retract. Or they hide the agent behind a human reviewer forever, accumulating review backlog while never building the evidence base that would justify expansion. Without a named ramp, autonomy decisions are made implicitly per release, drift toward whichever stakeholder shouts loudest, and skip the comparison data that would tell the team whether the agent is ready for the next tier.",
+      "forces": [
+        "Each tier needs different metrics: Crawl measures suggestion acceptance, Walk measures internal task completion, Run measures customer outcomes.",
+        "Tier gates must be passed before promotion, not after a calendar deadline.",
+        "Demotion back a tier must be cheap when metrics degrade.",
+        "Some actions never leave Crawl (e.g. legally irreversible decisions)."
+      ],
+      "therefore": "Therefore: define three named tiers — Crawl, Walk, Run — each with its own success criteria, and forbid the agent from acting at a tier it has not been explicitly promoted to.",
+      "solution": "Tag every agent action with an autonomy tier. Crawl emits only suggestions; Walk acts on internal staff with their approval contract; Run acts directly on external customers. Each tier publishes a metric bar (acceptance rate, internal completion, customer outcome) and a duration. Promotion requires clearing the bar; regression demotes. Tier is per-action-type, not per-agent — the same agent can be in Run on safe actions and Crawl on irreversible ones.",
+      "consequences": {
+        "benefits": [
+          "Forces a measurement programme before each autonomy step.",
+          "Lets the same agent ship at heterogeneous trust per action type.",
+          "Makes demotion legible — not a rollback, a tier change."
+        ],
+        "liabilities": [
+          "Three tiers can be too coarse for some risk surfaces (consider an autonomy-slider variant).",
+          "Promotion politics — stakeholders push past the gate when metrics are mixed."
+        ]
+      },
+      "constrains": "An agent must not perform an action at an autonomy tier it has not been explicitly promoted to; promotion requires the documented tier metric to clear its bar.",
+      "known_uses": [
+        {
+          "system": "Customer-support agents promoting suggest→draft→send through measured ramp",
+          "status": "available"
+        },
+        {
+          "system": "AI Engineering (Huyen) — three-tier deployment guidance",
+          "status": "available",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "autonomy-slider",
+          "relation": "alternative-to",
+          "note": "Slider is continuous; this is the three-tier discrete form."
+        },
+        {
+          "pattern": "progressive-delegation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "approval-queue",
+          "relation": "uses"
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "uses"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cost-aware-action-delegation",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "authors": "Chip Huyen",
+          "year": 2024,
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "autonomy",
+        "deployment",
+        "governance"
+      ],
+      "example_scenario": "A support team ships an agent that can answer billing questions. In Crawl, the agent drafts replies that a human always sends; acceptance is tracked. After three weeks above 85% acceptance the agent is promoted to Walk for internal-only ticket types — it can resolve account-update tickets for staff requests. After another period above its internal-completion bar, promotion to Run is granted for low-risk public ticket categories only; refunds stay at Walk and password resets stay at Crawl.",
+      "applicability": {
+        "use_when": [
+          "An agent will eventually act on external customers and the team needs an evidence-based ramp.",
+          "Different action types have very different blast radius.",
+          "Stakeholders need a vocabulary for promotion and demotion decisions."
+        ],
+        "do_not_use_when": [
+          "Risk surface is fine-grained enough that an [[autonomy-slider]] fits better than three tiers.",
+          "All actions are irreversible — no Run tier is reachable, so the gating is trivial.",
+          "The agent has no production traffic to calibrate tier metrics on."
+        ]
+      },
+      "evaluation_metrics": [
+        "Promotion lag — calendar days from passing tier bar to promotion.",
+        "Demotion incidents — runs that returned to a lower tier after regression.",
+        "Per-tier coverage — fraction of action types currently at each tier."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  C[Crawl: suggests only] -->|metric bar cleared| W[Walk: internal users]\n  W -->|metric bar cleared| R[Run: external customers]\n  W -->|regression| C\n  R -->|regression| W"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Tier registry — per-action-type record of current autonomy tier",
+        "Tier metric — measured signal that gates promotion (acceptance, internal completion, customer outcome)",
+        "Promotion gate — automatic check that promotes once the metric bar clears",
+        "Demotion path — automatic reversion when the metric drops"
+      ],
+      "tools": [
+        "Per-action telemetry — captures the metric for each tier",
+        "Tier dashboard — displays current tier per action type and promotion readiness",
+        "Config store — holds tier assignments and bar thresholds"
+      ]
+    },
+    {
       "id": "decision-log",
       "name": "Decision Log",
       "aliases": [
@@ -687,6 +1065,18 @@
         {
           "pattern": "decision-context-maps",
           "relation": "complements"
+        },
+        {
+          "pattern": "agent-middleware-chain",
+          "relation": "complements"
+        },
+        {
+          "pattern": "multi-principal-welfare-aggregation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -850,6 +1240,10 @@
         {
           "pattern": "stateless-reducer-agent",
           "relation": "complements"
+        },
+        {
+          "pattern": "interruptible-agent-execution",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1147,6 +1541,26 @@
         {
           "pattern": "agent-evaluator",
           "relation": "complements"
+        },
+        {
+          "pattern": "bayesian-bandit-experimentation",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dimensional-synthetic-eval-set",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1206,6 +1620,138 @@
         "Inter-judge agreement on scoring — calibration when LLM-as-judge is used inside the harness"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "evaluation-driven-development",
+      "name": "Evaluation-Driven Development",
+      "aliases": [
+        "EDD",
+        "Eval-First Development",
+        "Test-First for LLM Apps"
+      ],
+      "category": "governance-observability",
+      "intent": "Forbid building the LLM application before its evaluation harness exists; freeze the eval set first and let those metrics drive model selection, prompting, and every subsequent change.",
+      "context": "A team starts an LLM application — RAG over policy documents, an agent that fills CRM fields, a chatbot for a narrow workflow. The first instinct is to prototype the prompt, see if it 'feels right', then circle back to evaluation when stakeholders ask for numbers.",
+      "problem": "Eval-after-build collapses for three reasons. The team converges on prompts that look good on hand-picked demos; the evaluation written later is shaped by what the prompt already does well rather than by the user need. Model swaps, prompt refactors, and tool changes have no comparator — every commit is a vibe check. When a stakeholder finally demands quality numbers, building the harness retroactively requires re-running every prior change, which never happens. The application ships with no defensible quality story.",
+      "forces": [
+        "Building eval first feels slower than prototyping but is faster once the first regression appears.",
+        "Eval sets must be frozen before changes start, or every change moves the bar.",
+        "Eval sets shaped after the prompt encode the prompt's biases.",
+        "Without eval, model swaps and prompt edits have no comparator."
+      ],
+      "therefore": "Therefore: build the evaluation harness and a frozen eval set before the first prompt commit, so every subsequent change is judged against a stable target rather than against author taste.",
+      "solution": "Before authoring the first prompt, write the eval. Define what 'good' means as a checkable rubric (an expected-output set, a judge prompt against a frozen rubric, a deterministic checker, or a mix). Build the eval set from real user inputs or synthetic inputs that span the named dimensions of the task. Pin the rubric and the set as a versioned artifact. Run every prompt change, model swap, and tool edit through that harness; any drop is a blocker.",
+      "consequences": {
+        "benefits": [
+          "Model swaps, prompt edits, and tool changes have a single comparator.",
+          "Surfaces regressions early; every commit is a measurement.",
+          "Forces explicit articulation of 'what good looks like' before development begins."
+        ],
+        "liabilities": [
+          "Front-loaded eval work delays first shippable prototype.",
+          "Eval sets drift away from production traffic if not periodically refreshed.",
+          "Frozen rubric can become a goal in itself, gameable by overfitting prompts."
+        ]
+      },
+      "constrains": "The application must not be developed before its evaluation harness exists; the frozen rubric and eval set are authored first and changes are gated on them.",
+      "known_uses": [
+        {
+          "system": "AI Engineering (Huyen) — Evaluation-Driven Development chapter",
+          "status": "available",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "system": "Production LLM teams running rubric-judged eval gates on every prompt commit",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "eval-harness",
+          "relation": "uses"
+        },
+        {
+          "pattern": "frozen-rubric-reflection",
+          "relation": "uses"
+        },
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        },
+        {
+          "pattern": "dimensional-synthetic-eval-set",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "demo-to-production-cliff",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "bayesian-bandit-experimentation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "authors": "Chip Huyen",
+          "year": 2024,
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "evaluation",
+        "process",
+        "governance"
+      ],
+      "example_scenario": "A team building a contract-clause-summarisation agent freezes a 200-item eval set drawn from real contracts the legal team flagged. The judge rubric scores three named properties (faithfulness, named-entity coverage, length). The first prompt scores 71%. Every prompt edit, every model upgrade from one Sonnet generation to the next, every retrieval tweak runs through the harness; any drop is a blocker. Three months in the team has comparable numbers for nine prompt variants and three models.",
+      "applicability": {
+        "use_when": [
+          "Starting an LLM application that will change prompts, models, or tools over its lifetime.",
+          "Multiple engineers will work on the same prompt and need a comparator.",
+          "Quality regressions are user-visible and must be caught before deployment."
+        ],
+        "do_not_use_when": [
+          "Throwaway prototype with a one-week lifespan.",
+          "No agreed definition of 'good' is reachable in the project's timeframe.",
+          "The application has no notion of correct answer (purely creative outputs with no rubric)."
+        ]
+      },
+      "evaluation_metrics": [
+        "Eval-coverage lag — days from feature change to inclusion in eval set.",
+        "Regression catch rate — fraction of regressions caught by eval before user reports.",
+        "Eval set freshness — share of items from the last quarter of production traffic."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Need[User need] --> Rubric[Author rubric]\n  Need --> Set[Author eval set]\n  Rubric --> Harness[Eval harness]\n  Set --> Harness\n  Harness --> Build[Build prompt + agent]\n  Build --> Run[Run eval]\n  Run -- regressed --> Block[Block merge]\n  Run -- holds --> Ship"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Frozen eval set — versioned dataset of representative inputs authored before development",
+        "Rubric — checkable criteria the eval scores against (deterministic, LLM-judge, or both)",
+        "Eval harness — runs every prompt/model/tool change through the rubric on the set",
+        "Regression gate — blocks merges when scores drop"
+      ],
+      "tools": [
+        "Eval-harness runner (Inspect AI, OpenAI Evals, Promptfoo) — execution and aggregation",
+        "Dataset version store — pins the eval set across changes",
+        "Rubric registry — versioned rubric prompts and deterministic checkers"
+      ]
     },
     {
       "id": "lineage-tracking",
@@ -1419,6 +1965,22 @@
         {
           "pattern": "agent-evaluator",
           "relation": "complements"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "used-by"
+        },
+        {
+          "pattern": "dimensional-synthetic-eval-set",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1473,6 +2035,128 @@
         "Per-eval judge cost — added spend per evaluated item from the judge calls"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "multi-principal-welfare-aggregation",
+      "name": "Multi-Principal Welfare Aggregation",
+      "aliases": [
+        "Multi-Principal Assistance Game",
+        "Social-Choice Aggregation for Agents"
+      ],
+      "category": "governance-observability",
+      "intent": "When an agent serves multiple humans with conflicting preferences, declare the aggregation rule explicitly rather than letting it be implicit in the prompt or fine-tune.",
+      "context": "An agent serves a team, a household, a customer cohort, or an entire user base. The principals have conflicting preferences: different staff want different summary styles, different customers want different escalation defaults, different users in a shared workspace want different behaviours. Some preferences are zero-sum.",
+      "problem": "Without an explicit aggregation rule the agent silently picks one principal — usually the loudest, the most recently heard, or the one whose preferences were fine-tuned in earliest. Gibbard's theorem says any aggregation rule that aggregates more than two principals' preferences is manipulable: principals can strategically misreport. Pretending there is no aggregation rule does not avoid this; it picks the implicit rule and hides it from review.",
+      "forces": [
+        "Multiple principals with conflicting preferences is the common case at scale.",
+        "Every aggregation rule has trade-offs; none is uniformly best.",
+        "Hidden aggregation is gameable and unaccountable.",
+        "Explicit aggregation invites disputes that hidden aggregation avoided."
+      ],
+      "therefore": "Therefore: declare the aggregation rule (sum-of-utilities, weighted welfare, collegial mechanism, role-priority order) explicitly and as configuration, so the trade-off is reviewable and operators can change it deliberately.",
+      "solution": "When the agent's action space affects multiple principals, route the decision through an explicit aggregation function. Options: sum-of-utilities (utilitarian); weighted welfare (declared per-principal weights); collegial mechanism (each principal must be obtaining 'enough' reward through their own actions for their preferences to count); role-priority (some principals have veto). Surface the active rule in traces and documentation. Make it a configuration change, not a prompt change.",
+      "consequences": {
+        "benefits": [
+          "Aggregation choice becomes a deliberate policy, not an implicit accident.",
+          "Disputes over agent behaviour have a vocabulary — they argue about the rule.",
+          "Operators can switch rules without retraining or re-prompting."
+        ],
+        "liabilities": [
+          "Explicit rules invite explicit attacks on them (strategic misreporting per Gibbard).",
+          "Some rules require principal-weight assignment that itself becomes contested.",
+          "Computational cost of welfare aggregation scales with the principal count."
+        ]
+      },
+      "constrains": "An agent serving multiple principals must not aggregate their preferences implicitly; the aggregation rule is declared as configuration and surfaced in traces.",
+      "known_uses": [
+        {
+          "system": "Multi-Principal Assistance Games (Fickinger, Zhuang, Hadfield-Menell, Russell, 2020)",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2007.09540"
+        },
+        {
+          "system": "Shared-workspace assistants needing per-user weight assignment",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "preference-uncertain-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cooperative-preference-inference",
+          "relation": "uses"
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "complements"
+        },
+        {
+          "pattern": "trust-and-reputation-routing",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Multi-Principal Assistance Games",
+          "authors": "Fickinger, Zhuang, Hadfield-Menell, Russell",
+          "year": 2020,
+          "url": "https://arxiv.org/abs/2007.09540"
+        },
+        {
+          "type": "book",
+          "title": "Human Compatible",
+          "authors": "Stuart Russell",
+          "year": 2019,
+          "url": "https://www.penguinrandomhouse.com/books/566677/human-compatible-by-stuart-russell/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "alignment",
+        "social-choice",
+        "multi-user"
+      ],
+      "example_scenario": "A household assistant must schedule shared resources (the family calendar, the thermostat). Two adults have conflicting work-from-home preferences. The product declares a weighted-welfare rule with declared weights and exposes them in settings. When the rule produces an outcome one adult dislikes, the dispute is about the weights and the rule, not about the agent's hidden disposition.",
+      "applicability": {
+        "use_when": [
+          "Agent serves multiple principals whose preferences can conflict.",
+          "Actions are zero-sum or rivalrous across principals.",
+          "Operators or users need to understand and adjust how aggregation works."
+        ],
+        "do_not_use_when": [
+          "Single-principal agent where aggregation is trivially identity.",
+          "Aggregation rule cannot be made legitimate by any choice; the agent should not arbitrate at all.",
+          "Engineering complexity of explicit aggregation exceeds the welfare gain."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  P1[Principal 1 prefs] --> Agg[Aggregation rule]\n  P2[Principal 2 prefs] --> Agg\n  P3[Principal 3 prefs] --> Agg\n  W[Declared weights / rule type] --> Agg\n  Agg --> Dec[Decision]\n  Dec --> Log[Trace records rule + weights]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Principal registry — declared list of principals and weights",
+        "Per-principal preference probe — collects preferences as evidence",
+        "Aggregation function — sum / weighted / collegial / role-priority",
+        "Decision logger — records principals consulted, weights applied, and outcome"
+      ],
+      "tools": [
+        "Weight config store — keyed per workspace or tenant",
+        "Aggregation calculator — evaluates the rule on per-principal preferences",
+        "Audit log — surfaces the rule and weights for each decision"
+      ],
+      "evaluation_metrics": [
+        "Principal-coverage — share of decisions that consulted all relevant principals",
+        "Dispute rate — share of decisions that triggered principal pushback",
+        "Manipulation indicators — Gibbard-style strategic-reporting signals"
+      ]
     },
     {
       "id": "prompt-versioning",
@@ -1550,6 +2234,10 @@
         {
           "pattern": "own-your-prompts",
           "relation": "generalises"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2109,6 +2797,130 @@
       ]
     },
     {
+      "id": "sampled-prompt-trace-eval",
+      "name": "Sampled Prompt Trace Eval",
+      "aliases": [
+        "Sampled Monitoring Eval",
+        "Random-Sample LLM-Judge"
+      ],
+      "category": "governance-observability",
+      "intent": "Capture full prompt/response/metadata traces from production into a monitoring dataset, but only run LLM-judge evaluation on a random sample so monitoring cost stays bounded as traffic grows.",
+      "context": "A production LLM application receives thousands or millions of requests. The team wants production quality metrics — LLM-judge scores on actual traffic, not just on offline eval sets. Running an LLM judge on every request doubles inference cost and is infeasible at scale.",
+      "problem": "Two failure shapes are common. Run the judge on every trace and the monitoring cost matches or exceeds the production cost; engineering pressure cuts judging quickly. Run no judging and the team relies on offline evals that drift from production distribution; regressions in real traffic are invisible until users complain. Without a sampling discipline, monitoring is either unaffordable or absent.",
+      "forces": [
+        "LLM-judge cost is per-trace; total scales with traffic.",
+        "A representative sample is sufficient to track quality drift over time.",
+        "Sampling rate must be tuned to traffic volume and budget.",
+        "Some slices of traffic (high-value, high-risk) deserve higher sampling than uniform."
+      ],
+      "therefore": "Therefore: capture full traces but run LLM-judge evaluation only on a random sample, with optional weighted sampling on high-value slices, so monitoring cost stays bounded while quality metrics remain representative.",
+      "solution": "Log every production request's prompt, response, retrieved context, model parameters, and metadata to a monitoring store (Opik, LangSmith, Comet). On a configurable sample rate (e.g. 5% uniform plus 50% on enterprise tenants), run the LLM judge against the rubric. Aggregate scores over time windows. Surface drift in dashboards. Sampling rate, weighted slices, and budget are all configuration. Distinct from shadow-canary (which compares two variants) and from offline eval (which uses a frozen set).",
+      "consequences": {
+        "benefits": [
+          "Monitoring cost stays bounded as traffic grows.",
+          "Quality metrics track production distribution, not just offline sets.",
+          "Drift detection on real traffic with statistically defensible sampling."
+        ],
+        "liabilities": [
+          "Tail-end rare failures may be under-sampled.",
+          "Sampling rate tuning is a recurring decision as traffic grows.",
+          "Slice-weighted sampling adds complexity to dashboards and to drift attribution."
+        ]
+      },
+      "constrains": "Production quality monitoring with LLM judges must not run on every trace at scale; the judge runs on a random sample drawn at a documented rate.",
+      "known_uses": [
+        {
+          "system": "LLM Engineer's Handbook (Iusztin, Labonne) — Prompt monitoring pipeline with sampling",
+          "status": "available",
+          "url": "https://medium.com/decodingai/the-ultimate-prompt-monitoring-pipeline-886cbb75ae25"
+        },
+        {
+          "system": "Opik, Comet, LangSmith production monitoring sampling features",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses"
+        },
+        {
+          "pattern": "agent-as-judge",
+          "relation": "complements"
+        },
+        {
+          "pattern": "eval-harness",
+          "relation": "complements"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "complements"
+        },
+        {
+          "pattern": "shadow-canary",
+          "relation": "complements"
+        },
+        {
+          "pattern": "decision-log",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "authors": "Paul Iusztin, Maxime Labonne",
+          "year": 2024,
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "type": "blog",
+          "title": "The Ultimate Prompt Monitoring Pipeline",
+          "url": "https://medium.com/decodingai/the-ultimate-prompt-monitoring-pipeline-886cbb75ae25"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "monitoring",
+        "evaluation",
+        "sampling"
+      ],
+      "example_scenario": "A SaaS platform processes 500k LLM requests per day. The team logs every trace to Opik. An LLM judge runs against a faithfulness/answer-quality rubric on 5% uniform plus 50% of enterprise-tier requests. Daily aggregate scores feed a drift dashboard. A regression in faithfulness on the enterprise slice is caught within hours despite the judge running on only ~25k requests.",
+      "applicability": {
+        "use_when": [
+          "Production traffic is large enough that judging every trace is infeasible.",
+          "Drift detection on real traffic matters.",
+          "Some slices justify weighted sampling."
+        ],
+        "do_not_use_when": [
+          "Traffic is small enough to judge every trace cheaply.",
+          "Rare-tail failures dominate the failure budget and uniform sampling misses them.",
+          "Per-trace ground-truth exists; sampling not needed because deterministic checks suffice."
+        ]
+      },
+      "evaluation_metrics": [
+        "Judging cost share — judge spend as fraction of inference spend.",
+        "Slice coverage — share of sampled judgements per slice over time.",
+        "Drift detection lag — time from quality regression to dashboard alert."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Req[Production request] --> Inf[Inference]\n  Inf --> Log[Trace log: every request]\n  Log --> Samp[Sample: 5% uniform + slices]\n  Samp --> Judge[LLM judge]\n  Judge --> Agg[Aggregate dashboard]\n  Agg --> Op[Operator]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Trace logger — captures every production request",
+        "Sampling policy — uniform + weighted slice rates",
+        "LLM-judge runner — scores sampled traces",
+        "Drift dashboard — aggregates over time windows"
+      ],
+      "tools": [
+        "Monitoring store (Opik, LangSmith, Comet)",
+        "LLM-judge service — runs the rubric prompt",
+        "Slice-config store — maintains weighted sampling rates"
+      ]
+    },
+    {
       "id": "sandbox-escape-monitoring",
       "name": "Sandbox Escape Monitoring",
       "aliases": [
@@ -2419,6 +3231,34 @@
         {
           "pattern": "context-gap-security",
           "relation": "complements"
+        },
+        {
+          "pattern": "bayesian-bandit-experimentation",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "crawl-walk-run-automation-gating",
+          "relation": "complements"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "complements"
+        },
+        {
+          "pattern": "sampled-prompt-trace-eval",
+          "relation": "complements"
+        },
+        {
+          "pattern": "progressive-delegation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "trust-and-reputation-routing",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-variant-evaluation",
+          "relation": "alternative-to"
         }
       ],
       "references": [

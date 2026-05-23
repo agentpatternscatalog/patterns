@@ -177,6 +177,10 @@
         {
           "pattern": "tool-over-broad-scope",
           "relation": "complements"
+        },
+        {
+          "pattern": "cost-aware-action-delegation",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -301,6 +305,10 @@
         {
           "pattern": "red-team-sandbox-reproduction",
           "relation": "complements"
+        },
+        {
+          "pattern": "corrigible-off-switch-incentive",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -552,6 +560,10 @@
         {
           "pattern": "red-team-sandbox-reproduction",
           "relation": "complements"
+        },
+        {
+          "pattern": "corrigible-off-switch-incentive",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -973,6 +985,123 @@
       "last_updated": "2026-05-21"
     },
     {
+      "id": "compound-error-degradation",
+      "name": "Compound Error Degradation",
+      "aliases": [
+        "Per-Step Accuracy Collapse",
+        "Multiplicative Error",
+        "Long-Horizon Error Compounding"
+      ],
+      "category": "anti-patterns",
+      "intent": "Anti-pattern: deploy a long-horizon agent without modelling that per-step accuracy multiplies across the trajectory.",
+      "context": "A team has measured that the underlying model resolves single isolated tool calls or sub-tasks at a respectable per-step success rate — say 95%. They scale the agent up to a 20-step or 100-step pipeline (research loops, code-agent sessions, autonomous browser flows), assuming aggregate quality will track per-step quality.",
+      "problem": "Per-step success multiplies across an agent's trajectory. A 95%-per-step pipeline ends 10 steps later at roughly 60% and 100 steps later at well under 1%. The end-to-end task success the user actually experiences therefore falls off a cliff that the per-step benchmark hid. Teams ship long-horizon agents whose per-step traces look healthy in evaluation but whose realised end-to-end task success on production traffic is unworkable, and the cause is never observable from any single step. The fix is not a better single step — it is fewer steps, better step-level recovery, or a much stronger per-step model.",
+      "forces": [
+        "Per-step benchmarks make the model look good while end-to-end task success collapses.",
+        "Longer horizons amplify any per-step error; doubling steps roughly squares the failure rate.",
+        "Adding recovery (verifier, retry, checkpoint) raises the effective per-step success above the raw model's rate.",
+        "Cutting the step count by fusing or pre-computing actions has more impact than improving the model."
+      ],
+      "therefore": "Therefore: when designing a long-horizon agent, treat aggregate task success as the product of per-step successes and budget the step count accordingly, so the realised pipeline rate clears the user-visible bar.",
+      "solution": "Model end-to-end task success as the product of per-step successes (after any per-step recovery). Either cap the step count so the product clears the user-visible success bar, or raise effective per-step success with verifiers, retries, and intermediate checkpoints. Treat raw per-step accuracy on a benchmark as a ceiling, not a forecast.",
+      "consequences": {
+        "benefits": [
+          "Naming the failure mode forces explicit step budgets and per-step recovery.",
+          "Surfaces when a problem needs a stronger model versus a shorter pipeline."
+        ],
+        "liabilities": [
+          "Estimating per-step success on production-shaped tasks is hard; benchmarks rarely transfer.",
+          "Step-level verifiers add their own error term that must be modelled too."
+        ]
+      },
+      "constrains": "Per-step accuracy on a benchmark must not be used as a forecast of end-to-end agent success; the product over the trajectory bounds what the agent can deliver.",
+      "known_uses": [
+        {
+          "system": "Long-horizon coding agents (Devin, SWE-agent) on long trajectories",
+          "status": "available"
+        },
+        {
+          "system": "Multi-step research agents (deep-research style loops)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "step-budget",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-transition-fusion",
+          "relation": "alternative-to",
+          "note": "Fusing tools is one way to shrink step count and dodge multiplicative error."
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Agents — Chip Huyen",
+          "authors": "Chip Huyen",
+          "year": 2025,
+          "url": "https://huyenchip.com/2025/01/07/agents.html"
+        },
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "authors": "Chip Huyen",
+          "year": 2024,
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "anti-pattern",
+        "long-horizon",
+        "evaluation"
+      ],
+      "example_scenario": "A team benchmarks their planner-executor at 92% per-step accuracy on a curated tool-call dataset and ships it on a workflow that averages 30 steps. Realised end-to-end task completion comes back at ~8%. The team assumed step quality would carry the pipeline; the multiplicative product (0.92^30 ≈ 0.082) was the actual ceiling. They cut step count by fusing common tool pairs and add a verifier that lifts effective per-step success to ~98%; aggregate rises to ~55%.",
+      "applicability": {
+        "use_when": [
+          "Naming this anti-pattern when reviewing a long-horizon agent proposal.",
+          "Per-step benchmarks look healthy but end-to-end success on production traffic does not.",
+          "A long pipeline is being proposed with no step budget and no per-step verifier."
+        ],
+        "do_not_use_when": [
+          "The agent loops fewer than ~5 steps on a typical task; multiplicative error is negligible.",
+          "A strong per-step verifier already lifts effective per-step success above ~99%.",
+          "End-to-end success is measured directly on representative traffic, not extrapolated from step benchmarks."
+        ]
+      },
+      "failure_modes": [
+        "Step benchmark looks good — end-to-end fails — root cause obscured.",
+        "Adding more steps to recover hurts more than it helps because each new step adds its own error term."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  P[Per-step success p]\n  N[Steps per task n]\n  P --> Mult[Aggregate ≈ p^n]\n  N --> Mult\n  Mult --> Drop{Below bar?}\n  Drop -- yes --> Cap[Cap step count]\n  Drop -- yes --> Ver[Add per-step verifier]\n  Drop -- yes --> Fuse[Fuse step pairs]\n  Drop -- no --> Ship[Ship]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Per-step success estimator — measures p on benchmark and on production-shaped tasks",
+        "Step budget — caps n so p^n clears the user-visible bar",
+        "Per-step verifier — raises effective p with cheap checks at each step",
+        "Aggregate-success monitor — surfaces end-to-end task success vs benchmark p"
+      ],
+      "tools": [
+        "Per-step eval set — measures raw p on representative inputs",
+        "Trajectory logger — captures end-to-end success for aggregate metrics",
+        "Step-level scorer — produces the verifier signal that lifts effective p"
+      ],
+      "evaluation_metrics": [
+        "Aggregate task-success rate — measured on representative production traffic",
+        "Implied per-step accuracy — back-computed from aggregate vs step count",
+        "Step-budget compliance — share of runs honouring the documented cap"
+      ]
+    },
+    {
       "id": "deception-manipulation",
       "name": "Deception Manipulation",
       "aliases": [
@@ -1176,6 +1305,10 @@
         {
           "pattern": "demo-production-cliff-multiagent",
           "relation": "generalises"
+        },
+        {
+          "pattern": "evaluation-driven-development",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2962,6 +3095,14 @@
         {
           "pattern": "llm-as-judge",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "risk-averse-reward-proxy",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "soft-optimization-cap",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -4263,6 +4404,10 @@
         },
         {
           "pattern": "naive-retry-without-backoff",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "composable-termination-conditions",
           "relation": "alternative-to"
         }
       ],

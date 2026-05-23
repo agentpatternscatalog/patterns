@@ -3,6 +3,130 @@
   "label": "Structure & Data",
   "patterns": [
     {
+      "id": "business-llm-microservice-split",
+      "name": "Business + LLM Microservice Split",
+      "aliases": [
+        "CPU/GPU Tier Split",
+        "Inference-Service Decoupling"
+      ],
+      "category": "structure-data",
+      "intent": "Split an LLM application into a CPU-bound business microservice (retrieval, prompt assembly, orchestration) and a GPU-bound LLM microservice (only model.generate behind REST), so each tier scales on its own hardware budget.",
+      "context": "A production LLM application bundles retrieval, prompt assembly, post-processing, business logic, and the LLM inference call into a single service. The service autoscales as a unit. The LLM call needs GPU; the rest does not. The unified deployment pays GPU prices to autoscale the CPU-only parts.",
+      "problem": "Bundled deployments waste expensive hardware. As traffic grows, the autoscaler adds whole GPU pods to handle CPU-bound spikes in prompt assembly and retrieval, while genuine GPU-bound spikes drag the entire service. Maintenance is coupled: bumping the model means redeploying the business logic; bumping the retrieval code means restarting GPU pods. The single service is a strict generalisation that loses on cost, scaling, and deploy velocity.",
+      "forces": [
+        "LLM inference needs GPU; retrieval and prompt assembly do not.",
+        "Independent scaling axes (RPS, token throughput) have different load shapes.",
+        "Coupled deploys slow both teams; decoupled deploys let model and business iterate independently.",
+        "REST boundary adds one network hop per request — a measurable latency cost."
+      ],
+      "therefore": "Therefore: split the application into a CPU business service (retrieval, prompt assembly, orchestration) and a GPU LLM service exposing only model.generate over REST, so each tier scales on its own hardware budget and is deployed on its own cadence.",
+      "solution": "Define the LLM microservice's contract as a single REST endpoint: generate(prompt, params) → completion. Run it on GPU autoscaling on token-throughput metrics. Run everything else — retrieval, prompt templating, business logic, orchestration, output post-processing — in the CPU business service that calls the LLM service over REST. Bound the LLM service's tail latency with batching, queueing, and admission control. The business service can use multiple LLM service instances (different models, different providers) behind the same contract.",
+      "consequences": {
+        "benefits": [
+          "GPU pods size to GPU-bound load only; CPU pods to CPU-bound load only.",
+          "Model swaps and business-logic changes deploy independently.",
+          "Multiple LLM providers can sit behind one contract without business-service changes."
+        ],
+        "liabilities": [
+          "One extra network hop per LLM call — latency cost.",
+          "Two services to operate, deploy, monitor.",
+          "Cross-service tracing required to make end-to-end latency visible."
+        ]
+      },
+      "constrains": "An LLM application must not bundle GPU inference with CPU business logic in one service when scaling and deploy cadence diverge; the LLM call lives behind its own service contract.",
+      "known_uses": [
+        {
+          "system": "LLM Engineer's Handbook (Iusztin, Labonne, Packt 2024) — Twin business/inference services",
+          "status": "available",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "system": "Hugging Face TGI / vLLM / SageMaker deployments as standalone LLM services",
+          "status": "available"
+        },
+        {
+          "system": "Most production LLM platforms (Anthropic, OpenAI) — model inference behind API",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "fti-llm-pipeline-split",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "agent-adapter",
+          "relation": "complements"
+        },
+        {
+          "pattern": "augmented-llm",
+          "relation": "complements"
+        },
+        {
+          "pattern": "prompt-caching",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "uses"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "authors": "Paul Iusztin, Maxime Labonne",
+          "year": 2024,
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "type": "blog",
+          "title": "Architect scalable and cost-effective LLM & RAG inference pipelines",
+          "url": "https://www.decodingai.com/p/architect-scalable-and-cost-effective"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "architecture",
+        "scaling",
+        "deployment"
+      ],
+      "example_scenario": "A RAG support platform deploys a CPU FastAPI business service handling retrieval (Qdrant), prompt assembly, and tenant routing, plus a separate GPU LLM service hosting a fine-tuned model behind TGI. Traffic spike: CPU pods scale 5x for retrieval load, GPU pods scale 2x for inference load. A model swap (Llama-3-8B to Llama-3-70B) is a deploy in the LLM service only; the business service is unchanged.",
+      "applicability": {
+        "use_when": [
+          "LLM inference and business logic have diverging scaling profiles.",
+          "Model swaps should not force business-logic redeploys.",
+          "Multiple LLM providers may sit behind one contract."
+        ],
+        "do_not_use_when": [
+          "Very low traffic — one service is simpler and within budget.",
+          "Latency budget cannot absorb one network hop.",
+          "Team has no capacity to operate two services and cross-service tracing."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  U[User request] --> Biz[CPU business service<br/>retrieval, prompt, orchestration]\n  Biz -->|REST: generate| LLM[GPU LLM service<br/>model.generate]\n  LLM --> Biz\n  Biz --> U\n  Biz -.-> VDB[(Vector DB)]\n  Biz -.-> Cache[(Cache)]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Business service — CPU-bound retrieval, prompt assembly, orchestration",
+        "LLM service — GPU-bound model.generate behind REST",
+        "REST contract — generate(prompt, params) -> completion",
+        "Cross-service tracing — propagates request IDs for end-to-end visibility"
+      ],
+      "tools": [
+        "LLM serving runtime (TGI, vLLM, SageMaker)",
+        "REST framework for business service (FastAPI, Express)",
+        "OpenTelemetry — cross-service tracing"
+      ],
+      "evaluation_metrics": [
+        "GPU utilisation — share of GPU pod time on real inference",
+        "Cross-service tail latency — added ms from the network hop",
+        "Deploy decoupling — independent deploy frequency per service"
+      ]
+    },
+    {
       "id": "code-switching-aware-agent",
       "name": "Code-Switching-Aware Agent",
       "aliases": [
@@ -279,6 +403,138 @@
         "Signature coverage — fraction of pipeline steps expressed as signatures vs ad-hoc prompt strings"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "fti-llm-pipeline-split",
+      "name": "FTI LLM Pipeline Split",
+      "aliases": [
+        "Feature-Training-Inference Split",
+        "FTI Architecture for LLMs"
+      ],
+      "category": "structure-data",
+      "intent": "Decompose an LLM/RAG system into three independently-deployable pipelines — feature, training, inference — communicating only via a feature store and a model registry.",
+      "context": "An LLM application team owns data ingestion (cleaning raw documents into RAG features), model adaptation (SFT / DPO over the resulting datasets), and serving (retrieval + generation). Each axis has different cadence, hardware, and team ownership. Bundling them into one repository and deploy cycle couples otherwise independent work.",
+      "problem": "A monolithic LLM application makes every change touch every team. Re-embedding the corpus requires a deploy that the inference path inherits. Bumping the SFT recipe forces retraining tied to the inference release cycle. Serving SLOs are held hostage by data-pipeline failures. Without a clean decomposition along the F/T/I axes, teams step on each other and the system drifts toward incoherent versioning.",
+      "forces": [
+        "Feature, training, and inference have different cadences (continuous, periodic, on-request).",
+        "Different teams (data, ML, platform) want to own different axes.",
+        "Feature store and model registry are the natural integration points.",
+        "Decomposition adds two integration surfaces that must be operated."
+      ],
+      "therefore": "Therefore: decompose into three pipelines communicating only via a feature store and a model registry, so each pipeline iterates on its own cadence with its own ownership and no direct code coupling.",
+      "solution": "Define three pipelines. Feature pipeline: ingests raw documents, cleans, chunks, embeds, writes to the feature store (typically a vector DB plus a document store). Training pipeline: reads features from the store, fine-tunes (SFT, DPO), writes models to the model registry. Inference pipeline: reads from the feature store at request time, loads the model from the registry, generates. Communication is only via the two integration surfaces — no direct code or service calls cross pipelines. Each pipeline deploys on its own cadence.",
+      "consequences": {
+        "benefits": [
+          "Teams iterate independently; deploys decouple.",
+          "Feature store and model registry are clean abstractions for version tracking.",
+          "Standard MLOps tooling (feature stores, model registries) applies directly."
+        ],
+        "liabilities": [
+          "Two integration surfaces to operate and version.",
+          "Schema changes across the feature store ripple through downstream pipelines.",
+          "Decomposition overhead is not worth it for very small or one-off systems."
+        ]
+      },
+      "constrains": "An LLM/RAG system must not couple feature ingestion, model adaptation, and serving in one deploy unit; the three pipelines communicate only through a feature store and a model registry.",
+      "known_uses": [
+        {
+          "system": "LLM Engineer's Handbook (Iusztin, Labonne) — FTI architecture chapter",
+          "status": "available",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "system": "Hopsworks feature-store + model-registry deployments",
+          "status": "available"
+        },
+        {
+          "system": "Most large-scale RAG/LLM platforms (internal at major vendors)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "business-llm-microservice-split",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "cdc-vector-sync",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "streaming-feature-pipeline",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "naive-rag",
+          "relation": "complements"
+        },
+        {
+          "pattern": "vector-memory",
+          "relation": "uses"
+        },
+        {
+          "pattern": "augmented-llm",
+          "relation": "complements"
+        },
+        {
+          "pattern": "crawler-dispatcher",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "authors": "Paul Iusztin, Maxime Labonne",
+          "year": 2024,
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "type": "blog",
+          "title": "Simplifying AI pipelines using the FTI Architecture",
+          "url": "https://www.packtpub.com/en-us/learning/author-posts/simplifying-ai-pipelines-using-the-fti-architecture"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "architecture",
+        "mlops",
+        "data-pipeline"
+      ],
+      "example_scenario": "A RAG-and-fine-tuned-model product splits into three pipelines. The data team owns the feature pipeline that ingests Confluence and Salesforce, embeds, and writes to Pinecone. The ML team owns the training pipeline that periodically pulls eval-curated feature subsets and produces DPO-tuned models registered in MLflow. The platform team owns the inference service that reads Pinecone at request time and loads the current registered model. Each team deploys without coordination.",
+      "applicability": {
+        "use_when": [
+          "Feature, training, and inference have materially different cadences and ownership.",
+          "MLOps tooling (feature store, model registry) is available or worth standing up.",
+          "Independence of deploys is a real value to the organisation."
+        ],
+        "do_not_use_when": [
+          "System is small enough that one repository and one deploy cycle is fine.",
+          "Team cannot operate the two integration surfaces.",
+          "Latency-critical use cases that the registry round-trip would block."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Raw[Raw data] --> Feat[Feature pipeline]\n  Feat --> Store[(Feature store)]\n  Store --> Train[Training pipeline]\n  Train --> Reg[(Model registry)]\n  Store --> Inf[Inference pipeline]\n  Reg --> Inf\n  Inf --> User"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Feature pipeline — chunk/embed to feature store",
+        "Training pipeline — SFT/DPO from feature store to model registry",
+        "Inference pipeline — retrieves from feature store, loads from model registry, generates",
+        "Feature store + model registry — the two integration surfaces"
+      ],
+      "tools": [
+        "Feature store (Hopsworks, Feast, Vector DB)",
+        "Model registry (MLflow, Hugging Face Hub)",
+        "Pipeline orchestrator (Airflow, ZenML, Metaflow)"
+      ],
+      "evaluation_metrics": [
+        "Deploy decoupling — independent deploy frequency per pipeline",
+        "Cross-pipeline lag — staleness between feature update and inference visibility",
+        "Schema-change incidents — breaking changes across the feature-store boundary"
+      ]
     },
     {
       "id": "llm-as-periphery",
@@ -921,6 +1177,10 @@
         {
           "pattern": "missing-max-tokens-cap",
           "relation": "complements"
+        },
+        {
+          "pattern": "performative-message",
+          "relation": "used-by"
         }
       ],
       "references": [
