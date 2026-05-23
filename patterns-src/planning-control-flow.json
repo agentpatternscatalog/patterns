@@ -150,6 +150,247 @@
       ]
     },
     {
+      "id": "agentic-behavior-tree",
+      "name": "Agentic Behavior Tree",
+      "aliases": [
+        "ABT",
+        "Behavior Tree for LLM Agents"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Borrow the behavior-tree formalism: leaves are LLM calls or tools that return success/failure; a tree of selectors and sequences orchestrates control flow.",
+      "context": "An agent needs structured orchestration with clear fallback semantics — try one approach; if it fails, try the next; if all fail, escalate. Pure prompt chains and free-form ReAct loops have no first-class concept of 'failure of a sub-task triggers the sibling branch'. Behavior trees, widely used in game design and robotics, are the canonical formalism for this shape.",
+      "problem": "Free-form ReAct gives the LLM total freedom over control flow, which is brittle on tasks where the design intent is exactly a structured sequence of try-then-fallback. Prompt chains hard-code one path with no fallback. Custom orchestrators reinvent BT semantics ad-hoc per project. Without a first-class BT layer, the team rebuilds the same selector/sequence/decorator vocabulary every time, with diverging implementations and no shared mental model.",
+      "forces": [
+        "Selector (try children until one succeeds) and Sequence (run all children, fail on first failure) are the core BT primitives.",
+        "Leaves can be LLM calls, tool invocations, or even sub-agents.",
+        "Success/failure must propagate cleanly upward.",
+        "Retries, timeouts, and decorators (e.g. invert, always-succeed) are standard BT extensions."
+      ],
+      "therefore": "Therefore: orchestrate the agent as a behavior tree whose leaves are LLM calls or tool invocations and whose interior nodes are selectors and sequences, so control flow is explicit, retry/fallback is first-class, and the structure is reviewable.",
+      "solution": "Build the agent as a tree. Interior nodes are Selectors (try children left-to-right, succeed on first success) and Sequences (run children left-to-right, fail on first failure), plus standard decorators (Retry, Timeout, Invert). Leaves call the LLM or a tool and return SUCCESS or FAILURE. The tree executes top-down per tick; status propagates up. The tree itself is a versioned artifact reviewers can read. Distinct from [[plan-and-execute]] (one-shot plan + sequential run): a behavior tree is the structure of the controller across runs.",
+      "consequences": {
+        "benefits": [
+          "Retry, fallback, and escalation are first-class structural choices.",
+          "Reviewable as a tree, not a prompt.",
+          "Composes naturally with sub-agents at leaves."
+        ],
+        "liabilities": [
+          "Tree authoring is up-front design work; ad-hoc cases want to bypass the tree.",
+          "Mixing LLM leaves with deterministic ones complicates timing and cost reasoning.",
+          "Authors may overuse decorators to paper over leaf flakiness."
+        ]
+      },
+      "constrains": "Control flow with structured fallback must not be left entirely to LLM reasoning; selector/sequence/decorator semantics are explicit in the tree.",
+      "known_uses": [
+        {
+          "system": "AI Agents in Action (Lanham) — Agentic Behavior Trees",
+          "status": "available",
+          "url": "https://livebook.manning.com/book/ai-agents-in-action/chapter-6"
+        },
+        {
+          "system": "Game/robotics BT libraries adapted to LLM agents (py_trees + LLM leaves)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "react",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "behavior-tree-back-chaining",
+          "relation": "complements",
+          "note": "Back-chaining is one way to construct an ABT."
+        },
+        {
+          "pattern": "fallback-chain",
+          "relation": "uses"
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "circuit-breaker",
+          "relation": "complements"
+        },
+        {
+          "pattern": "degenerate-output-detection",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "AI Agents in Action",
+          "authors": "Micheal Lanham",
+          "year": 2025,
+          "url": "https://www.manning.com/books/ai-agents-in-action"
+        },
+        {
+          "type": "blog",
+          "title": "Introduction to Autonomous Assistants with Behaviour Trees",
+          "authors": "Micheal Lanham",
+          "url": "https://medium.com/@Micheal-Lanham/introduction-to-autonomous-assistants-with-behaviour-trees-b79ec24fc346"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "planning",
+        "behavior-tree",
+        "control"
+      ],
+      "example_scenario": "A customer-onboarding agent's behavior tree at the top level is a Sequence: validate identity → set up account → send welcome. The validate-identity child is a Selector: try OAuth → fall back to email-verify → fall back to escalate-to-human. Each leaf is an LLM call or tool. If OAuth fails, the agent moves to email-verify without the LLM having to reason about fallback structure.",
+      "applicability": {
+        "use_when": [
+          "Control flow has structured retries, fallbacks, and escalations.",
+          "Reviewing the agent's structure is a first-class need.",
+          "Multiple leaf implementations (LLM, tool, sub-agent) need uniform success/failure semantics."
+        ],
+        "do_not_use_when": [
+          "The agent's control flow is genuinely open-ended exploration — ReAct fits better.",
+          "Task is one-shot; tree authoring overhead is not justified.",
+          "Team has no BT vocabulary and the tree becomes a custom DAG no one can read."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Root[Sequence] --> A[Selector: validate]\n  Root --> B[Setup account]\n  Root --> C[Send welcome]\n  A --> OAuth[OAuth leaf]\n  A --> Email[Email-verify leaf]\n  A --> Esc[Escalate-to-human leaf]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Selector node — tries children left-to-right, succeeds on first success",
+        "Sequence node — runs children left-to-right, fails on first failure",
+        "Decorator nodes — Retry, Timeout, Invert, AlwaysSucceed",
+        "Leaf nodes — LLM call, tool call, or sub-agent"
+      ],
+      "tools": [
+        "py_trees or equivalent BT runtime — schedules ticks",
+        "Trace logger — records per-node status per tick",
+        "Tree editor — visual or text authoring of tree structure"
+      ],
+      "evaluation_metrics": [
+        "Per-node success rate — diagnostic on which leaves dominate failure",
+        "Fallback-firing rate — share of selectors that fall through to later children",
+        "Tree-shape changes per release — proxy for instability in design"
+      ]
+    },
+    {
+      "id": "behavior-tree-back-chaining",
+      "name": "Behavior Tree Back Chaining",
+      "aliases": [
+        "Goal-Driven BT Construction",
+        "Postcondition-Driven Tree"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Construct an agent's behavior tree starting from the desired goal condition and recursively adding child nodes whose post-conditions satisfy each parent's pre-conditions.",
+      "context": "A team is authoring a [[agentic-behavior-tree]] for a complex task. Authoring it forward — guess at the root, then the children, then leaves — leads to trees that look plausible but do not actually achieve the goal because pre-conditions of interior nodes are not satisfied by the children chosen.",
+      "problem": "Forward authoring confuses the question 'what tasks belong in this sub-tree' with 'do those tasks produce the conditions the parent needs'. Designers end up with trees that demo well on the happy path but fail when sub-task pre-conditions are not met. Without a construction discipline that asks 'what post-condition must hold for the parent to succeed, and what tasks produce it', trees grow as decorative tracings of the designer's intuition rather than principled goal-driven structures.",
+      "forces": [
+        "Goal post-conditions are usually the most stable artifact in the task spec.",
+        "Each node has a pre-condition (what must hold for it to run) and a post-condition (what it produces).",
+        "Children must satisfy the parent's pre-condition; this constraint should drive authoring.",
+        "Mechanical back-chaining produces broad shallow trees; manual pruning is needed."
+      ],
+      "therefore": "Therefore: start at the desired goal condition and recursively add child nodes whose post-conditions satisfy each parent's pre-conditions, so the tree is constructed by what's required rather than by what's intuitive.",
+      "solution": "Author the tree from the root downward by asking, for each new node, 'what pre-conditions must hold for this to succeed, and what tasks produce those pre-conditions?'. Each task added becomes a child whose own pre-conditions trigger another round. Recurse until pre-conditions are satisfied by the starting state. Mechanical back-chaining yields broad trees; designers prune to the cases the agent will realistically encounter. The discipline ensures every node's children are there because they produce something the parent needs.",
+      "consequences": {
+        "benefits": [
+          "Trees that demonstrably achieve the goal because pre-conditions are satisfied by construction.",
+          "Surfaces missing tasks: a pre-condition with no producer is an obvious gap.",
+          "Trees evolve cleanly: new edge cases add a producer for a missing pre-condition."
+        ],
+        "liabilities": [
+          "Pre-conditions and post-conditions must be expressible — many real tasks have fuzzy conditions.",
+          "Mechanical back-chaining produces wide trees that need pruning judgment.",
+          "Authoring discipline costs up-front time vs intuition-driven sketching."
+        ]
+      },
+      "constrains": "The behavior tree must not be authored only forward by intuition; every interior node's children must be present because their post-conditions satisfy the parent's pre-conditions.",
+      "known_uses": [
+        {
+          "system": "AI Agents in Action (Lanham) — Building ABTs with back chaining (Chapter 6.5)",
+          "status": "available",
+          "url": "https://livebook.manning.com/book/ai-agents-in-action/chapter-6"
+        },
+        {
+          "system": "Robotics/game-AI BT design literature",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agentic-behavior-tree",
+          "relation": "complements"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "goal-decomposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "AI Agents in Action",
+          "authors": "Micheal Lanham",
+          "year": 2025,
+          "url": "https://www.manning.com/books/ai-agents-in-action"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "planning",
+        "behavior-tree",
+        "construction"
+      ],
+      "example_scenario": "Goal: customer is onboarded. Pre-condition: account exists and welcome sent. Producers: account-setup task (needs identity verified) and welcome-send task (needs email known). Back-chain identity verified → OAuth or email-verify or escalation. Back-chain email known → OAuth, OAuth response, or ask-user. The resulting tree's leaves are exactly the starting-state-satisfiable tasks; everything in between was added because something above needed it.",
+      "applicability": {
+        "use_when": [
+          "Authoring a behavior tree for a task with expressible pre/post-conditions.",
+          "Forward-authored trees have been failing because pre-conditions were missed.",
+          "The team values construction discipline over speed of first draft."
+        ],
+        "do_not_use_when": [
+          "Pre/post-conditions cannot be expressed cleanly for the task domain.",
+          "Tree is small enough that forward intuition is fine.",
+          "Mechanical back-chaining produces an unmanageably wide tree the team cannot prune."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart BT\n  Onb[Customer onboarded] --> Acc[Account exists]\n  Onb --> Wel[Welcome sent]\n  Acc --> IDv[Identity verified]\n  Wel --> Em[Email known]\n  IDv --> O[OAuth]\n  IDv --> EV[Email-verify]\n  IDv --> Esc[Escalation]\n  Em --> O\n  Em --> Ask[Ask user]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Goal condition — root post-condition to satisfy",
+        "Pre/post-condition catalog — per-task contracts",
+        "Back-chaining engine — recursively adds children whose post-conditions satisfy parent pre-conditions",
+        "Pruning policy — trims branches not realistic for production traffic"
+      ],
+      "tools": [
+        "Condition language — small DSL or schema for expressing pre/post-conditions",
+        "Tree builder — constructs the BT from the back-chain output",
+        "Eval harness — checks the constructed tree against goal scenarios"
+      ],
+      "evaluation_metrics": [
+        "Goal-achievement rate — share of runs that reach the root post-condition",
+        "Missing-producer count — pre-conditions with no task producing them",
+        "Tree depth and breadth — proxy for over-specification"
+      ]
+    },
+    {
       "id": "clone-fan-out-research",
       "name": "Clone Fan-Out Research",
       "aliases": [
@@ -235,6 +476,10 @@
         {
           "pattern": "role-typed-subagents",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "query-decomposition-agent",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -437,6 +682,131 @@
       ]
     },
     {
+      "id": "distributed-constraint-optimization",
+      "name": "Distributed Constraint Optimization",
+      "aliases": [
+        "DCOP",
+        "ADOPT",
+        "Distributed Constraint Reasoning"
+      ],
+      "category": "planning-control-flow",
+      "intent": "A group of agents jointly assigns values to shared variables to minimise (or maximise) a global cost defined by inter-agent constraints, exchanging only the messages needed.",
+      "context": "Several agents each hold private variables and constraints — meeting scheduling across users who don't want to expose calendars, resource allocation across teams that don't share budgets, sensor coordination across nodes that can't centralise. The global cost depends on all variables, but no single agent has the right to see them all.",
+      "problem": "Centralising the whole problem is the easy answer but often illegal, expensive, or politically infeasible. Each agent solving locally produces solutions that violate global constraints. Without a distributed coordination algorithm that respects information boundaries, the team cannot find a global-cost-minimising assignment without surrendering privacy or autonomy.",
+      "forces": [
+        "Information cannot or should not be fully centralised.",
+        "Local optima may violate global constraints.",
+        "Message-passing has cost; communication must be bounded.",
+        "Some algorithms guarantee global optimum (ADOPT) at high message cost; others are heuristic and faster."
+      ],
+      "therefore": "Therefore: cast the joint assignment as a DCOP and solve with a distributed algorithm that exchanges only the messages needed, so global cost is minimised without centralising private variables or constraints.",
+      "solution": "Cast the problem as a DCOP: each agent owns variables; constraints are factored across agents. Run a distributed solver (ADOPT for optimal, DPOP, Max-Sum, or local-search heuristics for cheaper). Each agent communicates only with constraint-neighbours. The algorithm terminates with each agent holding an assignment that is consistent with the others and minimises (or approximately minimises) global cost. For LLM-agent applications, the LLM may serve as a propose-and-evaluate step at each agent, with a small DCOP-like backbone enforcing global consistency.",
+      "consequences": {
+        "benefits": [
+          "Global optimisation without centralising private data.",
+          "Information boundaries respected by construction.",
+          "Algorithm choice tunes communication cost vs solution quality."
+        ],
+        "liabilities": [
+          "Optimal algorithms (ADOPT) have exponential worst-case message complexity.",
+          "Constraint factorisation is itself a design problem.",
+          "Heuristic solvers may stall in local optima."
+        ]
+      },
+      "constrains": "Joint problems must not be centralised when information boundaries forbid it; agents exchange only the messages a distributed solver requires.",
+      "known_uses": [
+        {
+          "system": "Multiagent Systems (Weiss) — Distributed Constraint Reasoning (Yokoo & Ishida chapter)",
+          "status": "available",
+          "url": "https://mitpress.mit.edu/9780262731317/multiagent-systems/"
+        },
+        {
+          "system": "Sensor-network scheduling, distributed meeting scheduling research deployments",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "partial-global-planning",
+          "relation": "complements"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "supervisor",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "contract-net-protocol",
+          "relation": "complements"
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "stigmergic-coordination",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Multiagent Systems, 2nd ed.",
+          "authors": "Gerhard Weiss (ed.)",
+          "year": 2013,
+          "url": "https://mitpress.mit.edu/9780262731317/multiagent-systems/"
+        },
+        {
+          "type": "doc",
+          "title": "Distributed constraint optimization",
+          "url": "https://en.wikipedia.org/wiki/Distributed_constraint_optimization"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "coordination",
+        "constraint",
+        "distributed"
+      ],
+      "example_scenario": "Five team-calendar agents schedule a recurring cross-team meeting without exposing individual calendars. Each agent owns a variable (proposed slot) constrained by no-overlap with its team's commitments. They run Max-Sum: each agent proposes locally, exchanges aggregate cost messages with neighbours, and converges on a slot that minimises total conflict across teams without anyone seeing another team's calendar.",
+      "applicability": {
+        "use_when": [
+          "Several agents hold variables/constraints that cannot be centralised.",
+          "Global cost depends on the joint assignment.",
+          "Some algorithm in the DCOP family fits the cost/quality budget."
+        ],
+        "do_not_use_when": [
+          "Centralising is legal, cheap, and politically fine.",
+          "Constraints cannot be factored across agents — DCOP needs factorisation.",
+          "Communication cost dominates any optimisation benefit."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  A1[Agent 1: vars + local constraints] <--> A2[Agent 2: vars + local constraints]\n  A2 <--> A3[Agent 3: vars + local constraints]\n  A1 <--> A3\n  A1 --> Sol[Assignment consistent + low cost]\n  A2 --> Sol\n  A3 --> Sol"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Local variables — owned by each agent",
+        "Local constraints — owned by each agent",
+        "Message protocol — algorithm-specific (ADOPT, DPOP, Max-Sum)",
+        "Termination detector — recognises when assignment is final"
+      ],
+      "tools": [
+        "DCOP solver library — implements the algorithm family",
+        "Message bus — neighbour-to-neighbour exchange",
+        "Trace log — captures the message trace"
+      ],
+      "evaluation_metrics": [
+        "Solution quality vs centralised optimum (where measurable)",
+        "Message count to convergence",
+        "Wall-clock convergence time"
+      ]
+    },
+    {
       "id": "event-driven-agent",
       "name": "Event-Driven Agent",
       "aliases": [
@@ -520,6 +890,18 @@
         },
         {
           "pattern": "stateless-reducer-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "stigmergic-coordination",
+          "relation": "complements"
+        },
+        {
+          "pattern": "cdc-vector-sync",
+          "relation": "complements"
+        },
+        {
+          "pattern": "streaming-feature-pipeline",
           "relation": "complements"
         }
       ],
@@ -624,6 +1006,14 @@
         },
         {
           "pattern": "skill-library",
+          "relation": "complements"
+        },
+        {
+          "pattern": "bayesian-bandit-experimentation",
+          "relation": "generalises"
+        },
+        {
+          "pattern": "soft-optimization-cap",
           "relation": "complements"
         }
       ],
@@ -737,6 +1127,18 @@
         },
         {
           "pattern": "hybrid-htn-generative-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "bdi-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "behavior-tree-back-chaining",
+          "relation": "complements"
+        },
+        {
+          "pattern": "query-decomposition-agent",
           "relation": "complements"
         }
       ],
@@ -1282,6 +1684,10 @@
         {
           "pattern": "scatter-gather-saga",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "query-decomposition-agent",
+          "relation": "used-by"
         }
       ],
       "references": [
@@ -1458,6 +1864,133 @@
         "Milestone-miss detection latency — turns between miss and outer noticing",
         "Subtask success rate — fraction of dispatched subtasks the inner completed",
         "Coordination overhead — outer-loop tokens as fraction of total run cost"
+      ]
+    },
+    {
+      "id": "partial-global-planning",
+      "name": "Partial Global Planning",
+      "aliases": [
+        "PGP",
+        "Durfee-Lesser Planning"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Each agent maintains a partial view of others' plans and incrementally merges local plans into a shared partial global plan, interleaving coordination with execution.",
+      "context": "A multi-agent system coordinates on a problem where a complete global plan is impractical to compute — the problem is too large, the world is non-stationary, or agents only learn what they need to coordinate as they go. Waiting for a global plan to complete before any agent acts is unworkable.",
+      "problem": "Centralised global planning hits scaling limits and is fragile to change. Fully local planning produces inconsistent action choices that violate global constraints. Without an intermediate — a plan that is partial in coverage and global in scope, refined incrementally as agents share what they know — the team either pauses for impossible centralisation or acts inconsistently in isolation.",
+      "forces": [
+        "Complete global plans are often infeasible to compute or maintain.",
+        "Local plans alone produce inconsistent global behaviour.",
+        "Agents have incentives to share plan fragments only when coordination benefits exceed cost.",
+        "Plan revision must propagate without thrashing."
+      ],
+      "therefore": "Therefore: maintain a partial global plan that each agent holds a fragment of and refines incrementally as it shares with neighbours, so coordination interleaves with action and the system stays responsive without waiting for a complete plan.",
+      "solution": "Each agent runs a planner that produces both local actions and partial-global-plan fragments. Agents periodically exchange fragments with neighbours; merging produces consistent shared plan structure for the parts agents care about. When new observations or revisions arrive, the affected fragment is updated and shared again. The team never holds a complete global plan; it holds a sufficient partial one. Execution and planning interleave.",
+      "consequences": {
+        "benefits": [
+          "Coordinated behaviour without the cost of a complete global plan.",
+          "Resilient to non-stationary worlds — revisions are local fragments.",
+          "Scales beyond what a single planner could handle."
+        ],
+        "liabilities": [
+          "Fragment merging is non-trivial; conflicting fragments need a resolution rule.",
+          "Some coordination cases require global structure the fragments don't capture.",
+          "Thrashing on rapid revisions can degrade into pure local planning."
+        ]
+      },
+      "constrains": "Multi-agent coordination must not wait for a complete global plan; agents exchange and merge partial-global-plan fragments while continuing to act.",
+      "known_uses": [
+        {
+          "system": "Durfee & Lesser — Partial Global Planning (1987)",
+          "status": "available",
+          "url": "https://cse-robotics.engr.tamu.edu/dshell/cs631/papers/durfee87using.pdf"
+        },
+        {
+          "system": "Multiagent Systems (Weiss) — Distributed planning chapter",
+          "status": "available",
+          "url": "https://mitpress.mit.edu/9780262731317/multiagent-systems/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "distributed-constraint-optimization",
+          "relation": "complements"
+        },
+        {
+          "pattern": "blackboard",
+          "relation": "complements"
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "joint-commitment-team",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Using Partial Global Plans to Coordinate Distributed Problem Solvers",
+          "authors": "Edmund Durfee, Victor Lesser",
+          "year": 1987,
+          "url": "https://cse-robotics.engr.tamu.edu/dshell/cs631/papers/durfee87using.pdf"
+        },
+        {
+          "type": "book",
+          "title": "Multiagent Systems, 2nd ed.",
+          "authors": "Gerhard Weiss (ed.)",
+          "year": 2013,
+          "url": "https://mitpress.mit.edu/9780262731317/multiagent-systems/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "planning",
+        "distributed",
+        "coordination"
+      ],
+      "example_scenario": "A fleet of research agents investigates a sprawling open question. Each holds a partial plan over its sub-area plus the fragments it has received about adjacent sub-areas. When agent A discovers its sub-area's evidence reframes the global picture, it revises its fragment and shares with the agents whose fragments referenced it. The team never produces a single global research plan; it produces overlapping partial plans that stay consistent enough.",
+      "applicability": {
+        "use_when": [
+          "Multi-agent problem too large for a single global planner.",
+          "World is non-stationary; plans must keep revising.",
+          "Coordination benefits exceed fragment-exchange cost."
+        ],
+        "do_not_use_when": [
+          "Problem is small enough for one global planner.",
+          "Fragment merging cannot be defined for the domain.",
+          "Agents have no incentive to share plan fragments honestly."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  A[Agent A: local plan + PG fragment] <-->|exchange + merge| B[Agent B: local plan + PG fragment]\n  B <-->|exchange + merge| C[Agent C: local plan + PG fragment]\n  A <-->|exchange + merge| C\n  A --> Act[Execute local actions]\n  B --> Act\n  C --> Act"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Local planner — produces per-agent action plans",
+        "Partial global plan fragment — overlapping subset of structure shared with neighbours",
+        "Fragment exchanger — propagates updates",
+        "Fragment merger — produces consistent local view from received fragments"
+      ],
+      "tools": [
+        "Plan-fragment schema — shared format across agents",
+        "Message bus — carries fragments",
+        "Local planner runtime — re-runs when fragments change"
+      ],
+      "evaluation_metrics": [
+        "Coordination gap — distance between local plans and the implied global plan",
+        "Fragment-exchange volume — operational cost of coordination",
+        "Revision-thrash rate — frequency of contradictory updates"
       ]
     },
     {
@@ -1687,6 +2220,26 @@
         {
           "pattern": "planner-executor-verifier",
           "relation": "generalises"
+        },
+        {
+          "pattern": "bdi-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agentic-behavior-tree",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "behavior-tree-back-chaining",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "partial-global-planning",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "query-decomposition-agent",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -2388,6 +2941,127 @@
       ]
     },
     {
+      "id": "query-decomposition-agent",
+      "name": "Query-Decomposition Agent",
+      "aliases": [
+        "Sub-Query Generator",
+        "Question Splitter Agent",
+        "Decomposer-Aggregator"
+      ],
+      "category": "planning-control-flow",
+      "intent": "An agent whose explicit job is to split an incoming user query into smaller independent sub-queries that can be answered sequentially or in parallel, then merge results.",
+      "context": "A user asks a multi-part question — 'compare the privacy implications of these three vendors across GDPR, HIPAA, and SOC 2'. Answering it as one prompt produces a sprawling, low-quality response: the model interleaves vendor-axis facts with regulation-axis facts and misses combinations.",
+      "problem": "Monolithic prompts on multi-part questions collapse into vague aggregates. The model has no scaffold for fanning out and re-joining. Plan-and-Execute helps when the answer requires ordered tool actions, but multi-part questions usually need equivalent leaf sub-queries that are independent and can run in parallel. Without a decomposition-then-aggregate stage, deep-research and complex-QA pipelines produce shallow output proportional to the question's compositional complexity.",
+      "forces": [
+        "Leaf sub-queries are often independent and parallelisable.",
+        "Decomposition can over-fan if not bounded by question shape.",
+        "Aggregation step must combine without losing per-leaf nuance.",
+        "Decomposition errors silently produce blind spots in the final answer."
+      ],
+      "therefore": "Therefore: have one agent split the query into independent leaf sub-queries and merge the answers, so multi-part questions are answered by fan-out-then-aggregate rather than by one overloaded prompt.",
+      "solution": "Front the workflow with a decomposer agent whose system prompt asks it to enumerate independent sub-queries that, together, would answer the user's question. Run each sub-query (in parallel or sequence) through the answering agent, RAG retriever, or tool. Pass the leaf answers to an aggregator that composes the final response. Distinct from Plan-and-Execute (ordered actions): decomposition produces equivalent leaves, not a plan.",
+      "consequences": {
+        "benefits": [
+          "Multi-part questions get scaffolded answers with per-leaf depth.",
+          "Leaf parallelism cuts latency on independent sub-queries.",
+          "Decomposition output is itself an inspectable artifact users can challenge."
+        ],
+        "liabilities": [
+          "Mis-decomposition silently drops dimensions of the question.",
+          "Over-decomposition fans out into too many leaves and balloons cost.",
+          "Aggregation can lose nuance present in leaves."
+        ]
+      },
+      "constrains": "Multi-part queries must not be answered as one monolithic prompt; decomposition into independent leaves and explicit aggregation is required.",
+      "known_uses": [
+        {
+          "system": "Building Applications with AI Agents (Albada) — Query-Decomposition Agent",
+          "status": "available",
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html"
+        },
+        {
+          "system": "Deep-research products (Anthropic Research, ChatGPT Deep Research) fan-out sub-queries",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to",
+          "note": "P&E plans ordered actions; this produces independent leaves."
+        },
+        {
+          "pattern": "self-ask",
+          "relation": "complements"
+        },
+        {
+          "pattern": "least-to-most",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "goal-decomposition",
+          "relation": "complements"
+        },
+        {
+          "pattern": "map-reduce",
+          "relation": "uses"
+        },
+        {
+          "pattern": "clone-fan-out-research",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Building Applications with AI Agents",
+          "authors": "Michael Albada",
+          "year": 2025,
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "planning",
+        "decomposition",
+        "multi-query"
+      ],
+      "example_scenario": "User asks 'summarise revenue, headcount, and major lawsuits for each of these five companies'. The decomposer produces 15 sub-queries (5 companies × 3 dimensions). Each sub-query runs against the RAG corpus in parallel. The aggregator composes a 5×3 matrix response.",
+      "applicability": {
+        "use_when": [
+          "Questions are compositional (entity × dimension matrices, multi-source comparisons).",
+          "Sub-queries are usefully independent.",
+          "Latency budget allows parallel leaf execution."
+        ],
+        "do_not_use_when": [
+          "Question is atomic and decomposition would invent structure.",
+          "Sub-queries are not independent; ordered planning (Plan-and-Execute) is the right shape.",
+          "Aggregation cost would dominate end-to-end time."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[User query] --> Dec[Decomposer]\n  Dec --> S1[Sub-query 1]\n  Dec --> S2[Sub-query 2]\n  Dec --> S3[Sub-query 3]\n  S1 --> A1[Answer 1]\n  S2 --> A2[Answer 2]\n  S3 --> A3[Answer 3]\n  A1 --> Agg[Aggregator]\n  A2 --> Agg\n  A3 --> Agg\n  Agg --> R[Composed response]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Decomposer agent — splits the query into independent sub-queries",
+        "Leaf executors — RAG or answering agents per sub-query",
+        "Aggregator — merges leaf answers into final response",
+        "Decomposition log — exposes the split as inspectable artifact"
+      ],
+      "tools": [
+        "RAG retriever — answers each leaf",
+        "Parallel runner — fans out independent leaves",
+        "Composition prompt — templates the merge"
+      ],
+      "evaluation_metrics": [
+        "Per-leaf success rate — quality of individual sub-answers",
+        "Composition quality — judge score on the merged response",
+        "Fan-out width distribution — number of leaves per query"
+      ]
+    },
+    {
       "id": "react",
       "name": "ReAct",
       "aliases": [
@@ -2496,6 +3170,10 @@
         {
           "pattern": "incremental-model-querying",
           "relation": "complements"
+        },
+        {
+          "pattern": "agentic-behavior-tree",
+          "relation": "alternative-to"
         }
       ],
       "references": [

@@ -75,6 +75,14 @@
         {
           "pattern": "large-action-models",
           "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-transition-fusion",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -202,6 +210,18 @@
         {
           "pattern": "prompt-bloat",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "agent-persona-profile",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-transition-fusion",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -456,6 +476,18 @@
         {
           "pattern": "mrkl-systems",
           "relation": "complements"
+        },
+        {
+          "pattern": "business-llm-microservice-split",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fti-llm-pipeline-split",
+          "relation": "complements"
+        },
+        {
+          "pattern": "crawler-dispatcher",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -594,6 +626,10 @@
         },
         {
           "pattern": "magentic-one-generalist",
+          "relation": "complements"
+        },
+        {
+          "pattern": "crawler-dispatcher",
           "relation": "complements"
         }
       ],
@@ -1101,6 +1137,130 @@
       ]
     },
     {
+      "id": "crawler-dispatcher",
+      "name": "Crawler Dispatcher",
+      "aliases": [
+        "URL Domain Dispatcher",
+        "Crawler Factory"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Route each incoming URL to a domain-specific crawler through a central dispatcher mapping URL patterns to registered crawler classes.",
+      "context": "An LLM application ingests text from many web sources — LinkedIn posts, Medium articles, GitHub repos, Substack posts, custom company sites. Each source has its own structure, login flow, rate limits, and quirks. The ingestion code accumulates per-source branches.",
+      "problem": "If-else branching by URL host scales badly. Adding a new source requires editing the ingestion module, the dispatching is mixed with the per-source logic, and conflict between contributors over the module file slows down adding sources. Tests for one source pull in dependencies of all sources. Without a registry-based dispatcher, ingestion becomes a fragile monolith where each new source rewrites the world.",
+      "forces": [
+        "New sources are added frequently; cost of adding must be low.",
+        "Per-source logic differs enough that one crawler cannot serve all.",
+        "Tests for a source should not pull in unrelated crawlers.",
+        "URL-to-crawler mapping is the only routing decision; it should be one place."
+      ],
+      "therefore": "Therefore: route each URL through a central dispatcher that maps URL patterns to registered crawler classes, so adding a new source is a registration change rather than an edit to the dispatch logic.",
+      "solution": "Define a Crawler interface (e.g. `fetch(url) -> document`). Implement one crawler class per source (LinkedInCrawler, MediumCrawler, GitHubCrawler, ...). A Dispatcher object holds a registry of (URL pattern → crawler class). `dispatcher.get_crawler(url)` returns the right instance; adding a source is `dispatcher.register(pattern, CrawlerClass)`. The dispatcher is small and stable; the crawler classes evolve independently. Tests for one crawler don't import the others.",
+      "consequences": {
+        "benefits": [
+          "Adding a source is a registration call, not a module edit.",
+          "Per-source crawlers evolve and are tested independently.",
+          "Dispatch logic is one small reviewable surface."
+        ],
+        "liabilities": [
+          "URL pattern matching can be ambiguous when sources share hosts.",
+          "Cross-source coordination (rate-limit budgets across crawlers) needs a layer above the dispatcher.",
+          "Registry can drift if registrations live in many files without a startup audit."
+        ]
+      },
+      "constrains": "URL-to-crawler dispatch must not be inlined as if-else branching in the ingestion code; the mapping lives in a central registry the dispatcher consults.",
+      "known_uses": [
+        {
+          "system": "LLM Engineer's Handbook (Iusztin, Labonne) — LLM Twin crawler dispatcher pattern",
+          "status": "available",
+          "url": "https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e"
+        },
+        {
+          "system": "Scrapy spider registry, Apache Tika parser registry (canonical equivalents)",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-adapter",
+          "relation": "complements"
+        },
+        {
+          "pattern": "augmented-llm",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "complements"
+        },
+        {
+          "pattern": "fti-llm-pipeline-split",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "browser-agent",
+          "relation": "complements"
+        },
+        {
+          "pattern": "rate-limiting",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "authors": "Paul Iusztin, Maxime Labonne",
+          "year": 2024,
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079"
+        },
+        {
+          "type": "blog",
+          "title": "Your Content is Gold — Decoding AI",
+          "url": "https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e"
+        }
+      ],
+      "status_in_practice": "mature",
+      "tags": [
+        "ingestion",
+        "data-pipeline",
+        "registry"
+      ],
+      "example_scenario": "A personal-knowledge LLM ingests content from LinkedIn, Substack, GitHub, and the author's personal site. The Dispatcher has four registrations. Adding a fifth source (Bluesky) is a new BlueskyCrawler class and one register call. The ingestion module is unchanged.",
+      "applicability": {
+        "use_when": [
+          "Many heterogeneous sources need ingestion.",
+          "Sources are added frequently and per-source logic differs materially.",
+          "Tests should not couple across crawlers."
+        ],
+        "do_not_use_when": [
+          "Only one or two sources, with no growth expected.",
+          "Sources are similar enough that one crawler suffices.",
+          "Cross-source coordination (shared rate-limit budgets) dominates per-source variation."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  URL[Incoming URL] --> Disp[Dispatcher]\n  Disp --> R[Registry: pattern → class]\n  R --> Pick[Pick matching crawler]\n  Pick --> C1[LinkedInCrawler]\n  Pick --> C2[MediumCrawler]\n  Pick --> C3[GitHubCrawler]\n  C1 --> Doc[Document]\n  C2 --> Doc\n  C3 --> Doc"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Dispatcher — central object holding registry of URL pattern -> crawler class",
+        "Crawler interface — fetch(url) -> document contract",
+        "Per-source crawler classes — one per domain or platform",
+        "Registry — pattern-to-class mapping that grows by registration"
+      ],
+      "tools": [
+        "URL-pattern matcher — regex or prefix",
+        "HTTP client — used by individual crawlers",
+        "Anti-bot/login layer — used by crawlers that need session"
+      ],
+      "evaluation_metrics": [
+        "Source-add cost — engineer-hours to add a new source",
+        "Per-source success rate — fraction of URLs each crawler resolves cleanly",
+        "Dispatcher ambiguity incidents — URLs that matched multiple crawlers"
+      ]
+    },
+    {
       "id": "dual-system-gui-agent",
       "name": "Dual-System GUI Agent",
       "aliases": [
@@ -1237,6 +1397,136 @@
       ]
     },
     {
+      "id": "hierarchical-tool-selection",
+      "name": "Hierarchical Tool Selection",
+      "aliases": [
+        "Tool Tree",
+        "Categorised Tool Catalog",
+        "Two-Stage Tool Routing"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Organise tools into a tree of categories so the agent first picks a branch and then a specific tool within it.",
+      "context": "An agent has access to dozens or hundreds of tools — every public API the company exposes, every micro-action across many domains (billing, identity, scheduling, search, code, files). Presenting them all in the system prompt blows up the context window and overloads the model's selection step.",
+      "problem": "A flat tool list collapses in two ways past roughly 30 tools. Token cost grows linearly in description length × tool count. Selection error rises non-linearly as the model confuses similar tools or misses the right one entirely. Worse, permissions and ownership are flat too — there is no scope at which a team can say 'these are the billing tools, this team owns them'. The agent ends up either under-tooled (some tools dropped) or unreliable (the model picks wrong).",
+      "forces": [
+        "Token cost of tool descriptions scales with catalog size.",
+        "Model selection accuracy degrades past a few dozen choices.",
+        "Permissions, ownership, and audit naturally group by domain.",
+        "The first-stage choice (category) must be cheap enough not to cost what was saved."
+      ],
+      "therefore": "Therefore: organise tools into a tree of categories and have the agent first pick a category, then pick a specific tool within it, so token cost and selection error scale sub-linearly with catalog size.",
+      "solution": "Group tools into named categories (billing, identity, scheduling, search, code, files). At the top level the agent sees only the category names with one-line descriptions. After it picks a category, it sees the tools in that branch. Permissions can scope per branch (this user can read but not write billing tools). For very large catalogs nest the tree further. The cost is one extra decoding step at the top; the saving is paying full tool descriptions only for the chosen branch.",
+      "consequences": {
+        "benefits": [
+          "Token cost stays bounded as the catalog grows.",
+          "Selection accuracy improves because the model picks among few items at each level.",
+          "Permissions and ownership map onto the tree naturally."
+        ],
+        "liabilities": [
+          "An extra step per call adds latency and one more decoding decision.",
+          "Categories that don't carve nature at the joints (a tool that spans two domains) need duplication or compromise.",
+          "Wrong top-level pick produces a dead-end where the right tool is in a different branch."
+        ]
+      },
+      "constrains": "A large tool catalog must not be presented as a flat list to the model; tools are organised into named categories and the agent first picks a category before seeing tool-level descriptions.",
+      "known_uses": [
+        {
+          "system": "Building Applications with AI Agents (Albada) — Hierarchical Tool Selection",
+          "status": "available",
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch04.html"
+        },
+        {
+          "system": "MCP-Zero hierarchical semantic routing (arXiv 2506.01056)",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2506.01056"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "tool-use",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-skills",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mcp",
+          "relation": "complements"
+        },
+        {
+          "pattern": "mcp-bidirectional-bridge",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-computer-interface",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-transition-fusion",
+          "relation": "composes-with"
+        },
+        {
+          "pattern": "one-tool-one-agent",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "book",
+          "title": "Building Applications with AI Agents",
+          "authors": "Michael Albada",
+          "year": 2025,
+          "url": "https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch04.html"
+        },
+        {
+          "type": "paper",
+          "title": "MCP-Zero: Active Tool Discovery for Autonomous LLM Agents",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.01056"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "tool-use",
+        "scaling",
+        "routing"
+      ],
+      "example_scenario": "An ops agent has 180 tools spanning eight domains. The system prompt presents only the eight category names. After picking 'billing' the agent receives the 24 billing tools. End-to-end latency is one extra decode at the top; total tokens drop ~80% on average and selection accuracy on a 200-trace eval rises from 64% to 91%.",
+      "applicability": {
+        "use_when": [
+          "Tool catalog exceeds roughly 30 tools.",
+          "Tools naturally cluster into domain categories.",
+          "Permissions or ownership can scope per category."
+        ],
+        "do_not_use_when": [
+          "Catalog is small enough to present flat.",
+          "Tools span domains so heavily that categorisation is arbitrary.",
+          "Latency budget cannot absorb the extra top-level decode."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  P[Prompt: category names only] --> Pick1[Agent picks category]\n  Pick1 --> Bil[Billing tools]\n  Pick1 --> Idn[Identity tools]\n  Pick1 --> Sch[Scheduling tools]\n  Bil --> Pick2[Agent picks billing tool]\n  Pick2 --> Call[Tool call]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Tool tree — categories at the top, tools at the leaves",
+        "Category-description block — short prompt content for top level",
+        "Branch loader — fetches tool descriptions for the chosen branch only",
+        "Permission scoping — applies per-branch access policy"
+      ],
+      "tools": [
+        "Tool registry — holds the tree definition and per-branch descriptions",
+        "Prompt builder — assembles top-level vs branch-level prompts"
+      ],
+      "evaluation_metrics": [
+        "Token cost per tool call — tokens spent presenting tools",
+        "Selection accuracy — fraction of tool picks reviewers judge correct",
+        "Dead-end rate — share where wrong top-level pick blocks the right tool"
+      ]
+    },
+    {
       "id": "mcp",
       "name": "Model Context Protocol",
       "aliases": [
@@ -1359,6 +1649,10 @@
         {
           "pattern": "agent-adapter",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1682,6 +1976,14 @@
         {
           "pattern": "vendor-lock-in",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "performative-message",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2276,6 +2578,10 @@
         {
           "pattern": "realtime-when-batchable",
           "relation": "complements"
+        },
+        {
+          "pattern": "business-llm-microservice-split",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2860,6 +3166,10 @@
         {
           "pattern": "agent-adapter",
           "relation": "complements"
+        },
+        {
+          "pattern": "vickrey-auction-allocation",
+          "relation": "generalises"
         }
       ],
       "references": [
@@ -3485,6 +3795,123 @@
       ]
     },
     {
+      "id": "tool-transition-fusion",
+      "name": "Tool Transition Fusion",
+      "aliases": [
+        "Tool Pair Fusion",
+        "Composite Tool Synthesis",
+        "Telemetry-Driven Tool Composition"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Mine tool-call telemetry for high-probability X-then-Y transitions and fuse those pairs into a single composite tool, shrinking the planner's step count.",
+      "context": "An agent has been running long enough to accumulate substantial tool-call telemetry: which tool was called, then which tool followed, and how often. Each tool call is a model-decoding decision that can fail or cost tokens; the planner is also paying per-step latency.",
+      "problem": "Many tool sequences are nearly deterministic. After a search, the agent almost always fetches one of the top results; after a database lookup, it almost always formats and writes a row. These transitions are paid for over and over: each step is a model call, each decision an opportunity for the planner to mis-pick. The agent's intermediate decoding errors and per-step latency dominate the trajectory cost even though the team could see, from the telemetry alone, that the transition was effectively fixed.",
+      "forces": [
+        "Frequent X-then-Y pairs are visible from logs but require periodic mining to detect.",
+        "Fusing into a composite tool removes the per-step decoding decision and one step of latency.",
+        "Over-fusion hides flexibility — sometimes the agent does need to deviate from the common path.",
+        "Composite tool surface must stay legible to the planner and to humans reviewing traces."
+      ],
+      "therefore": "Therefore: mine telemetry for tool transitions above a fixed probability threshold and fuse them into named composite tools, shrinking the planner's step count along the dominant trajectory.",
+      "solution": "Sweep tool-call telemetry for transitions P(Y|X) above a threshold (e.g. 0.8). Wrap qualifying X-then-Y pairs in a composite tool whose signature is X's input and Y's output. Add the composite to the catalog; leave X and Y available for edge cases. Re-run the sweep periodically as task mix shifts. Document why each composite exists so a later reviewer understands the fusion was telemetry-driven, not author intuition.",
+      "consequences": {
+        "benefits": [
+          "Cuts one step (and one decoding decision) per fused pair.",
+          "Removes a recurring failure mode where the model picks the wrong follow-up.",
+          "Reusing telemetry instead of author intuition keeps the catalog grounded."
+        ],
+        "liabilities": [
+          "Composite tools hide the X/Y boundary from anyone reading a trace.",
+          "Over-fusion entrenches the dominant path and slows divergence when task mix shifts.",
+          "Threshold choice is a judgment call; too low fuses noise, too high yields nothing."
+        ]
+      },
+      "constrains": "Tools must not be fused merely on author intuition; fusion is gated on observed transition probability above a documented threshold from real telemetry.",
+      "known_uses": [
+        {
+          "system": "Production agents with periodic tool-catalog pruning from logs",
+          "status": "available"
+        },
+        {
+          "system": "AI Engineering (Huyen) — agent-design discussion of transition mining",
+          "status": "available",
+          "url": "https://huyenchip.com/2025/01/07/agents.html"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-computer-interface",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-skills",
+          "relation": "complements"
+        },
+        {
+          "pattern": "compound-error-degradation",
+          "relation": "alternative-to",
+          "note": "Shrinking step count is one mitigation for multiplicative error."
+        },
+        {
+          "pattern": "tool-use",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "composes-with"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Agents — Chip Huyen",
+          "authors": "Chip Huyen",
+          "year": 2025,
+          "url": "https://huyenchip.com/2025/01/07/agents.html"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "tool-use",
+        "telemetry",
+        "optimization"
+      ],
+      "example_scenario": "A code-review agent's telemetry shows that after `read_file(path)` it calls `parse_python(content)` on 94% of trajectories. The team adds a composite `read_and_parse(path)` tool; the planner now makes one call where it used to make two. End-to-end latency drops noticeably and a class of bug where the model occasionally called `parse_json` instead of `parse_python` disappears.",
+      "applicability": {
+        "use_when": [
+          "Sufficient tool-call telemetry exists to estimate transition probabilities.",
+          "Per-step latency or decoding-error rate is a measurable cost driver.",
+          "A clear majority transition (>0.8 conditional probability) recurs across many sessions."
+        ],
+        "do_not_use_when": [
+          "Tool catalog churn is high; composites rot before they earn their keep.",
+          "The X/Y pair is logically separable but operationally diverse — fusion hides legitimate branching.",
+          "No telemetry exists; intuition-only fusion is forbidden by this pattern."
+        ]
+      },
+      "evaluation_metrics": [
+        "Step reduction — average steps per task before vs after fusion.",
+        "Composite hit rate — fraction of composite calls that follow the dominant path (should stay high).",
+        "Divergence rate — fraction of tasks where the original X without Y still fires."
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Tel[Tool-call telemetry] --> Sweep[Sweep P(Y|X)]\n  Sweep --> Thr{>= threshold?}\n  Thr -- yes --> Fuse[Compose X∘Y]\n  Fuse --> Cat[Add to tool catalog]\n  Cat --> Planner\n  Thr -- no --> Keep[Keep X, Y separate]"
+      },
+      "last_updated": "2026-05-23",
+      "components": [
+        "Telemetry store — captures every tool call and its successor",
+        "Transition mining job — computes P(Y|X) over the window and flags pairs above threshold",
+        "Composite tool generator — wraps the X-then-Y pair as a single tool exposing X's input and Y's output",
+        "Catalog updater — registers the composite and keeps X, Y available for edge cases"
+      ],
+      "tools": [
+        "Tool-call log warehouse — durable store of every (tool, args, result) event",
+        "Mining job runner — periodic batch computing transition probabilities",
+        "Tool catalog registry — surface the agent loads each session"
+      ]
+    },
+    {
       "id": "tool-use",
       "name": "Tool Use",
       "aliases": [
@@ -3652,6 +4079,22 @@
         },
         {
           "pattern": "mrkl-systems",
+          "relation": "complements"
+        },
+        {
+          "pattern": "performative-message",
+          "relation": "complements"
+        },
+        {
+          "pattern": "crawler-dispatcher",
+          "relation": "complements"
+        },
+        {
+          "pattern": "hierarchical-tool-selection",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-transition-fusion",
           "relation": "complements"
         }
       ],
@@ -4143,6 +4586,18 @@
         },
         {
           "pattern": "tool-agent-registry",
+          "relation": "complements"
+        },
+        {
+          "pattern": "performative-message",
+          "relation": "complements"
+        },
+        {
+          "pattern": "business-llm-microservice-split",
+          "relation": "complements"
+        },
+        {
+          "pattern": "crawler-dispatcher",
           "relation": "complements"
         }
       ],
