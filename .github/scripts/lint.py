@@ -440,6 +440,21 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
     out: list[Violation] = []
     seen: dict[str, str | None] = {}
 
+    def _get_fallback(url: str, timeout: int = 20) -> str | None:
+        """Try GET on the URL; return None if alive, an error string otherwise."""
+        try:
+            req = request.Request(url, method="GET", headers={"User-Agent": USER_AGENT})
+            with request.urlopen(req, timeout=timeout) as resp:
+                if resp.status >= 400:
+                    return f"HTTP {resp.status}"
+                return None
+        except error.HTTPError as e:
+            if e.code in (403, 429):
+                return None
+            return f"HTTP {e.code}"
+        except Exception as e:
+            return f"{type(e).__name__}: {e}"
+
     def probe(url: str) -> tuple[str, str | None]:
         if url in seen:
             return url, seen[url]
@@ -459,20 +474,20 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
                 seen[url] = None
                 return url, None
             if e.code in (405, 501):
-                try:
-                    req = request.Request(url, method="GET", headers={"User-Agent": USER_AGENT})
-                    with request.urlopen(req, timeout=20) as resp:
-                        if resp.status >= 400:
-                            seen[url] = f"HTTP {resp.status}"
-                            return url, seen[url]
-                        seen[url] = None
-                        return url, None
-                except Exception as ee:
-                    seen[url] = f"{type(ee).__name__}: {ee}"
-                    return url, seen[url]
+                err = _get_fallback(url)
+                seen[url] = err
+                return url, err
             seen[url] = f"HTTP {e.code}"
             return url, seen[url]
         except Exception as e:
+            # Transient network errors (TLS handshake timeout, connection
+            # reset, DNS hiccup) are common between CI runners and some
+            # origin servers. Retry once with GET + longer timeout before
+            # declaring the URL dead.
+            err = _get_fallback(url, timeout=30)
+            if err is None:
+                seen[url] = None
+                return url, None
             seen[url] = f"{type(e).__name__}: {e}"
             return url, seen[url]
 
