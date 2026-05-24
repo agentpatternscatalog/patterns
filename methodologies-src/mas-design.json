@@ -1,0 +1,319 @@
+{
+  "category": "mas-design",
+  "label": "Multi-agent-system design methodologies",
+  "methodologies": [
+    {
+      "id": "orchestration-pattern-selection",
+      "name": "Orchestration Pattern Selection",
+      "aliases": ["workflow-vs-autonomous selection", "multi-agent orchestration taxonomy"],
+      "category": "mas-design",
+      "summary": "Before wiring agents together, classify the candidate orchestration as either Workflow (explicit control flow — sequential, conditional, parallel) or Autonomous (emergent control — plan-based, handoff, group-chat), then apply comparative criteria — predictability, latency, observability, cost, failure-mode shape — to pick one. When neither family alone fits, compose hybrids: a workflow shell around an autonomous core, or autonomous agents inside workflow stages. Skipping the classification step and reaching straight for autonomy is the default mistake that produces unobservable agent graphs.",
+      "intent": "Force a deliberate choice between explicit-workflow and autonomous-orchestration shapes against named criteria before any agent graph is committed to code.",
+      "when_to_apply": "Designing a multi-agent system from scratch, or refactoring one whose failure modes have outgrown its current orchestration shape. Apply when you can name the task but cannot yet defend the chosen topology against alternatives. Don't apply for a single-agent loop with one tool — there is no orchestration choice to make. Exceptions: when the deployment platform dictates one family (a strict workflow engine, or a swarm-only runtime), the selection collapses to a sub-choice within that family.",
+      "inputs": [
+        {"name": "Task decomposition", "description": "A breakdown of the user-facing task into candidate agent responsibilities."},
+        {"name": "Operating constraints", "description": "Named constraints — latency budget, cost ceiling, observability requirements, tolerance for non-determinism."},
+        {"name": "Candidate patterns", "description": "Pattern library to draw from (sequential, conditional, parallel, plan-and-execute, handoff, group-chat, hybrid)."}
+      ],
+      "outputs": [
+        {"name": "Selected orchestration pattern", "description": "Named primary pattern with the family — Workflow or Autonomous — declared explicitly."},
+        {"name": "Selection rationale", "description": "Written justification scoring the chosen pattern against alternatives on the comparative criteria."},
+        {"name": "Hybrid composition (optional)", "description": "If neither family alone fits, the explicit shell/core arrangement — e.g. workflow stages wrapping an autonomous sub-team."}
+      ],
+      "steps": [
+        {
+          "name": "Classify candidate orchestrations into the taxonomy",
+          "description": "For each plausible topology, tag it Workflow (sequential, conditional, parallel) or Autonomous (plan-based, handoff, group-chat). A topology that cannot be tagged is under-specified — go back and decompose further.",
+          "uses_patterns": ["orchestrator-workers", "handoff", "group-chat-manager", "parallel-fan-out-gather"]
+        },
+        {
+          "name": "Score against comparative criteria",
+          "description": "Score each candidate on predictability, latency, observability, cost, and characteristic failure-mode shape. Workflow tends to win on predictability and observability; Autonomous tends to win on flexibility and emergent task coverage.",
+          "uses_patterns": ["plan-and-execute"]
+        },
+        {
+          "name": "Apply selection criteria",
+          "description": "Pick the weakest topology — the most constrained, most explicit shape — that still solves the task. Autonomy is paid for in observability and guardrails; only buy what the task demands."
+        },
+        {
+          "name": "Compose hybrids when no single pattern fits",
+          "description": "If predictability and emergent coverage are both required, wrap an autonomous sub-team inside a workflow shell, or interleave workflow stages between autonomous segments. The composition itself becomes the named topology.",
+          "uses_patterns": ["orchestrator-workers", "group-chat-manager"]
+        },
+        {
+          "name": "Document the rejected alternatives",
+          "description": "Record what was considered and why it was rejected. The next team to touch the system inherits both the choice and the reasoning — without the rationale, the topology drifts back to whatever feels fashionable."
+        }
+      ],
+      "principles": [
+        "Pick the most constrained orchestration that still solves the task — autonomy is paid for in observability.",
+        "Hybrids are named compositions, not undocumented escape hatches.",
+        "Every selection writes down its rejected alternatives, or the choice is unauditable.",
+        "Workflow and Autonomous are families, not values — never select 'multi-agent' without naming the pattern."
+      ],
+      "applies_to": ["multi-agent-system", "agent"],
+      "related_patterns": [
+        "orchestrator-workers",
+        "handoff",
+        "group-chat-manager",
+        "parallel-fan-out-gather",
+        "plan-and-execute"
+      ],
+      "known_failure_modes": [
+        {"pattern": "orchestrator-as-bottleneck", "note": "Reaching for the orchestrator-workers pattern by default until the orchestrator becomes a serial chokepoint for every multi-agent decision."},
+        {"pattern": "hero-agent", "note": "Selecting an autonomous topology when a workflow would suffice, then loading one agent with every responsibility."},
+        {"pattern": "multi-agent-sequential-degradation", "note": "Choosing a long sequential workflow without budgeting for multiplicative per-step error."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Designing Multi-Agent Systems",
+          "url": "https://multiagentbook.com",
+          "chapter": "Ch 2 'Multi-Agent Patterns' §2.1 Taxonomy, §2.4 Pattern Selection and Comparison",
+          "quote": "2.1 A Taxonomy of Multi-Agent Orchestration Patterns ... 2.4 Pattern Selection and Comparison: 2.4.1 Comparative Analysis, 2.4.2 Selection Criteria, 2.4.3 Hybrid Approaches"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["orchestration", "taxonomy", "selection", "hybrid-composition"]
+    },
+    {
+      "id": "protocol-selection-mcp-vs-a2a",
+      "name": "Protocol Selection: MCP Vs A2A",
+      "aliases": ["distributed-agent protocol selection", "MCP-A2A decision"],
+      "category": "mas-design",
+      "summary": "Choose the wire protocol for a distributed agent deployment by mapping the integration shape: MCP (Model Context Protocol) when a host agent needs typed access to tools and data sources, A2A (Agent-to-Agent) when peer agents collaborate across organisational or trust boundaries, both together when an agent is simultaneously a tool consumer and a peer. Gate the decision on security considerations — credential surface, transport, identity propagation — rather than picking the protocol that came first in the docs.",
+      "intent": "Pick the right wire protocol — MCP, A2A, or both — for a distributed-agent integration by mapping the integration shape and security posture, not by defaulting to whichever protocol is trending.",
+      "when_to_apply": "Integrating an agent with external tools, data, or other agents across a process or organisational boundary. Apply before opening a port or publishing a manifest. Don't apply when everything lives in a single process — direct function calls are simpler and avoid the protocol tax. Exceptions: a single-process system that anticipates a near-term split may still benefit from drawing the protocol seam early.",
+      "inputs": [
+        {"name": "Integration inventory", "description": "List of every external system the agent must talk to — tools, data sources, peer agents — with their owners and trust boundaries."},
+        {"name": "Trust map", "description": "Which integrations cross an organisational boundary, which carry user credentials, which are first-party."},
+        {"name": "Latency and throughput requirements", "description": "Per-call SLA and aggregate-traffic profile for each integration."}
+      ],
+      "outputs": [
+        {"name": "Per-integration protocol assignment", "description": "Each integration tagged MCP, A2A, both, or 'direct' (no protocol — in-process)."},
+        {"name": "Security posture per protocol", "description": "Identity propagation, transport, credential scope, and audit hook for each protocol seam."},
+        {"name": "Composition note", "description": "Where MCP and A2A are used together, an explicit account of which agent plays which role at the seam."}
+      ],
+      "steps": [
+        {
+          "name": "Map each integration to a protocol family",
+          "description": "If the agent consumes a tool or data source on behalf of a user, that seam wants MCP. If the agent collaborates with a peer agent — task delegation, capability discovery, opaque sub-task offload — that seam wants A2A. Some seams want both."
+        },
+        {
+          "name": "Apply security considerations as a gate",
+          "description": "Before adopting a protocol on a given seam, name the credential scope, identity propagation, transport (TLS, mTLS), and the audit hook. A protocol that meets the functional need but cannot meet the security posture is rejected, regardless of fashion."
+        },
+        {
+          "name": "Compose MCP and A2A where the agent is both consumer and peer",
+          "description": "An agent that exposes its capabilities to other agents (A2A) while consuming third-party tools (MCP) speaks both. Document the seam shape so the role at each port is unambiguous."
+        },
+        {
+          "name": "Pin protocol versions and capability manifests",
+          "description": "Capture the version of each protocol in use and the capability manifest each agent or tool advertises. Upgrades become a documented event, not a silent break."
+        },
+        {
+          "name": "Record the rejected alternatives",
+          "description": "When you pick MCP over A2A (or vice versa) for a seam, write down why. Six months later when the integration breaks, the rationale is what prevents a blind switch."
+        }
+      ],
+      "principles": [
+        "MCP is for host↔tool/data; A2A is for agent↔agent — don't bend either across the other's lane.",
+        "Security posture gates the protocol choice; functional fit alone is not enough.",
+        "Composition (MCP + A2A) is normal; document the role at each seam explicitly.",
+        "Capability manifests and protocol versions are pinned artefacts, not ambient defaults."
+      ],
+      "applies_to": ["multi-agent-system", "distributed-systems"],
+      "related_patterns": [
+        "orchestrator-workers",
+        "handoff",
+        "contract-net-protocol"
+      ],
+      "known_failure_modes": [
+        {"pattern": "insecure-inter-agent-channel", "note": "Picking a protocol because it's trending without locking down transport, identity propagation, and credential scope."},
+        {"pattern": "tool-explosion", "note": "Adopting MCP without curating the tool surface — every new server adds dozens of tools the model now has to disambiguate."},
+        {"pattern": "vendor-lock-in", "note": "Picking a protocol because a single vendor's SDK is convenient, then discovering the wire format embeds vendor-specific extensions."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Designing Multi-Agent Systems",
+          "url": "https://multiagentbook.com",
+          "chapter": "Ch 12 'Protocols for Distributed Agents' §12.5 'Making Protocol Decisions' / §12.5.1 'Choosing the Right Protocol'",
+          "quote": "12.1 Core Concepts for Distributed Agents ... 12.2 Model Context Protocol (MCP) ... 12.3 Agent-to-Agent Protocol (A2A) ... 12.4 Security Considerations ... 12.5 Making Protocol Decisions"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["protocols", "mcp", "a2a", "distributed-agents", "selection"]
+    },
+    {
+      "id": "writer-critic-iterative-loop-construction",
+      "name": "Writer-Critic Iterative Loop Construction",
+      "aliases": ["generator-judge construction", "writer-reviewer pairing"],
+      "category": "mas-design",
+      "summary": "Construct a two-agent loop where one agent generates an artefact — code, plan, summary, draft — and a separate agent evaluates it against an explicit pass/fail rubric. Iterate until the critic passes or a maximum iteration count is hit. This is the *construction process* for the structural generator-critic-separation pattern: it specifies how to wire the pair, what the rubric must contain, and how to bound the loop so it cannot run forever.",
+      "intent": "Wire a generator agent and a critic agent into an iterative loop with an explicit rubric and a hard iteration cap so quality improves through bounded review rather than single-shot generation.",
+      "when_to_apply": "When the artefact has checkable quality properties — code that must pass tests, a plan that must satisfy named constraints, a summary that must cover specified points — and single-shot generation under-performs. Apply when you can write the rubric down. Don't apply when 'good' is purely subjective and the rubric collapses into 'the user likes it' — at that point you need user-in-the-loop, not a critic agent. Exceptions: even subjective tasks benefit from a critic if you can specify the negative space (what to avoid).",
+      "inputs": [
+        {"name": "Task specification", "description": "What the generator must produce, including the input format and the success criteria."},
+        {"name": "Pass/fail rubric", "description": "Explicit checklist the critic applies — must be deterministic enough that two reasonable critics would agree on the verdict."},
+        {"name": "Maximum iteration count", "description": "Hard cap on the number of writer-critic rounds — typically 3 to 8 — beyond which the loop exits with the best draft so far."}
+      ],
+      "outputs": [
+        {"name": "Generator agent", "description": "Agent that produces the artefact and accepts critic feedback on subsequent iterations."},
+        {"name": "Critic agent", "description": "Agent that applies the rubric, emits pass/fail with structured feedback, and never silently rewrites the artefact itself."},
+        {"name": "Loop controller", "description": "The bounded driver that wires generator ↔ critic, enforces the iteration cap, and surfaces the best artefact if the loop exhausts its budget."}
+      ],
+      "steps": [
+        {
+          "name": "Author the rubric the critic will apply",
+          "description": "Write the rubric down before either agent exists. List the dimensions to check, the verdict shape (pass/fail or scored), and what counts as 'fail with hints' versus 'fail terminally'. A rubric authored after the generator is biased by what the generator already does well."
+        },
+        {
+          "name": "Build the generator agent",
+          "description": "Generator produces the artefact on the first turn from the task spec alone. On subsequent turns it consumes the critic's structured feedback. The generator never grades itself.",
+          "uses_patterns": ["augmented-llm"]
+        },
+        {
+          "name": "Build the critic agent with role separation",
+          "description": "Critic only judges — it does not produce the artefact. Critic emits a structured verdict and, on fail, the smallest actionable hint that would let the generator improve. Same-model self-critique collapses the pair into a single agent; use a different model or at minimum a hard role-separating prompt.",
+          "uses_patterns": ["generator-critic-separation", "critic"]
+        },
+        {
+          "name": "Wire the bounded loop",
+          "description": "Loop controller alternates generator and critic. Pass when the critic passes. Exit at iteration cap with the highest-rated artefact. Emit per-iteration trace so the loop is auditable in retrospect."
+        },
+        {
+          "name": "Calibrate the rubric against ground truth",
+          "description": "Run a sample of artefacts through the critic and a human grader. Tighten the rubric until the critic's verdicts agree with humans at an acceptable rate. A miscalibrated critic either over-passes (false confidence) or over-fails (loop exhaustion)."
+        },
+        {
+          "name": "Instrument failure modes",
+          "description": "Log iteration counts, exit reasons, and rubric-pass rates per task class. Watch for tasks where the loop almost always exhausts the cap — that's a sign the rubric is unsatisfiable or the generator can't act on the critic's hints."
+        }
+      ],
+      "principles": [
+        "Critic and generator are separate roles — same-model self-critique ceilings at the model's blind spots.",
+        "The rubric is frozen before either agent is built; rubric-after-build is contaminated by what the generator does well.",
+        "Every loop has a hard iteration cap and a 'best so far' fallback — unbounded write-critique loops are an outage waiting to happen.",
+        "Critic emits actionable hints on fail, not just verdicts — the generator must be able to revise on the next turn."
+      ],
+      "applies_to": ["multi-agent-system", "agent", "coding-agent"],
+      "related_patterns": [
+        "generator-critic-separation",
+        "critic",
+        "evaluator-optimizer",
+        "reflection",
+        "self-refine"
+      ],
+      "related_methodologies": ["evaluation-driven-development", "ai-as-judge-evaluation"],
+      "known_failure_modes": [
+        {"pattern": "same-model-self-critique", "note": "Generator and critic share the model and prompt family — verdicts collapse to 'the generator already thought this was good.'"},
+        {"pattern": "unbounded-loop", "note": "No iteration cap or 'best so far' fallback — the loop runs forever when the rubric is unsatisfiable."},
+        {"pattern": "sycophancy", "note": "Critic rewards agreement with the generator's tone instead of applying the rubric — inflated pass rates."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Agents in Action",
+          "url": "https://www.manning.com/books/ai-agents-in-action",
+          "chapter": "Ch 4 §4.2.2 'Enhancing code output with agent critics'; Ch 6 §6.3.2 'Building a coding challenge ABT'",
+          "quote": "4.2.2 Enhancing code output with agent critics ... one agent writes code while another verifies it until the judge passes"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["writer-critic", "iterative-loop", "rubric", "bounded-iteration"]
+    },
+    {
+      "id": "aose-prometheus-lifecycle-methodology",
+      "name": "AOSE Lifecycle Methodology (Prometheus-style)",
+      "aliases": ["agent-oriented software engineering lifecycle", "Prometheus methodology"],
+      "category": "mas-design",
+      "summary": "A full agent-oriented software engineering lifecycle adapted from Prometheus and related AOSE methodologies: requirements analysis, system specification, architectural design, detailed agent design, implementation, testing, and maintenance — oriented around BDI (Belief–Desire–Intention) agents. Each phase produces a named artefact that feeds the next. Distinct from lightweight 'wire up an agent loop and iterate' approaches: AOSE is heavyweight, has been used on long-lived multi-agent systems for decades, and trades agility for traceability from goal to deployed agent.",
+      "intent": "Take a multi-agent system from informal requirements to maintained production deployment through a fully traceable lifecycle, with named artefacts at each phase that survive personnel turnover.",
+      "when_to_apply": "Building a long-lived multi-agent system where traceability matters more than time-to-first-demo — safety-critical agents, regulated domains, multi-team systems where contracts between agents must be auditable, or research deployments expected to outlive the original team. Don't apply for a throwaway prototype, a single-agent loop, or a system whose requirements you expect to rewrite weekly — AOSE's overhead is wasted there. Exceptions: even lightweight projects benefit from cherry-picking AOSE artefacts (a goal hierarchy, a role model) without adopting the full lifecycle.",
+      "inputs": [
+        {"name": "Stakeholder goals", "description": "Informally stated stakeholder needs — what the system should achieve, who relies on it, what success looks like."},
+        {"name": "Domain knowledge", "description": "Subject-matter expertise needed to model the environment the agents act in — entities, dynamics, constraints, percepts."},
+        {"name": "Available agent technology", "description": "BDI platform, communication infrastructure, agent toolkit, and runtime environment the implementation will target."}
+      ],
+      "outputs": [
+        {"name": "System specification", "description": "Goal hierarchy, scenarios, actions, percepts — the formal statement of what the system must do."},
+        {"name": "Architectural design", "description": "Agent types, role assignments, interaction protocols, and shared data."},
+        {"name": "Detailed agent designs", "description": "Per-agent capabilities, plans, beliefs, and event-handling structure."},
+        {"name": "Implemented multi-agent system", "description": "Running code that realises the architecture on the chosen BDI platform."},
+        {"name": "Test artefacts and maintenance plan", "description": "Unit and integration tests for agent behaviour, plus a documented maintenance procedure for evolving the system."}
+      ],
+      "steps": [
+        {
+          "name": "Requirements analysis",
+          "description": "Capture stakeholder goals, scenarios, and environment characteristics. Produce a goal hierarchy with parent goals decomposed into sub-goals down to actionable leaves."
+        },
+        {
+          "name": "System specification",
+          "description": "Formalise the system boundary: what percepts the agents receive, what actions they can take, what scenarios link goals to action sequences. Produce a system overview diagram."
+        },
+        {
+          "name": "Architectural design",
+          "description": "Group goals into agent types; define roles; specify the interaction protocols between agents; identify shared data and where it lives. Produce an agent acquaintance model and protocols."
+        },
+        {
+          "name": "Detailed agent design",
+          "description": "For each agent type, design its capabilities, plans, beliefs, and event-handling. BDI-oriented: a plan is a recipe for achieving a goal in a context; beliefs model the agent's view of the world."
+        },
+        {
+          "name": "Implementation",
+          "description": "Realise the detailed designs on the target BDI platform. Map plans to platform-specific plan bodies; map beliefs to belief-base entries; map protocols to message handlers."
+        },
+        {
+          "name": "Testing",
+          "description": "Unit-test individual plans and capabilities. Integration-test agent interactions against the protocols. Where formal methods apply, model-check key properties (e.g. liveness of protocols, safety invariants on shared data)."
+        },
+        {
+          "name": "Maintenance",
+          "description": "When requirements shift, walk the change back up the chain — requirement → goal → role → agent → plan — and update artefacts in step. The traceability is the asset; ad-hoc patches that bypass the chain destroy it."
+        }
+      ],
+      "principles": [
+        "Every phase produces a named artefact; phases without artefacts are aspirational, not done.",
+        "Traceability from stakeholder goal to deployed plan is the methodology's main deliverable.",
+        "BDI orientation: beliefs, desires (goals), and intentions (plans) are first-class — not implementation details.",
+        "Maintenance walks the chain — patching code without updating upstream artefacts destroys the traceability the methodology was bought for."
+      ],
+      "applies_to": ["multi-agent-system"],
+      "related_patterns": [
+        "goal-decomposition",
+        "role-assignment",
+        "inter-agent-communication",
+        "joint-commitment-team"
+      ],
+      "known_failure_modes": [
+        {"pattern": "perma-beta", "note": "Lifecycle stalls in detailed design forever because the team treats the artefacts as the deliverable instead of as a path to running code."},
+        {"pattern": "automating-broken-process", "note": "Translating a flawed manual workflow directly into a goal hierarchy bakes the flaw into every downstream agent."},
+        {"pattern": "rogue-agent-drift", "note": "Maintenance patches the implementation without updating goals and roles — over time the deployed system stops matching its own architecture."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Multiagent Systems (2nd edition)",
+          "url": "https://mitpress.mit.edu/9780262731317/multiagent-systems/",
+          "chapter": "Ch 15 'Agent-Oriented Software Engineering' (Padgham & Winikoff)",
+          "quote": "Chapter 15: Agent-Oriented Software Engineering — Lin Padgham & Michael Winikoff — AOSE Methodology, Requirements through Maintenance, Testing and Formal Methods"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["aose", "bdi", "lifecycle", "prometheus", "traceability"]
+    }
+  ]
+}

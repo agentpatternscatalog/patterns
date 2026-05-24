@@ -327,42 +327,6 @@
       ]
     },
     {
-      "pattern_id": "crawl-walk-run-automation-gating",
-      "intent": "Roll an agent out in three explicit autonomy tiers with explicit gates between tiers: Crawl (suggests only, human acts), Walk (acts on internal staff), Run (acts on external customers).",
-      "examples": [
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Every action is tagged with an autonomy tier; a policy gate rejects actions issued above the tier the action-class is promoted to, with promotion driven by clearing a measured bar.",
-          "code": "TIERS = [\"crawl\", \"walk\", \"run\"]\n\n# Per (action_class) — tier may differ across action types for the same agent.\npromotion_state = {\n    \"send_internal_summary\": {tier: \"walk\", bar: 0.95, since: \"2026-04-01\"},\n    \"refund_customer\":       {tier: \"crawl\", bar: 0.98, since: \"2026-05-15\"},\n}\n\nfunction gate_action(action):\n    current = promotion_state[action.class].tier\n    requested = action.requested_tier\n    span = tracer.start(\"autonomy.gate\", action=action.class,\n                        current=current, requested=requested)\n    decision = policy.evaluate({\n        rule:      \"action tier must not exceed promotion tier\",\n        current:   current,\n        requested: requested,\n    })\n    audit.emit({kind: \"autonomy.decision\",\n                action: action.class, allowed: decision.allow,\n                tier_used: current, ts: now()})\n    span.end()\n    if not decision.allow:\n        return reroute_to_lower_tier(action, current)\n    return execute(action, tier=current)\n\nfunction promotion_review(action_class, window):\n    metrics = dashboard.read(action_class, window)\n    bar     = promotion_state[action_class].bar\n    if metrics.acceptance_rate >= bar and metrics.harm_rate == 0:\n        promotion_state[action_class].tier = next_tier(current)\n        audit.emit({kind: \"autonomy.promotion\", action: action_class,\n                    new_tier: promotion_state[action_class].tier})\n    elif metrics.harm_rate > 0:\n        promotion_state[action_class].tier = prev_tier(current)  # demote\n\n# Why this works: autonomy decisions become explicit, per-action-class,\n# and gated by measured criteria — neither shipped-to-customers-on-day-1\n# nor stuck-behind-a-human-forever. The gate is policy, not vibes.\n# Related: see `autonomy-slider`, `approval-queue`, `shadow-canary`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-23"
-        },
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Production variant: tier gate with audit trail, sampled dashboard, PII-safe action summaries, and automated demotion on harm.",
-          "code": "STATE_TTL_DAYS = 365\n\nfunction gate_action_prod(action):\n    current = promotion.read(action.class).tier\n    decision = policy.evaluate({\n        rule: \"tier_cap\",\n        current: current, requested: action.requested_tier,\n    })\n    audit.emit(\"autonomy.gate\", {\n        ts: now(),\n        action_class: action.class,\n        requested: action.requested_tier,\n        current: current,\n        allowed: decision.allow,\n        summary: pii.scrub(action.summary()),\n    }, ttl_days=STATE_TTL_DAYS)\n    dashboard.publish(\"autonomy.gate.rate\",\n                      {class: action.class, allowed: decision.allow})\n    if not decision.allow:\n        return reroute_to_lower(action, current)\n    return execute(action, tier=current)\n\nfunction harm_watcher(action_class, window):\n    m = dashboard.read(action_class, window)\n    if m.harm_rate > 0:\n        promotion.demote(action_class)\n        audit.emit(\"autonomy.demote\", {class: action_class,\n                                       reason: \"harm_observed\"})\n        alert.page(\"autonomy demote\", class=action_class)\n\n# Why this works: every gate decision is auditable, and a harm-rate watcher\n# closes the loop by demoting automatically rather than waiting for review.\n# Related: see `policy-as-code-gate`, `pii-redaction`, `kill-switch`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-24"
-        },
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Composition variant: tier gating composed with approval-queue so any Walk-tier action requires a routed human approval before execution.",
-          "code": "function tiered_with_approval(action):                # related: approval-queue\n    current = promotion.read(action.class).tier\n    if current == \"crawl\":\n        suggest_only(action)\n        audit.emit(\"autonomy.suggest\", {class: action.class})\n        return null\n\n    if current == \"walk\":\n        ticket = approval_queue.enqueue({\n            action_class: action.class,\n            payload: action.payload,\n            requester: \"agent\",\n            tier: current,\n            ts: now(),\n        })\n        decision = approval_queue.await(ticket, timeout=\"10m\")\n        audit.emit(\"autonomy.walk_approval\", {\n            ticket: ticket, approved: decision.approved,\n            approver: decision.approver,\n        })\n        if not decision.approved:\n            return Reject(decision.reason)\n        return execute(action, tier=\"walk\")\n\n    return execute(action, tier=\"run\")\n\n# Why this works: routing Walk-tier actions through the approval queue\n# gives staff veto power and creates a per-action human-signoff record.\n# Related: see `approval-queue`, `human-in-the-loop`, `decision-log`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-24"
-        }
-      ]
-    },
-    {
       "pattern_id": "decision-log",
       "intent": "Persist the agent's reasoning trace alongside its actions so post-hoc review can answer 'why' — indexed by request id and joinable to the provenance ledger.",
       "examples": [
@@ -548,42 +512,6 @@
           "language": "pseudo",
           "intent": "Composition variant: harness composed with llm-as-judge so open-ended scorers run through a calibrated judge with rubric provenance.",
           "code": "function harness_with_judge(champion, challenger, dataset):\n    rubric = rubric_registry.get(\"answer-rubric\", \"v3\")  # related: llm-as-judge\n    out = {champion: [], challenger: []}\n\n    for ex in dataset:\n        for v in [champion, challenger]:\n            o = v.run(ex.input)\n            verdict = judge_model.score(\n                input=ex.input, output=o, rubric=rubric,\n            )\n            audit.emit(\"harness.judge\", {\n                version: v.id, ex_hash: sha256(ex.input),\n                rubric_version: \"v3\", score: verdict.score,\n            })\n            out[v].append(verdict)\n\n    decision = (mean(out[challenger]) > mean(out[champion])\n                and judge_calibration_ok())\n    audit.emit(\"harness.decision\", {\n        champion_mean: mean(out[champion]),\n        challenger_mean: mean(out[challenger]),\n        rubric: \"answer-rubric@v3\",\n        decision: decision,\n    })\n    return Promote(challenger) if decision else Hold()\n\n# Why this works: piping every harness scorer through a versioned rubric\n# means the comparison is judged consistently and the rubric is replayable.\n# Related: see `llm-as-judge`, `eval-as-contract`, `prompt-versioning`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-24"
-        }
-      ]
-    },
-    {
-      "pattern_id": "evaluation-driven-development",
-      "intent": "Forbid building the LLM application before its evaluation harness exists; freeze the eval set first and let those metrics drive model selection, prompting, and every subsequent change.",
-      "examples": [
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "The eval harness and a frozen, versioned eval set must exist before the first prompt commit; every prompt/model/tool change runs the harness and a drop is a blocker.",
-          "code": "# Step 0 (before any prompt): define what 'good' means.\nrubric_v1 = {\n    \"correctness\":  scale_1_5,\n    \"groundedness\": binary,\n    \"refusal_appropriate\": binary,\n}\neval_set_v1 = curate_from_real_inputs(n=120) + synthetic_dimensional(n=80)\nfreeze_artifact(\"rubric\", \"v1\", rubric_v1)        # immutable\nfreeze_artifact(\"eval_set\", \"v1\", eval_set_v1)\n\n# Step 1: the only way to ship a prompt edit is to pass the harness.\nfunction pre_commit_gate(change):\n    span = tracer.start(\"edd.gate\", change_id=change.id)\n    baseline   = run_evals(prior_version, eval_set_v1, rubric_v1)\n    candidate  = run_evals(change.version, eval_set_v1, rubric_v1)\n    verdict    = judge.score(baseline, candidate)\n    span.end()\n\n    audit.emit({\n        kind: \"edd.gate\",\n        change_id: change.id,\n        prior_score: baseline.score,\n        new_score:   candidate.score,\n        delta:       candidate.score - baseline.score,\n        rubric_version: \"v1\",\n        eval_set_version: \"v1\",\n    })\n    if verdict.failed or candidate.score < baseline.score:\n        return Reject(\"regression vs frozen eval set\")\n    return Approve(change)\n\n# Step 2: editing the rubric / set is itself a reviewed, versioned change\n#         (CODEOWNERS on /evals/), separate from prompt edits.\nfunction propose_rubric_change(new_rubric):\n    require_review([\"eval-owners\"])\n    freeze_artifact(\"rubric\", next_version(), new_rubric)\n\n# Why this works: building the eval first means every later change is\n# judged against a stable target instead of author taste, and model swaps\n# and prompt refactors have a comparator. There is a defensible quality\n# story on day one rather than retrofitted under stakeholder pressure.\n# Related: see `eval-harness`, `frozen-rubric-reflection`, `dimensional-synthetic-eval-set`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-23"
-        },
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Production variant: frozen rubric and dataset hashed in registry; pre-commit gate refuses changes that drop versus baseline with full audit.",
-          "code": "RUBRIC_VERSION = \"v1\"\nSET_VERSION = \"v1\"\nGATE_TTL_DAYS = 365\n\nfunction edd_pre_commit(change):\n    rubric = registry.get(\"rubric\", RUBRIC_VERSION)\n    eval_set = registry.get(\"eval_set\", SET_VERSION)\n    baseline = run_evals(prior_version, eval_set, rubric)\n    candidate = run_evals(change.version, eval_set, rubric)\n\n    audit.emit(\"edd.gate\", {\n        ts: now(),\n        change_id: change.id,\n        rubric: RUBRIC_VERSION,\n        eval_set: SET_VERSION,\n        prior: baseline.score,\n        new: candidate.score,\n        delta: candidate.score - baseline.score,\n    }, ttl_days=GATE_TTL_DAYS)\n    dashboard.publish(\"edd.score\", candidate.score)\n\n    if candidate.score < baseline.score - TOLERANCE:\n        alert.notify(change.author,\n                     \"edd regression: refused commit\",\n                     delta=candidate.score - baseline.score)\n        return Reject(\"regression vs frozen eval set\")\n    return Approve(change)\n\n# Why this works: the frozen rubric+set pair becomes the immutable target\n# every change is judged against, and the retained gate record gives a\n# defensible day-one quality story.\n# Related: see `eval-as-contract`, `frozen-rubric-reflection`, `lineage-tracking`.",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-24"
-        },
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Composition variant: EDD composed with lineage-tracking so every eval verdict pins prompt, model, and tool versions; regressions point at the exact upstream cause.",
-          "code": "function edd_with_lineage(change):                    # related: lineage-tracking\n    lin = lineage.capture(change.version)\n    # {prompt_hash, model_id, tool_versions, index_version}\n    rubric = registry.get(\"rubric\", \"v1\")\n    eval_set = registry.get(\"eval_set\", \"v1\")\n    candidate = run_evals(change.version, eval_set, rubric)\n\n    audit.emit(\"edd.lineage_gate\", {\n        ts: now(),\n        change_id: change.id,\n        lineage: lin,\n        score: candidate.score,\n    })\n\n    if candidate.score < BASELINE - TOLERANCE:\n        prior_lin = lineage.read(prior_version)\n        delta = lineage.diff(prior_lin, lin)\n        decision_log.append({\n            id: \"reject.\" + change.id,\n            evidence: {\n                regression_delta: candidate.score - BASELINE,\n                lineage_diff: delta.fields,\n            },\n        })\n        return Reject(\"regression; suspect changes: \" + str(delta.fields))\n    return Approve(change)\n\n# Why this works: binding the gate verdict to the lineage snapshot turns a\n# bare regression into a hypothesis: 'these specific fields changed'.\n# Related: see `lineage-tracking`, `decision-log`, `prompt-versioning`.",
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-24"

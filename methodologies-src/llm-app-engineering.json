@@ -1,0 +1,754 @@
+{
+  "category": "llm-app-engineering",
+  "label": "LLM-app engineering methodologies",
+  "methodologies": [
+    {
+      "id": "model-selection-workflow",
+      "name": "Model Selection Workflow",
+      "aliases": ["four-phase model selection", "private leaderboard build"],
+      "category": "llm-app-engineering",
+      "summary": "Pick a foundation model for an application in four ordered phases. First a hard-constraint filter excludes anything incompatible (licence, residency, modality). Second, public-information screening narrows the remaining candidates using published benchmarks and leaderboards. Third, an experimental evaluation on the actual use case turns those candidates into a private leaderboard. Fourth, the chosen model is continuously monitored in production against the same metrics so regressions and drift are detected. The artefact teams keep is the private leaderboard, not a one-shot 'we picked GPT-something' decision.",
+      "intent": "Reduce model selection to a reproducible four-phase workflow that produces a private leaderboard and a production monitor, not a one-time decision.",
+      "when_to_apply": "Starting any LLM application where the model is a load-bearing component — chat, RAG, agent, classification, generation. Apply before the first prompt is hardened, and re-run when a new frontier model lands or when production telemetry shifts. Don't apply when the model is fully fixed by an external constraint (regulatory mandate, single vendor contract) — the selection space is already a single point. Skip when prototyping for under a day; default to the cheapest plausible model.",
+      "inputs": [
+        {"name": "Use case specification", "description": "What the model must do, framed as a task plus a quality bar."},
+        {"name": "Hard constraints", "description": "Non-negotiable filters — data residency, licensing, modality, max latency, max cost per call."},
+        {"name": "Public benchmarks and leaderboards", "description": "Public evidence about candidate models — provider docs, papers, third-party leaderboards."},
+        {"name": "Application eval set", "description": "Inputs and a rubric specific to the actual use case, not generic benchmarks."}
+      ],
+      "outputs": [
+        {"name": "Private leaderboard", "description": "Ranked list of candidate models scored on the application eval set, versioned in the repo."},
+        {"name": "Selection record", "description": "Documented rationale linking the chosen model to the hard constraints and private-leaderboard scores."},
+        {"name": "Production monitor", "description": "Live metric pipeline that flags when the chosen model's quality or cost drifts from the leaderboard baseline."}
+      ],
+      "steps": [
+        {
+          "name": "Apply the hard-constraint filter",
+          "description": "Enumerate non-negotiable constraints — data residency, licensing, modality, context length, output size, max per-call latency, max cost. Drop every model that fails any constraint. Most pre-screening time is wasted here when constraints are implicit; making them explicit shrinks the candidate pool fast."
+        },
+        {
+          "name": "Screen on public information",
+          "description": "For survivors, read provider model cards, third-party leaderboards (LMSys, HELM, HuggingFace Open LLM), and recent papers. Form a shortlist of three to five candidates that the public evidence says are plausible for the task. Public benchmarks are weak signal — they narrow the field, they do not pick the winner."
+        },
+        {
+          "name": "Build the private leaderboard",
+          "description": "Run each shortlisted model against the application eval set. Use the same rubric for every model. Record per-model scores, cost per call, latency, and failure modes. This private leaderboard is the artefact, not a transient analysis.",
+          "uses_patterns": ["dimensional-synthetic-eval-set", "frozen-rubric-reflection"]
+        },
+        {
+          "name": "Select and document",
+          "description": "Pick the model whose private-leaderboard score, cost, and latency profile best fits the use case. Document why this model beat the runners-up. Pin the eval-set and rubric versions used so the decision is reproducible."
+        },
+        {
+          "name": "Monitor in production",
+          "description": "Instrument the production system to record the same metrics — quality (against a small live eval slice), cost per call, latency. When the metric drifts beyond a threshold, re-open the workflow.",
+          "uses_patterns": ["cost-observability", "scorer-live-monitoring"]
+        }
+      ],
+      "principles": [
+        "The private leaderboard is the artefact — public benchmarks only shortlist.",
+        "Hard constraints are filters, not preferences; they come first to shrink the candidate pool.",
+        "Selection is not a one-shot decision — production monitoring is part of the methodology.",
+        "Score every candidate on the same rubric on the same eval set, or the comparison is theatre."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system", "coding-agent"],
+      "related_patterns": [
+        "multi-model-routing",
+        "cost-observability",
+        "dimensional-synthetic-eval-set",
+        "frozen-rubric-reflection",
+        "scorer-live-monitoring"
+      ],
+      "related_compositions": ["production-llm-platform", "eval-and-observability"],
+      "related_methodologies": ["evaluation-driven-development", "build-vs-buy-foundation-model-decision"],
+      "known_failure_modes": [
+        {"pattern": "top-tier-model-for-everything", "note": "Skipping the workflow and reaching for the flagship model on every call — cost balloons without measured quality gain."},
+        {"pattern": "errors-swept-under-the-rug", "note": "Picking on public benchmarks and never building the private leaderboard — the model's failure modes on the actual use case stay invisible."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/",
+          "chapter": "Ch 4 'Evaluate AI Systems', §'Model Selection Workflow'",
+          "quote": "creating a private leaderboard to rank models based on your needs"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["model-selection", "private-leaderboard", "evaluation"]
+    },
+    {
+      "id": "build-vs-buy-foundation-model-decision",
+      "name": "Build-or-Buy Foundation Model Decision",
+      "aliases": ["seven-axis model sourcing", "open vs proprietary decision", "build vs buy foundation model"],
+      "category": "llm-app-engineering",
+      "summary": "Decide between hosting an open-weights model, calling a proprietary API, or fine-tuning your own along seven explicit axes — data privacy, data lineage, performance, functionality, control, cost, and team capability. Each axis has a verdict and a weight; the verdicts together drive the sourcing decision. The artefact is a written decision record that names the axes the loser failed on, so the choice is auditable later when constraints shift.",
+      "intent": "Replace gut-feel 'use OpenAI' or 'self-host Llama' decisions with a seven-axis comparison whose verdicts and weights are written down.",
+      "when_to_apply": "Any greenfield LLM application or any system whose existing model choice is up for review — new regulation, new model release, new cost ceiling, new performance gap. Re-apply periodically as the open-vs-proprietary landscape moves quickly. Don't apply when the choice is forced by an external constraint that already pins the answer — for example, a contractual mandate to use a specific vendor. Skip when prototyping for under a day.",
+      "inputs": [
+        {"name": "Use case and data profile", "description": "What the model must do and what data it will see — including sensitivity classification, residency requirements, and whether prompts may be logged by a third party."},
+        {"name": "Performance target", "description": "Quality bar from the application's evaluation, plus latency and throughput requirements."},
+        {"name": "Team capability inventory", "description": "Honest assessment of in-house MLOps, GPU operations, and security review capacity."},
+        {"name": "Cost envelope", "description": "Per-call ceiling, monthly burn ceiling, and amortisation horizon."}
+      ],
+      "outputs": [
+        {"name": "Seven-axis comparison table", "description": "Matrix of candidate options (proprietary API / self-hosted open weights / fine-tuned own model) scored on each axis with weight and verdict."},
+        {"name": "Decision record", "description": "Written rationale that names the axes the losing options failed on and the conditions under which the decision should be revisited."}
+      ],
+      "steps": [
+        {
+          "name": "List candidate options",
+          "description": "Enumerate the realistic options — proprietary API (OpenAI, Anthropic, Google), self-hosted open weights (Llama, Mistral, Qwen), fine-tuned in-house model, hybrid. Hybrid is a first-class candidate, not a fallback."
+        },
+        {
+          "name": "Score each option on data privacy",
+          "description": "Where does the prompt go? Is it logged? Can it be used for training? Are residency requirements met? Proprietary APIs typically lose this axis when data is regulated."
+        },
+        {
+          "name": "Score on data lineage",
+          "description": "Do you know what the model was trained on? Open-weights models have more public lineage; proprietary ones have less. Lineage matters when regulators or downstream users ask."
+        },
+        {
+          "name": "Score on performance, functionality, and control",
+          "description": "Performance: quality from the application eval. Functionality: features (function calling, structured output, vision, long context) the option supports. Control: ability to pin a model version, switch providers, fine-tune, or run offline.",
+          "uses_patterns": ["multi-model-routing", "structured-output"]
+        },
+        {
+          "name": "Score on cost and team needs",
+          "description": "Cost: per-call cost at expected volume plus operational cost (GPU ops, security review, monitoring). Team: do you have the people to operate this option? A self-hosted model with no on-call rotation is a future incident."
+        },
+        {
+          "name": "Weight, decide, and document",
+          "description": "Weight axes by use-case importance. Compute weighted scores. Pick the highest. Write down why — specifically, which axes the loser failed on and what condition would flip the decision. This makes the next review cheap."
+        }
+      ],
+      "principles": [
+        "Seven axes, not vibes — every axis has a verdict and a weight written down.",
+        "Hybrid (proprietary for some calls, self-hosted for others) is a first-class option.",
+        "Team capability is an axis — the model you cannot operate at 3am is the wrong model.",
+        "The decision is auditable: name the axes the loser failed on, so the next review is cheap."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system"],
+      "related_patterns": [
+        "multi-model-routing",
+        "cost-observability",
+        "cost-gating",
+        "structured-output"
+      ],
+      "related_compositions": ["production-llm-platform"],
+      "related_methodologies": ["model-selection-workflow", "finetune-last-resort-escalation"],
+      "known_failure_modes": [
+        {"pattern": "vendor-lock-in", "note": "Picking a proprietary API without scoring the control axis — switching cost is invisible until the vendor changes terms."},
+        {"pattern": "top-tier-model-for-everything", "note": "Defaulting to the flagship API on every call because no axis was given a weight — cost balloons without matching quality gain."},
+        {"pattern": "shadow-ai", "note": "Failing to score data-privacy properly so teams start using forbidden providers covertly — the methodology was bypassed because it never produced a usable decision."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/",
+          "chapter": "Ch 4 'Evaluate AI Systems', §'Build vs. Buy'",
+          "quote": "seven axes for comparison: data privacy, data lineage, performance, functionality, control, and cost"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["build-vs-buy", "model-sourcing", "seven-axes"]
+    },
+    {
+      "id": "finetune-last-resort-escalation",
+      "name": "Finetune-as-Last-Resort Escalation",
+      "aliases": ["fine-tuning escalation ladder", "exhaust prompting first"],
+      "category": "llm-app-engineering",
+      "summary": "Treat fine-tuning as the last rung on an escalation ladder, not the first lever. The slogan is 'fine-tuning is for form, RAG is for facts'. Climb the ladder in order — prompt engineering, few-shot prompting, retrieval-augmented generation, advanced RAG, task decomposition or agent orchestration — and only reach for fine-tuning once those rungs are exhausted. Each rung is cheap to undo; fine-tuning is not.",
+      "intent": "Force teams to exhaust prompt engineering, retrieval, and decomposition before reaching for fine-tuning, because fine-tuning is the most expensive and least reversible lever.",
+      "when_to_apply": "Whenever a team is considering fine-tuning a foundation model for a specific behaviour or quality. Apply as the gating question: 'have we tried the cheaper rungs?' Don't apply when fine-tuning is unambiguously the right tool — teaching a stable response format, encoding a new modality, or distilling a large model into a small one. Skip the ladder when the data clearly shows prompt engineering plateaued and the residual gap is a form-level issue.",
+      "inputs": [
+        {"name": "Current quality measurement", "description": "Score on the application eval set with the current configuration — model, prompt, retrieval setup."},
+        {"name": "Quality target", "description": "The score the system must reach to ship or to meet a stakeholder commitment."},
+        {"name": "Gap diagnosis", "description": "Failure-mode taxonomy of the current system — facts, form, reasoning, retrieval, tool use — so the right rung is chosen."}
+      ],
+      "outputs": [
+        {"name": "Escalation log", "description": "Ordered record of which rungs were attempted, what eval score each produced, and why the next rung was needed."},
+        {"name": "Selected lever", "description": "The lowest rung that closes the gap to the quality target."}
+      ],
+      "steps": [
+        {
+          "name": "Diagnose the gap before climbing",
+          "description": "Run the eval, look at failure modes. Is the model wrong about facts (RAG problem), wrong in form (fine-tuning problem), wrong in reasoning (decomposition problem), or wrong because tools fail (tool-use problem)? The diagnosis picks the right rung; without it, you climb in the wrong direction."
+        },
+        {
+          "name": "Rung 1: prompt engineering",
+          "description": "Improve the system prompt, output format, role specification, structured output. Measure on the eval. Many gaps close here. Cheap and reversible.",
+          "uses_patterns": ["structured-output", "prompt-versioning"]
+        },
+        {
+          "name": "Rung 2: few-shot prompting",
+          "description": "Add curated examples in the prompt that show the desired format and reasoning. Measure. Especially effective for form and style issues."
+        },
+        {
+          "name": "Rung 3: retrieval-augmented generation",
+          "description": "If facts are the problem, add retrieval. Start with naive RAG, measure, then escalate to advanced RAG (reranking, query rewriting, hierarchical retrieval) only if the naive version plateaus.",
+          "uses_patterns": ["naive-rag", "agentic-rag", "contextual-retrieval", "cross-encoder-reranking"]
+        },
+        {
+          "name": "Rung 4: task decomposition or agent orchestration",
+          "description": "If the task is too complex for one call, split it. Plan-and-execute, prompt chaining, query decomposition. Each step is then a smaller, more solvable problem.",
+          "uses_patterns": ["plan-and-execute", "prompt-chaining", "query-decomposition-agent"]
+        },
+        {
+          "name": "Rung 5: fine-tune",
+          "description": "Only now. Fine-tune for form, stable response shape, or distillation. RAG is still for facts — do not try to fine-tune knowledge in. Document the eval scores at every prior rung so the cost of fine-tuning is justified by data."
+        }
+      ],
+      "principles": [
+        "Fine-tuning is for form, RAG is for facts.",
+        "Climb in order — cheap rungs first, irreversible rungs last.",
+        "Diagnosis comes before climbing — the wrong rung wastes the most expensive lever.",
+        "Document the eval at every rung so the cost of fine-tuning is justified by data, not by team excitement."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system", "coding-agent"],
+      "related_patterns": [
+        "naive-rag",
+        "agentic-rag",
+        "contextual-retrieval",
+        "cross-encoder-reranking",
+        "plan-and-execute",
+        "prompt-chaining",
+        "query-decomposition-agent",
+        "structured-output",
+        "prompt-versioning"
+      ],
+      "related_compositions": ["production-llm-platform", "production-rag"],
+      "related_methodologies": ["tools-first-then-rag", "evaluation-driven-development", "model-selection-workflow"],
+      "known_failure_modes": [
+        {"pattern": "naive-rag-first", "note": "Skipping prompt engineering and reaching straight for retrieval — half the gap was a prompt-clarity issue that fine-tuning won't close either."},
+        {"pattern": "automating-broken-process", "note": "Fine-tuning to compensate for a broken prompt or broken retrieval pipeline — the underlying defect is now baked into the weights."},
+        {"pattern": "demo-to-production-cliff", "note": "Fine-tuning on a tiny in-house set, declaring victory in dev, then watching the model collapse on production-distribution inputs."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/",
+          "chapter": "Ch 7 'Finetuning' §'When to Finetune'",
+          "quote": "fine-tuning is for form, while RAG is for facts ... Don't fine-tune until you've exhausted prompt engineering, RAG, and agent orchestration"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["finetuning", "escalation", "rag-vs-finetune"]
+    },
+    {
+      "id": "conversational-feedback-extraction-loop",
+      "name": "Conversational Feedback Extraction Loop",
+      "aliases": ["implicit-feedback harvesting", "user-signal pipeline"],
+      "category": "llm-app-engineering",
+      "summary": "Harvest user signals from a conversational LLM application — early termination, regeneration, error correction, conversation organisation (share, save, delete) — and route them to the evaluation pipeline. The conversational interface makes feedback abundant but messy; without a deliberate extraction loop, the signal is logged and never read. The artefact is a per-turn feedback event stream with explicit and implicit signals labelled, fed back into eval-set curation and finetuning candidates.",
+      "intent": "Convert noisy in-conversation behaviour (regeneration, edits, deletes, thumbs) into a structured feedback stream that drives the evaluation and improvement loop.",
+      "when_to_apply": "Any deployed conversational LLM application — chatbot, agent, coding assistant, voice agent — where users interact across multiple turns and behavioural signals are observable. Apply early; retrofitting the schema after launch loses historical signal. Don't apply to single-shot LLM endpoints where users see one response and leave — the signal surface is too thin. Exceptions: even single-shot endpoints can capture thumbs and downstream task completion; treat them as a degenerate one-turn case.",
+      "inputs": [
+        {"name": "Conversation transcript stream", "description": "Per-conversation event log including model outputs, user messages, tool calls, and timing."},
+        {"name": "UI-affordance event hooks", "description": "Instrumentation that fires when the user regenerates, edits, copies, shares, saves, or deletes a response, plus explicit thumbs-up/thumbs-down."},
+        {"name": "Feedback schema", "description": "Versioned schema mapping raw events to labelled feedback types (implicit vs explicit, positive vs negative, severity)."}
+      ],
+      "outputs": [
+        {"name": "Per-turn feedback events", "description": "Structured stream of feedback events tagged with turn id, signal type, polarity, and confidence."},
+        {"name": "Eval-set candidate queue", "description": "Negative-signal turns surfaced as candidates for the next eval-set refresh."},
+        {"name": "Aggregate health metrics", "description": "Regeneration rate, edit rate, delete rate, thumbs balance — tracked over time per user segment and per model version."}
+      ],
+      "steps": [
+        {
+          "name": "Instrument the UI affordances",
+          "description": "Wire events on every behavioural affordance — regeneration, edit, copy, share, save, delete, conversation rename, conversation abandonment — plus the explicit thumbs. Each event carries the conversation and turn id."
+        },
+        {
+          "name": "Author the feedback schema",
+          "description": "Map raw events to feedback types. Regeneration is implicit-negative. Edit is implicit-negative (model output not quite right). Share or save is implicit-positive. Thumbs are explicit. Version the schema and pin event-to-type mappings."
+        },
+        {
+          "name": "Stream events to the feedback pipeline",
+          "description": "Route every event through a pipeline that joins it to the originating turn, tags it with model version and prompt version, and writes it to a queryable store."
+        },
+        {
+          "name": "Compute aggregate signals",
+          "description": "Track regeneration rate, edit rate, share rate, thumbs balance. Slice by user segment, by model version, by feature. Sudden changes flag regressions before users complain.",
+          "uses_patterns": ["scorer-live-monitoring", "cost-observability"]
+        },
+        {
+          "name": "Surface negative-signal turns for review",
+          "description": "Auto-queue regenerated, edited, deleted, and thumbs-down turns into a human-review surface. Reviewed turns become eval-set additions or fine-tuning candidates."
+        },
+        {
+          "name": "Close the loop into evaluation",
+          "description": "Periodically refresh the application eval set with high-confidence negative-signal turns. The eval grows with production reality, not just with what the team imagined at launch."
+        }
+      ],
+      "principles": [
+        "Implicit signals dominate volume; explicit signals dominate clarity — capture both.",
+        "Every event is tied to a model version and a prompt version; otherwise the signal is unattributable.",
+        "Negative-signal turns are eval-set candidates, not just complaints.",
+        "Schema versioning matters — a change in how regeneration is labelled invalidates historical aggregates."
+      ],
+      "applies_to": ["llm-app", "agent", "voice-agent", "coding-agent"],
+      "related_patterns": [
+        "scorer-live-monitoring",
+        "cost-observability",
+        "sampled-prompt-trace-eval"
+      ],
+      "related_compositions": ["eval-and-observability", "production-llm-platform"],
+      "related_methodologies": ["evaluation-driven-development", "shadow-canary-bandit-rollout"],
+      "known_failure_modes": [
+        {"pattern": "errors-swept-under-the-rug", "note": "Logging feedback events to a table no one queries — the signal exists but never closes the loop."},
+        {"pattern": "reward-hacking", "note": "Optimising hard for thumbs-up at the expense of other signals — sycophantic outputs score well but degrade real task completion."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/",
+          "chapter": "Ch 10 'AI Engineering Architecture and User Feedback'",
+          "quote": "The conversational interface makes it easier for users to give feedback but harder for developers to extract signals ... Early Termination or Regeneration ... Error Correction ... Conversation Organization"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["feedback", "user-signal", "telemetry", "eval-refresh"]
+    },
+    {
+      "id": "fti-pipeline-architecture",
+      "name": "FTI Pipeline Architecture",
+      "aliases": ["feature-training-inference architecture", "three-pipeline ML architecture"],
+      "category": "llm-app-engineering",
+      "summary": "Decompose any ML or LLM system into three independent pipelines — Feature, Training, and Inference — connected only via a feature store and a model registry. Each pipeline owns its lifecycle (schedule, dependencies, scaling) and exchanges with the others through versioned artefacts, never direct calls. The architecture lets each pipeline use the tools that fit it (Spark for features, GPU jobs for training, low-latency serving for inference) and lets teams own pipelines independently.",
+      "intent": "Decompose ML/LLM systems into three independent pipelines connected only through a feature store and model registry, so each pipeline can scale, be replaced, and be owned independently.",
+      "when_to_apply": "Designing any non-trivial ML or LLM system that must operate beyond a notebook — recommendation, search, RAG, LLM application, classification. Especially valuable when multiple teams own different parts of the lifecycle, when data volumes require separate scaling profiles for features and training, or when the inference path must be lower-latency than the training path. Don't apply to a single-team prototype that can fit in one script; the three-pipeline split is overhead until you have at least two of the three problems it solves (independent scale, independent ownership, independent lifecycle).",
+      "inputs": [
+        {"name": "Raw data sources", "description": "Source-of-truth data — events, documents, telemetry, transactional databases — that feature pipelines will transform."},
+        {"name": "Feature store choice", "description": "Selected feature store (offline plus online, or a single store) that becomes the contract between feature and consumer pipelines."},
+        {"name": "Model registry choice", "description": "Selected registry (Comet, MLflow, SageMaker) that holds versioned trained models with metadata and lineage."}
+      ],
+      "outputs": [
+        {"name": "Feature pipeline", "description": "Independent job(s) that read raw data, compute features, and write to the feature store on a defined schedule."},
+        {"name": "Training pipeline", "description": "Job(s) that read features and labels from the feature store, train, evaluate, and publish to the model registry."},
+        {"name": "Inference pipeline", "description": "Service(s) that load a registered model and serve predictions, reading any inference-time features from the feature store."}
+      ],
+      "steps": [
+        {
+          "name": "Name the three pipelines",
+          "description": "Write down feature, training, and inference as three separate components with separate owners, separate schedules, and separate failure modes. This is the explicit precommitment before any code lands.",
+          "uses_patterns": ["fti-llm-pipeline-split", "pipeline-triad-pattern"]
+        },
+        {
+          "name": "Define the feature contract",
+          "description": "Specify the feature schema in the feature store. Producers and consumers agree only on this contract — not on the pipelines on either side. Schema changes are versioned events.",
+          "uses_patterns": ["streaming-feature-pipeline"]
+        },
+        {
+          "name": "Build the feature pipeline",
+          "description": "Read raw sources, compute features, materialise to the feature store. Pick the runtime that fits — Spark, Flink, a CDC stream — without coupling it to the training pipeline's runtime."
+        },
+        {
+          "name": "Build the training pipeline",
+          "description": "Read features and labels from the store, train, evaluate, and publish the model to the registry with versioned metadata (data version, code version, eval scores). The registry entry is the only thing the inference pipeline sees."
+        },
+        {
+          "name": "Build the inference pipeline",
+          "description": "Load the model from the registry by version tag. Read inference-time features from the (typically online) feature store. Serve predictions. Promote new model versions via the registry, not by redeploying code."
+        },
+        {
+          "name": "Operate each pipeline independently",
+          "description": "Each pipeline scales, schedules, alerts, and retries on its own. Feature lag, training failure, and inference latency are three separate incidents with three separate owners — not one undifferentiated 'the ML system is broken'."
+        }
+      ],
+      "principles": [
+        "Three pipelines, two contracts (feature store and model registry). The contracts are the only coupling.",
+        "Each pipeline picks its own runtime — coupling pipelines through code instead of artefacts destroys the decomposition.",
+        "Schema changes to feature or model are versioned events, not silent edits.",
+        "Independence is the point — separate scale, separate ownership, separate failure surfaces."
+      ],
+      "applies_to": ["llm-app", "rag-system", "agent"],
+      "related_patterns": [
+        "fti-llm-pipeline-split",
+        "pipeline-triad-pattern",
+        "streaming-feature-pipeline",
+        "business-llm-microservice-split"
+      ],
+      "related_compositions": ["production-llm-platform", "production-rag"],
+      "related_methodologies": ["llm-twin-end-to-end-construction", "rag-microservice-inference-pipeline"],
+      "known_failure_modes": [
+        {"pattern": "hidden-state-coupling", "note": "Training pipeline reads from the same raw source as feature pipeline (bypassing the feature store), drifting silently from inference."},
+        {"pattern": "demo-to-production-cliff", "note": "Skipping the model registry and shipping a trained model by SCP — no version, no lineage, no rollback."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079",
+          "chapter": "Ch 1 'Understanding the LLM Twin Concept and Architecture', §'Building ML systems with feature/training/inference pipelines'",
+          "quote": "The FTI architecture is divided into three key stages: feature, training, and inference. ... each pipeline can operate as a separate component"
+        },
+        {
+          "type": "blog",
+          "title": "Simplifying AI pipelines using the FTI Architecture",
+          "url": "https://www.packtpub.com/en-us/learning/author-posts/simplifying-ai-pipelines-using-the-fti-architecture"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["fti", "pipeline", "feature-store", "model-registry"]
+    },
+    {
+      "id": "llm-twin-end-to-end-construction",
+      "name": "LLM Twin End-to-End Construction",
+      "aliases": ["LLM twin build", "personalised-LLM end-to-end"],
+      "category": "llm-app-engineering",
+      "summary": "End-to-end methodology for building a personalised 'LLM twin' — an LLM fine-tuned to write in a specific person's voice and answer with their domain knowledge. The methodology threads through the whole Iusztin/Labonne book: collect representative content, generate an instruction dataset, supervised-fine-tune, run DPO for preference alignment, evaluate, deploy behind a microservice split, and monitor. The artefact is not just a model — it is the production pipeline that recreates the model on demand.",
+      "intent": "Produce a production-grade personalised LLM twin through a reproducible pipeline that spans data collection, instruct-dataset generation, SFT, DPO, evaluation, deployment, and monitoring.",
+      "when_to_apply": "Building a personalised generative system — a writer's assistant in their own voice, a domain expert's chatbot, a brand-tuned content generator. The system must reliably reflect a specific persona's style and knowledge, and you have access to representative content for that persona. Don't apply when prompt engineering plus RAG already meet the bar (climb the finetune-as-last-resort ladder first), and don't apply when the persona's content corpus is too small or too uneven to train on responsibly.",
+      "inputs": [
+        {"name": "Persona content corpus", "description": "Representative writing or speech from the target person — articles, posts, transcripts, code reviews, internal docs."},
+        {"name": "Base model choice", "description": "Foundation model that will be fine-tuned (typically a mid-size open-weights model such as Llama or Qwen)."},
+        {"name": "Evaluation rubric", "description": "Rubric that scores both factual correctness and voice fidelity — voice without facts is a parrot; facts without voice is a generic model."},
+        {"name": "Infrastructure stack", "description": "Cloud, feature store, model registry, vector store, and serving substrate."}
+      ],
+      "outputs": [
+        {"name": "Production LLM twin", "description": "Fine-tuned model served through a microservice split with RAG-backed factual grounding."},
+        {"name": "Reproducible pipeline", "description": "End-to-end FTI-shaped pipeline that can rebuild the twin from the persona corpus on demand."},
+        {"name": "Evaluation report", "description": "Scored evidence on voice fidelity, factual correctness, refusal calibration, and cost per call."}
+      ],
+      "steps": [
+        {
+          "name": "Collect and prepare persona content",
+          "description": "Crawl, scrape, or ingest representative content. Deduplicate, decontaminate against any held-out eval, quality-filter. The corpus is the bottleneck — no fine-tune fixes a thin or biased corpus.",
+          "uses_patterns": ["streaming-feature-pipeline"]
+        },
+        {
+          "name": "Generate the instruction dataset",
+          "description": "Convert raw content into instruction-response pairs that the model can learn from. Use prompt templates plus an LLM to author candidate instructions, then quality-filter aggressively."
+        },
+        {
+          "name": "Supervised fine-tune",
+          "description": "Run SFT on the base model with the instruction dataset. Track loss and validation metrics. Save checkpoints to the model registry with full lineage (data version, code version, hyperparameters)."
+        },
+        {
+          "name": "Run DPO for preference alignment",
+          "description": "Generate preference pairs and run direct preference optimisation. This is where voice and refusal calibration tighten — the SFT model can speak in voice, DPO makes it speak only in voice and decline what it should decline."
+        },
+        {
+          "name": "Evaluate against the rubric",
+          "description": "Run the evaluation set. Score voice fidelity, factual correctness (with the RAG layer in the loop), refusal calibration, and cost. Promote only if the rubric clears its bar."
+        },
+        {
+          "name": "Deploy behind the microservice split",
+          "description": "Serve through the business plus LLM microservice split. The business microservice owns RAG orchestration; the LLM microservice loads the fine-tuned twin from the registry and serves predictions.",
+          "uses_patterns": ["business-llm-microservice-split", "fti-llm-pipeline-split"]
+        },
+        {
+          "name": "Monitor and refresh",
+          "description": "Track production quality, cost, refusal rate, and persona drift. Refresh the corpus and rebuild the twin on a schedule that matches how fast the persona's voice and knowledge evolve.",
+          "uses_patterns": ["scorer-live-monitoring", "cost-observability"]
+        }
+      ],
+      "principles": [
+        "The pipeline is the deliverable — the trained model without its reproducing pipeline is a one-off.",
+        "Voice is fine-tuned, facts are retrieved — do not try to bake facts into weights.",
+        "DPO is where refusal calibration lives — SFT alone tends to be over-eager.",
+        "Persona drift is real — schedule rebuilds, do not pretend a one-time train suffices."
+      ],
+      "applies_to": ["llm-app", "agent"],
+      "related_patterns": [
+        "fti-llm-pipeline-split",
+        "business-llm-microservice-split",
+        "streaming-feature-pipeline",
+        "agentic-rag",
+        "cross-encoder-reranking",
+        "scorer-live-monitoring",
+        "cost-observability"
+      ],
+      "related_compositions": ["production-llm-platform", "production-rag"],
+      "related_methodologies": ["fti-pipeline-architecture", "rag-microservice-inference-pipeline", "finetune-last-resort-escalation", "instruct-dataset-generation-pipeline"],
+      "known_failure_modes": [
+        {"pattern": "automating-broken-process", "note": "Fine-tuning on a biased or thin corpus — the model learns the bias and presents it as the persona's voice."},
+        {"pattern": "demo-to-production-cliff", "note": "Skipping DPO and evaluation; the model speaks plausibly in dev and falls over on the diversity of real production prompts."},
+        {"pattern": "vendor-lock-in", "note": "Pinning to one proprietary registry and serving substrate; the pipeline survives only as long as those vendors do."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079",
+          "chapter": "Ch 1–11 (full book project)",
+          "quote": "The LLM Twin is a production-ready AI replica where you learn how to use LLMs, vector DBs, and LLMOps best practices to design, train, and deploy a production ready 'LLM twin' of yourself"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["llm-twin", "end-to-end", "personalised", "fine-tuning"]
+    },
+    {
+      "id": "rag-microservice-inference-pipeline",
+      "name": "RAG Microservice Inference Pipeline",
+      "aliases": ["business plus LLM microservice", "two-tier RAG serving"],
+      "category": "llm-app-engineering",
+      "summary": "Serve a fine-tuned LLM behind two microservices with a clear split. The business microservice owns the advanced RAG orchestration — query rewriting, retrieval, reranking, prompt assembly — and may call a strong reference model (such as GPT-4) for steps the small fine-tune cannot do. The LLM microservice loads the fine-tuned model from the registry and answers a clean, ready-to-generate prompt. The split lets each microservice scale and evolve independently, lets the business layer evolve faster than the model, and lets the LLM microservice be portable to other consumers.",
+      "intent": "Split LLM serving into a business microservice (RAG orchestration, prompt assembly, optional strong reference model) and an LLM microservice (registry-loaded fine-tune answering a clean prompt) so each tier scales and evolves independently.",
+      "when_to_apply": "Deploying a fine-tuned LLM behind production RAG, especially when the RAG orchestration is complex (multi-step retrieval, reranking, query rewriting, hybrid search) and the inference path must be both responsive and cost-controlled. Don't apply for prototypes where one process is enough; the split adds operational overhead. Skip when the LLM is only consumed by one client and the business layer is trivial — a single service is fine.",
+      "inputs": [
+        {"name": "Fine-tuned LLM in registry", "description": "Versioned model artefact loadable by tag from a model registry such as Comet, MLflow, or SageMaker."},
+        {"name": "Retrieval substrate", "description": "Vector store, optional keyword index, optional reranker, plus the documents indexed."},
+        {"name": "Optional strong reference model", "description": "API access to a frontier model (GPT-4, Claude) for orchestration steps the small fine-tune cannot do well (query rewriting, planning)."},
+        {"name": "Contract between tiers", "description": "Specification of the prompt schema the business microservice sends and the response schema the LLM microservice returns."}
+      ],
+      "outputs": [
+        {"name": "Business microservice", "description": "Service owning advanced RAG orchestration — retrieval, reranking, query rewrites, prompt assembly, optional reference-model calls — that emits a ready-to-generate prompt."},
+        {"name": "LLM microservice", "description": "Service that loads the fine-tuned model from the registry and answers the prompt it receives, exposed as a REST API."},
+        {"name": "Inter-service contract", "description": "Versioned schema that decouples the two tiers."}
+      ],
+      "steps": [
+        {
+          "name": "Define the inter-service contract",
+          "description": "Write down the prompt schema the business tier sends and the response schema the LLM tier returns. This contract is the only coupling; version it explicitly.",
+          "uses_patterns": ["business-llm-microservice-split"]
+        },
+        {
+          "name": "Build the LLM microservice",
+          "description": "Service that loads the fine-tuned model by registry tag, accepts a prompt, and returns a structured response. Owns model lifecycle, GPU operations, batching, and latency budgets. Exposes a REST or gRPC endpoint.",
+          "uses_patterns": ["fti-llm-pipeline-split", "structured-output"]
+        },
+        {
+          "name": "Build retrieval and reranking in the business microservice",
+          "description": "Vector retrieval, optional keyword retrieval, optional cross-encoder reranking, document hydration. Each step is independently swappable.",
+          "uses_patterns": ["agentic-rag", "modular-rag", "cross-encoder-reranking", "contextual-retrieval"]
+        },
+        {
+          "name": "Add optional strong reference model for orchestration",
+          "description": "For orchestration steps the fine-tuned twin cannot do well (query rewriting, multi-step planning, complex tool routing), call a frontier model. Keep the cost ledger per call type so the reference-model spend is visible.",
+          "uses_patterns": ["multi-model-routing", "cost-observability"]
+        },
+        {
+          "name": "Assemble the prompt and call the LLM microservice",
+          "description": "The business tier composes the final prompt from retrieved documents, the user query, persona instructions, and any orchestration outputs. Sends to the LLM microservice. Returns the response (optionally post-processed) to the user."
+        },
+        {
+          "name": "Operate, monitor, and evolve",
+          "description": "Each tier has its own dashboards, SLOs, and on-call rotation. Promote a new fine-tune via the registry without redeploying the business tier; evolve the RAG logic without redeploying the model.",
+          "uses_patterns": ["scorer-live-monitoring", "cost-observability"]
+        }
+      ],
+      "principles": [
+        "Two tiers, one contract — the contract is the only coupling.",
+        "Model lifecycle (LLM microservice) and orchestration lifecycle (business microservice) move at different speeds — the split lets them.",
+        "Strong reference models earn their cost line-by-line — track spend per orchestration step.",
+        "The LLM microservice is portable — other clients can call it without inheriting your RAG logic."
+      ],
+      "applies_to": ["llm-app", "rag-system", "agent"],
+      "related_patterns": [
+        "business-llm-microservice-split",
+        "fti-llm-pipeline-split",
+        "agentic-rag",
+        "modular-rag",
+        "cross-encoder-reranking",
+        "contextual-retrieval",
+        "multi-model-routing",
+        "structured-output",
+        "scorer-live-monitoring",
+        "cost-observability"
+      ],
+      "related_compositions": ["production-rag", "production-llm-platform"],
+      "related_methodologies": ["fti-pipeline-architecture", "llm-twin-end-to-end-construction"],
+      "known_failure_modes": [
+        {"pattern": "orchestrator-as-bottleneck", "note": "Business microservice holds the request thread while the LLM microservice generates — concurrency drops to one in-flight per worker."},
+        {"pattern": "hidden-state-coupling", "note": "Business tier reaches into the LLM tier's tokenizer state or model internals — the split breaks on the next model upgrade."},
+        {"pattern": "vendor-lock-in", "note": "Coupling tightly to a single strong-reference-model provider for orchestration with no fallback — outages cascade."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079",
+          "chapter": "Ch 9 'RAG Inference Pipeline'; Ch 10 'Inference Pipeline Deployment'",
+          "quote": "Business microservice: contains the advanced RAG logic ... LLM microservice: It loads the fine-tuned LLM twin model from Comet's model registry"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["microservice", "rag", "inference", "deployment"]
+    },
+    {
+      "id": "llm-from-scratch-build-progression",
+      "name": "LLM-From-Scratch Build Progression",
+      "aliases": ["build-an-LLM seven stages", "Raschka build progression"],
+      "category": "llm-app-engineering",
+      "summary": "Seven-stage pedagogical progression for building a working LLM from scratch on a laptop. Each stage stands on the previous and produces a runnable artefact before the next stage is introduced. Stage 1 builds the text-data pipeline, stage 2 the attention mechanism, stage 3 the full architecture, stage 4 pre-training, stage 5 supervised classification fine-tuning, stage 6 supervised instruction fine-tuning, stage 7 LLM-judge evaluation. The point is not to compete with frontier models — it is to remove the black box.",
+      "intent": "Walk a practitioner through building a working LLM on a laptop in seven stages, each producing a runnable artefact, so the internals stop being a black box.",
+      "when_to_apply": "Onboarding ML engineers or applied scientists onto LLM-based projects, deepening intuition for practitioners who have only ever called APIs, or any team that needs grounded understanding of attention, tokenisation, pre-training versus fine-tuning, and instruction tuning. Don't apply when the team's goal is to ship product on a deadline — this is a learning methodology, not a delivery one. Skip when there is already deep in-house expertise and the time is better spent on the application.",
+      "inputs": [
+        {"name": "Laptop or modest GPU box", "description": "Hardware capable of running small-scale training — a modern laptop with 16GB+ RAM, optionally a single consumer GPU."},
+        {"name": "Public text corpus", "description": "A small public dataset (works of Shakespeare, OpenWebText snippet, public domain books) sufficient for pedagogical pre-training."},
+        {"name": "Existing pretrained weights for late stages", "description": "GPT-2 small or equivalent open weights to bootstrap fine-tuning stages without weeks of pre-training."}
+      ],
+      "outputs": [
+        {"name": "Working small LLM", "description": "A from-scratch GPT-style model that generates text and has been fine-tuned for both classification and instruction-following."},
+        {"name": "Stage-by-stage runnable code", "description": "Seven runnable artefacts that each demonstrate one capability in isolation."},
+        {"name": "Internalised mental model", "description": "Practitioner-level understanding of tokenisation, attention, pre-training loss, fine-tuning data, and LLM-judge evaluation."}
+      ],
+      "steps": [
+        {
+          "name": "Stage 1: text data and tokenisation",
+          "description": "Build the data pipeline. Implement byte-pair or word-level tokenisation. Produce input-target pairs. Verify by recovering text from tokens. Without this stage, every later stage debug becomes data archaeology."
+        },
+        {
+          "name": "Stage 2: attention",
+          "description": "Implement scaled dot-product attention, then multi-head attention, from scratch. Verify on tiny matrices. Visualise attention weights so the mechanism stops being abstract."
+        },
+        {
+          "name": "Stage 3: full transformer architecture",
+          "description": "Assemble embeddings, attention blocks, feed-forward layers, residual connections, layer normalisation. Forward-pass on a fixed input and confirm the shapes match expectations."
+        },
+        {
+          "name": "Stage 4: pre-training",
+          "description": "Train next-token prediction on a small corpus. Watch the loss curve. Generate sample text at intervals. The output is bad, intentionally — this is the moment to internalise what scaling buys."
+        },
+        {
+          "name": "Stage 5: SFT for classification",
+          "description": "Fine-tune the pre-trained model for a classification task (sentiment, topic). Confirm the model adapts. This is the smallest possible fine-tuning loop and the gentlest introduction to the SFT machinery."
+        },
+        {
+          "name": "Stage 6: SFT for instructions",
+          "description": "Fine-tune on instruction-response pairs. The model goes from completing text to following instructions. Compare side by side with the pre-trained model to feel the shift."
+        },
+        {
+          "name": "Stage 7: LLM-judge evaluation",
+          "description": "Score the instruction-tuned model with an LLM judge against a rubric. Closes the loop on what 'better' means when reference answers are not crisp.",
+          "uses_patterns": ["llm-as-judge", "frozen-rubric-reflection"]
+        }
+      ],
+      "principles": [
+        "Each stage produces a runnable artefact before the next stage is introduced — pedagogy follows the build, not the textbook.",
+        "Small scale, full coverage — every concept used in frontier models is exercised at laptop scale.",
+        "Compare adjacent stages — the difference between pre-trained and instruction-tuned is felt only by running both.",
+        "Eval is the final stage, not an afterthought — pedagogy mirrors production."
+      ],
+      "applies_to": ["llm-app"],
+      "related_patterns": [
+        "llm-as-judge",
+        "frozen-rubric-reflection",
+        "structured-output"
+      ],
+      "related_methodologies": ["scale-down-to-understand-pedagogy", "evaluation-driven-development"],
+      "known_failure_modes": [
+        {"pattern": "automating-broken-process", "note": "Skipping the data and tokenisation stage and using a library wrapper — later-stage bugs collapse into data archaeology."},
+        {"pattern": "perma-beta", "note": "Treating the seven-stage walk as a deliverable; it is a learning artefact, not a product."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Build a Large Language Model (From Scratch)",
+          "url": "https://www.manning.com/books/build-a-large-language-model-from-scratch",
+          "chapter": "Ch 2–7 (whole-book arc)",
+          "quote": "step by step through creating your own LLM. Each stage is explained with clear text, diagrams, and examples"
+        },
+        {
+          "type": "repo",
+          "title": "rasbt/LLMs-from-scratch",
+          "url": "https://github.com/rasbt/LLMs-from-scratch"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["from-scratch", "pedagogy", "transformer", "sft"]
+    },
+    {
+      "id": "scale-down-to-understand-pedagogy",
+      "name": "Scale-Down-to-Understand Pedagogy",
+      "aliases": ["laptop-LLM pedagogy", "scale down to learn"],
+      "category": "llm-app-engineering",
+      "summary": "Before adopting or extending a frontier model, build a deliberately small laptop-sized version of the same architecture end-to-end. The point is comprehension, not competition — a tiny working LLM exercises every concept (tokenisation, attention, pre-training loss, fine-tuning, evaluation) that the frontier model exercises, but at a scale where every step can be inspected, modified, and re-run. Teams adopting this methodology emerge with a mental model that lets them reason about frontier-model behaviour rather than just consume it.",
+      "intent": "Build a laptop-scale version of the same architecture before consuming the frontier version, so practitioners reason about the system instead of treating it as a black box.",
+      "when_to_apply": "Onboarding new ML engineers, deepening expertise of API-only practitioners before they own production LLM systems, or kicking off a research project that will modify model internals. Useful when a team is about to make architectural decisions (context length, attention variants, fine-tuning strategy) and would otherwise pattern-match from blog posts. Don't apply when the immediate task is shipping; this methodology has no near-term deliverable. Exceptions: skip when the team already has from-scratch model experience.",
+      "inputs": [
+        {"name": "Laptop or modest GPU", "description": "Standard laptop (optionally with a single consumer GPU) sufficient for a GPT-2-small-scale build."},
+        {"name": "A frontier-model task to demystify", "description": "The system the team is about to adopt — for example GPT-4 for content generation, or Llama-3 for RAG — so the small build mirrors a concrete production target."},
+        {"name": "Time budget", "description": "A bounded learning window (one to four weeks) so the exercise doesn't drift into never-ending research."}
+      ],
+      "outputs": [
+        {"name": "Tiny working model", "description": "A GPT-2-small-scale model trained from scratch on the team's laptops."},
+        {"name": "Mental model", "description": "Shared, articulable understanding of where capability comes from (data, scale, fine-tuning, RLHF/DPO) versus where artefacts come from (prompting, retrieval)."},
+        {"name": "Architectural decision notes", "description": "Specific decisions for the production system that are now grounded in observed behaviour, not blog folklore."}
+      ],
+      "steps": [
+        {
+          "name": "Pick a small target that mirrors the frontier task",
+          "description": "Choose a tiny dataset and tiny model size such that the same shape of problem (text generation, classification, instruction following) is solvable on a laptop. The mirror is the point — a wholly different toy task teaches nothing transferable."
+        },
+        {
+          "name": "Build the architecture end-to-end",
+          "description": "Tokeniser, attention, model body, training loop, evaluation. Every component is implemented (or reimplemented) so the team owns the mental model.",
+          "uses_patterns": ["augmented-llm"]
+        },
+        {
+          "name": "Run experiments that probe the design space",
+          "description": "Sweep context length, head count, layer depth. Observe behaviour. The team learns which knobs matter for their task and which are folklore — at zero risk."
+        },
+        {
+          "name": "Fine-tune and evaluate",
+          "description": "Run SFT (classification then instruction). Score with an LLM judge or a deterministic checker. This is where the difference between pre-trained and instruction-tuned is felt, not just read about.",
+          "uses_patterns": ["llm-as-judge", "frozen-rubric-reflection"]
+        },
+        {
+          "name": "Translate findings to the production system",
+          "description": "Write down what the small build taught about the frontier system. Specifically: which architectural choices matter, which fine-tuning data shapes work, where the eval is weak. These notes drive the production decisions that follow."
+        }
+      ],
+      "principles": [
+        "Comprehension before consumption — a black-box dependency is a future incident.",
+        "Mirror the production target, do not toy-task off in a different direction.",
+        "Bounded learning window — the methodology has no shipping value if it never ends.",
+        "Findings are translated, not just felt — write them down so the team can act on them."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system"],
+      "related_patterns": [
+        "augmented-llm",
+        "llm-as-judge",
+        "frozen-rubric-reflection"
+      ],
+      "related_methodologies": ["llm-from-scratch-build-progression", "evaluation-driven-development"],
+      "known_failure_modes": [
+        {"pattern": "perma-beta", "note": "The learning project never ends and consumes the team that should be building the production system."},
+        {"pattern": "automating-broken-process", "note": "Skipping translation — the team has the small model and the mental model but never writes the production-decision notes, so the lessons evaporate."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Build a Large Language Model (From Scratch)",
+          "url": "https://www.manning.com/books/build-a-large-language-model-from-scratch",
+          "chapter": "Ch 1 (framing)",
+          "quote": "The resulting LLM is comparable to GPT-2 ... designed to run on standard laptops with optional GPU acceleration ... Plan and code all the parts of an LLM"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["pedagogy", "laptop", "comprehension", "onboarding"]
+    }
+  ]
+}
