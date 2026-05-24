@@ -67,7 +67,12 @@
       "verification_status": "verified",
       "date_added": "2026-05-24",
       "last_updated": "2026-05-24",
-      "tags": ["pretraining", "fine-tuning", "transfer-learning", "base-model"]
+      "tags": ["pretraining", "fine-tuning", "transfer-learning", "base-model"],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  corpus[Unlabeled corpus] --> clean[Clean + dedupe + tokenize]\n  clean --> pre[Pretrain: next-token prediction]\n  pre --> base[Pretrained base checkpoint]\n  base --> v1[Variant: classifier head]\n  base --> v2[Variant: instruction follower]\n  base --> v3[Variant: domain assistant]\n  data1[Labeled classification data] --> v1\n  data2[Instruction/response pairs] --> v2\n  data3[Domain Q&A] --> v3\n  v1 --> eval1[Classification eval]\n  v2 --> eval2[Instruction-following eval]\n  v3 --> eval3[Domain eval]\n  base -->|new task arrives| reuse[Branch again, do not retrain]"
+      },
+      "example_scenario": "A team at a mid-sized enterprise has decided they need on-prem language models for three internal tasks: classifying inbound support emails into 14 categories, an instruction-following assistant for internal Q&A, and a domain-specific summariser for legal contracts. They follow the pretrain-then-adapt approach from Raschka's 'Build a Large Language Model (From Scratch)': rather than training three models from scratch or paying for three separate API fine-tunes, they build (or take an open-weight) base once, then specialise it three times.\n\nStage one: they assemble a corpus blending public web text with the firm's internal documents, dedupe and clean it, and pretrain a small base with a causal language-modelling objective; validation perplexity plateaus and the base is checkpointed. Stage two branches three times. For the classifier they swap in a classification head and train on 8,000 labelled emails. For the instruction follower they keep the LM head and fine-tune on 935 (instruction, response) pairs. For the contract summariser they fine-tune on a small curated set of contract/summary pairs. Each variant gets its own task-specific eval; the pretraining perplexity is no longer used as a quality signal. When a fourth task arrives later (entity extraction from invoices), the team returns to the frozen base rather than retraining — the reusability is exactly the economic case for the methodology."
     },
     {
       "id": "instruction-finetune-then-judge-cycle",
@@ -139,7 +144,12 @@
       "verification_status": "verified",
       "date_added": "2026-05-24",
       "last_updated": "2026-05-24",
-      "tags": ["sft", "instruction-tuning", "llm-as-judge", "iteration-loop"]
+      "tags": ["sft", "instruction-tuning", "llm-as-judge", "iteration-loop"],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  ds[Instruction dataset] --> split[Split train/val/test\\nversion test set]\n  split --> sft[SFT with per-epoch loss logging]\n  sft --> ck[Per-epoch checkpoints\\n+ train/val loss curves]\n  ck --> pick[Pick best checkpoint by val]\n  pick --> gen[Generate responses on test set]\n  gen --> trip[(instruction, reference, response)]\n  trip --> judge[Local LLM-as-judge\\nfrozen rubric prompt]\n  judge --> score[Aggregate + per-example scores]\n  ck --> diag{Loss curves diverge?}\n  diag -->|yes| overfit[Diagnose overfitting]\n  diag -->|no| score\n  score --> iter[Change ONE variable]\n  iter -->|new run| sft"
+      },
+      "example_scenario": "An engineer is instruction-tuning an open-weight 7B base model on a custom dataset of 1,100 (instruction, response) pairs collected from internal documentation Q&A. They follow Raschka's Chapter 7 closed loop: a fixed split of 935 train / 55 validation / 110 test, with the test set committed to git and never touched between runs. The SFT job logs train and validation loss at every step; in run one the curves diverge cleanly after epoch 2, exposing overfit. The engineer picks the epoch-2 checkpoint, generates responses for all 110 test instructions, and scores each (instruction, reference, response) triple with a locally-hosted Llama 3 70B judge model using a frozen rubric prompt — average score 51.75 over 100.\n\nThe engineer changes exactly one variable per cycle: in run two the learning rate is halved (judge score 56.2); in run three the dataset gets a deduplication pass (judge score 58.9); in run four the prompt template is restructured (judge score drops to 54.1, reverted). Because the train/val/test split, the judge model, and the rubric prompt are all frozen, every score is comparable to every previous score. The engineer ships the run-three checkpoint for an internal beta, with the explicit caveat that the LLM-judge score is a fast iteration signal and not a release gate — a human-graded acceptance set is still run before production exposure."
     },
     {
       "id": "human-feedback-alignment-via-dpo",
@@ -206,7 +216,12 @@
       "verification_status": "verified",
       "date_added": "2026-05-24",
       "last_updated": "2026-05-24",
-      "tags": ["dpo", "preference-alignment", "rlhf-alternative", "post-sft"]
+      "tags": ["dpo", "preference-alignment", "rlhf-alternative", "post-sft"],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  sft[SFT checkpoint] --> ref[Freeze copy as reference]\n  sft --> tr[DPO trainer]\n  pairs[Preference pairs:\\n(prompt, chosen, rejected)] --> tr\n  ref -->|KL anchor| tr\n  tr --> aligned[DPO-aligned checkpoint]\n  aligned --> eval[Held-out preference set]\n  ref --> eval\n  eval --> judge[Human or strong-LLM judge]\n  judge --> wr[Win-rate vs reference]\n  wr -->|win-rate > baseline| ship[Ship aligned]\n  wr -->|no improvement| diag[Investigate preference data]\n  diag --> pairs"
+      },
+      "example_scenario": "A team has already produced an SFT checkpoint for a domain assistant that performs the underlying Q&A task competently but is too verbose, occasionally over-apologetic, and inconsistent in tone. Rather than running full RLHF with a separately-trained reward model and PPO, they apply DPO. Annotators are given 4,000 prompts and shown two responses each (one from the SFT model, one rewritten by a stronger model or a human editor); they pick the preferred response, producing 4,000 (prompt, chosen, rejected) triples. The SFT checkpoint is snapshotted as the frozen reference for the KL anchor.\n\nThey run DPO using the same training infrastructure as SFT — no separate reward model, no PPO loop — and produce an aligned checkpoint. Evaluation is by win-rate on a held-out preference set of 500 prompts: a strong external LLM judge compares aligned versus reference responses pairwise and reports 64% aligned-wins, 22% reference-wins, 14% ties. The team confirms with a smaller human-graded sample that the LLM-judge ranking tracks the human ranking before shipping. Crucially, they did not apply DPO to the base model directly — early experiments showed that DPO cannot teach a capability the SFT stage did not already install; trying to skip SFT collapsed the model. DPO shapes how the existing capability is expressed, not what the model knows how to do."
     },
     {
       "id": "sft-then-dpo-fine-tuning-workflow",
@@ -281,7 +296,12 @@
       "verification_status": "verified",
       "date_added": "2026-05-24",
       "last_updated": "2026-05-24",
-      "tags": ["sft", "dpo", "two-stage", "alignment-workflow"]
+      "tags": ["sft", "dpo", "two-stage", "alignment-workflow"],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  yaml[YAML config:\\nstage, dataset, hparams] --> entry[Training entry point]\n  base[Open-weight base] --> stage1\n  inst[Instruction dataset] --> stage1[Stage 1: SFT]\n  entry --> stage1\n  stage1 --> sft[SFT checkpoint]\n  sft --> eval1{Capability eval pass?}\n  eval1 -->|no| fixdata[Fix instruct data / hparams]\n  fixdata --> stage1\n  eval1 -->|yes| stage2[Stage 2: DPO]\n  pref[Preference dataset] --> stage2\n  sft -->|reference + start| stage2\n  entry --> stage2\n  stage2 --> aligned[DPO-aligned checkpoint]\n  aligned --> compare[Compare base vs SFT vs DPO]\n  sft --> compare\n  base --> compare\n  compare --> ship[Production candidate]"
+      },
+      "example_scenario": "A team building a customised open-weight assistant for a regulated industry follows the two-stage SFT then DPO workflow from the LLM Engineer's Handbook. They write a single YAML configuration with two sections, one per stage, each pointing at its own dataset, hyperparameters, and output directory. The same Python entry point reads the YAML, dispatches to the SFT or DPO trainer, and writes checkpoints into a stage-tagged directory.\n\nStage one fine-tunes the base on an instruct dataset of 12,000 (instruction, response) pairs sourced from internal documentation; the SFT checkpoint is evaluated independently on a capability eval (task accuracy, instruction-following score) and only released to stage two when it clearly outperforms the base. Stage two runs DPO from the SFT checkpoint, using it both as the starting point and as the KL-anchored reference; the preference dataset of 6,000 (prompt, chosen, rejected) triples is annotated by a small team of domain experts plus rewrites from a stronger model. The team compares base, SFT, and DPO on the same held-out eval — SFT delivers most of the capability gain, DPO adds preference win-rate and tone consistency. When an early experiment skipped SFT and applied DPO directly to the base, the resulting model could not perform the task and DPO 'aligned' it to choose between equally-bad responses; this confirmed the sequencing rule and is documented in the team's runbook as a never-do-again experiment."
     }
   ]
 }
