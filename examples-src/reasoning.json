@@ -52,6 +52,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Cheap difficulty estimator picks the initial budget; low-confidence partial output ramps the budget; a hard ceiling prevents runaway.",
+          "code": "BUDGETS = {\n    \"easy\":   {\"thinking\": 1024,  \"samples\": 1},\n    \"medium\": {\"thinking\": 4096,  \"samples\": 1},\n    \"hard\":   {\"thinking\": 16384, \"samples\": 5},\n}\nHARD_CEILING = 32768\n\nfunction answer(question):\n    # 1. Cheap difficulty estimator (heuristics + small classifier).\n    diff   = difficulty_classifier.score(question)\n    budget = BUDGETS[diff]\n\n    # 2. First attempt at the predicted budget. For 'hard', use\n    #    sample-and-vote rather than a single longer pass.\n    if budget.samples > 1:\n        samples = [llm.generate(question,\n                                thinking={\"budget_tokens\": budget.thinking})\n                   for _ in range(budget.samples)]\n        answer  = vote(samples)\n        confidence = consistency(samples)\n    else:\n        answer     = llm.generate(question,\n                                  thinking={\"budget_tokens\": budget.thinking})\n        confidence = model.estimate_certainty(answer)\n\n    # 3. Ramp on low confidence, never past the hard ceiling.\n    if confidence < THRESHOLD and budget.thinking < HARD_CEILING:\n        ramped = min(budget.thinking * 4, HARD_CEILING)\n        answer = llm.generate(question,\n                              thinking={\"budget_tokens\": ramped})\n\n    log_usage({\"difficulty\": diff, \"final_budget\": budget.thinking})\n    return answer\n\n# Why this works: spend tracks predicted difficulty instead of\n# defaulting to the worst-case budget; the ramp catches misclassified\n# hard queries, and the ceiling stops one query from draining the day.\n# Related: see `large-reasoning-model-paradigm`, `generate-and-test-strategy`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -169,6 +179,22 @@
       ]
     },
     {
+      "pattern_id": "generate-and-test-strategy",
+      "intent": "Generate multiple candidate solutions in parallel, then systematically test each against declared constraints rather than committing to the first plausible one — adapted from Langley & Simon's cognitive-science research on human expert problem-solving.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two-stage workflow: generate K candidates, test each against declared constraints, return the highest-passing candidate or escalate if none pass.",
+          "code": "CONSTRAINTS = [\n    {\"id\": \"budget_cap\",  \"check\": deterministic_check_budget},\n    {\"id\": \"type_safety\", \"check\": deterministic_check_types},\n    {\"id\": \"style\",       \"check\": llm_judge_check_style},\n]\nN = 5\n\nfunction generate(task):\n    samples = [llm.generate(task, temperature=0.7) for _ in range(N)]\n    return samples\n\nfunction test(candidate, constraints):\n    results = []\n    for c in constraints:\n        ok, reason = c.check(candidate)\n        results.append({\"id\": c.id, \"ok\": ok, \"reason\": reason})\n    return results\n\nfunction generate_and_test(task):\n    samples = generate(task)\n\n    scored = []\n    for s in samples:\n        report = test(s, CONSTRAINTS)\n        passed = sum(1 for r in report if r.ok)\n        scored.append({\"candidate\": s, \"report\": report, \"passed\": passed})\n\n    scored.sort(key=lambda x: -x.passed)\n    best = scored[0]\n\n    if best.passed < len(CONSTRAINTS):\n        return escalate(task, reason=\"no_candidate_passed_all\",\n                        evidence=best.report)\n    return best.candidate\n\n# Why this works: separating Generate from Test prevents premature\n# commitment to the first plausible answer; the constraint list is the\n# unit of evaluation, so verification stays explicit instead of being\n# folded into a free-form judgement.\n# Related: see `adaptive-compute-allocation`, `large-reasoning-model-paradigm`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "graph-of-thoughts",
       "intent": "Model reasoning as a DAG of thoughts so branches can be generated, refined, aggregated, and scored.",
       "examples": [
@@ -181,6 +207,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "large-reasoning-model-paradigm",
+      "intent": "Route reasoning-heavy tasks to a reasoning-tuned model that trades inference time for deliberation, rather than to a fast LLM that exhibits premature-closure.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Classifier routes each task to an LLM or LRM based on reasoning load; per-class success rates feed back into the routing decision.",
+          "code": "MODELS = {\n    \"llm\":  client(\"fast-llm\"),       # next-token tuned\n    \"lrm\":  client(\"reasoning-lrm\"),  # deliberation-tuned, slower\n}\n\nfunction classify(task):\n    # Heuristic stand-in for a learned router: multi-step math,\n    # interconnected constraints, formal reasoning -> LRM.\n    if task.kind in {\"math_multi_step\", \"theorem\", \"constraint_sat\"}:\n        return \"lrm\"\n    if regex_search(r\"(prove|derive|optimi[sz]e|solve for)\", task.text):\n        return \"lrm\"\n    return \"llm\"\n\nfunction answer(task):\n    route   = classify(task)\n    samples = [MODELS[route].generate(task) for _ in range(1)]\n    answer  = samples[0]\n\n    # For interconnected-constraint tasks the LRM benefits from\n    # sample-and-vote on top of its own deliberation.\n    if route == \"lrm\" and task.kind == \"constraint_sat\":\n        samples = [MODELS[route].generate(task, temperature=0.6)\n                   for _ in range(5)]\n        answer  = vote(samples)\n\n    outcome = judge.score(task, answer)\n    metrics.update_per_class(task.kind, route, outcome)\n    return answer\n\n# Why this works: reasoning-tuned models earn their cost on tasks where\n# premature closure is the dominant failure; fast LLMs keep handling\n# the easy majority. Per-class success rates make the routing boundary\n# auditable rather than a guess.\n# Related: see `adaptive-compute-allocation`, `generate-and-test-strategy`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -269,6 +311,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Question-first loop with an explicit open-questions store; only switches to direct-answer when the user asks for it or has articulated enough.",
+          "code": "SYSTEM = \"\"\"You are a Socratic tutor. Your primary action is to ask\nONE strategic, open-ended question that targets the largest remaining\nuncertainty about the user's goal or understanding. Do not answer\nunless the user explicitly asks or has clearly articulated it.\"\"\"\n\nstate = {\n    \"open_questions\":   [],\n    \"user_articulated\": [],\n    \"mode\":             \"question\",   # \"question\" | \"answer\"\n}\n\nfunction wants_direct_answer(msg):\n    return regex_search(r\"(just tell me|give me the answer|tldr)\", msg)\n\nfunction synthesis_safe():\n    return len(state.user_articulated) >= 3 and not state.open_questions\n\nfunction next_turn(history, user_msg):\n    state.user_articulated += extract_articulations(user_msg)\n    state.open_questions    = [q for q in state.open_questions\n                               if not answered_by(q, user_msg)]\n\n    if wants_direct_answer(user_msg) or synthesis_safe():\n        state.mode = \"answer\"\n        # Generate-and-test the synthesis against what the user said.\n        samples = [llm.generate(history, state, system=\"answer directly\")\n                   for _ in range(3)]\n        answer  = vote(samples)\n        return answer\n\n    # Question mode: pick the question targeting the biggest open gap.\n    question   = llm.generate(history, state, system=SYSTEM)\n    confidence = model.estimate_certainty(question)\n    if confidence < 0.3:\n        question = llm.generate(history, state, system=SYSTEM + \" Try again.\")\n    state.open_questions.append(question)\n    return question\n\n# Why this works: making the agent's primary action a question instead\n# of an answer changes the success signal from 'token quality' to 'did\n# this move the user closer to their own articulation', which fits\n# tutoring and intent-elicitation workloads better than direct synthesis.\n# Related: see `generate-and-test-strategy`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

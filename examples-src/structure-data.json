@@ -4,6 +4,22 @@
   "label": "Structure & Data",
   "patterns": [
     {
+      "pattern_id": "business-llm-microservice-split",
+      "intent": "Split an LLM application into a CPU-bound business microservice (retrieval, prompt assembly, orchestration) and a GPU-bound LLM microservice (only model.generate behind REST), so each tier scales on its own hardware budget.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two services with a typed REST contract; the GPU service exposes only generate(); the CPU service does retrieval, templating, validation, and post-processing.",
+          "code": "schema GenerateRequest:\n    prompt:      str\n    params:      {temperature: float, max_tokens: int, stop: list[str]}\n    schema_hint: optional[json_schema]   # for constrained decoding\n\nschema GenerateResponse:\n    text:        str\n    finish:      str        # \"stop\" | \"length\" | \"schema\"\n    usage:       {prompt_tokens, completion_tokens}\n\nschema RagAnswer:\n    answer:    str\n    citations: list[str]\n\n# --- GPU service: model.generate behind REST, nothing else. -------\nfunction llm_service__generate(req: GenerateRequest) -> GenerateResponse:\n    validate(req, GenerateRequest)\n    out = model.generate(req.prompt, **req.params,\n                         schema=req.schema_hint)\n    return GenerateResponse(text=out.text, finish=out.finish,\n                            usage=out.usage)\n\n# --- CPU service: retrieval + assembly + parse + validate. --------\nfunction business_service__answer(query) -> RagAnswer:\n    docs   = retriever.search(query)         # CPU work\n    prompt = template.render(query=query, docs=docs)\n\n    schema = StructuredSchema(RagAnswer)\n    reply  = http.post(\n        url=LLM_SERVICE + \"/generate\",\n        body=GenerateRequest(prompt=prompt,\n                              params={\"temperature\": 0.2,\n                                      \"max_tokens\": 800},\n                              schema_hint=schema.to_json_schema()),\n    )\n    parsed = parse_and_validate(reply.text, schema)\n    return parsed\n\n# Why this works: each tier scales on its own hardware budget and\n# deploys on its own cadence; the GPU stops being held hostage to\n# retrieval bugs and the business code stops being pinned to GPU\n# release windows.\n# Related: see `fti-llm-pipeline-split`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "code-switching-aware-agent",
       "intent": "Show the three-part discipline — script-agnostic tokenisation, per-clause language tagging, and tag-driven slot extraction — that lets a single pipeline handle mixed-language input without forcing the user to pick one language.",
       "examples": [
@@ -49,6 +65,22 @@
       ]
     },
     {
+      "pattern_id": "fti-llm-pipeline-split",
+      "intent": "Decompose an LLM/RAG system into three independently-deployable pipelines — feature, training, inference — communicating only via a feature store and a model registry.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three pipelines, two integration surfaces (feature store, model registry); no direct code coupling between feature, training, and inference.",
+          "code": "schema FeatureRecord:\n    doc_id:     str\n    chunk_id:   str\n    text:       str\n    embedding:  list[float]\n    meta:       dict\n\nschema ModelArtifact:\n    name:        str\n    version:     str\n    weights_uri: str\n    eval_score:  float\n\n# --- Feature pipeline: ingest -> clean -> chunk -> embed -> store. -\nfunction feature_pipeline(raw_docs):\n    for doc in raw_docs:\n        cleaned = normalise(doc)\n        for chunk in split(cleaned):\n            rec = FeatureRecord(\n                doc_id=doc.id, chunk_id=uuid(),\n                text=chunk.text, embedding=embed(chunk.text),\n                meta=chunk.meta,\n            )\n            validate(rec, FeatureRecord)\n            feature_store.upsert(rec)\n\n# --- Training pipeline: features -> SFT/DPO -> model registry. ----\nfunction training_pipeline():\n    examples = feature_store.read_training_split()\n    model    = supervised_finetune(base=BASE_MODEL, data=examples)\n    score    = eval_suite.score(model)\n    artifact = ModelArtifact(name=\"qa-tuned\", version=git_sha(),\n                              weights_uri=upload(model), eval_score=score)\n    model_registry.publish(artifact)\n\n# --- Inference pipeline: feature store + registry, at request time.\nfunction answer(query):\n    schema  = StructuredSchema({\"answer\": str, \"citations\": list[str]})\n    model   = model_registry.load_latest(\"qa-tuned\")\n    docs    = feature_store.search(query, k=5)\n    reply   = model.generate(prompt=render(query, docs),\n                              schema_hint=schema.to_json_schema())\n    parsed  = parse_and_validate(reply.text, schema)\n    return parsed\n\n# Why this works: the only contracts that cross pipeline boundaries\n# are the two typed integration surfaces, so each pipeline iterates\n# on its own cadence with its own ownership and no direct code\n# coupling crosses team lines.\n# Related: see `business-llm-microservice-split`, `llm-as-periphery`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "llm-as-periphery",
       "intent": "Invert LLM-in-the-middle: a deterministic state machine and event store form the core; LLM calls live only at the edges (typed input interpretation, typed output synthesis).",
       "examples": [
@@ -72,6 +104,16 @@
           "verified_date": null,
           "source_url": "https://habr.com/ru/articles/1027210/",
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Deterministic core owns state transitions and persistence; LLM is invoked only at typed edges (text-in -> typed event, typed state -> reply text) with no state of its own.",
+          "code": "schema TypedEvent:\n    kind:        enum {user_answer, user_question, system_advance}\n    payload:     dict\n    observed_at: timestamp\n\nschema UserMessage:\n    text:        str\n\n# Edge-in schema: what the LLM is allowed to produce on the way IN.\nedge_in_schema  = StructuredSchema(TypedEvent)\n# Edge-out schema: what the LLM is allowed to produce on the way OUT.\nedge_out_schema = StructuredSchema(UserMessage)\n\nevent_store = AppendOnlyLog(\"events.jsonl\")\n\n# Deterministic core: pure function (state, event) -> state'.\nfunction apply_event(state, ev: TypedEvent) -> state:\n    require(safety_check(state, ev))\n    return transition_table[ev.kind](state, ev)\n\nfunction replay():\n    state = State()\n    for ev in event_store.read():\n        state = apply_event(state, ev)\n    return state\n\n# Edge IN: LLM interprets free text into a typed event.\nfunction llm_edge_in(text):\n    reply  = llm.generate(\n        prompt=f\"Classify into a TypedEvent: {text}\",\n        schema_hint=edge_in_schema.to_json_schema(),\n    )\n    return parse_and_validate(reply, edge_in_schema)\n\n# Edge OUT: LLM synthesises a user-facing message from typed state.\nfunction llm_edge_out(state):\n    reply = llm.generate(\n        prompt=f\"Compose the next reply from this state: {state}\",\n        schema_hint=edge_out_schema.to_json_schema(),\n    )\n    return parse_and_validate(reply, edge_out_schema).text\n\nfunction turn(user_text):\n    ev = llm_edge_in(user_text)\n    event_store.append(ev)\n    state = replay()\n    return llm_edge_out(state)\n\n# Why this works: state transitions stay in property-tested code so\n# safety-critical decisions are verifiable; the LLM's strengths sit\n# only at the seams where free text needs interpretation or synthesis,\n# never holding state across calls.\n# Related: see `business-llm-microservice-split`, `fti-llm-pipeline-split`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

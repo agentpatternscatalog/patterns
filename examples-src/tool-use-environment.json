@@ -4,6 +4,22 @@
   "label": "Tool Use & Environment",
   "patterns": [
     {
+      "pattern_id": "agent-adapter",
+      "intent": "An interface layer connecting an agent's tool-calling protocol to heterogeneous external tools, normalizing their schemas into one the agent expects.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Canonical agent-facing tool schema; per-ecosystem adapters translate to and from each external tool's native protocol; dispatch goes through the registry.",
+          "code": "schema CanonicalToolCall:    {name: str, args: dict}\nschema CanonicalToolResult:  {ok: bool, value: any, error: optional[str]}\n\nadapters = {\n    \"rest\":  RestAdapter(),\n    \"grpc\":  GrpcAdapter(),\n    \"mcp\":   McpAdapter(),\n    \"cli\":   CliAdapter(),\n    \"lib\":   LibAdapter(),\n}\n\nfunction register_tool(name, ecosystem, schema, native_handle):\n    tools.register(name, handler=adapters[ecosystem],\n                   schema=schema, native=native_handle)\n\nfunction dispatch(call: CanonicalToolCall) -> CanonicalToolResult:\n    entry = tools.lookup(call.name)\n    validate(call.args, entry.schema)\n\n    # Per-ecosystem translation: canonical -> native -> result -> canonical.\n    native_req  = entry.handler.to_native(call, entry.native)\n    native_resp = entry.handler.invoke(native_req)\n    return entry.handler.from_native(native_resp)\n\n# Agent only ever sees the canonical interface.\nfunction agent_step(messages):\n    reply = llm.generate(messages=messages, tools=tools.descriptors())\n    for call in reply.tool_calls:\n        result = tools.dispatch(call.name, call.args)\n        messages.append(tool_result(call.id, result))\n    return reply\n\n# Why this works: the agent's calling convention stays fixed while new\n# ecosystems plug in as adapter instances; integration work is bounded\n# to the translation seam instead of leaking into the agent loop.\n# Related: see `crawler-dispatcher`, `hierarchical-tool-selection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "agent-computer-interface",
       "intent": "Show a tool surface designed for an LLM agent — windowed file viewer, lint-aware edit, structured shell — rather than a human-facing CLI.",
       "examples": [
@@ -314,6 +330,22 @@
       ]
     },
     {
+      "pattern_id": "crawler-dispatcher",
+      "intent": "Route each incoming URL to a domain-specific crawler through a central dispatcher mapping URL patterns to registered crawler classes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Crawler classes implement one interface; a small dispatcher maps URL patterns to crawler classes and routes each fetch by pattern match.",
+          "code": "interface Crawler:\n    schema = {url: str}\n    function fetch(url: str) -> Document\n\nclass LinkedInCrawler(Crawler): ...\nclass MediumCrawler(Crawler):   ...\nclass GitHubCrawler(Crawler):   ...\nclass GenericCrawler(Crawler):  ...   # safe default\n\ntools = ToolRegistry()\n\nfunction register_crawlers():\n    tools.register(\"linkedin\", LinkedInCrawler(), schema=Crawler.schema)\n    tools.register(\"medium\",   MediumCrawler(),   schema=Crawler.schema)\n    tools.register(\"github\",   GitHubCrawler(),   schema=Crawler.schema)\n    tools.register(\"generic\",  GenericCrawler(),  schema=Crawler.schema)\n\nPATTERNS = [\n    (r\".*linkedin\\.com.*\",  \"linkedin\"),\n    (r\".*medium\\.com.*\",    \"medium\"),\n    (r\".*github\\.com.*\",    \"github\"),\n]\n\nfunction get_crawler_name(url):\n    for pattern, name in PATTERNS:\n        if regex_match(pattern, url):\n            return name\n    return \"generic\"\n\nfunction fetch(url):\n    name = get_crawler_name(url)\n    return tools.dispatch(name, {\"url\": url})\n\n# Why this works: adding a source becomes a registration call instead\n# of an edit to a giant if-else; each crawler tests in isolation and\n# the dispatcher itself stays small and stable.\n# Related: see `agent-adapter`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "dual-system-gui-agent",
       "intent": "Show the decision-model / grounding-model split where each subproblem (planning vs pixel localisation) is routed to the model best suited for it.",
       "examples": [
@@ -326,6 +358,38 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "hierarchical-tool-selection",
+      "intent": "Organise tools into a tree of categories so the agent first picks a branch and then a specific tool within it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Tool registry is grouped into categories; the agent first picks a category, then sees only that branch's tools, paying full descriptions only for the chosen branch.",
+          "code": "CATEGORIES = {\n    \"billing\":    [\"create_invoice\", \"list_invoices\", \"refund\"],\n    \"identity\":   [\"lookup_user\", \"reset_password\"],\n    \"scheduling\": [\"book_slot\", \"cancel_slot\", \"list_slots\"],\n    \"search\":     [\"web_search\", \"docs_search\"],\n}\n\nfunction register_all():\n    for cat, names in CATEGORIES.items():\n        for n in names:\n            tools.register(n, handler=handlers[n], schema=schemas[n],\n                           category=cat)\n\nfunction category_descriptors():\n    return [{\"name\": c, \"summary\": one_line_summary(c)}\n            for c in CATEGORIES]\n\nfunction tools_in(category):\n    return [tools.descriptor(n) for n in CATEGORIES[category]]\n\nfunction agent_step(messages):\n    # Top-level decoding: pick a category from one-line summaries.\n    pick = llm.generate(messages=messages,\n                        tools=category_descriptors())\n    category = pick.choice\n    if not permission.allows(messages.user, category):\n        return refuse(reason=\"forbidden_category\")\n\n    # Second decoding: full descriptions only for the chosen branch.\n    reply = llm.generate(messages=messages + [pick],\n                        tools=tools_in(category))\n    for call in reply.tool_calls:\n        result = tools.dispatch(call.name, call.args)\n        messages.append(tool_result(call.id, result))\n    return reply\n\n# Why this works: token cost and selection error scale sub-linearly\n# with catalog size, and category boundaries become natural seams for\n# per-branch permissions and ownership.\n# Related: see `tool-transition-fusion`, `agent-adapter`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "large-action-models",
+      "intent": "Use a model class specifically trained for action execution (tool calls, UI navigation, workflow steps) rather than text generation, when the workload is dominated by reliably completing actions in real systems.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Action-completion workloads route to a LAM; text-generation workloads stay on a text-tuned LLM; both share the same tool registry and observation loop.",
+          "code": "MODELS = {\n    \"text\":   client(\"text-tuned-llm\"),\n    \"action\": client(\"large-action-model\"),\n}\n\nfunction is_action_dominated(task):\n    return task.kind in {\"ui_navigation\", \"workflow_orchestration\",\n                          \"multi_step_api\"}\n\nfunction agent_step(task, messages):\n    route = \"action\" if is_action_dominated(task) else \"text\"\n    model = MODELS[route]\n\n    reply = model.generate(messages=messages, tools=tools.descriptors())\n    messages.append(reply)\n\n    if not reply.tool_calls:\n        return reply\n\n    for call in reply.tool_calls:\n        # Same registry; tool registration is independent of model class.\n        result = tools.dispatch(call.name, call.args)\n        messages.append(tool_result(call.id, result))\n    return reply\n\n# Register tools once; both models call through the same dispatch.\nfunction register_action_tools():\n    tools.register(\"click\",    click_handler,    schema={selector: str})\n    tools.register(\"type\",     type_handler,     schema={selector, text})\n    tools.register(\"navigate\", navigate_handler, schema={url: str})\n    tools.register(\"api_call\", api_handler,      schema={endpoint, args})\n\n# Why this works: action-completion training closes the gap between\n# 'plausible-looking tool call' and 'committed action that worked', so\n# multi-step orchestration stops requiring scaffolding-as-prompt to\n# claw reliability back.\n# Related: see `agent-adapter`, `hierarchical-tool-selection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -670,6 +734,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-transition-fusion",
+      "intent": "Mine tool-call telemetry for high-probability X-then-Y transitions and fuse those pairs into a single composite tool, shrinking the planner's step count.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Sweep telemetry for transitions above a probability threshold, fuse qualifying pairs as composite tools, leave the originals available for edge cases.",
+          "code": "THRESHOLD = 0.8\n\nfunction mine_transitions(telemetry):\n    transitions = {}     # (X, Y) -> count\n    totals      = {}     # X -> count\n    for trace in telemetry:\n        for i in 0..len(trace) - 2:\n            x, y = trace[i].tool, trace[i+1].tool\n            transitions[(x, y)] = transitions.get((x, y), 0) + 1\n            totals[x] = totals.get(x, 0) + 1\n    return [(x, y, transitions[(x, y)] / totals[x])\n            for (x, y) in transitions\n            if transitions[(x, y)] / totals[x] >= THRESHOLD]\n\nfunction fuse_pair(x_name, y_name):\n    x = tools.lookup(x_name)\n    y = tools.lookup(y_name)\n    composite_schema = x.schema           # composite takes X's input\n    composite_name   = f\"{x_name}_then_{y_name}\"\n\n    function handler(args):\n        intermediate = tools.dispatch(x_name, args)\n        return tools.dispatch(y_name, project(intermediate, y.schema))\n\n    tools.register(composite_name, handler, schema=composite_schema,\n                   provenance={\"fused_from\": [x_name, y_name],\n                                \"reason\": \"telemetry\"})\n\nfunction periodic_sweep():\n    pairs = mine_transitions(telemetry.read(last=30 * DAY))\n    for (x, y, p) in pairs:\n        fuse_pair(x, y)\n\n# Why this works: a composite tool collapses a near-deterministic\n# X-then-Y trajectory into a single planner step, removing both the\n# per-step latency and the intermediate decoding error along the\n# dominant path; the originals stay for the long-tail edge cases.\n# Related: see `hierarchical-tool-selection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

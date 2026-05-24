@@ -20,6 +20,38 @@
       ]
     },
     {
+      "pattern_id": "agentic-behavior-tree",
+      "intent": "Borrow the behavior-tree formalism: leaves are LLM calls or tools that return success/failure; a tree of selectors and sequences orchestrates control flow.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Behavior tree of Selectors, Sequences, and decorators with LLM/tool leaves; each tick walks the tree and propagates SUCCESS/FAILURE upward.",
+          "code": "# Status codes propagated by every node.\nSUCCESS, FAILURE, RUNNING = \"S\", \"F\", \"R\"\n\nclass Node:\n    def tick(self, ctx): raise NotImplementedError\n\nclass Sequence(Node):              # all children must succeed in order\n    def __init__(self, children): self.children = children\n    def tick(self, ctx):\n        for c in self.children:\n            s = c.tick(ctx)\n            if s != SUCCESS: return s\n        return SUCCESS\n\nclass Selector(Node):              # first success wins; left-to-right fallback\n    def __init__(self, children): self.children = children\n    def tick(self, ctx):\n        for c in self.children:\n            s = c.tick(ctx)\n            if s != FAILURE: return s\n        return FAILURE\n\nclass Retry(Node):                 # decorator\n    def __init__(self, child, n): self.child, self.n = child, n\n    def tick(self, ctx):\n        for _ in range(self.n):\n            if self.child.tick(ctx) == SUCCESS: return SUCCESS\n        return FAILURE\n\nclass LLMLeaf(Node):\n    def __init__(self, prompt): self.prompt = prompt\n    def tick(self, ctx):\n        out = llm.call(self.prompt, ctx)\n        return SUCCESS if out.ok else FAILURE\n\n# The tree itself is a versioned artefact reviewers can read.\ntree = Selector([\n    Sequence([LLMLeaf(\"classify\"), LLMLeaf(\"answer\")]),\n    Retry(LLMLeaf(\"fallback_answer\"), n=2),\n])\n\nwhile not ctx.done:\n    tree.tick(ctx)\n\n# Why this works: control flow lives in the tree, not in a free-form prompt,\n# so retry/fallback is first-class and the structure is reviewable across runs.\n# Each tick is a deterministic walk; only the leaves are generative.\n# Related: see `behavior-tree-back-chaining`, `plan-and-execute`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "behavior-tree-back-chaining",
+      "intent": "Construct an agent's behavior tree starting from the desired goal condition and recursively adding child nodes whose post-conditions satisfy each parent's pre-conditions.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Build the tree top-down from the goal: each node added is a task whose post-condition satisfies its parent's pre-condition; recurse until starting state suffices.",
+          "code": "# A library of known tasks, each with pre/post conditions.\nTASKS = [\n    Task(\"reserve_venue\", pre={\"budget_ok\"},     post={\"venue_reserved\"}),\n    Task(\"check_budget\",  pre=set(),               post={\"budget_ok\"}),\n    Task(\"send_invites\",  pre={\"venue_reserved\"}, post={\"invites_sent\"}),\n]\n\ndef back_chain(goal_condition, state, depth=0):\n    if goal_condition.issubset(state):\n        return Leaf(\"already_satisfied\")\n    if depth > MAX_DEPTH:\n        return Leaf(\"give_up\")\n\n    # Find tasks whose post-conditions cover (some of) the goal.\n    producers = [t for t in TASKS if t.post & goal_condition]\n    if not producers:\n        return Leaf(\"no_producer_for_\" + str(goal_condition))\n\n    # For each producer: build a Sequence(satisfy-its-pre, run-task).\n    branches = []\n    for t in producers:\n        sub_goal = t.pre - state              # what still needs producing\n        child    = back_chain(sub_goal, state, depth + 1)\n        branches.append(Sequence([child, Run(t)]))\n\n    # Selector: try producers left-to-right, succeed on first that works.\n    return Selector(branches)\n\n# Author the whole tree from the desired goal condition downward.\ntree = back_chain(goal_condition={\"invites_sent\"}, state={\"have_guest_list\"})\nprune_to_realistic_cases(tree)\n\n# Why this works: every node exists because it produces a precondition its\n# parent needs, not because the designer thought of it. The discipline\n# yields trees that are principled rather than decorative.\n# Related: see `agentic-behavior-tree`, `goal-decomposition`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "clone-fan-out-research",
       "intent": "Spawn N identical, full-capability agent clones over an input partition with isolated sandboxes; aggregate their independent outputs once at the end. Pseudo-only (Manus is closed).",
       "examples": [
@@ -36,6 +68,38 @@
       ]
     },
     {
+      "pattern_id": "decision-context-maps",
+      "intent": "Before any consequential decision, require the agent to gather a declared set of contextual inputs (resource availability, schedules, downstream dependencies) into a 'context map' the decision must cite.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Per-decision-class schema enumerates required inputs; agent populates the map before deciding, and the decision must cite entries when justifying.",
+          "code": "# One schema per decision class names the inputs that MUST be gathered.\nCONTEXT_MAP_SCHEMAS = {\n    \"production_routing\": [\n        Input(\"machine_status\",   source=\"mes.status_api\",   freshness=\"5m\"),\n        Input(\"open_work_orders\", source=\"erp.queue_api\",    freshness=\"15m\"),\n        Input(\"shift_schedule\",   source=\"hr.schedule_api\",  freshness=\"1h\"),\n    ],\n    \"treatment_plan\": [\n        Input(\"contraindications\", source=\"ehr.patient_api\", freshness=\"now\"),\n        Input(\"allergies\",         source=\"ehr.patient_api\", freshness=\"now\"),\n        Input(\"recent_labs\",       source=\"lab.results_api\", freshness=\"24h\"),\n    ],\n}\n\ndef gather_context(decision_class, subject):\n    cmap = {}\n    for inp in CONTEXT_MAP_SCHEMAS[decision_class]:\n        cmap[inp.name] = query(inp.source, subject, max_age=inp.freshness)\n    return cmap\n\ndef decide(decision_class, subject):\n    cmap = gather_context(decision_class, subject)\n    if any(v is MISSING for v in cmap.values()):\n        raise ContextIncomplete(decision_class, cmap)\n\n    decision = llm.choose(\n        decision_class = decision_class,\n        subject        = subject,\n        context_map    = cmap,\n        instructions   = \"Cite the context_map entries you relied on.\",\n    )\n    require_citations(decision, cmap)         # gate: must cite at least one\n    audit_log.write(decision_class, subject, cmap, decision)\n    return decision\n\n# Why this works: the decision cannot fire without the named inputs, and the\n# justification cites them, so silent cascades of \"I never checked\" become\n# refusals to decide rather than confident-but-blind commits.\n# Related: see `strategic-preparation-phase`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "deterministic-control-flow-not-prompt",
+      "intent": "Branching decisions live in deterministic application code while the LLM is invoked at strategic points to produce structured signals that the code branches on.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Application code drives the if/else; the LLM is asked only for structured signals (typed enum, score) that the code branches on.",
+          "code": "# Typed signals the LLM is allowed to emit. NEVER \"choose your next branch\".\nINTENT = Enum(\"REFUND\", \"REPLACE\", \"ESCALATE\", \"REJECT\")\n\ndef classify_intent(message) -> INTENT:\n    return llm.classify(\n        input  = message,\n        schema = INTENT,                # typed, validated, retried-on-parse-fail\n    )\n\ndef score_risk(message) -> float:       # 0.0 .. 1.0\n    return llm.score(input=message, schema=FloatRange(0, 1))\n\n# Deterministic control flow: the if/else lives here, not in any prompt.\ndef handle(message):\n    intent = classify_intent(message)\n    risk   = score_risk(message)\n\n    if risk > 0.8:\n        return route_to(\"human_queue\", message)\n\n    if intent == INTENT.REFUND:\n        return refund_workflow.run(message)\n    if intent == INTENT.REPLACE:\n        return replacement_workflow.run(message)\n    if intent == INTENT.ESCALATE:\n        return route_to(\"human_queue\", message)\n    if intent == INTENT.REJECT:\n        return polite_decline(message)\n\n    raise UnreachableBranch(intent)      # enum exhaustiveness is checkable\n\n# Why this works: every branch is enumerable and testable; the LLM cannot\n# invent a fifth path or skip risk-scoring. Debugging reads code, not\n# prompt traces.\n# Related: see `structured-output`, `json-only-action-schema`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "disambiguation",
       "intent": "Ask a single focused clarifying question before acting on a low-confidence intent. Pseudo-only.",
       "examples": [
@@ -48,6 +112,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "distributed-constraint-optimization",
+      "intent": "A group of agents jointly assigns values to shared variables to minimise (or maximise) a global cost defined by inter-agent constraints, exchanging only the messages needed.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each agent owns a variable and exchanges only with constraint-neighbours; iterative local-search converges to a globally consistent low-cost assignment.",
+          "code": "# DCOP: each agent owns a variable; constraints are factored across pairs.\nclass Agent:\n    def __init__(self, var, domain, neighbours):\n        self.var        = var\n        self.domain     = domain\n        self.neighbours = neighbours   # only these see our value\n        self.value      = pick_initial(domain)\n        self.nb_values  = {}           # latest known value per neighbour\n\n    def on_message(self, sender, value):\n        self.nb_values[sender] = value\n        self.maybe_improve()\n\n    def local_cost(self, candidate):\n        return sum(constraint_cost(self.var, candidate, n, v)\n                   for n, v in self.nb_values.items())\n\n    def maybe_improve(self):\n        # Local search step (Max-Sum / DSA family).\n        best = min(self.domain, key=self.local_cost)\n        if best != self.value:\n            self.value = best\n            for n in self.neighbours:\n                send(n, self.var, self.value)   # only neighbours, only deltas\n\n# Driver: kick off, then let the message passing run until quiescent.\nfor a in agents: a.maybe_improve()\nrun_until_no_messages_for(QUIESCENCE_WINDOW)\n\n# For LLM-agent applications: replace `pick_initial` and the candidate\n# scoring with an LLM propose-and-evaluate step at each agent; the DCOP\n# backbone keeps global consistency without centralising private state.\n\n# Why this works: no agent ever sees the whole problem; messages are bounded\n# to constraint-neighbours; the algorithm terminates with each agent holding\n# a value consistent with its neighbours and approximately globally optimal.\n# Related: see `partial-global-planning`, `contract-net-protocol`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -139,6 +219,38 @@
       ]
     },
     {
+      "pattern_id": "hybrid-htn-generative-agent",
+      "intent": "Hierarchical Task Network decomposition provides the procedural backbone; the generative LLM is invoked only at leaf nodes for the parts of the task that are genuinely open-ended.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "HTN decomposes the root into sub-tasks deterministically; only the leaves whose work is genuinely open-ended invoke the LLM.",
+          "code": "# Interior nodes are deterministic decomposition; leaves call the LLM.\nclass Compound:\n    def __init__(self, name, children): self.name, self.children = name, children\n    def run(self, ctx):\n        # No LLM here. Pure procedural assembly.\n        results = [c.run(ctx) for c in self.children]\n        return ctx.assemble(self.name, results)\n\nclass Primitive:                                 # tool leaf, also no LLM\n    def __init__(self, fn): self.fn = fn\n    def run(self, ctx): return self.fn(ctx)\n\nclass GenerativeLeaf:                            # the open-ended bits\n    def __init__(self, prompt): self.prompt = prompt\n    def run(self, ctx): return llm.generate(self.prompt, ctx)\n\n# HTN: root -> sub-tasks -> ... -> leaves.\nplan = Compound(\"draft_release_notes\", [\n    Compound(\"collect_changes\", [\n        Primitive(fetch_merged_prs),             # deterministic tool\n        Primitive(fetch_closed_issues),          # deterministic tool\n    ]),\n    GenerativeLeaf(\"summarise_changes_for_users\"),  # open-ended -> LLM\n    Compound(\"format_output\", [\n        Primitive(render_markdown),              # deterministic\n        Primitive(attach_metadata),              # deterministic\n    ]),\n])\n\nresult = plan.run(ctx)\n\n# Why this works: the HTN gives auditable structure for the known parts;\n# the LLM is bounded to the leaves whose work genuinely needs natural-\n# language reasoning. Cost and inconsistency drop without giving up the\n# generative capability where it matters.\n# Related: see `goal-decomposition`, `deterministic-control-flow-not-prompt`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "incremental-model-querying",
+      "intent": "Generate plan steps by sequentially querying the model at each step rather than producing the whole plan upfront in one call.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Model is queried at each step with the accumulated history and latest observation; produces only the next step, opposite of one-shot plan generation.",
+          "code": "def incremental_plan(goal, max_steps=20, budget=None):\n    history     = []     # list of (step, observation) so far\n    observation = initial_observation(goal)\n\n    for i in range(max_steps):\n        if budget and budget.exhausted():\n            return abort(\"budget exhausted\")\n\n        # Ask ONLY for the next step, given everything seen so far.\n        next_step = llm.next_step(\n            goal        = goal,\n            history     = history,\n            observation = observation,\n            schema      = STEP_SCHEMA,\n        )\n\n        if next_step.is_goal_met():\n            return Result(ok=True, history=history)\n\n        observation = executor.run(next_step)\n        history.append((next_step, observation))\n\n    return Result(ok=False, history=history, reason=\"step budget\")\n\n# Distinct from one-shot planning (whole plan in one call) and from\n# multi-path generation (which yields K candidates per node).\n\n# Why this works: each step is produced with full knowledge of the\n# previous step's actual outcome, so the plan adapts to what really\n# happened instead of what the model guessed would happen at step 0.\n# Related: see `single-path-plan-generator`, `react`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "iteration-node",
       "intent": "Express map-over-collection inside a visual workflow as an Iteration node that runs an inner subgraph once per element, with bounded concurrency and per-element error surfaces. Pseudo-only.",
       "examples": [
@@ -203,6 +315,38 @@
       ]
     },
     {
+      "pattern_id": "mental-model-in-the-loop-simulator",
+      "intent": "Run candidate multi-step strategies inside an internal simulator of the environment before committing in the real world — broader than simulate-before-actuate (single action) by simulating multi-step strategies.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each candidate multi-step strategy is rolled out inside an internal simulator; only strategies whose simulated aggregate outcome scores well are committed.",
+          "code": "# `world` is the simulator: learned model, state machine, or what-if engine.\n# It MUST be cheap relative to real-world commit, and side-effect-free.\n\ndef evaluate_strategy(world, strategy):\n    sim = world.fork()                       # copy-on-write, no real effects\n    trace = []\n    for action in strategy.steps:\n        outcome = sim.apply(action)\n        trace.append((action, outcome))\n        if sim.is_unsafe() or sim.is_terminal_failure():\n            return Score(value=-inf, trace=trace, reason=\"sim caught failure\")\n    return Score(value=sim.utility(), trace=trace)\n\ndef pick_strategy(goal, world):\n    candidates = planner.propose_strategies(goal, k=5)\n    scored     = [(evaluate_strategy(world, s), s) for s in candidates]\n    scored.sort(key=lambda x: x[0].value, reverse=True)\n\n    best_score, best = scored[0]\n    if best_score.value < ACCEPT_THRESHOLD:\n        return replan(goal, rejected=scored)   # all candidates simulate badly\n    return best\n\n# Real commit happens only after a strategy survives simulation.\nstrategy = pick_strategy(goal, world)\nfor action in strategy.steps:\n    real_world.apply(action)\n    world.update_from_observation(real_world.observe())   # keep sim honest\n\n# Why this works: per-action preview misses joint effects across steps; a\n# strategy that looks fine action-by-action can be disastrous in aggregate.\n# Rolling forward in a simulator catches strategy-level failure modes that\n# single-action checks cannot see.\n# Related: see `simulate-before-actuate`, `dry-run-harness`, `world-model-as-tool`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "multi-path-plan-generator",
+      "intent": "Generate multiple candidate next-steps at each plan node enabling later selection — the planning generator pattern paired with tree-of-thoughts / LATS-style search.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Isolate the generator: given (node, history, K) it returns K candidate next-steps; a separate search policy decides which to expand.",
+          "code": "# Generator interface: pure function over (node, history, K) -> candidates.\n# Search policy is intentionally NOT inside the generator.\n\ndef multi_path_generator(node, history, K):\n    # Ask the model for K distinct next-step proposals at this node.\n    candidates = llm.propose_next_steps(\n        node    = node,\n        history = history,\n        k       = K,\n        schema  = STEP_SCHEMA,\n        diverse = True,                  # encourage spread, not duplicates\n    )\n    return dedupe(candidates)\n\n# Swappable search policies consume the generator's output.\ndef tree_of_thoughts_search(root, generator, K=5, depth=4):\n    frontier = [root]\n    for _ in range(depth):\n        next_frontier = []\n        for node in frontier:\n            candidates = generator(node, history_of(node), K)\n            for c in candidates:\n                child = expand(node, c)\n                next_frontier.append(child)\n        frontier = keep_best(next_frontier, value_fn=evaluate, n=BEAM)\n    return best_leaf(frontier)\n\ndef beam_search(root, generator, K=5, beam=3, depth=4):\n    frontier = [(0.0, root)]\n    for _ in range(depth):\n        candidates = []\n        for score, node in frontier:\n            for c in generator(node, history_of(node), K):\n                candidates.append((score + evaluate(c), expand(node, c)))\n        frontier = sorted(candidates, reverse=True)[:beam]\n    return best_leaf([n for _, n in frontier])\n\n# Why this works: separating generation from search lets each be tuned\n# independently. The same generator drives tree-of-thoughts, LATS, beam,\n# or MCTS without rewriting the proposal logic.\n# Related: see `tree-of-thoughts`, `lats`, `single-path-plan-generator`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "outer-inner-agent-loop",
       "intent": "Outer planner decomposes the goal into subtasks; inner ReAct executor runs each; outer may interrupt to replan when milestones slip. Pseudo-only.",
       "examples": [
@@ -215,6 +359,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "partial-global-planning",
+      "intent": "Each agent maintains a partial view of others' plans and incrementally merges local plans into a shared partial global plan, interleaving coordination with execution.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each agent holds a fragment of a partial global plan; periodic gossip merges fragments with neighbours; execution and planning interleave continuously.",
+          "code": "class Agent:\n    def __init__(self, id, neighbours):\n        self.id         = id\n        self.neighbours = neighbours\n        self.local_plan = []           # what I plan to do next\n        self.pgp        = PartialGlobalPlan()   # what I think WE are doing\n\n    def planning_tick(self):\n        # Replan locally given my latest view of the global picture.\n        self.local_plan = planner.local(self.id, self.pgp, world_view(self.id))\n        fragment        = self.pgp.derive_fragment_from(self.local_plan)\n        for n in self.neighbours:\n            send(n, \"plan_fragment\", fragment)\n\n    def on_message(self, sender, kind, payload):\n        if kind == \"plan_fragment\":\n            changed = self.pgp.merge(sender, payload)\n            if changed:\n                # Merging surfaced a conflict or opportunity; replan soon.\n                schedule(self.planning_tick, in_=SHORT_DELAY)\n\n    def execution_tick(self):\n        if not self.local_plan: return\n        action = self.local_plan.pop(0)\n        observation = act(action)\n        if surprising(observation):\n            self.pgp.invalidate_around(action)\n            schedule(self.planning_tick, in_=IMMEDIATE)\n\n# Each agent runs both loops; the team never holds a complete global plan,\n# only a sufficient partial one that is continuously refined.\nfor a in agents:\n    every(PLAN_INTERVAL,  a.planning_tick)\n    every(EXEC_INTERVAL,  a.execution_tick)\n\n# Why this works: coordination interleaves with action rather than pausing\n# the team for a global rendezvous. The PGP is partial in coverage and\n# global in scope, so the system stays responsive without ever waiting\n# for a complete plan.\n# Related: see `distributed-constraint-optimization`, `blackboard`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -322,22 +482,6 @@
       ]
     },
     {
-      "pattern_id": "proactive-goal-creator",
-      "intent": "Capture multimodal context (gestures, screen, audio, environment) alongside the user's prompt and fuse it into a refined goal, with explicit consent signalling. Pseudo-only.",
-      "examples": [
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Activates capture sensors, runs context engineering on multimodal input, fuses with the prompt, and notifies the user when capture is active.",
-          "code": "function proactive_goal_creator(user_prompt, session):\n    # explicit notification — low false-positive rate\n    if session.consent.allows_capture():\n        notify_user(\"capturing context: screen + camera\")\n\n    raw = {}\n    if session.devices.camera:\n        raw.gestures = camera.snapshot_and_classify()\n    if session.devices.screen:\n        raw.screen = screen.snapshot_and_ocr()\n    if session.devices.mic:\n        raw.audio_summary = mic.recent_window_summary()\n    if session.devices.sensors:\n        raw.environment = sensors.read()\n\n    engineered = context_engineer.filter_and_redact(raw)\n\n    refined = llm.fuse(\n        prompt=user_prompt,\n        multimodal_context=engineered,\n        schema=GOAL_SCHEMA,\n    )\n    return planner.start(refined)",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-21"
-        }
-      ]
-    },
-    {
       "pattern_id": "pre-flight-spec-authoring",
       "intent": "Show authoring a five-pillar spec (context, requirements, constraints, examples, definition-of-done) and running an agent critique pass that surfaces gaps before any code generation begins.",
       "examples": [
@@ -372,6 +516,48 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Author the five-pillar spec, run an explicit critique pass, resolve every gap, persist the result, and only then hand it to the implementation loop.",
+          "code": "PILLARS = [\"context\", \"requirements\", \"constraints\", \"examples\", \"definition_of_done\"]\n\ndef preflight_spec(issue):\n    # 1. Author the five-pillar spec.\n    spec = SpecDoc(**{p: author_pillar(p, issue) for p in PILLARS})\n\n    # 2. Persist BEFORE any code: the tracker is the durable artefact store.\n    tracker.attach(issue, spec)\n\n    # 3. Explicit critique pass — agent is told to push back, not approve.\n    critique = agent.run(\n        prompt = (\"List EVERY ambiguity, missing edge case, internal \"\n                  \"contradiction, and unstated assumption. Do NOT \"\n                  \"rubber-stamp.\"),\n        spec   = spec,\n    )\n\n    # 4. Human resolves every flagged gap back into the spec.\n    for gap in critique.gaps:\n        resolution = human.resolve(gap)\n        spec.apply(resolution)\n    tracker.update(issue, spec)\n\n    if not spec.is_complete():\n        return abort(\"spec still has unresolved gaps; do not start loop\")\n\n    # 5. ONLY NOW hand the reviewed spec to the implementation loop.\n    return implementation_loop.start(spec=spec, issue=issue)\n\n# Why this works: every later iteration and every human reviewer reads the\n# same reviewed target, so the loop converges in fewer iterations and the\n# agent stops re-asking the same questions every turn.\n# Related: see `spec-driven-loop`, `strategic-preparation-phase`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "proactive-goal-creator",
+      "intent": "Capture multimodal context (gestures, screen, audio, environment) alongside the user's prompt and fuse it into a refined goal, with explicit consent signalling. Pseudo-only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Activates capture sensors, runs context engineering on multimodal input, fuses with the prompt, and notifies the user when capture is active.",
+          "code": "function proactive_goal_creator(user_prompt, session):\n    # explicit notification — low false-positive rate\n    if session.consent.allows_capture():\n        notify_user(\"capturing context: screen + camera\")\n\n    raw = {}\n    if session.devices.camera:\n        raw.gestures = camera.snapshot_and_classify()\n    if session.devices.screen:\n        raw.screen = screen.snapshot_and_ocr()\n    if session.devices.mic:\n        raw.audio_summary = mic.recent_window_summary()\n    if session.devices.sensors:\n        raw.environment = sensors.read()\n\n    engineered = context_engineer.filter_and_redact(raw)\n\n    refined = llm.fuse(\n        prompt=user_prompt,\n        multimodal_context=engineered,\n        schema=GOAL_SCHEMA,\n    )\n    return planner.start(refined)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "query-decomposition-agent",
+      "intent": "An agent whose explicit job is to split an incoming user query into smaller independent sub-queries that can be answered sequentially or in parallel, then merge results.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A decomposer agent splits the query into independent leaves; leaves run in parallel through the answering agent; an aggregator composes the final response.",
+          "code": "def decomposer_agent(question):\n    # Explicit role: enumerate INDEPENDENT leaf sub-queries that, together,\n    # would answer the user's question. NOT an ordered plan — leaves.\n    return llm.decompose(\n        question = question,\n        schema   = LEAVES_SCHEMA,\n        rules    = \"Each leaf must be answerable without the others.\",\n    )\n\ndef answerer_agent(leaf):\n    # Each leaf goes through the same answering pipeline (RAG, tools, etc).\n    return llm.answer(leaf, context=retriever.search(leaf))\n\ndef aggregator_agent(question, leaf_answers):\n    return llm.compose(\n        question     = question,\n        leaf_answers = leaf_answers,\n        rules        = \"Resolve conflicts; cite which leaf each claim came from.\",\n    )\n\ndef query_decomposition(question):\n    leaves = decomposer_agent(question)\n\n    # Leaves are independent -> run in parallel.\n    leaf_answers = parallel_map(answerer_agent, leaves)\n\n    return aggregator_agent(question, leaf_answers)\n\n# Distinct from Plan-and-Execute: P&E plans ORDERED actions. This pattern\n# produces EQUIVALENT leaves that fan out and rejoin.\n\n# Why this works: multi-part questions get one prompt per concern instead of\n# one overloaded prompt; aggregation surfaces conflicts the monolithic\n# version would silently average over.\n# Related: see `self-ask`, `map-reduce`, `clone-fan-out-research`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -547,6 +733,22 @@
       ]
     },
     {
+      "pattern_id": "single-path-plan-generator",
+      "intent": "Generate one linear sequence of intermediate steps from current state to goal — the lightweight planning alternative to tree-of-thoughts and multi-path generation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Generate one linear plan; if a step fails or the goal mismatches, do NOT search — invoke replan-on-failure from the new state.",
+          "code": "# Deliberately ONE path. No branching, no candidate set, no search.\ndef single_path_generator(goal, state):\n    return llm.plan_linear(\n        goal   = goal,\n        state  = state,\n        schema = STEP_LIST_SCHEMA,         # ordered list of atomic steps\n    )\n\ndef execute_single_path(goal):\n    state    = initial_state()\n    plan     = single_path_generator(goal, state)\n    progress = []\n\n    for step in plan:\n        outcome = executor.run(step, state)\n        if outcome.failed or surprising(outcome, step.expected):\n            # No recovery WITHIN the plan; trigger replan from new state.\n            state = state.apply(progress)\n            plan  = single_path_generator(\n                goal  = goal,\n                state = state,                  # fresh single path from here\n            )\n            progress = []\n            continue\n        progress.append((step, outcome))\n        state = state.apply([(step, outcome)])\n\n    return Result(ok=True, progress=progress)\n\n# Why this works: tree-search planning is expensive; many tasks need only a\n# linear path. Naming single-path as a deliberate choice — paired with\n# replan-on-failure rather than mid-plan search — keeps cost low without\n# pretending the first path is always right.\n# Related: see `multi-path-plan-generator`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "spec-driven-loop",
       "intent": "Run the same prompt against a fixed spec in a deterministic outer loop until tests pass. Pseudo plus a shell-loop and MetaGPT.",
       "examples": [
@@ -614,6 +816,38 @@
           "source_url": "https://github.com/AntonOsika/gpt-engineer",
           "sdk_version": "gpt-engineer>=0.3",
           "verified_notes": "Verified against https://github.com/AntonOsika/gpt-engineer README and one-hop https://gpt-engineer.readthedocs.io/en/latest/quickstart.html: gpte CLI (gpte <project_dir>), human-authored prompt file (no extension) as single source of truth, and --improve flag for re-running on the same spec (docs show the long-form --improve and the -i shortcut: 'the --improve flag (shortened to -i)'). Project layout with project/prompt and src/ output is the documented workflow."
+        }
+      ]
+    },
+    {
+      "pattern_id": "stateless-reducer-agent",
+      "intent": "Design the agent as a pure function (state, event) → newState; entire execution history is held in an external event log; enables pause / resume / replay / time-travel without bespoke checkpointing.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Agent core is a pure (state, event) -> (new_state, side_effects) reducer; the runtime owns the log and side-effect dispatch.",
+          "code": "# Pure reducer: NO I/O inside. Side effects are returned as descriptors.\ndef reducer(state, event):\n    if event.kind == \"user_message\":\n        new_state = state.with_message(event.text)\n        return new_state, [Effect(\"llm_call\", prompt=build_prompt(new_state))]\n\n    if event.kind == \"llm_reply\":\n        new_state = state.with_reply(event.reply)\n        effects   = []\n        for call in event.reply.tool_calls:\n            effects.append(Effect(\"tool\", name=call.name, args=call.args))\n        return new_state, effects\n\n    if event.kind == \"tool_result\":\n        new_state = state.with_tool_result(event.id, event.value)\n        return new_state, [Effect(\"llm_call\", prompt=build_prompt(new_state))]\n\n    return state, []\n\n# The runtime owns the log and dispatches side effects.\nclass Runtime:\n    def __init__(self): self.log = AppendOnlyLog()\n    def handle(self, event):\n        state            = self.replay()                # fold log -> state\n        new_state, fx    = reducer(state, event)\n        self.log.append(event)\n        for e in fx: self.dispatch(e)                   # produces more events\n\n    def replay(self, until=None):\n        state = INITIAL_STATE\n        for e in self.log.iter(until=until):\n            state, _ = reducer(state, e)               # discard fx on replay\n        return state\n\n# Pause = stop dispatching. Resume = restart dispatching. Replay = re-run\n# reducer over a log slice. Time-travel = reducer over any earlier slice.\n\n# Why this works: pause/resume/replay/time-travel fall out for free because\n# the reducer is deterministic and the log is the single source of truth.\n# No bespoke checkpointing is needed; each capability is the same log fold.\n# Related: see `durable-workflow-snapshot`, `event-driven-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "strategic-preparation-phase",
+      "intent": "Mandate an explicit problem-space representation step before the agent attempts solutions, mirroring how expert humans build a mental model of constraints and dependencies before solving.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A Preparation node runs before the planner and produces a structured problem-space artefact (constraints, dependencies, success criteria) the planner must cite.",
+          "code": "# Triggered by complexity heuristics; easy tasks skip preparation.\ndef should_prepare(goal):\n    return (complexity_score(goal) > COMPLEXITY_THRESHOLD\n            or touches_irreversible_actions(goal)\n            or crosses_team_boundaries(goal))\n\ndef preparation_phase(goal):\n    # Force the model to lay out the problem space BEFORE solving.\n    return ProblemSpace(\n        constraints      = llm.enumerate_constraints(goal),\n        dependency_graph = llm.derive_dependencies(goal),\n        success_criteria = llm.declare_success_criteria(goal),\n        known_unknowns   = llm.list_unknowns(goal),\n        candidate_decompositions = llm.sketch_decompositions(goal),\n    )\n\ndef pipeline(goal):\n    if should_prepare(goal):\n        problem_space = preparation_phase(goal)\n        artefact_store.persist(goal.id, problem_space)\n\n        plan = planner.run(\n            goal          = goal,\n            problem_space = problem_space,\n            rules         = \"Cite the constraint or dependency you relied on.\",\n        )\n        require_citations(plan, problem_space)        # gate: must cite\n    else:\n        plan = planner.run(goal=goal)\n\n    return executor.run(plan)\n\n# Why this works: expert human problem-solvers spend disproportionate time\n# on preparation; agents are structurally biased the other way. Forcing the\n# preparation artefact, and forcing the planner to cite it, removes the\n# silent premature-closure that compounds into hard-to-debug failures.\n# Related: see `decision-context-maps`, `generate-and-test-strategy`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

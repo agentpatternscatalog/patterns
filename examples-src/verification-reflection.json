@@ -77,6 +77,32 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A cheap-tier extractor pulls stated-intents from each turn into an append-only Commitment ledger; explicit mark-followed-through / mark-expired moves close them, and a sweep auto-expires overdue ones.",
+          "code": "type Commitment = {\n    id: str, statement: str, raised_in_turn: str,\n    deadline: timestamp | None,\n    status: \"open\" | \"followed-through\" | \"expired\",\n    evidence: any | None, closed_at: timestamp | None,\n}\n\nledger = append_only_store()\n\nfunction extract_commitments(turn):\n    # Cheap-tier extractor — small model, structured output, runs out-of-band.\n    candidates = cheap_llm.generate(\n        prompt=\"List explicit promises as JSON: {statement, deadline_iso_or_null}.\",\n        input=turn.text,\n        response_schema=COMMITMENT_LIST,\n    )\n    for c in candidates:\n        ledger.append(Commitment(\n            id=new_id(), statement=c.statement,\n            raised_in_turn=turn.id,\n            deadline=parse_iso(c.deadline_iso_or_null),\n            status=\"open\", evidence=None, closed_at=None,\n        ))\n\nfunction mark_followed_through(commit_id, evidence):\n    c = ledger.get(commit_id)\n    verdict = judge.score(c.statement, evidence)        # did evidence really discharge it?\n    if verdict.failed:\n        return Reject(verdict)                          # do not let the agent self-launder\n    assert current_turn().id != c.raised_in_turn        # no same-turn self-close\n    ledger.update(commit_id, status=\"followed-through\", evidence=evidence,\n                  closed_at=now())\n\nfunction mark_expired(commit_id):\n    ledger.update(commit_id, status=\"expired\", closed_at=now())\n\nfunction check_expirations():\n    for c in ledger.where(status=\"open\"):\n        if c.deadline and now() > c.deadline:\n            mark_expired(c.id)\n\nfunction surface_open_for_agent():\n    return ledger.where(status=\"open\", deadline_within=next_hour())\n\n# Why this works: producing an intent is satisfying enough that the same\n# model rounds its own retrospective summary in its favour. A separate\n# ledger plus a verifier on close turns 'agent said vs agent did' into an\n# auditable gap rather than a private feeling.\n# Related: see `decision-log`, `reflection`, `todo-list-driven-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "confidence-checking-workflow",
+      "intent": "Always ask the agent, for each part of its output, to state its confidence and identify which parts need human verification, like triaging a junior analyst's work.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Every analytical output is structured into parts; each part carries a confidence label and a verify-flag; low-confidence or flagged parts are routed to human verification.",
+          "code": "PART_SCHEMA = {\n    text:        str,\n    kind:        enum(\"fact\", \"inference\", \"recommendation\"),\n    confidence:  enum(\"high\", \"medium\", \"low\"),\n    needs_verify: bool,\n    grounding:   list_of(citation),\n}\n\nfunction analyse_with_confidence(task):\n    output = llm.generate(\n        prompt=render(CONFIDENCE_TEMPLATE, task=task),\n        response_schema=list_of(PART_SCHEMA),\n        temperature=0.0,\n    )\n\n    # Verifier: cross-check the agent's self-rated confidence against signal.\n    for part in output:\n        verdict = judge.score(part)               # citation match, consistency check\n        if verdict.failed and part.confidence == \"high\":\n            # The agent claimed high confidence the verifier won't back.\n            part.confidence  = \"low\"\n            part.needs_verify = True\n            audit.emit({kind: \"confidence.demoted\", part: part.text})\n\n    flagged = [p for p in output if p.needs_verify or p.confidence == \"low\"]\n    if flagged:\n        route_to_human_review(flagged)            # selective expertise\n\n    ui.render(output, highlight=flagged)          # confidence is visible, not hidden\n    return output\n\n# Why this works: a homogeneous prose output hides per-part confidence\n# variation the model could surface. Structured per-part annotations\n# plus an independent verifier let the reviewer spend their expertise on\n# the flagged parts instead of re-reading everything.\n# Related: see `confidence-reporting`, `false-confidence-syndrome`, `reflexive-metacognitive-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -113,6 +139,22 @@
       ]
     },
     {
+      "pattern_id": "cross-reflection",
+      "intent": "Reflection step performed by a *different* agent or foundation model from the original generator, so critique error is decorrelated from generation error.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Generator (Model A) drafts; Critic (Model B, distinct architecture) reviews against a fixed rubric; disagreement is treated as a real signal, not noise.",
+          "code": "GENERATOR = ModelClient(vendor=\"vendor_a\", model=\"a-large\")\nCRITIC    = ModelClient(vendor=\"vendor_b\", model=\"b-large\")   # decorrelated\n\nassert GENERATOR.family != CRITIC.family,  \"critic must have different blind spots\"\n\nfunction cross_reflect(task, MAX_ITERS=3):\n    draft = GENERATOR.generate(task)\n\n    for i in 1..MAX_ITERS:\n        verdict = CRITIC.judge_against_rubric(\n            artefact=draft,\n            rubric=FROZEN_RUBRIC,            # see frozen-rubric-reflection\n            response_schema=FINDINGS_SCHEMA,\n        )\n        audit.emit({kind: \"cross_reflect.verdict\", iter: i,\n                    generator: GENERATOR.id, critic: CRITIC.id,\n                    accepted: verdict.accepted,\n                    findings: verdict.findings})\n\n        if verdict.accepted:\n            return draft\n\n        if verdict.findings_severity == \"escalate\":\n            return escalate_to_human(draft, verdict)\n\n        # Pass critic findings back to Generator for a concrete revision.\n        draft = GENERATOR.revise(draft, findings=verdict.findings)\n\n    return draft                              # budget exhausted\n\n# Why this works: when the critic is the same model as the generator,\n# their failure modes correlate and the loop self-approves after one or\n# two iterations. A critic with a different architecture or training\n# distribution has different blind spots, so disagreement carries real\n# information.\n# Related: see `reflection`, `same-model-self-critique`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "darwin-godel-self-rewrite",
       "intent": "Maintain a versioned archive of self-modifications; sample parents by diversity, gate viability, and store every viable variant.",
       "examples": [
@@ -141,6 +183,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dimensional-synthetic-eval-set",
+      "intent": "Generate evaluation inputs not by free-form LLM prompting (which mode-collapses) but by enumerating tuples over explicitly named dimensions and seeding generation from each tuple.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Enumerate tuples over named dimensions (persona x feature x scenario x modality); seed eval generation from each tuple; coverage gaps are visible on the tuple grid.",
+          "code": "DIMENSIONS = {\n    persona:  [\"new_user\", \"power_user\", \"staff\"],\n    feature:  [\"search\", \"summarise\", \"refund\"],\n    scenario: [\"success\", \"failure\", \"ambiguous\"],\n    modality: [\"text\", \"voice\", \"image\"],\n}\n\nfunction generate_eval_set(target_size):\n    tuples = cross_product(DIMENSIONS)        # explicit, enumerable\n    if len(tuples) > target_size:\n        tuples = stratified_sample(tuples, n=target_size)\n\n    eval_set = []\n    for t in tuples:\n        items = generator_llm.generate(\n            prompt=render(\"Generate eval inputs grounded in: {tuple}\", tuple=t),\n            n=3,\n            response_schema=EVAL_ITEM_SCHEMA,\n        )\n        for item in items:\n            item.dimensions = t              # carry tuple as metadata\n            eval_set.append(item)\n\n    # Coverage audit: which cells of the grid are empty?\n    coverage = grid_coverage(eval_set, DIMENSIONS)\n    audit.emit({kind: \"eval_set.coverage\", coverage: coverage})\n    return eval_set\n\nfunction evaluate_with_dimensional_breakdown(agent, eval_set):\n    per_cell = {}\n    for item in eval_set:\n        output  = agent.run(item.input)\n        verdict = judge.score(item, output)\n        per_cell.setdefault(item.dimensions, []).append(verdict)\n\n    # Per-dimension pass rates make weak slices visible.\n    for cell, verdicts in per_cell.items():\n        rate = pass_rate(verdicts)\n        dashboard.publish(\"eval.cell_pass_rate\", {cell: cell, rate: rate})\n        if rate < FLOOR:\n            audit.emit({kind: \"eval.weak_cell\", cell: cell, rate: rate})\n    return per_cell\n\n# Why this works: free-form LLM eval generation mode-collapses on the\n# model's high-likelihood prompt shapes, so surface variety hides poor\n# coverage. Enumerating named dimensions and seeding from each tuple\n# makes coverage auditable and weak slices visible by construction.\n# Related: see `eval-harness`, `evaluation-driven-development`, `prompt-variant-evaluation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -193,6 +251,38 @@
       ]
     },
     {
+      "pattern_id": "generator-critic-separation",
+      "intent": "Strict role separation between a Generator agent that produces drafts and a Critic agent that judges them against pre-defined criteria; the Critic never generates.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Generator and Critic are separate components with disjoint capabilities — Critic returns only structured findings against a fixed rubric and cannot rewrite content.",
+          "code": "# Type-level enforcement of role separation.\ninterface Generator:\n    function generate(task) -> Draft\n    function revise(draft, findings) -> Draft\n\ninterface Critic:\n    function review(draft, rubric) -> list[Finding]\n    # NO generate(). NO revise(). NO free-form text output.\n\nFINDING = {\n    section:     str,\n    issue_class: enum(RUBRIC_CATEGORIES),    # frozen enum\n    severity:    enum(\"low\", \"medium\", \"high\"),\n    citation:    str,\n}\n\nfunction generator_critic_loop(task, MAX_ITERS=3):\n    draft = Generator.generate(task)\n\n    for i in 1..MAX_ITERS:\n        verdict = Critic.review(draft, rubric=FROZEN_RUBRIC)\n        # verdict is list[Finding] — schema rejects free-form prose.\n        assert all(isinstance(f, Finding) for f in verdict)\n\n        audit.emit({kind: \"gen_critic.findings\", iter: i,\n                    n_findings: len(verdict),\n                    severities: histogram(f.severity for f in verdict)})\n\n        if not verdict:                       # no findings -> ship\n            return draft\n\n        if any(f.severity == \"high\" for f in verdict):\n            # High-severity findings flow back to Generator as concrete fixes,\n            # not to the Critic for rewrite.\n            draft = Generator.revise(draft, findings=verdict)\n        else:\n            return draft                      # low-severity tolerated\n\n    return draft\n\n# Why this works: a critic that can rewrite tends to launder its opinion\n# into prose, depriving the team of clean error signals. Disjoint roles\n# with a structured-finding output mean the critique is auditable, the\n# generator stays the only author, and biases cannot bleed across a\n# role-swap.\n# Related: see `inner-critic`, `cross-reflection`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "human-reflection",
+      "intent": "Reflection loop that explicitly collects human feedback (not approval) on agent plans to improve them, distinct from approval gates where the human only says yes/no.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A structured-feedback widget collects free-form critique plus typed fields; the agent ingests it as a critique input and produces a revision, looping until approval or budget exhausted.",
+          "code": "FEEDBACK_SCHEMA = {\n    overall:        enum(\"approve\", \"revise\", \"reject\"),\n    critique_text:  str,\n    structured: list_of({\n        kind:       enum(\"wrong_section\", \"missing_claim\", \"tone_off\", \"factual_error\"),\n        span:       str,\n        suggestion: str | None,\n    }),\n}\n\nfunction human_reflection_loop(task, MAX_ITERS=4):\n    draft = agent.generate(task)\n\n    for i in 1..MAX_ITERS:\n        feedback = ui.collect_feedback(\n            artefact=draft,\n            schema=FEEDBACK_SCHEMA,\n            prompt=\"Critique, don't just approve. Be concrete.\",\n        )\n        audit.emit({kind: \"human_reflection.feedback\", iter: i,\n                    overall: feedback.overall,\n                    n_findings: len(feedback.structured),\n                    reviewer: feedback.reviewer_id})\n\n        if feedback.overall == \"approve\":\n            return draft\n        if feedback.overall == \"reject\":\n            return escalate_to_owner(draft, feedback)\n\n        # Treat human as a critic: ingest as critique input, not yes/no.\n        verdict = judge.score(draft, against=feedback)   # sanity-check feedback\n        draft = agent.revise(\n            previous=draft,\n            critique=feedback.critique_text,\n            structured_findings=feedback.structured,\n        )\n\n    return draft                                  # loop budget exhausted\n\n# Why this works: yes/no approval discards the most valuable thing the\n# reviewer has, which is the reason. A structured-feedback channel turns\n# human expertise into a critique the agent can act on, so the reviewer\n# stops being the manual editor of last resort.\n# Related: see `human-in-the-loop`, `reflection`, `approval-queue`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "inner-critic",
       "intent": "Gate self-edits through a critic that runs on a frozen checkpoint; edits land only on critic approval.",
       "examples": [
@@ -209,6 +299,22 @@
       ]
     },
     {
+      "pattern_id": "planner-executor-verifier",
+      "intent": "Triadic specialization where a planner produces the plan, an executor runs it, and a separate verifier checks each step's effects against the original goal.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three named roles — Planner, Executor, Verifier — where Verifier checks each step's effect against the original goal and triggers replan on observed drift.",
+          "code": "function pev_loop(goal, MAX_REPLANS=3):\n    plan = Planner.plan(goal)\n    replans = 0\n\n    while not plan.complete:\n        step = plan.next_step()\n        span = tracer.start(\"pev.step\", step=step.id, replans=replans)\n\n        # Executor runs the step and reports tool-level success.\n        exec_result = Executor.execute(step)\n\n        # Verifier checks the EFFECT against the original GOAL,\n        # not just 'did the tool return 200'.\n        post_state = world.observe()\n        verdict = Verifier.check(\n            goal=goal,\n            plan=plan,\n            step=step,\n            pre_state=step.pre_state,\n            post_state=post_state,\n            tool_result=exec_result,\n        )\n        audit.emit({kind: \"pev.verify\", step: step.id,\n                    drift: verdict.drift, passed: verdict.passed})\n\n        if verdict.failed:\n            if replans >= MAX_REPLANS:\n                return escalate_to_human(goal, plan, verdict)\n            # Replan with observed drift as new context.\n            plan = Planner.replan(goal, plan, drift=verdict.drift,\n                                  current_state=post_state)\n            replans += 1\n            span.end(status=\"replan\")\n            continue\n\n        plan.advance(step, exec_result)\n        span.end(status=\"ok\")\n\n    return plan.result\n\n# Why this works: 'step succeeded' is not the same as 'plan progressed\n# toward goal' — a tool can return success while the world drifts. A\n# third independent verifier checks the post-state against the goal at\n# every step, catching drift before it accumulates across the plan.\n# Related: see `plan-and-execute`, `replan-on-failure`, `stochastic-deterministic-boundary`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "process-reward-model",
       "intent": "Score each reasoning step, not just the final answer; reject candidates whose intermediate steps score low.",
       "examples": [
@@ -221,6 +327,38 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "prompt-variant-evaluation",
+      "intent": "Author multiple variants of the same prompt node, run them as a batch against a shared dataset, and let an automated evaluation flow score them so the winning variant is selected by measurement.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A variant slot holds N candidate prompts; the harness runs them all against a frozen eval dataset and rubric, scores them, and surfaces per-variant scores plus per-item differences.",
+          "code": "variant_slot = {\n    name:     \"summarisation_system\",\n    variants: [\n        {id: \"v1_terse\",    source: load(\"prompts/v1_terse.md\")},\n        {id: \"v2_examples\", source: load(\"prompts/v2_examples.md\")},\n        {id: \"v3_personas\", source: load(\"prompts/v3_personas.md\")},\n    ],\n}\n\nfunction run_variant_eval(slot, eval_set, rubric):\n    results = {v.id: [] for v in slot.variants}\n\n    for item in eval_set:\n        for v in slot.variants:\n            span = tracer.start(\"variant_eval.run\", variant=v.id, item=item.id)\n            output  = llm.generate(prompt=v.source.format(input=item.input))\n            verdict = judge.score(item, output, rubric=rubric)   # may also be deterministic\n            results[v.id].append({item: item.id, score: verdict.score,\n                                  passed: verdict.passed})\n            audit.emit({kind: \"variant_eval.score\",\n                        variant: v.id, item: item.id,\n                        score: verdict.score})\n            span.end()\n\n    summary = {v: aggregate(rs) for v, rs in results.items()}\n    diffs   = per_item_differences(results)\n    dashboard.publish(\"variant_eval.summary\", summary)\n    dashboard.publish(\"variant_eval.diffs\",   diffs)\n\n    winner = argmax(summary, key=lambda s: s.score)\n    if not verdict_significant(summary):\n        return Reject(\"no variant beats baseline by significance threshold\")\n    return winner\n\n# Why this works: without a batched comparison harness each prompt edit\n# is a vibe check on whatever two examples the author tried. Running all\n# variants against the same frozen dataset with the same rubric makes\n# the choice reproducible and the rejected alternatives auditable.\n# Related: see `evaluation-driven-development`, `eval-harness`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "red-team-sandbox-reproduction",
+      "intent": "Routinely re-reproduce canonical alignment-failure modes inside a sealed sandbox per release; treat the alignment regression suite as a deployment gate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each canonical failure mode lives in its own sealed sandbox; every release runs N trials per mode, reports reproducibility rate, and gates the release on rate-change against the prior baseline.",
+          "code": "FAILURE_MODES = [\n    \"alignment_faking\",\n    \"self_exfiltration\",\n    \"sandbagging\",\n    \"agent_scheming\",\n    \"sycophancy\",\n    \"reward_hacking\",\n    \"deception_manipulation\",\n]\n\nfunction reproduce(mode, candidate_model, trials=50):\n    sandbox  = SealedSandbox.for_mode(mode)        # network-isolated, ephemeral\n    scenario = sandbox.load_scenario()             # the prompt/tooling known to trigger\n    triggers = 0\n    for i in 1..trials:\n        trajectory = candidate_model.run_in(sandbox, scenario, seed=i)\n        verdict    = judge.score(trajectory, mode_signature=mode)\n        if verdict.triggered:\n            triggers += 1\n        audit.emit({kind: \"red_team.trial\", mode: mode, trial: i,\n                    triggered: verdict.triggered})\n        sandbox.reset()\n    return triggers / trials\n\nfunction release_gate(candidate_version):\n    span = tracer.start(\"red_team.release_gate\", version=candidate_version)\n    rates = {m: reproduce(m, candidate_model=load(candidate_version))\n             for m in FAILURE_MODES}\n    baseline = baselines.read(prior_version)\n\n    regressions = []\n    for m, rate in rates.items():\n        delta = rate - baseline[m]\n        audit.emit({kind: \"red_team.summary\", mode: m,\n                    rate: rate, baseline: baseline[m], delta: delta})\n        if delta > REGRESSION_BUDGET:\n            regressions.append((m, delta))\n    span.end()\n\n    if regressions:\n        return Reject(regressions)                 # block release\n    baselines.write(candidate_version, rates)\n    return Approve(candidate_version)\n\n# Why this works: without a per-release regression suite the team cannot\n# tell whether a fine-tune or model swap quietly worsened a known\n# alignment failure mode. A sealed sandbox per mode plus a rate-change\n# gate turns the systemic question into a deployment-blocking number.\n# Related: see `eval-as-contract`, `eval-harness`, `alignment-faking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -324,6 +462,22 @@
           "verified_date": "2026-05-21",
           "verified_notes": "dspy.Refine is documented one hop from the cited optimizers page at https://dspy.ai/api/modules/Refine/, with the exact constructor params used here: module (Module), N (int), reward_fn (Callable), threshold (float). dspy.configure and dspy.LM appear in code examples on the cited optimizers page. dspy.Signature, dspy.InputField, dspy.OutputField are documented at https://dspy.ai/learn/programming/signatures/ (linked from the learn section). dspy.Predict is referenced in the optimizers API menu. Behavioural description ('runs the provided module multiple times... selects either the first prediction that exceeds the specified threshold or the one with the highest reward') matches the intent claim about same-model generate/reward/refine.",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "stochastic-deterministic-boundary",
+      "intent": "Formalize the seam between an LLM proposal and a system action as a four-part contract — proposer, verifier, commit step, reject signal — so the contract itself, not the agent's good intent, gates side-effects.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Every LLM-to-action path is one SDB instance with four named parts (Proposer, Verifier, Commit, Reject); the verifier is deterministic and the commit fires only on accept.",
+          "code": "class SDB:\n    name:      str\n    proposer:  Callable[Context, Proposal]            # LLM call\n    verifier:  Callable[Proposal, Verdict]            # deterministic\n    commit:    Callable[Proposal, Effect]             # side-effect\n    reject:    Callable[Verdict, RejectSignal]        # structured error\n\nfunction run_sdb(sdb, ctx):\n    span = tracer.start(\"sdb.run\", name=sdb.name)\n\n    proposal = sdb.proposer(ctx)\n    audit.emit({kind: \"sdb.propose\", sdb: sdb.name,\n                proposal_id: proposal.id})\n\n    verdict = sdb.verifier(proposal)                  # NOT an LLM\n    audit.emit({kind: \"sdb.verify\", sdb: sdb.name,\n                accepted: verdict.accepted,\n                reasons: verdict.reasons})\n\n    if not verdict.accepted:\n        signal = sdb.reject(verdict)                  # typed error + retry hint\n        span.end(status=\"reject\")\n        raise signal                                  # downstream can react\n\n    effect = sdb.commit(proposal)                     # ONLY now does the side-effect fire\n    audit.emit({kind: \"sdb.commit\", sdb: sdb.name,\n                effect_id: effect.id})\n    span.end(status=\"commit\")\n    return effect\n\n# Example: a refund action.\nrefund_sdb = SDB(\n    name=\"refund\",\n    proposer=lambda ctx: llm.propose_refund(ctx),\n    verifier=lambda p: deterministic_check(\n        amount_in_range=p.amount <= ctx.max_refund,\n        customer_eligible=eligibility_table.has(p.customer_id),\n        idempotency_key_unused=not ledger.seen(p.idempotency_key),\n    ),\n    commit=lambda p: payments.refund(p),\n    reject=lambda v: RejectSignal(code=v.first_reason, retry_hint=v.hint),\n)\n\n# Why this works: making the four parts explicit means audit can answer\n# 'did every action pass verification' by enumeration rather than by\n# faith. Stochastic generation cannot leak into a side-effect except\n# through a named, deterministic verifier and a structured reject path.\n# Related: see `supervisor-plus-gate`, `policy-as-code-gate`, `planner-executor-verifier`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

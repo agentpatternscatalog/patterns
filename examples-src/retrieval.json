@@ -59,6 +59,22 @@
       ]
     },
     {
+      "pattern_id": "cdc-vector-sync",
+      "intent": "Treat the source-of-truth document store as the only writer; keep the vector index in sync by emitting change-data-capture events onto a queue that the feature pipeline consumes.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Source-of-truth store emits CDC events; the feature pipeline subscribes and keeps the vector index aligned with the corpus.",
+          "code": "# Producer side: enable CDC on the source-of-truth store.\nfunction on_source_change(change):\n    queue.publish(topic=\"docs.cdc\", event={\n        \"op\":      change.op,       # insert | update | delete\n        \"doc_id\":  change.doc_id,\n        \"doc\":     change.after,    # null on delete\n        \"version\": change.version,\n        \"ts\":      now(),\n    })\n\n# Consumer side: feature pipeline subscribes to the CDC topic.\nfunction feature_pipeline():\n    for event in queue.subscribe(topic=\"docs.cdc\"):\n        match event.op:\n            case \"insert\":\n                vec = embed(event.doc.text)\n                vector_index.upsert(event.doc_id, vec, meta=event.doc.meta)\n            case \"update\":\n                vec = embed(event.doc.text)\n                vector_index.upsert(event.doc_id, vec, meta=event.doc.meta)\n            case \"delete\":\n                vector_index.delete(event.doc_id)\n        checkpoint(event.offset)\n\n# Query path is unchanged: standard retrieve -> rank -> use.\nfunction answer(query):\n    docs     = retriever.search(query, k=10)\n    reranked = reranker.rerank(query, docs)\n    return llm.generate(prompt=query, context=reranked[:4])\n\n# Why this works: the writer code is decoupled from the embedding\n# pipeline, so corpus drift becomes a queue lag problem instead of a\n# dual-write consistency problem, and the consumer can be paused or\n# backfilled from queue history without touching the source.\n# Related: see `streaming-feature-pipeline`, `fti-llm-pipeline-split`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "citation-attribution",
       "intent": "Bind each generated claim to the retrieved chunks that support it so the binding survives all the way to the user.",
       "examples": [
@@ -252,6 +268,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Top-level router picks a source, a coarse summary retrieve narrows to candidate sections, and a chunk-level retriever returns the final hits.",
+          "code": "function hierarchical_retrieve(query, k=5):\n    # Tier 1: route to the source(s) most likely to hold the answer.\n    route   = router.classify(query, choices=SOURCES)\n    source  = sources[route]\n\n    # Tier 2: coarse retrieve over section summaries inside the source.\n    sections = source.summary_index.search(query, k=3)\n\n    # Tier 3: descend into child chunks of the top-ranked sections.\n    candidates = []\n    for s in sections:\n        candidates += s.chunk_index.search(query, k=k)\n\n    # Optional rerank with a cross-encoder over the leaf candidates.\n    reranked = reranker.rerank(query, candidates)\n    return reranked[:k]\n\nfunction answer(query):\n    docs = hierarchical_retrieve(query, k=5)\n    return llm.generate(prompt=query, context=docs)\n\n# Why this works: retrieval cost and granularity track what the query\n# actually needs. Each tier is a cheap decision that prunes the work\n# the next tier has to do, so the system never pays the full union-index\n# cost on every request.\n# Related: see `modular-rag`, `query-rewriting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -280,6 +306,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Offline LLM triple extraction builds a schemaless KG; online retrieval seeds PPR on query concepts and aggregates mass back to source passages.",
+          "code": "# Offline: build the artificial hippocampal index.\nfunction build_kg(corpus):\n    graph = empty_graph()\n    for passage in corpus:\n        triples = llm.extract_triples(passage)        # (s, p, o)\n        for (s, p, o) in triples:\n            graph.add_node(s, passages=[passage.id])\n            graph.add_node(o, passages=[passage.id])\n            graph.add_edge(s, o, predicate=p)\n    return graph\n\n# Online: single-pass multi-hop retrieval.\nfunction hippo_retrieve(query, graph, k=10):\n    concepts = llm.extract_query_concepts(query)\n    seeds    = {n: 1.0 for n in concepts if n in graph}\n    scores   = personalized_pagerank(graph, seeds=seeds, alpha=0.5)\n\n    passage_scores = {}\n    for node, mass in scores.items():\n        for pid in graph.node(node).passages:\n            passage_scores[pid] = passage_scores.get(pid, 0) + mass\n    return top_k(passage_scores, k)\n\nfunction answer(query):\n    docs     = hippo_retrieve(query, KG, k=10)\n    reranked = reranker.rerank(query, docs)\n    return llm.generate(prompt=query, context=reranked[:5])\n\n# Why this works: the graph already encodes the entity bridges, so a\n# single PPR pass replaces an iterative agentic loop and surfaces a\n# tight path between concepts the query never explicitly mentioned.\n# Related: see `hierarchical-retrieval`, `cdc-vector-sync`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -378,6 +414,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Module Type registry holds named Modules per stage; an orchestrator picks one Module per stage at request time to assemble the pipeline.",
+          "code": "MODULES = {\n    \"pre_retrieval\":  {\"none\": Identity, \"rewrite\": MultiQuery, \"hyde\": HyDE},\n    \"retrieval\":      {\"dense\": Dense, \"sparse\": BM25,\n                        \"hybrid\": Hybrid, \"graph\": GraphRetr},\n    \"post_retrieval\": {\"none\": Identity, \"rerank\": CrossEncoder,\n                        \"compress\": LLMLingua},\n    \"generation\":     {\"answer\": Answer, \"answer_cite\": AnswerWithCitations},\n}\n\nfunction orchestrate(query):\n    shape = classify_query(query)   # lookup / explore / multi_hop\n    return {\n        \"lookup\":    [\"none\",    \"dense\",  \"none\",   \"answer\"],\n        \"explore\":   [\"rewrite\", \"hybrid\", \"rerank\", \"answer_cite\"],\n        \"multi_hop\": [\"none\",    \"graph\",  \"rerank\", \"answer_cite\"],\n    }[shape]\n\nfunction run(query):\n    pre, ret, post, gen = orchestrate(query)\n    q2       = MODULES[\"pre_retrieval\"][pre](query)\n    docs     = MODULES[\"retrieval\"][ret].search(q2, k=10)\n    reranked = MODULES[\"post_retrieval\"][post].rerank(q2, docs)\n    return MODULES[\"generation\"][gen](q2, reranked[:5])\n\n# Why this works: stages talk through a typed input/output contract,\n# so swapping a reranker or adding a query rewriter is a registry edit\n# rather than an orchestration rewrite, and per-query shape becomes a\n# first-class routing decision.\n# Related: see `hierarchical-retrieval`, `query-rewriting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -447,6 +493,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "LLM emits N query variants; each retrieves in parallel; Reciprocal Rank Fusion combines the rankings without mixing raw scores.",
+          "code": "function multi_query_retrieve(query, n=4, k=10):\n    variants = llm.generate_variants(query, n=n)   # paraphrase / decompose\n    variants = [query] + variants                  # keep the original\n\n    rankings = parallel_map(\n        lambda v: retriever.search(v, k=k),\n        variants,\n    )\n\n    # Reciprocal Rank Fusion across variant rankings (rank-based, scale-free).\n    C = 60\n    scores = {}\n    for ranking in rankings:\n        for rank, doc in enumerate(ranking):\n            scores[doc.id] = scores.get(doc.id, 0) + 1 / (C + rank)\n\n    fused    = sort_desc(scores.items(), by=value)\n    top      = [docs[doc_id] for doc_id, _ in fused[:k]]\n    reranked = reranker.rerank(query, top)\n    return reranked\n\nfunction answer(query):\n    docs = multi_query_retrieve(query, n=4, k=10)\n    return llm.generate(prompt=query, context=docs[:5])\n\n# Why this works: the user's first phrasing is a noisy estimator of\n# intent; retrieving against several formulations samples more of the\n# semantic space, and rank-based fusion keeps the BM25/dense/variant\n# scales from contaminating one another.\n# Related: see `modular-rag`, `hierarchical-retrieval`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -479,6 +535,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "streaming-feature-pipeline",
+      "intent": "Process raw documents into RAG features as a continuous stream rather than a batch job, with typed models pinning each stage.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Streaming dataflow with one typed model per stage (raw -> cleaned -> chunked -> embedded); failures isolate to single events via a dead-letter queue.",
+          "code": "schema RawDocument:      {id, source, text, fetched_at}\nschema CleanedDocument:  {id, source, text, lang}\nschema ChunkedDocument:  {id, parent_id, ord, text}\nschema EmbeddedDocument: {id, parent_id, ord, text, vec, dims}\n\nfunction stage_clean(raw: RawDocument) -> CleanedDocument:\n    return CleanedDocument(id=raw.id, source=raw.source,\n                           text=normalise(raw.text),\n                           lang=detect_lang(raw.text))\n\nfunction stage_chunk(d: CleanedDocument) -> list[ChunkedDocument]:\n    return [ChunkedDocument(id=uuid(), parent_id=d.id, ord=i, text=c)\n            for i, c in enumerate(split(d.text))]\n\nfunction stage_embed(c: ChunkedDocument) -> EmbeddedDocument:\n    v = embed(c.text)\n    return EmbeddedDocument(**c.fields, vec=v, dims=len(v))\n\nfunction pipeline():\n    for raw in stream.consume(\"docs.cdc\"):\n        try:\n            cleaned = stage_clean(validate(raw, RawDocument))\n            for chunk in stage_chunk(cleaned):\n                emb = stage_embed(chunk)\n                vector_index.upsert(emb.id, emb.vec, meta=emb)\n        except (ValidationError, StageError) as e:\n            dead_letter.publish({\"event\": raw, \"error\": str(e)})\n\nfunction answer(query):\n    docs     = retriever.search(query, k=10)\n    reranked = reranker.rerank(query, docs)\n    return llm.generate(prompt=query, context=reranked[:4])\n\n# Why this works: one typed model per stage pins the shape at each\n# boundary, so a chunking or schema change fails loudly at the bad\n# stage instead of silently corrupting the index downstream.\n# Related: see `cdc-vector-sync`, `modular-rag`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     }

@@ -4,6 +4,22 @@
   "label": "Routing & Composition",
   "patterns": [
     {
+      "pattern_id": "agent-persona-profile",
+      "intent": "Treat agent identity as a structured profile object — persona, primary motivator, allowed actions, knowledge bindings — rather than a free-form role sentence in the system prompt.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Profile is a typed config object loaded by the runtime; the dispatcher selects the active profile and composes a system prompt from its fields.",
+          "code": "schema Profile:\n    id:                 str\n    persona:            str          # role description\n    primary_motivator:  str          # what drives this agent\n    action_set:         list[tool_id]\n    knowledge_bindings: {rag_sources, memory_partitions, vector_stores}\n    behaviour:          {tone, verbosity, model_choice}\n    inherits:           optional[profile_id]\n\nPROFILES = load_profiles_from_disk(\"profiles/*.yaml\")\n\nfunction resolve(profile_id):\n    p = PROFILES[profile_id]\n    if p.inherits:\n        base = resolve(p.inherits)\n        return merge(base, p)         # specialised overrides defaults\n    return p\n\nfunction handle(query, profile_id):\n    # Dispatcher routes via a typed profile reference, not a prompt string.\n    route       = router.classify(query, profiles=list(PROFILES))\n    chosen      = profile_id or route\n    profile     = resolve(chosen)\n\n    specialists = {\n        pid: agent_for(resolve(pid)) for pid in PROFILES\n    }\n    result = specialists[chosen].handle(\n        query,\n        system_prompt=compose_prompt(profile),\n        tools=profile.action_set,\n        memory=profile.knowledge_bindings.memory_partitions,\n    )\n    return result\n\n# Why this works: persona becomes a versioned, inheritable artefact, so\n# runtime swaps are a typed reference change and two variants that share\n# a base profile actually share it instead of drifting.\n# Related: see `personality-variant-overlay`, `agent-skills`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "automatic-workflow-search",
       "intent": "Treat the agent's workflow itself as a search artefact; mutate-and-evaluate candidate programs against a benchmark, then deploy the winner.",
       "examples": [
@@ -29,6 +45,22 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://dspy.ai/learn/optimization/optimizers/: dspy.Module, dspy.ChainOfThought, dspy.MIPROv2, dspy.evaluate.answer_exact_match all referenced. Page shows verbatim `dspy.MIPROv2(metric=dspy.evaluate.answer_exact_match, auto=\"light\", num_threads=24)` then `tp.compile(react, trainset=trainset)` — confirms metric, auto (\"light\"/\"medium\"), num_threads kwargs and .compile(program, trainset=...)."
+        }
+      ]
+    },
+    {
+      "pattern_id": "bpmn-dmn-deterministic-shell",
+      "intent": "BPMN processes and DMN decision tables form the deterministic spine; LLM-driven agents are invoked only at explicit 'unstructured problem' nodes inside the process.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "BPMN engine orchestrates the process; DMN rules fire at decision nodes; the LLM agent runs only at service tasks tagged 'unstructured problem', returning typed output back into the flow.",
+          "code": "process \"loan-application\":\n    start -> validate(applicant)\n    -> dmn(\"eligibility-rules\")     # deterministic decision table\n    -> if eligible: service_task(\"score_credit\")\n                    -> service_task(\"summarise_explanation\",\n                                     type=\"unstructured\")\n                    -> dmn(\"approval-rules\")\n                    -> notify(applicant)\n       else: notify(applicant, reason=\"ineligible\")\n    -> end\n\n# Dispatcher routes each service task to its handler.\nfunction execute_service_task(node, ctx):\n    route   = router.classify(node, choices=[\"deterministic\", \"agent\"])\n    if route == \"deterministic\":\n        return deterministic_handlers[node.id](ctx)\n\n    # Agent handler: bounded scope, typed I/O contract.\n    specialists = {\n        \"summarise_explanation\": summary_agent,\n        \"resolve_free_text\":    intake_agent,\n    }\n    result = specialists[node.id].handle(\n        input=ctx.slice(node.input_schema),\n        schema=node.output_schema,    # must validate before returning\n    )\n    return validate(result, node.output_schema)\n\nfunction run(case):\n    return bpmn_engine.run(\n        process=\"loan-application\",\n        case=case,\n        service_executor=execute_service_task,\n    )\n\n# Why this works: BPMN keeps step-level observability and DMN keeps\n# decision auditability; the LLM is a typed plug-in at clearly marked\n# nodes so the agent's flexibility never leaks into the spine.\n# Related: see `hybrid-symbolic-neural-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -97,6 +129,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Up-front difficulty score selects a tier; the decision is made once, with no cheap-first escalation, and outcomes feed back to retrain the classifier.",
+          "code": "TIERS = {\n    \"small\":  client(\"small-open-weight\"),\n    \"medium\": client(\"medium-hosted\"),\n    \"large\":  client(\"frontier\"),\n}\n\n# Misclassifying hard-as-easy hurts more than easy-as-hard, so promotion\n# thresholds are deliberately loose.\nTIER_FOR_SCORE = lambda s: (\n    \"small\"  if s < 0.30 else\n    \"medium\" if s < 0.70 else\n    \"large\"\n)\n\nspecialists = {\n    \"small\":  SmallTierAgent(TIERS[\"small\"]),\n    \"medium\": MediumTierAgent(TIERS[\"medium\"]),\n    \"large\":  LargeTierAgent(TIERS[\"large\"]),\n}\n\nfunction route(query):\n    # Cheap classifier — learned router, heuristic features, or LLM judge.\n    score = router.classify(query)            # 0.0 .. 1.0\n    tier  = TIER_FOR_SCORE(score)\n    out   = specialists[tier].handle(query)\n\n    # Outcome log feeds the classifier's next training round.\n    log_outcome({\n        \"query_id\": query.id, \"score\": score,\n        \"tier\":     tier,     \"outcome\": judge.score(out),\n    })\n    return out\n\n# Why this works: the routing key is the property that actually matters\n# for spend — predicted difficulty — instead of topic, provider, or\n# default-to-strong. The classifier compounds on outcome telemetry.\n# Related: see `hybrid-symbolic-neural-routing`, `mrkl-systems`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -199,6 +241,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Router classifies each query as symbolic, neural, or hybrid; hybrid means LLM proposes a plan and the symbolic layer validates and executes it.",
+          "code": "specialists = {\n    \"symbolic\": RuleEngine(rules=DOMAIN_RULES, ontology=ONTOLOGY),\n    \"neural\":   LLMAgent(model=\"frontier\", retriever=RAG, tools=TOOLS),\n}\n\nfunction handle(query):\n    route = router.classify(query)    # \"symbolic\" | \"neural\" | \"hybrid\"\n\n    if route == \"symbolic\":\n        return specialists[\"symbolic\"].evaluate(query)\n\n    if route == \"neural\":\n        return specialists[\"neural\"].answer(query)\n\n    # Hybrid: LLM proposes a plan, symbolic layer validates and runs it.\n    plan = specialists[\"neural\"].propose_plan(query)\n    if not specialists[\"symbolic\"].validates(plan):\n        return refuse(reason=\"plan_violates_constraints\")\n    result = specialists[\"symbolic\"].execute(plan)\n\n    # Router accuracy is a first-class metric; boundary drift is a\n    # regression, not a free move.\n    metrics.record(query=query, route=route, result=result,\n                   ground_truth=judge.score(result))\n    return result\n\n# Why this works: exact constraints stay where they can be verified, and\n# free-text interpretation stays where the LLM is good; the hybrid path\n# combines them without ever letting the LLM assert the answer alone.\n# Related: see `mrkl-systems`, `bpmn-dmn-deterministic-shell`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -215,6 +267,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "mrkl-systems",
+      "intent": "Route each request through an LLM dispatcher to specialized symbolic or neural expert modules (calculator, knowledge base, code executor) rather than asking one LLM to do everything; integrate the modules' results for the final response.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Router LLM names one or more expert modules per query; the host dispatches with structured args, then integrates results into the final response.",
+          "code": "specialists = {\n    \"calc\":     CalculatorModule(),           # symbolic: arithmetic / algebra\n    \"kb_sql\":   SQLKnowledgeBase(conn=DB),    # symbolic: exact facts\n    \"code\":     PythonSandbox(),              # symbolic: executable check\n    \"weather\":  WeatherAPISpecialist(),       # neural-ish API specialist\n    \"medical\":  MedicalQAModel(),             # neural specialist\n}\n\nfunction handle(query):\n    # Cheap LLM dispatcher picks the expert(s) for this request.\n    plan  = router.classify(query, choices=list(specialists.keys()),\n                            allow_multi=true)\n\n    results = {}\n    for call in plan.calls:\n        args = validate(call.args, specialists[call.name].schema)\n        results[call.name] = specialists[call.name].handle(args)\n\n    # Integrate expert outputs back into the LLM's final response.\n    return llm.generate(\n        prompt=\"Compose the user-facing answer using the expert outputs below.\",\n        question=query,\n        outputs=results,\n    )\n\n# Why this works: the LLM does what LLMs are good at (intent parsing,\n# composition) while exact, brittle work is delegated to modules whose\n# failure modes are known, so calculation errors and DB confabulations\n# stop showing up in the user-facing answer.\n# Related: see `hybrid-symbolic-neural-routing`, `complexity-based-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -463,6 +531,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "trust-and-reputation-routing",
+      "intent": "Maintain a per-agent reputation score updated from outcome quality and peer feedback, and route new tasks preferentially to high-reputation agents.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Reputation scores decay over time; routing samples weighted by reputation with a small exploration term so newcomers still get tasks.",
+          "code": "state Reputation:\n    score_by_agent: dict[agent_id, float]    # 0.0 .. 1.0\n    last_updated:   dict[agent_id, timestamp]\n\nHALF_LIFE     = 30 * DAY\nEXPLORATION   = 0.10        # weight reserved for cold-start agents\n\nfunction decay(now):\n    for aid, score in Reputation.score_by_agent.items():\n        dt = now - Reputation.last_updated[aid]\n        Reputation.score_by_agent[aid] = score * 0.5 ** (dt / HALF_LIFE)\n        Reputation.last_updated[aid] = now\n\nfunction route(task):\n    decay(now())\n    specialists = registry.capable_for(task.kind)    # list[agent_id]\n\n    weights = {a: Reputation.score_by_agent.get(a, 0.0) for a in specialists}\n    # Reserve exploration weight for newcomers (zero history).\n    newcomers = [a for a in specialists if a not in Reputation.score_by_agent]\n    if newcomers:\n        share = EXPLORATION / len(newcomers)\n        for a in newcomers: weights[a] = share\n\n    chosen = weighted_sample(weights)\n    result = specialists[chosen].handle(task)\n\n    # Update reputation from outcome signal (deterministic check, user\n    # rating, or peer review by another agent).\n    outcome = judge.score(task, result)\n    Reputation.score_by_agent[chosen] = clamp(\n        Reputation.score_by_agent.get(chosen, 0.5) + (outcome - 0.5) * 0.1,\n        0.0, 1.0,\n    )\n    Reputation.last_updated[chosen] = now()\n    persist(Reputation)\n    return result\n\n# Why this works: the dispatcher learns from track record longitudinally\n# instead of one-shot per request, so good agents get more work and bad\n# agents fade — without freezing out newcomers entirely.\n# Related: see `complexity-based-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     }

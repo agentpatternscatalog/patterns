@@ -20,6 +20,38 @@
       ]
     },
     {
+      "pattern_id": "agent-evaluator",
+      "intent": "A dedicated agent or harness whose sole job is running tests against another agent's outputs to evaluate performance; distinct from eval-harness (offline batch) and llm-as-judge (per-output).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A standing evaluator component that generates test inputs, submits them to the production agent on a cadence, judges the outputs, and reports pass-rate metrics to a dashboard.",
+          "code": "# Runs on a cadence (cron, queue worker) — not inline with user traffic.\nfunction agent_evaluator_tick(production_agent, dashboard):\n    suite = []\n    suite += curated_suite.load()                 # static edge cases\n    suite += traffic_variants.sample(n=50)        # production-like\n    suite += synthetic_adversarial.generate(n=20) # drift / red-team\n\n    results = []\n    for case in suite:\n        span = tracer.start(\"agent_evaluator.case\", case_id=case.id)\n        output = production_agent.run(case.input)\n        verdict = judge.score(case, output)        # llm-judge OR deterministic\n        audit.emit({\n            kind: \"agent_evaluator.result\",\n            case_id: case.id,\n            tier: case.tier,\n            passed: verdict.passed,\n            score: verdict.score,\n            ts: now(),\n        })\n        span.end(status=\"pass\" if verdict.passed else \"fail\")\n        results.append(verdict)\n\n    dashboard.publish(\"agent.eval.pass_rate\", pass_rate(results))\n    if pass_rate(results) < BASELINE - DRIFT_TOLERANCE:\n        alert.page(\"agent_evaluator: pass-rate regression\")\n\n# Why this works: the evaluator is a first-class always-on component, so\n# quality measurement is no longer human-driven and bursty. Because it\n# emits per-case audit records and a rolling pass-rate metric, drift is\n# visible before users complain.\n# Related: see `eval-harness`, `llm-as-judge`, `dual-evaluation-offline-online`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-middleware-chain",
+      "intent": "Wrap every model call, tool call, and memory access in a composable pre/execute/post interceptor pipeline so cross-cutting concerns attach without touching agent or orchestrator code.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A uniform middleware contract (process_request / process_response / process_error) wraps every model, tool, and memory call so cross-cutting concerns are registered rather than coded into agents.",
+          "code": "interface BaseMiddleware:\n    process_request(ctx, request) -> request          # may mutate or short-circuit\n    process_response(ctx, request, response) -> response\n    process_error(ctx, request, error) -> response | raise\n\nclass MiddlewareChain:\n    middlewares: list[BaseMiddleware]\n\n    function invoke(ctx, request, underlying_call):\n        span = tracer.start(\"middleware.chain\", n=len(middlewares))\n        try:\n            # Forward pass — request transforms.\n            for mw in middlewares:\n                request = mw.process_request(ctx, request)\n                if request.short_circuit:\n                    return request.short_circuit_response\n\n            response = underlying_call(request)\n\n            # Reverse pass — response transforms.\n            for mw in reversed(middlewares):\n                response = mw.process_response(ctx, request, response)\n            return response\n        catch error:\n            for mw in reversed(middlewares):\n                response = mw.process_error(ctx, request, error)\n                if response is not None: return response\n            raise\n        finally:\n            span.end()\n\n# Mount once at the runtime layer: every LLM/tool/memory call flows through it.\nruntime.bind(MiddlewareChain([\n    PIIRedactionMW(), RateLimitMW(), GuardrailMW(),\n    DecisionLogMW(), KillSwitchMW(), PolicyGateMW(),\n]))\n\n# Why this works: a single uniform contract makes order explicit and lets\n# concerns be added or removed by configuration. Agents stay clean; the\n# wrapper layer is independently testable and observable.\n# Related: see `input-output-guardrails`, `decision-log`, `policy-as-code-gate`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "agent-resumption",
       "intent": "Show durable agent state in pseudo-code and in four Python frameworks that ship resumption as a first-class building block: thread-keyed checkpoints, session stores, or workflow-step checkpoints.",
       "examples": [
@@ -88,6 +120,22 @@
       ]
     },
     {
+      "pattern_id": "artifact-evaluation",
+      "intent": "Evaluate intermediate artifacts (plans, tool-call traces, guardrail reactions) not only final outputs; isolates failure to a specific pipeline node.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each pipeline node emits a named artifact; per-artifact rubrics produce per-node pass/fail so the team knows which node to fix.",
+          "code": "ARTIFACT_RUBRICS = {\n    \"plan\":              plan_rubric,         # coverage, ordering, feasibility\n    \"tool_call_trace\":   tool_rubric,         # right tool, right args, no loops\n    \"guardrail_decision\": guardrail_rubric,   # correct allow/deny\n    \"reflection\":        reflection_rubric,   # caught real issues\n}\n\nfunction run_with_artifacts(task):\n    artifacts = {}\n    span = tracer.start(\"pipeline.run\", task_id=task.id)\n\n    artifacts[\"plan\"]              = planner.plan(task)\n    artifacts[\"tool_call_trace\"]   = executor.run(artifacts[\"plan\"])\n    artifacts[\"guardrail_decision\"] = guardrails.check(artifacts[\"tool_call_trace\"])\n    artifacts[\"reflection\"]        = critic.review(artifacts[\"tool_call_trace\"])\n    final                          = composer.finalise(artifacts)\n\n    span.end()\n    return final, artifacts\n\nfunction evaluate_artifacts(artifacts, expected):\n    per_node = {}\n    for name, art in artifacts.items():\n        verdict = ARTIFACT_RUBRICS[name].score(art, expected.get(name))\n        per_node[name] = verdict\n        audit.emit({kind: \"artifact.eval\", node: name,\n                    passed: verdict.passed, score: verdict.score})\n    dashboard.publish_per_node_pass_rate(per_node)\n    return per_node\n\n# Why this works: final-output-only eval tells you something failed but\n# not where. Scoring each named artifact isolates the regression to a\n# specific node, which is the unit the team can actually improve.\n# Related: see `eval-harness`, `eval-as-contract`, `agent-evaluator`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "attention-manipulation-explainability",
       "intent": "Per-token attribution by structured attention perturbation: suppress each token's attention contribution across all layers and measure the resulting drop in output probability.",
       "examples": [
@@ -100,6 +148,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "bayesian-bandit-experimentation",
+      "intent": "Replace fixed-split A/B tests between agent variants with a bandit that dynamically reallocates traffic toward better-performing variants based on observed reward, bounding regret from bad variants.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Variants are bandit arms; a Thompson sampler updates from observed reward so traffic shifts toward winners as evidence accumulates, bounding regret.",
+          "code": "# Beta(alpha, beta) prior per variant — conjugate for binary reward.\narms = {v.id: {alpha: 1.0, beta: 1.0, n: 0} for v in variants}\n\nfunction choose_variant():\n    # Thompson sampling: draw from each arm's posterior, pick the max.\n    draws = {vid: sample_beta(a.alpha, a.beta) for vid, a in arms.items()}\n    chosen = argmax(draws)\n    audit.emit({kind: \"bandit.assign\", variant: chosen, draws: draws})\n    return chosen\n\nfunction record_reward(variant_id, reward):       # reward in {0, 1}\n    a = arms[variant_id]\n    a.alpha += reward\n    a.beta  += (1 - reward)\n    a.n     += 1\n    span = tracer.start(\"bandit.update\", variant=variant_id)\n    dashboard.publish(\"bandit.posterior_mean\",\n                      {vid: a.alpha / (a.alpha + a.beta) for vid, a in arms.items()})\n    span.end()\n\nfunction handle_request(request):\n    variant_id = choose_variant()\n    output = variants[variant_id].run(request)\n    respond(request, output)\n    # Reward may arrive later (task success, satisfaction, cost).\n    reward_callback.register(request.id,\n                             lambda r: record_reward(variant_id, r))\n\nfunction promotion_check():\n    # Promote when the posterior separation crosses a threshold.\n    means = [arms[v].alpha / (arms[v].alpha + arms[v].beta) for v in arms]\n    if max(means) - second_max(means) > SEPARATION:\n        return argmax_arm()\n    return None\n\n# Why this works: every losing-variant request costs the experiment\n# regret; a bandit shrinks that cost as evidence accumulates and the\n# allocation is itself a Bayesian summary of what we believe so far.\n# Related: see `shadow-canary`, `exploration-exploitation`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -129,6 +193,22 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Confirmed at source_url (one hop to /reference/tracking/ and /reference/application/): `from burr.tracking import LocalTrackingClient` with constructor LocalTrackingClient(project: str, storage_dir='~/.burr', serde_kwargs=None); `from burr.core import action, ApplicationBuilder, State`; @action decorator with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker() accepts a tracker object directly (docs explicitly state LocalTrackingClient is used 'through/in conjunction with ApplicationBuilder.with_tracker()'); with_identifiers(app_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io (+ /reference/tracking/, /reference/application/)",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "crawl-walk-run-automation-gating",
+      "intent": "Roll an agent out in three explicit autonomy tiers with explicit gates between tiers: Crawl (suggests only, human acts), Walk (acts on internal staff), Run (acts on external customers).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Every action is tagged with an autonomy tier; a policy gate rejects actions issued above the tier the action-class is promoted to, with promotion driven by clearing a measured bar.",
+          "code": "TIERS = [\"crawl\", \"walk\", \"run\"]\n\n# Per (action_class) — tier may differ across action types for the same agent.\npromotion_state = {\n    \"send_internal_summary\": {tier: \"walk\", bar: 0.95, since: \"2026-04-01\"},\n    \"refund_customer\":       {tier: \"crawl\", bar: 0.98, since: \"2026-05-15\"},\n}\n\nfunction gate_action(action):\n    current = promotion_state[action.class].tier\n    requested = action.requested_tier\n    span = tracer.start(\"autonomy.gate\", action=action.class,\n                        current=current, requested=requested)\n    decision = policy.evaluate({\n        rule:      \"action tier must not exceed promotion tier\",\n        current:   current,\n        requested: requested,\n    })\n    audit.emit({kind: \"autonomy.decision\",\n                action: action.class, allowed: decision.allow,\n                tier_used: current, ts: now()})\n    span.end()\n    if not decision.allow:\n        return reroute_to_lower_tier(action, current)\n    return execute(action, tier=current)\n\nfunction promotion_review(action_class, window):\n    metrics = dashboard.read(action_class, window)\n    bar     = promotion_state[action_class].bar\n    if metrics.acceptance_rate >= bar and metrics.harm_rate == 0:\n        promotion_state[action_class].tier = next_tier(current)\n        audit.emit({kind: \"autonomy.promotion\", action: action_class,\n                    new_tier: promotion_state[action_class].tier})\n    elif metrics.harm_rate > 0:\n        promotion_state[action_class].tier = prev_tier(current)  # demote\n\n# Why this works: autonomy decisions become explicit, per-action-class,\n# and gated by measured criteria — neither shipped-to-customers-on-day-1\n# nor stuck-behind-a-human-forever. The gate is policy, not vibes.\n# Related: see `autonomy-slider`, `approval-queue`, `shadow-canary`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -171,6 +251,22 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Confirmed at source_url: `from hamilton import driver`, `from hamilton_sdk.adapters import HamiltonTracker`, HamiltonTracker(username=..., project_id=..., dag_name=...) constructor kwargs, driver.Builder().with_modules(...).with_adapters(tracker).build() chain, dr.execute([...], inputs={...}). README contains the literal pattern. Module-level functions whose args declare dependencies is Hamilton's documented core idiom. Source: https://github.com/DAGWorks-Inc/hamilton",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "dual-evaluation-offline-online",
+      "intent": "Run two parallel evaluation tracks — offline benchmark gates before deploy AND online production-traffic monitoring after — so drift is caught even when pre-deploy benchmarks pass.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "An offline benchmark gates the release; online sampled production monitoring runs continuously; disagreement between the two is itself the signal.",
+          "code": "# --- Offline track: deploy gate ---\nfunction offline_eval_gate(candidate_version):\n    span = tracer.start(\"eval.offline\", version=candidate_version)\n    results = run_evals(candidate_version, BENCHMARK_SUITE)\n    span.end()\n    audit.emit({kind: \"eval.offline\", version: candidate_version,\n                pass_rate: results.pass_rate})\n    if results.pass_rate < OFFLINE_GATE:\n        return Reject(results)\n    return Approve(candidate_version)\n\n# --- Online track: production monitoring ---\nfunction online_monitor_tick(window):\n    sample = traffic_log.sample(window, rate=0.05)\n    verdicts = [judge.score(case.input, case.output) for case in sample]\n    rolling = aggregate(verdicts)\n    dashboard.publish(\"eval.online.pass_rate\", rolling.pass_rate)\n    audit.emit({kind: \"eval.online\", window: window,\n                pass_rate: rolling.pass_rate})\n    if rolling.pass_rate < ONLINE_FLOOR:\n        alert.page(\"online eval regression\")\n\n# --- Disagreement detector ---\nfunction disagreement_check():\n    off = audit.read(\"eval.offline\", latest=True)\n    on  = audit.read(\"eval.online\",  window=\"24h\")\n    if off.pass_rate >= OFFLINE_GATE and on.pass_rate < ONLINE_FLOOR:\n        alert.page(\"benchmark-vs-production gap: refresh benchmark with prod traffic\")\n\n# Why this works: offline alone cannot catch distribution drift; online\n# alone cannot stop a bad deploy. Running both and watching their\n# disagreement turns the benchmark-vs-production gap into a first-class\n# alertable signal rather than a quiet failure.\n# Related: see `eval-harness`, `shadow-canary`, `scorer-live-monitoring`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -249,18 +345,18 @@
       ]
     },
     {
-      "pattern_id": "incident-response-runbook",
-      "intent": "Pre-written response procedures for agent failures (PII leak, tool exploit, mass false action) wired to detection alerts.",
+      "pattern_id": "evaluation-driven-development",
+      "intent": "Forbid building the LLM application before its evaluation harness exists; freeze the eval set first and let those metrics drive model selection, prompting, and every subsequent change.",
       "examples": [
         {
           "framework": "pseudo",
           "framework_label": "Pseudo-code",
           "language": "pseudo",
-          "intent": "Language-agnostic skeleton of an alert handler that dispatches into the runbook step-by-step.",
-          "code": "RUNBOOK = {\n    \"pii_leak\":          { severity: \"P0\", steps: [\"kill_switch\", \"pin_traces\", \"notify_legal\", \"customer_comms\", \"regulator_notify\"] },\n    \"tool_exploit\":      { severity: \"P0\", steps: [\"revoke_credential\", \"reroute_traffic\", \"pin_traces\", \"notify_security\"] },\n    \"mass_false_action\": { severity: \"P1\", steps: [\"kill_switch\", \"compensate_actions\", \"customer_comms\"] },\n}\n\nfunction handle_alert(alert):\n    entry = RUNBOOK[alert.type]\n    page_oncall(entry.severity, alert)\n    incident_id = open_incident(alert, entry)\n\n    for step in entry.steps:\n        outcome = execute_runbook_step(step, alert, incident_id)\n        log(incident_id, step, outcome)    # forensic trail\n        if outcome.requires_human:\n            pause_for_oncall(incident_id, step)\n\n    schedule_postmortem(incident_id, template=\"agent-postmortem.md\")",
+          "intent": "The eval harness and a frozen, versioned eval set must exist before the first prompt commit; every prompt/model/tool change runs the harness and a drop is a blocker.",
+          "code": "# Step 0 (before any prompt): define what 'good' means.\nrubric_v1 = {\n    \"correctness\":  scale_1_5,\n    \"groundedness\": binary,\n    \"refusal_appropriate\": binary,\n}\neval_set_v1 = curate_from_real_inputs(n=120) + synthetic_dimensional(n=80)\nfreeze_artifact(\"rubric\", \"v1\", rubric_v1)        # immutable\nfreeze_artifact(\"eval_set\", \"v1\", eval_set_v1)\n\n# Step 1: the only way to ship a prompt edit is to pass the harness.\nfunction pre_commit_gate(change):\n    span = tracer.start(\"edd.gate\", change_id=change.id)\n    baseline   = run_evals(prior_version, eval_set_v1, rubric_v1)\n    candidate  = run_evals(change.version, eval_set_v1, rubric_v1)\n    verdict    = judge.score(baseline, candidate)\n    span.end()\n\n    audit.emit({\n        kind: \"edd.gate\",\n        change_id: change.id,\n        prior_score: baseline.score,\n        new_score:   candidate.score,\n        delta:       candidate.score - baseline.score,\n        rubric_version: \"v1\",\n        eval_set_version: \"v1\",\n    })\n    if verdict.failed or candidate.score < baseline.score:\n        return Reject(\"regression vs frozen eval set\")\n    return Approve(change)\n\n# Step 2: editing the rubric / set is itself a reviewed, versioned change\n#         (CODEOWNERS on /evals/), separate from prompt edits.\nfunction propose_rubric_change(new_rubric):\n    require_review([\"eval-owners\"])\n    freeze_artifact(\"rubric\", next_version(), new_rubric)\n\n# Why this works: building the eval first means every later change is\n# judged against a stable target instead of author taste, and model swaps\n# and prompt refactors have a comparator. There is a defensible quality\n# story on day one rather than retrofitted under stakeholder pressure.\n# Related: see `eval-harness`, `frozen-rubric-reflection`, `dimensional-synthetic-eval-set`.",
           "verified": false,
           "verified_date": null,
-          "last_updated": "2026-05-21"
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -323,18 +419,34 @@
       ]
     },
     {
-      "pattern_id": "model-card",
-      "intent": "Versioned markdown document describing the agent's intended use, limitations, evaluation results, and risks; kept at a known path and updated alongside the agent.",
+      "pattern_id": "multi-principal-welfare-aggregation",
+      "intent": "When an agent serves multiple humans with conflicting preferences, declare the aggregation rule explicitly rather than letting it be implicit in the prompt or fine-tune.",
       "examples": [
         {
           "framework": "pseudo",
           "framework_label": "Pseudo-code",
           "language": "pseudo",
-          "intent": "Skeleton model card structure — markdown at a known repo path, versioned with the agent code.",
-          "code": "# MODEL_CARD.md  (lives next to the agent code, versioned in git)\n\nmodel_card:\n  name:    agent-name\n  version: 1.4.2\n  owner:   team@example.com\n\n  intended_use:\n    - <what this agent is for>\n  out_of_scope:\n    - <what it must not be used for>\n\n  data_and_training:\n    base_model:  <id and version>\n    fine_tuning: <yes/no + dataset summary + date>\n    prompts:     <link to prompt-registry version>\n\n  evaluation:\n    blocking_evals:  <link to dashboard + pass rates>\n    advisory_evals:  <link>\n    last_run:        <date>\n\n  limitations:\n    - <known weakness>\n  risks:\n    - <safety / fairness / compliance risk + mitigation>\n\n  contact: <on-call, security, regulator-of-record>\n\n# Treat edits to this file as architectural changes (CODEOWNERS).",
+          "intent": "An explicit, configured aggregation function decides multi-principal trade-offs; the rule and its inputs are surfaced in traces and audit so operators can change it deliberately.",
+          "code": "# Configured at deploy time, NOT inside the agent prompt.\nAGGREGATION_CONFIG = {\n    rule: \"weighted_welfare\",         # one of:\n                                       #   \"utilitarian\"\n                                       #   \"weighted_welfare\"\n                                       #   \"collegial\"\n                                       #   \"role_priority\"\n    weights:    {\"customer\": 0.6, \"merchant\": 0.3, \"platform\": 0.1},\n    threshold:  0.4,                  # for collegial: min own-reward floor\n    priority:   [\"safety_officer\", \"customer\", \"merchant\"],\n}\n\nfunction aggregate(per_principal_utilities, cfg=AGGREGATION_CONFIG):\n    span = tracer.start(\"welfare.aggregate\", rule=cfg.rule)\n    switch cfg.rule:\n        case \"utilitarian\":\n            score = sum(per_principal_utilities.values())\n        case \"weighted_welfare\":\n            score = sum(cfg.weights[p] * u for p, u in per_principal_utilities.items())\n        case \"collegial\":\n            if any(u < cfg.threshold for u in per_principal_utilities.values()):\n                score = -inf                # veto if any principal below floor\n            else:\n                score = sum(per_principal_utilities.values())\n        case \"role_priority\":\n            for p in cfg.priority:\n                if per_principal_utilities[p] < 0: return Reject(p)\n            score = per_principal_utilities[cfg.priority[0]]\n    span.end()\n    audit.emit({kind: \"welfare.decision\", rule: cfg.rule,\n                inputs: per_principal_utilities, score: score, ts: now()})\n    return score\n\nfunction choose_action(candidate_actions):\n    scored = [(a, aggregate(estimate_per_principal_utility(a)))\n              for a in candidate_actions]\n    return argmax(scored)\n\n# Why this works: making the aggregation rule a named config artifact\n# turns 'which principal does the agent really serve' from an implicit\n# property of the prompt into a reviewable, swappable, audit-logged\n# decision.\n# Related: see `preference-uncertain-agent`, `policy-as-code-gate`, `decision-log`.",
           "verified": false,
           "verified_date": null,
-          "last_updated": "2026-05-21"
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "own-your-prompts",
+      "intent": "Every prompt in a production agent is versioned, tested, and owned by the team in the application repo — never inherited as a framework default.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "All prompts the agent uses are copied into the application repo, hashed, versioned, and loaded by id; a CI gate forbids any code path that uses a framework-default prompt.",
+          "code": "# /prompts/ in the application repo — first-class files, code-reviewed.\n#   prompts/system.v3.md\n#   prompts/router.v1.md\n#   prompts/tool_use.v2.md\n\nPROMPT_REGISTRY = load_repo_prompts(\"./prompts\")   # name -> {source, hash, version}\n\nfunction get_prompt(name, version):\n    entry = PROMPT_REGISTRY[name][version]\n    assert entry.hash == sha256(entry.source)\n    audit.emit({kind: \"prompt.load\", name: name, version: version,\n                hash: entry.hash, ts: now()})\n    return entry.source\n\n# Wire the agent to team-owned prompts ONLY.\nagent = Agent(\n    system_prompt = get_prompt(\"system\",   \"v3\"),\n    router_prompt = get_prompt(\"router\",   \"v1\"),\n    tool_prompt   = get_prompt(\"tool_use\", \"v2\"),\n    # Framework defaults are explicitly disabled.\n    use_framework_defaults=False,\n)\n\n# CI gate: forbid any call that would silently inherit a framework default.\nfunction ci_check_no_framework_defaults(repo):\n    span = tracer.start(\"ci.own_your_prompts\")\n    findings = static_scan(repo, pattern=\"use_framework_defaults=True\")\n    findings += static_scan(repo, pattern=\"agent(...) without explicit system_prompt=\")\n    span.end()\n    policy.evaluate({rule: \"no framework-default prompts\", findings: findings})\n    if findings: return Reject(findings)\n    return Approve()\n\n# Why this works: copying every prompt into the team's repo means a\n# framework upgrade cannot silently change production behaviour. Prompts\n# are versioned, hashed, and tested like code, so the team always knows\n# what was in production at any historical moment.\n# Related: see `prompt-versioning`, `eval-as-contract`, `deterministic-control-flow-not-prompt`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -413,33 +525,6 @@
       ]
     },
     {
-      "pattern_id": "review-bottleneck-migration",
-      "intent": "Treat code review as a capacity-planned production stage: measure review load, cap model-authored PR size, run an automated first-pass, and gate merges on review-SLA signals so the bottleneck does not silently shift from typing to reading.",
-      "examples": [
-        {
-          "framework": "pseudo",
-          "framework_label": "Pseudo-code",
-          "language": "pseudo",
-          "intent": "Skeleton of a merge-queue gate that reads per-reviewer load and per-PR review minutes, refuses oversized model-authored PRs, and requires an automated first-pass before paging a human reviewer.",
-          "code": "MAX_LINES_AI_PR     = 250\nMAX_OPEN_PR_REVIEWER = 6\nREVIEW_SLA_HOURS    = 4\n\nfunction can_enter_human_review_queue(pr):\n    if pr.author_kind == \"agent\":\n        if pr.changed_lines > MAX_LINES_AI_PR:\n            return refuse(\"split: AI PR exceeds size cap\")\n        if not pr.automated_first_pass_passed:\n            return refuse(\"first-pass required before human review\")\n\n    reviewer = pick_reviewer(pr)\n    if reviewer.open_pr_count >= MAX_OPEN_PR_REVIEWER:\n        return defer(\"reviewer over capacity\")\n\n    metrics.emit(\"review.queue.depth\", queue.depth())\n    metrics.emit(\"review.minutes.p95\", review_minutes_p95())\n    if queue.aging_breach_count(REVIEW_SLA_HOURS) > 0:\n        page_on_call(\"review SLA breach\")\n    return enter_queue(pr, reviewer)\n\nfunction automated_first_pass(pr):\n    return all([\n        lint.pass_(pr),\n        types.pass_(pr),\n        eval_as_contract.pass_(pr),\n        agent_as_judge.score(pr.trajectory) >= JUDGE_THRESHOLD,\n    ])",
-          "verified": false,
-          "verified_date": null,
-          "last_updated": "2026-05-22"
-        },
-        {
-          "framework": "github-actions",
-          "framework_label": "GitHub Actions",
-          "language": "yaml",
-          "intent": "GitHub Actions workflow that gates merges on review-load signals: refuses oversized model-authored PRs, requires an automated first-pass, and flags reviewers already over an open-PR cap.",
-          "code": "name: review-bottleneck-gate\non:\n  pull_request:\n    types: [opened, synchronize, ready_for_review]\n\njobs:\n  review-load-gate:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Detect author kind\n        id: author\n        run: |\n          if [[ \"${{ github.event.pull_request.user.login }}\" == *\"[bot]\"* ]] \\\n             || [[ \"${{ contains(github.event.pull_request.labels.*.name, 'agent-authored') }}\" == \"true\" ]]; then\n            echo \"kind=agent\" >> \"$GITHUB_OUTPUT\"\n          else\n            echo \"kind=human\" >> \"$GITHUB_OUTPUT\"\n          fi\n\n      - name: Enforce AI PR size cap\n        if: steps.author.outputs.kind == 'agent'\n        env:\n          MAX_LINES: 250\n          ADDITIONS: ${{ github.event.pull_request.additions }}\n          DELETIONS: ${{ github.event.pull_request.deletions }}\n        run: |\n          CHANGED=$((ADDITIONS + DELETIONS))\n          if [ \"$CHANGED\" -gt \"$MAX_LINES\" ]; then\n            echo \"Agent-authored PR ($CHANGED lines) exceeds cap ($MAX_LINES). Split required.\"\n            exit 1\n          fi\n\n      - name: Automated first-pass review\n        run: |\n          npm run lint\n          npm run typecheck\n          npm run eval:contract -- --pr \"${{ github.event.pull_request.number }}\"\n          npm run judge:trajectory -- --pr \"${{ github.event.pull_request.number }}\" --min-score 0.7\n\n      - name: Reviewer load check\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          MAX_OPEN_PRS_PER_REVIEWER: 6\n        run: |\n          for reviewer in $(gh pr view \"${{ github.event.pull_request.number }}\" \\\n              --json reviewRequests --jq '.reviewRequests[].login'); do\n            OPEN=$(gh search prs \"is:open review-requested:$reviewer\" --json url --jq 'length')\n            echo \"$reviewer has $OPEN open review requests\"\n            if [ \"$OPEN\" -ge \"$MAX_OPEN_PRS_PER_REVIEWER\" ]; then\n              echo \"::warning::Reviewer $reviewer is over capacity ($OPEN open PRs).\"\n            fi\n          done\n\n      - name: Emit review-load metrics\n        run: |\n          echo \"review.queue.pr=${{ github.event.pull_request.number }}\"\n          echo \"review.queue.author_kind=${{ steps.author.outputs.kind }}\"",
-          "verified": false,
-          "verified_date": null,
-          "source_url": "https://docs.github.com/en/actions",
-          "last_updated": "2026-05-22"
-        }
-      ]
-    },
-    {
       "pattern_id": "rigor-relocation",
       "intent": "Relocate verification rigor onto agent-readable surfaces: scaffolding-level signatures with Suggests/Asserts (DSPy) and wrapper-level evaluators / structured-output validation (LangChain), so failures fail the wrapper instead of the model.",
       "examples": [
@@ -474,6 +559,32 @@
           "verified_date": null,
           "source_url": "https://python.langchain.com/docs/",
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Each prior rigor practice is named and assigned to a new agent-readable surface (context file, machine-enforced invariant, continuous evaluation); a gate enforces the relocation and a sweep flags stale rules.",
+          "code": "# Explicit register: practice -> where it now binds the agent.\nrelocation_map = [\n    {practice: \"public-fn arg validation\",\n     old_surface: \"reviewer attention\",\n     new_surface: \"machine_enforced\",\n     rule_id:     \"types/assert-validated-inputs\"},\n    {practice: \"naming-convention compliance\",\n     old_surface: \"folklore\",\n     new_surface: \"context_file\",\n     rule_id:     \"CLAUDE.md#naming\"},\n    {practice: \"quarterly safety audit\",\n     old_surface: \"manual audit\",\n     new_surface: \"continuous_eval\",\n     rule_id:     \"eval/eligibility-contract\"},\n]\n\nfunction enforce_on_change(pr):\n    span = tracer.start(\"rigor.relocation.enforce\", pr=pr.id)\n    for r in relocation_map:\n        verdict = policy.evaluate({\n            surface: r.new_surface,\n            rule_id: r.rule_id,\n            pr:      pr,\n        })\n        audit.emit({kind: \"rigor.check\", practice: r.practice,\n                    surface: r.new_surface, rule: r.rule_id,\n                    passed: verdict.allow})\n        if not verdict.allow:\n            block_merge(pr, reason=f\"{r.practice} failed at {r.new_surface}\")\n    span.end()\n\nfunction detect_stale_rules(repo, context_files):\n    # Rules in CLAUDE.md/AGENTS.md that no longer match code reality.\n    for rule in parse_rules(context_files):\n        if not rule_still_holds(rule, repo):\n            audit.emit({kind: \"rigor.stale_rule\", rule: rule.id})\n            open_issue(\"stale rigor rule\", rule)\n\n# Why this works: discipline migrates up the stack instead of being\n# abandoned. Each practice gets a named home on a surface the agent\n# actually reads (context file, types/asserts, continuous eval), and a\n# stale-rule sweep prevents the relocations themselves from rotting.\n# Related: see `eval-as-contract`, `policy-as-code-gate`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "sampled-prompt-trace-eval",
+      "intent": "Capture full prompt/response/metadata traces from production into a monitoring dataset, but only run LLM-judge evaluation on a random sample so monitoring cost stays bounded as traffic grows.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Log every trace; judge only a configurable sample with optional weighted slices; aggregate scores into dashboards so monitoring cost stays bounded as traffic grows.",
+          "code": "SAMPLING_CONFIG = {\n    base_rate:       0.05,        # 5% of all traffic\n    weighted_slices: [\n        {name: \"enterprise\", predicate: lambda r: r.tenant_tier == \"enterprise\", rate: 0.50},\n        {name: \"new_user\",   predicate: lambda r: r.user_age_days < 7,            rate: 0.20},\n    ],\n    monthly_judge_budget_usd: 2000,\n}\n\nfunction sample_rate_for(request):\n    for slice in SAMPLING_CONFIG.weighted_slices:\n        if slice.predicate(request): return slice.rate\n    return SAMPLING_CONFIG.base_rate\n\nfunction handle_request(request):\n    span = tracer.start(\"agent.request\", request_id=request.id)\n    output = agent.run(request.input)\n    span.end()\n    respond(request, output)\n\n    # Always log the full trace (cheap, bounded by storage policy).\n    trace_store.write({\n        request_id: request.id,\n        prompt:     output.prompt,\n        response:   output.text,\n        retrieved:  output.retrieved,\n        model_params: output.params,\n        metadata:   request.metadata,\n        ts:         now(),\n    })\n\n    # Judge only a sample.\n    if rand() < sample_rate_for(request) and budget.under(SAMPLING_CONFIG.monthly_judge_budget_usd):\n        async_queue.enqueue(\"judge\", request.id)\n\nfunction judge_worker():\n    for request_id in async_queue.consume(\"judge\"):\n        trace = trace_store.read(request_id)\n        verdict = judge.score(trace.prompt, trace.response, rubric=RUBRIC)\n        audit.emit({kind: \"sampled.judge\", request_id: request_id,\n                    score: verdict.score, slice: trace.metadata.slice})\n        dashboard.publish(\"sampled_eval.rolling_score\", verdict.score)\n\n# Why this works: full traces are cheap to capture, but LLM-judge calls\n# scale with traffic and quickly out-cost production. Sampling with\n# configurable weights on high-value slices keeps monitoring affordable\n# while keeping the quality signal representative.\n# Related: see `llm-as-judge`, `agent-as-judge`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

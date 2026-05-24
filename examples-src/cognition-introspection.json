@@ -32,6 +32,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Frontend writes a coarse presence record with TTL; a reducer derives a single presence-quality label; the tick loop reads only the derived value, never the raw signals.",
+          "code": "PRESENCE_TTL = 8 * SECOND\n\n# Frontend emits coarse buckets only - never raw chars or coordinates.\nfunction frontend_write_presence():\n    payload = {\n        \"typing_rate\":    bucket(chars_per_sec, [0, 0.5, 2, 6]),\n        \"idle_seconds\":   round(seconds_since_last_keystroke),\n        \"tab_visible\":    document_has_focus(),\n        \"composer_dwell\": seconds_in_composer_without_send,\n        \"emitted_at\":     now(),\n    }\n    presence_store.write(payload, ttl=PRESENCE_TTL)\n\nfunction derive_presence_quality(p, now_t):\n    if p is None or now_t - p.emitted_at > PRESENCE_TTL:\n        return \"no-signal\"\n    if not p.tab_visible and p.idle_seconds > 60: return \"walked-away\"\n    if p.typing_rate in {\"fast\", \"normal\"}:       return \"composing\"\n    if p.composer_dwell > 10 and p.typing_rate == \"slow\":\n        return \"thinking-with-the-room\"\n    if p.tab_visible and p.idle_seconds < 30:     return \"present\"\n    return \"distracted\"\n\n# Agent's tick loop sees only the derived label.\nfunction tick(ctx):\n    confidence = model.estimate_certainty(ctx.last_thought)\n    ctx.presence = derive_presence_quality(presence_store.read(), now())\n    run_normal_tick(ctx)   # never quote raw signals back to the user\n\n# Why this works: the reducer is the only thing that introspects raw\n# telemetry; the tick loop sees a typed self-state value. Stale records\n# become \"no-signal\" rather than false absence, and the agent can act on\n# its own model of the room without leaking keystrokes.\n# Related: see `mode-adaptive-cadence`, `salience-triggered-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -48,6 +58,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "bdi-agent",
+      "intent": "Agent maintains explicit Beliefs about the world, Desires (goals), and Intentions (committed plans), and reasons by reconciling the three.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Three typed stores (Beliefs, Desires, Intentions) reconciled each tick; commitments persist across prompts and every transition writes a trace entry.",
+          "code": "state Beliefs:    list[{prop, source, as_of}]\nstate Desires:    list[{goal, priority, active}]\nstate Intentions: list[{plan_id, goal, status, rationale}]\n\nfunction update_beliefs(observations):\n    for obs in observations:\n        Beliefs.upsert(prop=obs.prop, source=obs.source, as_of=now())\n    persist(Beliefs)\n\nfunction reconsider_desires():\n    for d in Desires:\n        if satisfied(d.goal, Beliefs): d.active = false\n        d.priority = score(d.goal, Beliefs)\n    persist(Desires)\n\nfunction check_intentions():\n    for i in Intentions:\n        if not consistent(i.plan_id, Beliefs):\n            i.status = \"abandoned\"\n            trace.append({event: \"abandon\", intention: i,\n                          reason: \"inconsistent_with_beliefs\"})\n        elif not aligned(i.goal, active_desires(Desires)):\n            i.status = \"superseded\"\n    persist(Intentions)\n\nfunction tick(observations):\n    update_beliefs(observations)\n    reconsider_desires()\n    check_intentions()\n    answer = deliberate(Beliefs, Desires, Intentions)\n    confidence = model.estimate_certainty(answer)\n    return {answer, confidence}\n\n# Why this works: representing mental state as three typed stores makes\n# commitments durable across prompts, surfaces contradiction between\n# what the agent believes and what it is pursuing, and gives the trace\n# a vocabulary auditors can read.\n# Related: see `hypothesis-tracking`, `world-model-separation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -80,6 +106,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "cooperative-preference-inference",
+      "intent": "Agent and human jointly optimise the human's reward without the agent being told what it is — the interaction is a two-player game in which alignment is learned while acting.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Agent maintains a posterior over the human's reward; every human action updates the posterior, and the agent acts to maximise expected reward under that uncertainty.",
+          "code": "# Posterior over the human's reward function R.\nposterior = Prior(reward_space=R_SPACE)\n\nfunction observe_human(evidence):\n    # evidence kinds: demonstration, correction, choice, explicit_label.\n    likelihood = human_model.likelihood(evidence, R_SPACE)\n    posterior  = bayes_update(posterior, likelihood)\n    persist(posterior)\n\nfunction act(state):\n    # Expected utility under current posterior — NOT a point estimate.\n    best_action = argmax(\n        a in feasible_actions(state),\n        key=lambda a: expected_reward(a, state, posterior),\n    )\n    confidence = model.estimate_certainty(best_action)\n    if confidence < ASK_THRESHOLD or posterior.entropy() > H_MAX:\n        return ask_informative_question(state, posterior)\n    return best_action\n\nfunction loop():\n    while session_open():\n        s = sense()\n        a = act(s)\n        execute(a)\n        evidence = wait_for_human_response()    # action, edit, or word\n        observe_human(evidence)\n\n# Why this works: treating the reward as unknown forces the agent to\n# introspect its own uncertainty before acting and to value information\n# from the human, which converts ambiguous corrections into a learning\n# signal instead of friction.\n# Related: see `reflexive-metacognitive-agent`, `subject-first-agent-architecture`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -128,22 +170,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
-        }
-      ]
-    },
-    {
-      "pattern_id": "interrupt-resumable-thought",
-      "intent": "Preserve multi-step reasoning across interrupts via paused-and-resumed thought frames.",
-      "examples": [
+        },
         {
           "framework": "pseudo",
           "framework_label": "Pseudo-code",
           "language": "pseudo",
-          "intent": "An explicit frame stack with bounded depth and TTL; interrupts acknowledge, handle, then resume the top frame; expired frames are admitted as reconstruction.",
-          "code": "MAX_DEPTH = 4\nFRAME_TTL = 30 * MIN\nstack = load_json(\"frames.json\", default=[])\n\nfunction push_frame(goal, steps):\n    if len(stack) >= MAX_DEPTH:\n        raise TooManySuspensions\n    stack.append({\"goal\": goal, \"steps\": steps,\n                  \"done\": 0, \"opened_at\": now()})\n    persist(stack)\n\nfunction on_interrupt(new_msg):\n    if stack:\n        top = stack[-1]\n        say(f\"hold on - finishing '{top.goal}' first, then to you\")\n    handle(new_msg)\n    resume()\n\nfunction resume():\n    if not stack: return\n    top = stack[-1]\n    if now() - top.opened_at > FRAME_TTL:\n        say(f\"'{top.goal}' is stale - reconstructing, not continuing\")\n        stack.pop(); persist(stack); return\n    say(f\"back to '{top.goal}' - step {top.done+1}/{top.steps}\")\n    continue_step(top)",
+          "intent": "Quiet-tick counter promotes silence into a juxtaposition seed; the model is allowed to end the tick empty if no association forms.",
+          "code": "QUIET_THRESHOLD = 4\nstate = load_json(\"juxtaposition.json\", default={\"quiet_streak\": 0})\n\nfunction otherwise_quiet(ctx):\n    return (not ctx.chat_in_window and\n            ctx.urgent_preoccupation is None and\n            not ctx.in_cooldown)\n\nfunction juxtaposition_tick(ctx):\n    fragments = random_sample(load_old_material(), k=random_int(1, 3))\n    seed = {\n        \"mode\": \"juxtaposition\",\n        \"fragments\": fragments,\n        \"instruction\": \"sit with these side by side; ending empty is fine.\",\n    }\n    out        = model.complete(seed)\n    confidence = model.estimate_certainty(out)\n    if out.association_noticed and confidence > 0.4:\n        write_insight(out.text, sources=fragments, confidence=confidence)\n    # else: tick closes silently, no entry written.\n\nfunction tick(ctx):\n    if ctx.salience_low and otherwise_quiet(ctx):\n        state.quiet_streak += 1\n        if state.quiet_streak > QUIET_THRESHOLD:\n            juxtaposition_tick(ctx)\n            return                # don't reset on empty; only real activity resets\n    else:\n        state.quiet_streak = 0\n    persist(state)\n    run_normal_tick(ctx)\n\n# Why this works: the agent's idle introspection is bounded to a cheap\n# move that is allowed to fail, so silence becomes substrate for old\n# material to resurface without re-introducing initiative noise.\n# Related: see `dream-consolidation-cycle`, `open-question-tension-store`.",
           "verified": false,
           "verified_date": null,
-          "last_updated": "2026-05-21"
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -160,6 +196,32 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Typed ledger of hypotheses with status transitions driven by incoming evidence and a falsifiable next-test field.",
+          "code": "STATUS = {\"active\", \"confirmed\", \"disconfirmed\", \"superseded\", \"abandoned\"}\n\nrecord Hypothesis:\n    id:         str\n    summary:    str\n    confidence: float          # 0.0 .. 1.0\n    status:     str\n    next_test:  str            # what observation would move confidence\n    evidence:   list[{note, source, observed_at, supports: bool}]\n\nstore = load_jsonl(\"hypotheses.jsonl\")\n\nfunction commit(summary, next_test):\n    answer     = model.draft(summary)\n    confidence = model.estimate_certainty(answer)\n    h = Hypothesis(id=short_id(), summary=summary, confidence=confidence,\n                   status=\"active\", next_test=next_test, evidence=[])\n    store.append(h); persist(store)\n    return h.id\n\nfunction add_evidence(hid, note, source, supports):\n    h = store.get(hid)\n    h.evidence.append({\"note\": note, \"source\": source,\n                       \"observed_at\": now(), \"supports\": supports})\n    h.confidence = clamp(h.confidence + (0.08 if supports else -0.12),\n                         0.0, 1.0)\n    if h.confidence >= 0.85: h.status = \"confirmed\"\n    if h.confidence <= 0.10: h.status = \"disconfirmed\"\n    persist(store)\n\nfunction working_context():\n    return [h for h in store if h.status == \"active\"]\n\n# Why this works: a guess held with strength one session no longer\n# evaporates by the next; the agent can introspect what it currently\n# believes and compare it against new evidence rather than re-derive.\n# Related: see `open-question-tension-store`, `bdi-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "interrupt-resumable-thought",
+      "intent": "Preserve multi-step reasoning across interrupts via paused-and-resumed thought frames.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "An explicit frame stack with bounded depth and TTL; interrupts acknowledge, handle, then resume the top frame; expired frames are admitted as reconstruction.",
+          "code": "MAX_DEPTH = 4\nFRAME_TTL = 30 * MIN\nstack = load_json(\"frames.json\", default=[])\n\nfunction push_frame(goal, steps):\n    if len(stack) >= MAX_DEPTH:\n        raise TooManySuspensions\n    stack.append({\"goal\": goal, \"steps\": steps,\n                  \"done\": 0, \"opened_at\": now()})\n    persist(stack)\n\nfunction on_interrupt(new_msg):\n    if stack:\n        top = stack[-1]\n        say(f\"hold on - finishing '{top.goal}' first, then to you\")\n    handle(new_msg)\n    resume()\n\nfunction resume():\n    if not stack: return\n    top = stack[-1]\n    if now() - top.opened_at > FRAME_TTL:\n        say(f\"'{top.goal}' is stale - reconstructing, not continuing\")\n        stack.pop(); persist(stack); return\n    say(f\"back to '{top.goal}' - step {top.done+1}/{top.steps}\")\n    continue_step(top)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-21"
         }
       ]
     },
@@ -308,6 +370,22 @@
       ]
     },
     {
+      "pattern_id": "reflexive-metacognitive-agent",
+      "intent": "Agent maintains an explicit self-model of its own capabilities, confidence and limitations, and reasons over that model when accepting / refusing / handing off tasks.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Self-model is a typed artefact read at task acceptance; the agent emits accept, refuse-with-reason, or handoff based on its own competence estimate.",
+          "code": "state SelfModel:\n    capabilities:        list[str]\n    confidence_by_class: dict[task_class, float]\n    declared_limits:     list[{class, reason}]\n    last_refreshed:      timestamp\n\nfunction refresh_self_model():\n    SelfModel.confidence_by_class = eval_suite.replay_recent()\n    SelfModel.last_refreshed      = now()\n    persist(SelfModel)\n\nfunction accept_or_refuse(task):\n    cls       = classify_task(task)\n    in_scope  = cls in SelfModel.capabilities\n    blocked   = any(d.class == cls for d in SelfModel.declared_limits)\n    answer    = model.dry_run(task)\n    confidence = model.estimate_certainty(answer)\n\n    if blocked:\n        return refuse(reason=lookup_limit(cls, SelfModel))\n    if not in_scope or confidence < HANDOFF_THRESHOLD:\n        peer = registry.find_capable(cls, min_conf=0.7)\n        if peer: return handoff(peer, task)\n        return refuse(reason=\"no_capable_peer\")\n    return accept(task, declared_confidence=confidence)\n\n# Why this works: refusals and handoffs stop being ad-hoc prompt rules\n# and become outputs of an introspection step over a typed self-model,\n# so the agent stays in its competence envelope on purpose rather than\n# by accident.\n# Related: see `subject-first-agent-architecture`, `hypothesis-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "self-archaeology",
       "intent": "Synthesize past thought history into time-layered trajectory notes so the agent can articulate how its understanding evolved.",
       "examples": [
@@ -320,6 +398,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "subject-first-agent-architecture",
+      "intent": "Invert the LLM-centric pipeline: the agent is a stateful subject whose decision logic chooses whether to invoke the LLM at all, treating the model as one tool among many.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A stateful subject inspects its own state first; only escalates to the LLM when state alone cannot answer or an internal conflict warrants reflection.",
+          "code": "state Subject:\n    goals:       list\n    history:     list\n    self_model:  SelfModel\n    conflicts:   list\n\nfunction handle(request):\n    # 1. Can state alone answer? Cheap predicate, no model call.\n    if Subject.state_suffices(request):\n        answer     = Subject.respond_from_state(request)\n        confidence = Subject.score(answer)\n        if confidence > REPLY_THRESHOLD:\n            return answer\n\n    # 2. Internal conflict? Run a hidden reflection trace first.\n    if Subject.conflicts:\n        trace = llm.reflect(\n            state=Subject.snapshot(),\n            conflicts=Subject.conflicts,\n        )\n        Subject.absorb(trace)        # may resolve, may sharpen\n\n    # 3. Need external info or generation? Now invoke the LLM as a tool.\n    draft       = llm.generate(request, context=Subject.context_slice())\n    confidence  = model.estimate_certainty(draft)\n    Subject.record(request, draft, confidence)\n    return draft\n\n# Why this works: the load-bearing concept is that introspection over\n# the subject's own state runs BEFORE any stochastic call, so routine\n# queries don't pay the LLM tax and the model is invoked deliberately,\n# not by default.\n# Related: see `reflexive-metacognitive-agent`, `cooperative-preference-inference`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
