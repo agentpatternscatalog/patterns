@@ -136,6 +136,22 @@
       ]
     },
     {
+      "pattern_id": "cellular-automata-agents",
+      "intent": "A swarm where each agent applies simple local rules to its immediate neighborhood; macro behavior emerges without a central orchestrator and without global information access.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each agent reads only its k-radius neighborhood and applies a deterministic local rule; macro behavior is observed, never specified.",
+          "code": "# Grid of agents. Each agent only knows its own cell and a k-radius neighborhood.\ngrid = Grid(width=W, height=H)\nfor (x, y) in grid.cells:\n    grid[x, y] = Agent(\n        state=initial_state(x, y),\n        radius=K,                       # locality budget — NO global reads\n        local_rule=rule_fn,             # pure: (self, neighbors) -> next_state\n    )\n\nfunction step(grid):\n    next_grid = grid.blank_copy()\n    for (x, y), agent in grid.items():\n        neighbors = grid.neighborhood(x, y, radius=agent.radius)\n        # no message bus, no peer queries beyond the radius\n        next_grid[x, y] = agent.with_state(\n            agent.local_rule(agent.state, neighbors)\n        )\n    return next_grid\n\n# Simulation loop. No orchestrator decides goals; macro behavior is whatever emerges.\nfor t in 1..T_STEPS:\n    grid = step(grid)\n    observe_macro(grid)                 # logger ONLY observes; never steers\n\n# Why this works: forbidding global reads bounds per-step cost to O(k^2 * N),\n# so the swarm scales to large grids; the deterministic local rule keeps each\n# agent cheap while interesting macro behavior emerges from many local steps.\n# Related: see `swarm`, `decentralized-agent-network`, `blackboard`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "chat-chain",
       "intent": "Show an ordered chain of phases; each phase pairs two roles in a chat until a phase-completion predicate fires, passing a typed artefact downstream.",
       "examples": [
@@ -152,6 +168,22 @@
       ]
     },
     {
+      "pattern_id": "coalition-formation",
+      "intent": "Agents form temporary subgroups around a task because the coalition can achieve more value than the sum of its members acting alone, with explicit rules for who joins and how payoff or credit is shared.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a coordinator scores candidate subsets with a value function, picks the best coalition, and splits the payoff by a declared rule.",
+          "code": "agent_pool = [a_planner, a_coder, a_critic, a_writer, a_searcher, a_judge]\n\nfunction value(coalition, task):\n    # task-specific value function: how much can THIS subset achieve?\n    return estimate_capability(coalition, task) - coordination_cost(coalition)\n\nfunction form_coalition(task, pool, budget):\n    candidates = enumerate_subsets(pool, max_size=budget.max_members)\n    scored = [(S, value(S, task)) for S in candidates]\n    best, v_best = argmax(scored, key=lambda x: x[1] / cost(x[0]))\n    return best, v_best\n\nfunction shapley_split(coalition, task, v_best):\n    # marginal contribution per member, averaged over join orders\n    return {a: marginal_contribution(a, coalition, value, task) for a in coalition}\n\nfunction run_task(task):\n    coalition, v = form_coalition(task, agent_pool, BUDGET)\n    artefact = execute_jointly(coalition, task)            # coalition works\n    payoff = realised_reward(artefact)\n    shares = shapley_split(coalition, task, v)             # declared rule\n    for a, share in shares.items():\n        ledger.credit(a, share * payoff)\n    dissolve(coalition)                                    # temporary by design\n    return artefact\n\n# Why this works: per-task scoring lets team shape match problem shape, so small\n# tasks do not waste agents and large tasks get the specialists they need. The\n# declared payoff rule (Shapley / equal / proportional) makes credit explicit,\n# so contributors keep volunteering instead of quietly opting out.\n# Related: see `contract-net-protocol`, `vickrey-auction-allocation`, `joint-commitment-team`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "communicative-dehallucination",
       "intent": "Show an assistant that, when its instruction is missing deciding context, reverses roles and asks the instructor for the missing detail before answering.",
       "examples": [
@@ -164,6 +196,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "contract-net-protocol",
+      "intent": "Classical bid-based multi-agent task allocation: a manager broadcasts a task announcement, contractors submit bids, and the manager awards the contract to the best bid.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: announce, bid, award, execute, cancel — the five-step Smith 1980 protocol with typed messages on a bus.",
+          "code": "bus = MessageBus()                              # FIPA-style typed envelopes\n\n# 1. ANNOUNCE — manager broadcasts task spec to capable contractors\nfunction manager_announce(task):\n    spec = {\"task_id\": new_id(), \"requirements\": task.requirements,\n            \"deadline\": task.deadline, \"reply_by\": now() + BID_WINDOW}\n    bus.publish(topic=\"cnp.announce\", performative=\"call_for_proposal\",\n                payload=spec, recipients=eligible_contractors(task))\n    return spec[\"task_id\"]\n\n# 2. BID — each contractor evaluates fit and submits a sealed bid\nfunction contractor_on_announce(spec):\n    if not can_perform(spec.requirements):\n        return bus.publish(\"cnp.bid\", performative=\"refuse\", task_id=spec.task_id)\n    bid = {\"capability\": capability_score(spec), \"capacity\": current_capacity(),\n           \"cost\": estimate_cost(spec), \"eta\": estimate_eta(spec)}\n    bus.publish(\"cnp.bid\", performative=\"propose\", task_id=spec.task_id,\n                payload=bid, bidder=self.id)\n\n# 3. AWARD — manager picks best bid; cancels the rest\nfunction manager_award(task_id, reply_by):\n    bids = bus.collect(\"cnp.bid\", task_id=task_id, until=reply_by)\n    bids = [b for b in bids if validate_bid(b)]            # anti-shading guard\n    winner = argmax(bids, key=lambda b: score(b))\n    bus.publish(\"cnp.award\", performative=\"accept_proposal\",\n                task_id=task_id, recipient=winner.bidder)\n    for b in bids:\n        if b.bidder != winner.bidder:\n            bus.publish(\"cnp.cancel\", performative=\"reject_proposal\",\n                        task_id=task_id, recipient=b.bidder)\n    return winner\n\n# 4 + 5. EXECUTE / REPORT — winner commits and reports back\nfunction contractor_on_award(task_id):\n    result = perform(task_id)\n    bus.publish(\"cnp.report\", performative=\"inform\", task_id=task_id, payload=result)\n\n# Why this works: pulling bids puts capability + load information at the agents\n# that already have it, so the manager need not maintain global state. Explicit\n# performatives (cfp/propose/accept/reject/inform) make the protocol an enforceable\n# state machine, and bid validation blocks the obvious dishonest-bidding failure.\n# Related: see `decentralized-swarm-handoff`, `vickrey-auction-allocation`, `performative-message`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -223,6 +271,32 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: publish a signed JSON-LD descriptor under a W3C DID; any peer resolves, verifies signature, then honours capability claims.",
+          "code": "# Publisher side — agent A publishes its identity record\ndid_A = \"did:web:agent-a.example.org\"\ndescriptor = {\n    \"@context\": [\"https://www.w3.org/ns/did/v1\", \"https://example.org/agent/v1\"],\n    \"id\":           did_A,\n    \"capabilities\": [{\"id\": \"translate.de-en\", \"endpoint\": \"https://a.example.org/a2a\"}],\n    \"protocols\":    [\"mcp\", \"a2a\"],\n}\nsignature = sign(descriptor, key=did_A.private_key)\npublish_well_known(did_A, descriptor, signature)\n\n# Consumer side — peer B discovers and verifies A before trusting any claim\nfunction discover_and_invoke(target_did, intent, payload):\n    did_doc      = resolve_did(target_did)                # DID:web / DID:key / DID:ion\n    descriptor   = fetch(did_doc.descriptor_url)\n    signature    = fetch(did_doc.signature_url)\n\n    if not verify_signature(descriptor, signature, did_doc.public_keys):\n        return abort(\"signature verification failed — descriptor not trusted\")\n\n    capability = find_capability(descriptor, intent)\n    if capability is None:\n        return abort(\"capability not advertised by this DID\")\n\n    # No central registry was consulted; trust derives from the DID's keys.\n    return call_protocol(capability.endpoint, payload)\n\n# Why this works: identity is rooted in cryptographic keys, not a registry\n# operator, so any agent on the public internet can discover and verify any\n# other without prearranged onboarding. Capability claims are signed, so a\n# tampered descriptor fails verification and is refused before invocation.\n# Related: see `mcp`, `inter-agent-communication`, `decentralized-swarm-handoff`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "decentralized-swarm-handoff",
+      "intent": "Agents in a swarm decide handoffs to peers based on a shared protocol with no central coordinator; specifically about agent-initiated handoff protocols, not topology.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each peer exposes accept_handoff; initiators address by capability tag and the protocol carries decline-with-reason plus capacity back-pressure.",
+          "code": "# Every peer exposes the same handoff endpoint\nfunction accept_handoff(self, task, from_peer):\n    if self.capacity_used > CAPACITY_HIGH_WATER:\n        return {\"verdict\": \"defer\", \"retry_after_ms\": 5000}     # back-pressure\n    if not capability_match(self.capabilities, task.required_tags):\n        return {\"verdict\": \"decline\", \"reason\": \"capability mismatch\"}\n    handoff_log.append({\"to\": self.id, \"from\": from_peer, \"task\": task.id})\n    self.enqueue(task)\n    return {\"verdict\": \"accept\", \"handoff_token\": new_token()}\n\n# Initiator side — addresses peers by CAPABILITY TAG, not by identity\nfunction initiate_handoff(task, capability_tag, exclude=set()):\n    candidates = registry.peers_with(capability_tag) - exclude\n    for peer in rank_by_recent_latency(candidates):\n        reply = peer.accept_handoff(task, from_peer=self.id)\n        match reply.verdict:\n            case \"accept\":\n                return reply.handoff_token\n            case \"defer\":\n                schedule_retry(peer, reply.retry_after_ms); continue\n            case \"decline\":\n                exclude.add(peer); continue\n    return escalate(\"no peer accepted — capability shortage for \" + capability_tag)\n\n# Trace reconstruction: every accept appends to per-peer handoff_log;\n# the full chain for a task is the union of logs filtered by task.id.\n\n# Why this works: explicit accept / defer / decline + capability addressing\n# means no central router is required and the swarm still scales, while the\n# per-peer handoff_log keeps the trace of who handed work to whom fully\n# reconstructable — something implicit-shared-memory handoffs cannot give.\n# Related: see `swarm`, `decentralized-agent-network`, `handoff`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -314,6 +388,22 @@
       ]
     },
     {
+      "pattern_id": "heterogeneous-model-council-with-judge",
+      "intent": "Three or more role-specialized personas run on different model architectures in parallel; a synthesis judge — given only their structured JSON, not the original input — produces the final verdict.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: N council members on DIFFERENT model families emit fixed-schema JSON; a blind judge on yet another family synthesises from JSON only.",
+          "code": "# Each council member is BOTH a distinct role AND a distinct model family\ncouncil = [\n    Member(role=\"safety_reviewer\",   model=\"claude-opus\",  prompt=SAFETY_PROMPT),\n    Member(role=\"technical_reviewer\", model=\"gpt-4o\",       prompt=TECH_PROMPT),\n    Member(role=\"style_reviewer\",     model=\"gemini-pro\",   prompt=STYLE_PROMPT),\n]\njudge = Member(role=\"synthesis_judge\", model=\"mistral-large\", prompt=JUDGE_PROMPT)\n\nFIXED_SCHEMA = {\n    \"verdict\":      \"approve | revise | reject\",\n    \"score\":        \"0..10\",\n    \"top_concerns\": \"list[str]\",\n    \"rationale\":    \"str\",\n}\n\nfunction run_council(original_input):\n    # 1. Council fans out in parallel — error families decorrelate\n    council_reports = parallel_map(\n        lambda m: m.llm.generate(\n            system=m.prompt, user=original_input,\n            response_schema=FIXED_SCHEMA,\n        ),\n        council,\n    )\n\n    # 2. Judge sees ONLY structured JSON — never the original_input\n    judge_input = {\"reports\": council_reports}        # original_input withheld\n    verdict = judge.llm.generate(\n        system=judge.prompt,\n        user=judge_input,                              # blind to original\n        response_schema={\"final\": \"...\", \"cited_reports\": \"list[int]\"},\n    )\n    return verdict\n\n# Why this works: different model families fail differently, so a shared\n# hallucination is unlikely to survive parallel review. Withholding the\n# original input from the judge forces it to synthesise from the council's\n# signal instead of drifting toward its own re-interpretation.\n# Related: see `voting-based-cooperation`, `llm-as-judge`, `parallel-fan-out-gather`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "hierarchical-agents",
       "intent": "Show a tree of agents where managers decompose tasks for children (specialists or further managers) and results bubble up; depth and breadth are bounded.",
       "examples": [
@@ -401,6 +491,22 @@
       ]
     },
     {
+      "pattern_id": "joint-commitment-team",
+      "intent": "A team of agents adopts a shared goal plus the meta-commitment that each member will notify the others as soon as it believes the goal is achieved, impossible, or no longer relevant.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: every team member commits to (a) pursue G and (b) notify the team when G is achieved, impossible, or unwanted (Cohen & Levesque).",
+          "code": "team_bus = Bus()\n\nclass TeamMember:\n    function pursue(goal):\n        while team_status[goal.id] == \"active\":\n            belief = self.update_beliefs(goal)\n\n            # joint-commitment clauses (a)+(b) made explicit:\n            if belief.achieved:\n                team_bus.publish(Notify(goal.id, by=self.id, reason=\"achieved\"))\n                break\n            if belief.impossible:\n                team_bus.publish(Notify(goal.id, by=self.id, reason=\"impossible\"))\n                break\n            if belief.irrelevant:\n                team_bus.publish(Notify(goal.id, by=self.id, reason=\"irrelevant\"))\n                break\n\n            self.act_toward(goal)                          # otherwise, keep pursuing\n\n    function on_team_notify(msg):\n        # any member's notification ends the team's pursuit — no silent abandonment\n        team_status[msg.goal_id] = msg.reason\n        self.abort_work_on(msg.goal_id)\n\nfunction form_team(goal, members):\n    team_status[goal.id] = \"active\"\n    for m in members:\n        team_bus.subscribe(m.on_team_notify)\n        spawn(m.pursue(goal))\n\n# Lifecycle: forming -> active -> {satisfied, impossible, abandoned}\n# Transition is always TRIGGERED BY A NOTIFY MESSAGE, never silent.\n\n# Why this works: the meta-commitment is part of the contract, so a member who\n# learns the goal is impossible cannot just stop — it must notify, which lets\n# every other member abort cleanly and stops wasted parallel effort and stale\n# outputs from the rest of the team.\n# Related: see `commitment-tracking`, `coalition-formation`, `bdi-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "lead-researcher",
       "intent": "Show a lead agent planning parallel research questions, dispatching sub-agents fanned out for breadth, and synthesising returned findings.",
       "examples": [
@@ -413,6 +519,38 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "magentic-one-generalist",
+      "intent": "Use Microsoft's generalist multi-agent architecture: a single Orchestrator agent dispatches to four specialist sub-agents (WebSurfer, FileSurfer, Coder, ComputerTerminal) for solving open-ended complex tasks that span web browsing, file manipulation, code execution and shell operations.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: an Orchestrator maintains a task ledger + replan log and dispatches per step to the four named specialists.",
+          "code": "specialists = {\n    \"web_surfer\":        Agent(prompt=WEB_PROMPT,      tools=[browse, click, type_text]),\n    \"file_surfer\":       Agent(prompt=FILE_PROMPT,     tools=[list_dir, read_file]),\n    \"coder\":             Agent(prompt=CODER_PROMPT,    tools=[write_code]),\n    \"computer_terminal\": Agent(prompt=TERMINAL_PROMPT, tools=[run_shell]),\n}\norchestrator = Agent(prompt=ORCHESTRATOR_PROMPT)\n\nfunction run(task):\n    ledger = {\"facts\": [], \"plan\": orchestrator.plan(task), \"progress\": []}\n    replan_log = []\n\n    for step in 1..MAX_STEPS:\n        decision = orchestrator.next_step(ledger)\n        match decision.kind:\n            case \"dispatch\":\n                specialist = specialists[decision.specialist]   # one of the four\n                result = specialist.run(decision.sub_task)\n                ledger.progress.append({\"step\": step, \"by\": decision.specialist,\n                                        \"result\": result})\n            case \"replan\":\n                replan_log.append({\"step\": step, \"why\": decision.reason})\n                ledger.plan = orchestrator.replan(ledger)\n            case \"finalise\":\n                return orchestrator.synthesise(task, ledger)\n\n    return escalate(\"step budget exhausted\", ledger, replan_log)\n\n# Why this works: the four specialists cover web, files, code, and shell —\n# the modalities that span most open-ended tasks — so a generalist team is\n# in place before any per-task engineering. The orchestrator's ledger plus\n# replan log give a single coherent trace of decomposition and recovery.\n# Related: see `orchestrator-workers`, `supervisor`, `one-tool-one-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "one-tool-one-agent",
+      "intent": "Design agent systems as a team of narrow single-purpose agents, each owning one tool or one capability, rather than a single super-agent that handles every tool — the agent analogue of microservices over monolith.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: one specialist agent per capability, each with its own eval suite; a manager decomposes user requests and dispatches.",
+          "code": "# Each specialist owns ONE tool / ONE capability — small, evaluable, replaceable\nsearch_agent    = Agent(prompt=SEARCH_PROMPT,    tools=[web_search])\nsummarise_agent = Agent(prompt=SUMMARY_PROMPT,   tools=[summarise_text])\nformat_agent    = Agent(prompt=FORMAT_PROMPT,    tools=[render_markdown])\ndeliver_agent   = Agent(prompt=DELIVERY_PROMPT,  tools=[send_email])\n\nworker_pool = {\n    \"search\":    search_agent,\n    \"summarise\": summarise_agent,\n    \"format\":    format_agent,\n    \"deliver\":   deliver_agent,\n}\n\n# Each specialist has its OWN eval suite — regressions stay scoped\neval_suites = {name: load_evals(f\"eval/{name}.yaml\") for name in worker_pool}\n\n# A thin manager decomposes the request and assigns sub-steps\nmanager = Agent(prompt=MANAGER_PROMPT)\n\nfunction run(user_request):\n    plan = manager.decompose(user_request)         # [{capability, sub_task}]\n    artefacts = []\n    for step in plan:\n        worker = worker_pool[step.capability]      # one capability -> one agent\n        artefacts.append(worker.run(step.sub_task))\n    return manager.synthesise(user_request, artefacts)\n\n# Anti-pattern guard: do NOT decompose intrinsically sequential workloads.\nassert is_parallelizable(plan), \"sequential work fails under one-tool-one-agent\"\n\n# Why this works: narrow agents focus the LLM's attention on a small tool\n# surface, so debugging, eval, and replacement all operate at the size of one\n# capability instead of one monolith. The manager keeps the user-facing API\n# simple while specialists evolve independently.\n# Related: see `orchestrator-workers`, `supervisor`, `hierarchical-agents`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -472,6 +610,38 @@
       ]
     },
     {
+      "pattern_id": "parallel-fan-out-gather",
+      "intent": "Multiple independent agents execute in parallel on a partitioned task; a dedicated aggregator agent reconciles their results into a single output.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: partition the task, fan out to N workers, then a NAMED aggregator reconciles conflicts and emits one structured result.",
+          "code": "function partition(task, n):\n    # split into n disjoint sub-tasks the workers can do independently\n    return planner.split(task, n=n)\n\nworker_pool = [Agent(prompt=WORKER_PROMPT, tools=WORKER_TOOLS) for _ in range(N)]\naggregator   = Agent(prompt=AGGREGATOR_PROMPT)        # the NAMED role\n\nfunction fan_out_gather(task):\n    sub_tasks = partition(task, n=len(worker_pool))\n\n    # 1. fan out — workers run in parallel, each emits a structured result\n    worker_results = parallel_map(\n        lambda pair: pair[0].run(pair[1], response_schema=WORKER_SCHEMA),\n        zip(worker_pool, sub_tasks),\n    )\n\n    # 2. gather — aggregator's job is RECONCILIATION, not just concat\n    merged = aggregator.run(\n        inputs={\n            \"task\":            task,\n            \"worker_results\":  worker_results,\n        },\n        policy={\n            \"on_conflict\":     \"prefer_higher_confidence\",\n            \"on_overlap\":      \"deduplicate\",\n            \"on_missing\":      \"flag_gap\",\n        },\n        response_schema=AGGREGATED_SCHEMA,\n    )\n    return merged\n\n# Why this works: the aggregator is a NAMED role with explicit conflict /\n# overlap / missing policies, so reconciliation logic does not silently\n# accrete in the orchestrator or in downstream consumers. Workers stay\n# stateless and identical, which keeps fan-out trivial to scale.\n# Related: see `parallelization`, `scatter-gather-saga`, `heterogeneous-model-council-with-judge`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "performative-message",
+      "intent": "Inter-agent messages are typed by communicative intent (request, inform, propose, accept, refuse, query) rather than by free-form prose, so receivers can dispatch on act type.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: KQML/FIPA-style envelope with a typed performative; receivers dispatch on act type and protocol state machines enforce transitions.",
+          "code": "# Small fixed vocabulary drawn from KQML / FIPA-ACL\nPERFORMATIVES = {\"request\", \"inform\", \"propose\", \"accept\",\n                 \"refuse\", \"query\", \"agree\", \"cancel\"}\n\nclass Message:\n    sender:       AgentId\n    receiver:     AgentId\n    performative: str               # one of PERFORMATIVES — typed metadata\n    content:      str               # free-form natural language payload\n    in_reply_to:  Optional[MsgId]   # threads acts into a protocol\n\n# Receivers DISPATCH on performative — no LLM classification step needed\nclass Agent:\n    handlers = {\n        \"request\":  on_request,\n        \"inform\":   on_inform,\n        \"propose\":  on_propose,\n        \"accept\":   on_accept,\n        \"refuse\":   on_refuse,\n        \"query\":    on_query,\n        \"agree\":    on_agree,\n        \"cancel\":   on_cancel,\n    }\n    function receive(msg):\n        assert msg.performative in PERFORMATIVES\n        self.handlers[msg.performative](msg)\n\n# Protocols become enforceable STATE MACHINES on typed transitions\nnegotiation_fsm = StateMachine(\n    states={\"idle\", \"proposed\", \"accepted\", \"refused\"},\n    transitions={\n        (\"idle\",     \"propose\"): \"proposed\",\n        (\"proposed\", \"accept\"):  \"accepted\",\n        (\"proposed\", \"refuse\"):  \"refused\",\n        (\"proposed\", \"cancel\"):  \"idle\",\n    },\n)\n\n# Why this works: typing the act lets receivers dispatch without an error-prone\n# LLM classification step, and lets audit / orchestration tools reconstruct\n# \"A proposed X to B, B accepted, C is querying about it\" as a real state\n# machine rather than as guesses over prose.\n# Related: see `contract-net-protocol`, `structured-output`, `actor-model-agents`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "personality-variant-overlay",
       "intent": "Show a finite registry of named voice overlays that are concatenated onto the base system prompt at turn time; identity, memory, and tools stay invariant across variants.",
       "examples": [
@@ -484,6 +654,48 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: a curated registry of voice overlays concatenated onto the base prompt at turn time; memory + tools + name stay invariant.",
+          "code": "# Invariant base: name, charter, core personality, tools, memory backend\nbase_prompt = load(\"base_personality.txt\")\nBASE_NAME   = \"Agent\"                              # the agent's actual name\n\n# Finite, CURATED registry — never user-supplied at runtime\nvariants = {\n    \"teacher\":   \"Patient pacing. Scaffold ideas. Example-first.\",\n    \"operator\":  \"Short imperative sentences. Status-style. No scaffolding.\",\n    \"coach\":     \"Warm, encouraging. One focused question per turn.\",\n    \"archivist\": \"Precise references. Quote sources verbatim where possible.\",\n}\n\nfunction guard(variant_name):\n    if variant_name == BASE_NAME:\n        raise Error(\"base identity cannot be a variant\")\n    if variant_name not in variants:\n        raise Error(f\"unknown variant: {variant_name}\")\n\nfunction turn(user_msg, memory, selector):\n    chosen = selector.pick(user_msg, memory, variants.keys())\n    guard(chosen)\n\n    # ADDITIVE overlay — concatenate, never replace\n    overlay = (\n        f\"\\n\\nFor this turn, speak in the voice of '{chosen}'.\\n\"\n        f\"{variants[chosen]}\\n\"\n        f\"You remain {BASE_NAME}. Charter, memory, tools unchanged.\"\n    )\n    system_prompt = base_prompt + overlay\n\n    log_telemetry(active_variant=chosen)            # operator visibility\n    return llm.respond(\n        system=system_prompt,\n        memory=memory,                              # SHARED across variants\n        tools=SHARED_TOOLS,                         # SHARED across variants\n        message=user_msg,\n    )\n\n# Why this works: additive overlay preserves one identity, one memory, and one\n# tool palette while giving the agent a labelled set of registers it can switch\n# between. The curated registry blocks jailbreak-style \"now act as X\" overrides\n# from replacing the base charter.\n# Related: see `inner-committee`, `role-assignment`, `constitutional-charter`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "pipeline-triad-pattern",
+      "intent": "Staff each pipeline stage with a triad — Creator generates an artifact, Critic finds flaws, Arbiter makes a binding PASS/FAIL/PARTIAL decision — with four explicit human gates between stages.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: every stage runs Creator -> Critic -> Arbiter; four named human gates bracket the pipeline transitions.",
+          "code": "stages = [\"requirements\", \"design\", \"implementation\", \"verification\", \"release\"]\n\nfunction triad_stage(stage_name, input_artifact):\n    creator = Agent(prompt=CREATOR_PROMPTS[stage_name])\n    critic  = Agent(prompt=CRITIC_PROMPTS[stage_name])\n    arbiter = Agent(prompt=ARBITER_PROMPTS[stage_name])\n\n    artifact = creator.produce(input_artifact)         # maker\n    flaws    = critic.review(artifact, input_artifact) # checker — structured findings\n    decision = arbiter.decide(                         # approver — BINDING\n        artifact=artifact,\n        flaws=flaws,\n        input=input_artifact,\n    )\n    assert decision.verdict in {\"PASS\", \"FAIL\", \"PARTIAL\"}\n    decision.cite(creator_output=artifact, critic_flaws=flaws)\n    return artifact, decision\n\n# Four explicit human gates BRACKET the stage transitions\nHUMAN_GATES = {\n    \"requirements_validation\": before(\"design\"),\n    \"readiness_review\":        before(\"implementation\"),\n    \"deployment_approval\":     before(\"release\"),\n    \"production_confirmation\": after(\"release\"),\n}\n\nfunction run_pipeline(initial_input):\n    artifact = initial_input\n    for stage in stages:\n        if stage in HUMAN_GATES.entry_points():\n            human_gate(HUMAN_GATES.named_before(stage), artifact)\n        artifact, decision = triad_stage(stage, artifact)\n        if decision.verdict == \"FAIL\":\n            return escalate(stage, artifact, decision)\n    human_gate(\"production_confirmation\", artifact)\n    return artifact\n\n# Why this works: separating maker, checker, and approver mirrors the banking\n# compliance pattern that makes errors expensive to propagate. The arbiter's\n# binding PASS / FAIL / PARTIAL gives a single citation-grounded decision per\n# stage, and the four human gates put a person on the high-leverage transitions.\n# Related: see `supervisor-plus-gate`, `policy-gated-agent-action`, `generator-critic-separation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
+      "pattern_id": "progressive-delegation",
+      "intent": "Stage the human-to-agent handoff over time: the agent starts producing drafts a human always reviews; its autonomy expands action-by-action as measured trust accrues.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: per-action-class autonomy ladder; rolling success-rate window auto-promotes or demotes evidence-based, not calendar-based.",
+          "code": "AUTONOMY_LEVELS = [\"draft\", \"assisted_send\", \"autonomous\"]\nPROMOTE_AT = 0.95            # rolling success-rate threshold\nDEMOTE_AT  = 0.80\nWINDOW     = 200             # minimum samples before promotion is allowed\n\nstate = {                    # autonomy is per ACTION CLASS, not per agent\n    \"reply_email\":       {\"level\": \"draft\",          \"window\": deque(maxlen=WINDOW)},\n    \"close_ticket\":      {\"level\": \"draft\",          \"window\": deque(maxlen=WINDOW)},\n    \"issue_refund_small\":{\"level\": \"assisted_send\", \"window\": deque(maxlen=WINDOW)},\n}\n\nfunction handle(action_class, payload):\n    level = state[action_class].level\n    match level:\n        case \"draft\":\n            draft = agent.draft(payload)\n            outcome = human_review_required(draft)        # human always reviews\n        case \"assisted_send\":\n            draft = agent.draft(payload)\n            outcome = human_approve_then_send(draft)      # human approves\n        case \"autonomous\":\n            outcome = agent.execute(payload)              # no human in loop\n\n    # ratchet — promotion / demotion is the POLICY OF RECORD\n    state[action_class].window.append(outcome.success)\n    sr = success_rate(state[action_class].window)\n    if len(state[action_class].window) >= WINDOW:\n        if sr >= PROMOTE_AT and level != \"autonomous\":\n            state[action_class].level = next_level(level)\n            audit_log.append({\"action\": action_class, \"promote\": sr})\n        elif sr < DEMOTE_AT and level != \"draft\":\n            state[action_class].level = prev_level(level)\n            audit_log.append({\"action\": action_class, \"demote\": sr})\n    return outcome\n\n# Why this works: per-action ratchets make trust expansion evidence-based,\n# so promotion happens when the data justifies it and a regression in one\n# class only demotes that class, not the whole agent. The same agent can\n# safely run many action classes at different levels simultaneously.\n# Related: see `crawl-walk-run-automation-gating`, `autonomy-slider`, `human-in-the-loop`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -546,6 +758,22 @@
       ]
     },
     {
+      "pattern_id": "scatter-gather-saga",
+      "intent": "Distribute tasks across worker agents and aggregate results while maintaining distributed-transaction semantics via compensating actions on partial failure.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each worker exposes (do, compensate); coordinator runs compensations for already-committed workers on any failure.",
+          "code": "# Each worker is a saga participant with paired forward + compensating actions\nclass Worker:\n    function do_action(self, sub_task) -> Result: ...\n    function compensate_action(self, committed_result) -> None: ...\n\nworkers = [Worker(\"reserve_inventory\"), Worker(\"charge_card\"),\n           Worker(\"book_shipping\"),    Worker(\"send_confirmation\")]\n\nfunction scatter_gather_saga(task):\n    sub_tasks = partition(task, n=len(workers))\n    committed = []                                      # what we may need to undo\n\n    # SCATTER — fan out in parallel\n    pending = parallel_map(\n        lambda pair: try_run(pair[0], pair[1]),         # returns Ok | Err\n        zip(workers, sub_tasks),\n    )\n\n    # Walk results: collect committed, detect any failure\n    failed = None\n    for (worker, outcome) in zip(workers, pending):\n        if outcome.is_ok:\n            committed.append((worker, outcome.value))\n        else:\n            failed = (worker, outcome.error)\n            break\n\n    if failed is None:\n        # GATHER — all-success path\n        return Ok(aggregator.merge([v for _, v in committed]))\n\n    # COMPENSATE — run undo for every worker that already committed\n    coordinator_log.append({\"saga\": task.id, \"failed_on\": failed[0].name})\n    for worker, value in reversed(committed):           # reverse-order compensate\n        try:\n            worker.compensate_action(value)\n        catch CompensationError as e:\n            coordinator_log.append({\"manual_recovery_needed\": worker.name, \"err\": e})\n\n    return Err(\"saga aborted; compensations issued\", failed_on=failed[0].name)\n\n# Why this works: pairing each worker's do_action with an explicit\n# compensate_action gives the coordinator a recovery story for partial\n# failure, so the operation reports as atomically committed or atomically\n# aborted — no half-committed state leaks to downstream consumers.\n# Related: see `compensating-action`, `parallelization`, `supervisor-plus-gate`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
+        }
+      ]
+    },
+    {
       "pattern_id": "sop-encoded-multi-agent",
       "intent": "Show a human SOP encoded as fixed roles, ordered phases, and typed artefacts; agents communicate through artefacts, not free-form chat.",
       "examples": [
@@ -571,6 +799,22 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Verified 2026-05-21 against README at github.com/geekan/MetaGPT: imports `from metagpt.software_company import generate_repo` and `from metagpt.utils.project_repo import ProjectRepo` confirmed verbatim in the README quick-start; generate_repo(idea: str) -> ProjectRepo signature confirmed with the README's `repo: ProjectRepo = generate_repo(\"Create a 2048 game\"); print(repo)` example; ProjectRepo type referenced as the return type representing the generated repo structure.",
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "stigmergic-coordination",
+      "intent": "Agents coordinate indirectly by leaving and reading marks in a shared environment (files, queues, scratchpads, world model) so that one agent's trace stimulates another's next action, with no direct messaging.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: each agent writes structured traces as side-effects of action; other agents read traces as input; no direct messaging.",
+          "code": "# The shared environment carries STRUCTURED TRACES — the only coordination channel\nenv = SharedEnvironment(             # file / queue / vector store / scratchpad\n    schemas={\n        \"todo\":      TodoSchema,\n        \"in_flight\": InFlightSchema,\n        \"done\":      DoneSchema,\n    },\n    decay=TTL(hours=24),             # traces fade unless renewed\n)\n\nfunction agent_loop(agent):\n    while not stopped:\n        # READ traces left by others — coordination by environment, not message\n        todos = env.read(\"todo\", filter=agent.capability_filter)\n        if not todos:\n            sleep(POLL_INTERVAL); continue\n\n        task = pick_one(todos)\n\n        # SIDE-EFFECT trace: \"I am working on this\" — peers see and skip it\n        env.write(\"in_flight\",\n                  {\"task_id\": task.id, \"by\": agent.id, \"started_at\": now()})\n        env.clear(\"todo\", id=task.id)                  # consume the pheromone\n\n        result = agent.perform(task)\n\n        # SIDE-EFFECT trace: \"done\" — stimulates the next agent's pickup\n        env.write(\"done\",\n                  {\"task_id\": task.id, \"by\": agent.id, \"result\": result,\n                   \"context\": sufficient_context_for_followup(result)})\n        env.clear(\"in_flight\", task_id=task.id)\n\n# Many heterogeneous agents run agent_loop concurrently — no peer addressing.\nfor a in [parser, planner, executor, observer]:\n    spawn(agent_loop(a))\n\n# Why this works: environment-mediated coordination removes the N x N\n# messaging graph and works asynchronously across long time windows, because\n# the trace persists. Including enough context in each trace lets a fresh\n# agent pick up work without knowing who left it — exactly like an ant trail.\n# Related: see `blackboard`, `world-model-as-tool`, `event-driven-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -748,6 +992,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-22"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: Talker serves every user turn from shared memory; needs_deliberation fires Reasoner async; Talker never blocks on it.",
+          "code": "shared_memory  = SharedStore()           # versioned reads + writes\nreasoner_jobs  = AsyncQueue()\n\n# TALKER — System 1: cheap, fast, runs on every user turn\nfunction talker_turn(user_msg):\n    state = shared_memory.snapshot()     # never blocks on Reasoner\n    intent = classify(user_msg, state)\n\n    if intent.needs_deliberation:\n        reasoner_jobs.put(Job(task=user_msg, ctx=state))     # fire-and-forget\n        return talker_llm.respond(\n            user_msg, state,\n            hint=\"acknowledge + ask one clarifier; do not promise results\",\n        )\n\n    if state.has_new_reasoner_conclusions():\n        return talker_llm.respond(\n            user_msg, state,\n            hint=\"weave in the Reasoner's new conclusions naturally\",\n        )\n\n    return talker_llm.respond(user_msg, state)\n\n# REASONER — System 2: slow, deliberative, runs out of band\nasync function reasoner_loop():\n    while not stopped:\n        job = await reasoner_jobs.get()\n        conclusions = reasoner_llm.deliberate(\n            job.task, job.ctx,\n            tools=PLANNING_AND_TOOL_USE,\n            budget=LONG_BUDGET,\n        )\n        shared_memory.write(\n            key=f\"reasoner.{job.id}\",\n            value=conclusions,\n            version=now(),\n        )                                # Talker picks it up on the NEXT turn\n\n# Why this works: decoupling latency budgets means the user perceives instant\n# acknowledgement on every turn while deliberation still gets the time it\n# needs. Shared memory + fire-and-forget keeps the contract clean: Reasoner\n# never speaks to the user; Talker decides what to surface and when.\n# Related: see `dual-system-gui-agent`, `extended-thinking`, `handoff`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },
@@ -764,6 +1018,22 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "pattern_id": "vickrey-auction-allocation",
+      "intent": "Allocate a task to the lowest sealed bidder but pay them the second-lowest bid, making truthful cost reporting a dominant strategy.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: sealed-bid second-price auction — lowest bidder wins, paid the second-lowest bid; truthful bidding becomes dominant.",
+          "code": "bus = MessageBus()\n\n# ALLOCATOR — announces task and collects sealed bids in a closed window\nfunction allocator_auction(task):\n    auction_id = new_id()\n    bus.publish(\n        topic=\"vickrey.announce\",\n        payload={\"auction_id\": auction_id, \"task\": task,\n                 \"reply_by\": now() + BID_WINDOW},\n        recipients=capable_agents(task),\n    )\n\n    sealed_bids = bus.collect(\"vickrey.bid\",\n                              auction_id=auction_id,\n                              until=now() + BID_WINDOW)\n    if len(sealed_bids) < 2:\n        return escalate(\"need >= 2 bids for second-price auction\")\n\n    # Lowest bidder wins; paid the SECOND-lowest bid — Vickrey's rule\n    sorted_bids = sort(sealed_bids, key=lambda b: b.amount)\n    winner       = sorted_bids[0]\n    second_price = sorted_bids[1].amount\n\n    bus.publish(\"vickrey.award\",\n                payload={\"auction_id\": auction_id,\n                         \"winner\":     winner.bidder,\n                         \"payment\":    second_price},\n                recipient=winner.bidder)\n    return winner.bidder, second_price\n\n# BIDDER — under Vickrey, the dominant strategy is to bid TRUE COST\nfunction bidder_on_announce(announce):\n    true_cost = self.estimate_true_cost(announce.task)\n    # bidding above true cost only loses opportunities;\n    # bidding below only lowers payment without helping win — so be honest.\n    bus.publish(\"vickrey.bid\",\n                payload={\"auction_id\": announce.auction_id,\n                         \"bidder\":     self.id,\n                         \"amount\":     true_cost})       # sealed, untyped to peers\n\n# Why this works: paying the runner-up's bid removes any incentive to shade\n# above true cost, so the allocator gets honest cost reports and the cheapest\n# truly-cheapest agent wins. Agents stop wasting cycles modelling each other's\n# strategy because the mechanism makes strategy irrelevant.\n# Related: see `contract-net-protocol`, `coalition-formation`, `trust-and-reputation-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-23"
         }
       ]
     },

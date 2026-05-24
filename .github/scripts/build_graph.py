@@ -81,7 +81,11 @@ def build(out_dir: Path) -> None:
     }
     out_path = out_dir / "patterns.graph.json"
     out_path.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n")
-    print(f"wrote {out_path.relative_to(ROOT)}  ({len(nodes)} nodes, {len(edges)} edges)")
+    try:
+        display = out_path.relative_to(ROOT)
+    except ValueError:
+        display = out_path
+    print(f"wrote {display}  ({len(nodes)} nodes, {len(edges)} edges)")
 
 
 def main() -> None:
