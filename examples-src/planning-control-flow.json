@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production AB-MCTS with per-rollout audit records, posterior decay, and budget guard; replan model-choice on persistent verifier failures.",
+          "code": "function search_prod(root, budget, deadline):\n    audit = AuditLog()\n    rollouts = 0\n    while rollouts < budget.rollouts and now() < deadline:\n        t0 = now()\n        node = select(root)\n        action, model = sample_action(node)\n\n        try:\n            child = expand(node, action, model)\n            score = evaluate(child)            # verifier or oracle\n        except VerifierError as e:\n            audit.record(rollouts, node.id, action, model,\n                         score=None, latency_ms=now()-t0, err=str(e))\n            node.posteriors[(action, model)].penalise()\n            if persistent_failure(node, model):\n                node.disable_model(model)       # replan: drop bad model\n            rollouts += 1\n            continue\n\n        backpropagate(child, score)\n        decay_stale_posteriors(root, half_life=budget.decay)\n        audit.record(rollouts, node.id, action, model,\n                     score=score, latency_ms=now()-t0, err=None)\n        rollouts += 1\n\n        if best_leaf(root).score > budget.success_threshold:\n            return best_leaf(root), audit\n    return best_leaf(root), audit\n\n# Why this works: every rollout writes a structured record (node, action,\n# model, score, latency), so post-hoc analysis can show which model paid\n# off on which branch. Persistent verifier failures retire a model rather\n# than burning budget on it.\n# Related: see `lats`, `tree-of-thoughts`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with self-consistency: AB-MCTS uses self-consistency voting as its score function when no verifier exists.",
+          "code": "# AB-MCTS needs a score signal; when no verifier exists, self-consistency\n# voting over k samples gives a usable proxy.\n\nfunction evaluate_via_self_consistency(child, k=7):\n    samples = [llm.generate(child.prompt) for _ in range(k)]\n    answers = [extract_answer(s) for s in samples]\n    winner, votes = majority(answers)\n    # score = vote share, scaled to [0, 1]\n    return votes / k, winner\n\nfunction search_with_sc(root, budget):\n    for rollout in 1..budget:\n        node = select(root)\n        action, model = sample_action(node)\n        child = expand(node, action, model)\n\n        score, candidate_answer = evaluate_via_self_consistency(child)\n        child.answer = candidate_answer        # remember the voted answer\n        backpropagate(child, score)\n\n    leaf = best_leaf(root)\n    return leaf.answer                          # voted, not sampled-once\n\n# The seam: self-consistency is the score function; AB-MCTS is the search.\n# Each is swappable. With a real verifier (compiler, oracle, tests) the\n# evaluate_* function changes; the search backbone does not.\n\n# Why this works: AB-MCTS needs a numeric payoff per rollout; self-\n# consistency turns a no-oracle task into one with a voted score. The\n# Thompson posterior then concentrates compute on branches whose answers\n# the votes actually agree on.\n# Related: see `self-consistency`, `lats`, `best-of-n`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -32,6 +52,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production behavior tree with per-tick audit log, per-node timeout decorators, step budget, and replan trigger when a subtree fails repeatedly.",
+          "code": "SUCCESS, FAILURE, RUNNING = \"S\", \"F\", \"R\"\n\nclass AuditedNode:\n    def __init__(self, name, child):\n        self.name, self.child = name, child\n        self.fail_streak = 0\n\n    def tick(self, ctx):\n        t0 = now()\n        status = self.child.tick(ctx)\n        # audit record per node tick: name, status, latency, ctx hash\n        ctx.audit.append({\n            \"node\":   self.name,\n            \"status\": status,\n            \"ms\":     now() - t0,\n            \"ctx\":    ctx.fingerprint(),\n        })\n        if status == FAILURE:\n            self.fail_streak += 1\n            if self.fail_streak >= ctx.replan_threshold:\n                ctx.signal_replan(self.name)       # subtree exhausted\n        else:\n            self.fail_streak = 0\n        return status\n\nclass Timeout:\n    def __init__(self, child, ms): self.child, self.ms = child, ms\n    def tick(self, ctx):\n        with deadline(self.ms):\n            return self.child.tick(ctx)\n\nctx.step_budget = StepBudget(max_ticks=200)\n\nwhile not ctx.done:\n    if ctx.step_budget.exceeded():\n        ctx.abort(\"step budget\")\n        break\n    tree.tick(ctx)\n    ctx.step_budget.increment()\n\n# Why this works: every leaf and decorator writes a structured tick record,\n# so a failing subtree is visible in the audit log rather than only as a\n# top-level FAILURE. The step budget bounds run-away ticking and persistent\n# subtree failure triggers a replan instead of grinding forever.\n# Related: see `step-budget`, `replan-on-failure`, `behavior-tree-back-chaining`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with circuit-breaker: a wrapped LLM leaf opens the breaker after k consecutive failures so the selector skips the broken branch.",
+          "code": "SUCCESS, FAILURE = \"S\", \"F\"\n\nclass CircuitBreaker:\n    def __init__(self, threshold=3, cooldown_ms=30_000):\n        self.failures, self.opened_at = 0, None\n        self.threshold, self.cooldown_ms = threshold, cooldown_ms\n\n    def allow(self):\n        if self.opened_at is None: return True\n        if now() - self.opened_at > self.cooldown_ms:\n            self.opened_at = None; self.failures = 0   # half-open\n            return True\n        return False\n\n    def record(self, ok):\n        if ok: self.failures = 0\n        else:\n            self.failures += 1\n            if self.failures >= self.threshold:\n                self.opened_at = now()\n\nclass BreakeredLLMLeaf:\n    def __init__(self, prompt, breaker):\n        self.prompt, self.breaker = prompt, breaker\n    def tick(self, ctx):\n        if not self.breaker.allow():\n            return FAILURE                           # skip; selector falls through\n        out = llm.call(self.prompt, ctx)\n        self.breaker.record(out.ok)\n        return SUCCESS if out.ok else FAILURE\n\n# The selector tries the primary leaf, then a fallback. When the primary's\n# breaker opens, the selector cheaply falls through to the fallback for the\n# cooldown window without paying the LLM call.\nbreaker = CircuitBreaker()\ntree = Selector([\n    BreakeredLLMLeaf(\"primary_answer\", breaker),\n    LLMLeaf(\"fallback_answer\"),\n])\n\n# Why this works: the BT's selector semantics already encode \"try-then-\n# fallback\"; the breaker makes that fallback fast once the primary is\n# consistently broken. Audit recovery happens automatically when the\n# cooldown ends.\n# Related: see `circuit-breaker`, `fallback-chain`, `agentic-behavior-tree`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -48,6 +88,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production back-chaining with cycle detection, depth budget, audit trail of which task satisfied which condition, and replan when no producer covers a sub-goal.",
+          "code": "MAX_DEPTH = 8\nMAX_NODES = 200\n\ndef back_chain_prod(goal, state, depth=0, visiting=None, audit=None):\n    visiting = visiting or set()\n    audit    = audit    or AuditLog()\n\n    if goal.issubset(state):\n        audit.record(\"satisfied\", goal, depth)\n        return Leaf(\"already_satisfied\")\n    if depth > MAX_DEPTH or audit.node_count() > MAX_NODES:\n        audit.record(\"budget_exhausted\", goal, depth)\n        return Leaf(\"budget_exhausted\")\n    if frozenset(goal) in visiting:               # cycle guard\n        audit.record(\"cycle_detected\", goal, depth)\n        return Leaf(\"cycle\")\n\n    producers = [t for t in TASKS if t.post & goal]\n    if not producers:\n        audit.record(\"no_producer\", goal, depth)\n        signal_replan(goal)                        # caller may extend TASKS\n        return Leaf(\"no_producer\")\n\n    visiting = visiting | {frozenset(goal)}\n    branches = []\n    for t in producers:\n        sub_goal = t.pre - state\n        child    = back_chain_prod(sub_goal, state, depth+1, visiting, audit)\n        audit.record(\"producer_used\", t.name, depth)\n        branches.append(Sequence([child, Run(t)]))\n\n    return Selector(branches)\n\ntree = back_chain_prod(goal={\"shipped\"}, state=current_state())\nprune_to_realistic_cases(tree)\n\n# Why this works: every node added is justified in the audit as \"producer\n# X satisfies condition Y\"; cycles and depth blow-ups become explicit\n# records rather than infinite recursion. Missing-producer is a signal to\n# the human to extend the task library, not a silent gap.\n# Related: see `agentic-behavior-tree`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with goal-decomposition: top-down decomposition produces sub-goals; back-chaining wires each leaf sub-goal to its producer tasks.",
+          "code": "# Goal-decomposition gives the WHAT (sub-goals); back-chaining gives the\n# HOW (which tasks produce each sub-goal's pre-conditions).\n\ndef decompose(goal, depth=0):\n    if depth > 4 or is_atomic(goal):\n        return Leaf(goal)\n    subs = llm.split(goal)                         # sub-goals, not tasks\n    return Node(goal, [decompose(s, depth+1) for s in subs])\n\ndef wire_with_back_chaining(goal_tree, state):\n    # Walk the goal tree; for each leaf, back-chain into the task library.\n    if isinstance(goal_tree, Leaf):\n        return back_chain(goal_condition=condition_for(goal_tree.goal),\n                          state=state)\n    children = [wire_with_back_chaining(c, state) for c in goal_tree.children]\n    return Sequence(children)                       # ordered sub-goals\n\n# Compose: decompose first, then wire.\ngoal_tree = decompose(user_goal)\nexecution_tree = wire_with_back_chaining(goal_tree, current_state())\nprune_to_realistic_cases(execution_tree)\n\n# Why this works: goal-decomposition is about WHAT to achieve; back-chaining\n# is about HOW. Decomposition alone gives a tree of goals but no execution\n# structure; back-chaining alone has nowhere to start. Composed, the goal\n# tree's leaves become the back-chain's roots, and every executable node\n# exists because some sub-goal demanded it.\n# Related: see `goal-decomposition`, `agentic-behavior-tree`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -64,6 +124,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production clone fan-out with per-clone budget, sandbox-leak detection, partial-result tolerance, and an audit record per clone.",
+          "code": "function clone_fan_out_prod(goal, N, total_budget):\n    slices = partition(goal, N)\n    per_clone_budget = total_budget / N\n    if total_budget > GLOBAL_CAP: abort(\"budget cap\")\n\n    sandboxes = [allocate_sandbox(isolation=\"strict\") for _ in range(N)]\n    audit = AuditLog()\n    results = []\n\n    def run_one(slice, sb, idx):\n        t0 = now()\n        try:\n            agent = Agent(\n                system_prompt = SAME_PROMPT,\n                tools         = FULL_TOOLSET,\n                sandbox       = sb,\n                budget        = per_clone_budget,\n            )\n            r = agent.run(slice)\n            assert sb.is_isolated(), \"sandbox leak\"\n            audit.record(idx, ok=True, ms=now()-t0, cost=agent.cost)\n            return Outcome(idx=idx, ok=True, value=r)\n        except (Timeout, SandboxLeak, ToolError) as e:\n            audit.record(idx, ok=False, ms=now()-t0, err=str(e))\n            return Outcome(idx=idx, ok=False, err=str(e))\n        finally:\n            sb.destroy()\n\n    results = parallel_for(slices, sandboxes, range(N), fn=run_one)\n\n    successes = [r for r in results if r.ok]\n    if len(successes) < N * MIN_SUCCESS_RATIO:\n        return Result(ok=False, reason=\"too few successes\", audit=audit)\n\n    return aggregator.run(\n        goal, successes,\n        strategy = \"vote|rank|dedupe|synthesise\",\n        audit    = audit,\n    )\n\n# Why this works: each clone writes a row to the audit log so cost and\n# failure are accounted per slice; sandbox isolation is asserted rather\n# than assumed; partial results tolerate clone failure up to a declared\n# success ratio.\n# Related: see `subagent-isolation`, `step-budget`, `parallelization`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with query-decomposition-agent: a decomposer produces the slice list that the clone fleet then runs identically.",
+          "code": "# query-decomposition gives the slicing; clone-fan-out runs the slices.\n# The seam is the decomposer's output -> the clone fleet's input.\n\ndef compose(question, N_max=100):\n    # Stage 1: a single decomposer produces INDEPENDENT leaf sub-queries.\n    leaves = decomposer_agent.run(\n        question = question,\n        schema   = LEAVES_SCHEMA,\n        rules    = \"Each leaf must be answerable without the others.\",\n    )\n    if len(leaves) > N_max:\n        leaves = leaves[:N_max]                  # bounded\n\n    # Stage 2: clone fan-out runs the same full agent over each leaf.\n    sandboxes = [allocate_sandbox() for _ in leaves]\n    results = parallel_for(leaves, sandboxes) do |leaf, sb|\n        agent = Agent(\n            system_prompt = SAME_PROMPT,         # identical agents\n            tools         = FULL_TOOLSET,\n            sandbox       = sb,\n        )\n        return agent.run(leaf)\n    end\n\n    # Stage 3: aggregator composes the final answer from per-leaf results.\n    return aggregator.run(\n        question, results,\n        strategy = \"synthesise\",\n    )\n\n# Why this works: decomposer-agent provides the bounded, semantically\n# meaningful partition that clone-fan-out otherwise has to invent. The\n# clones stay identical (no role differentiation), and the aggregator\n# composes the final answer with per-leaf attribution.\n# Related: see `query-decomposition-agent`, `subagent-isolation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -80,6 +160,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production context-map gathering with freshness checks, source-failure handling, audit record per decision, and refusal-to-decide on stale or missing inputs.",
+          "code": "def gather_context_prod(decision_class, subject, audit):\n    schema = CONTEXT_MAP_SCHEMAS[decision_class]\n    cmap, status = {}, {}\n    for inp in schema:\n        t0 = now()\n        try:\n            value = query(inp.source, subject, max_age=inp.freshness)\n            age   = value.age()\n            if age > inp.freshness:\n                status[inp.name] = \"stale\"\n                cmap[inp.name]   = None\n            else:\n                status[inp.name] = \"ok\"\n                cmap[inp.name]   = value\n        except SourceUnavailable as e:\n            status[inp.name] = f\"source_down:{e}\"\n            cmap[inp.name]   = None\n        audit.record_input(decision_class, subject, inp.name,\n                           status[inp.name], ms=now()-t0)\n    return cmap, status\n\ndef decide_prod(decision_class, subject):\n    audit = AuditLog()\n    cmap, status = gather_context_prod(decision_class, subject, audit)\n\n    missing = [k for k, s in status.items() if s != \"ok\"]\n    if missing:\n        audit.record_refusal(decision_class, subject, missing)\n        raise ContextIncomplete(decision_class, missing)   # refuse to decide\n\n    decision = llm.choose(\n        decision_class = decision_class,\n        subject        = subject,\n        context_map    = cmap,\n        instructions   = \"Cite the context_map entries you relied on.\",\n    )\n    require_citations(decision, cmap)\n    audit.record_decision(decision_class, subject, cmap, decision)\n    return decision\n\n# Why this works: stale or unreachable inputs surface as explicit refusals,\n# not as confident decisions made on missing data. Every input access and\n# every refusal is in the audit, so post-incident review can point at the\n# exact missing source.\n# Related: see `policy-gated-agent-action`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with policy-as-code-gate: the gate evaluates a policy expression against the populated context map before the decision is allowed to commit.",
+          "code": "# decision-context-maps populates the inputs; policy-as-code-gate evaluates\n# a written policy against those inputs and is the only path to commit.\n\nPOLICIES = {\n    \"production_routing\": Policy(\"\"\"\n        deny if machine_status.state == \"down\"\n        deny if shift_schedule.staffed == false\n        deny if open_work_orders.count > MAX_QUEUE\n        allow otherwise\n    \"\"\"),\n    \"treatment_plan\": Policy(\"\"\"\n        deny if any(contraindications.match(proposed_drug))\n        deny if recent_labs.kidney_function < THRESHOLD\n        allow otherwise\n    \"\"\"),\n}\n\ndef decide_with_policy(decision_class, subject):\n    cmap = gather_context(decision_class, subject)         # context map\n    proposal = llm.propose(decision_class, subject, cmap)\n\n    # Policy gate is the seam: cmap is its INPUT, decision is its OUTPUT.\n    verdict = POLICIES[decision_class].evaluate(\n        context  = cmap,\n        proposal = proposal,\n    )\n    if verdict.deny:\n        audit_log.write(decision_class, subject, cmap, proposal,\n                        denied_by=verdict.rule)\n        raise PolicyDenied(verdict.rule)\n\n    audit_log.write(decision_class, subject, cmap, proposal,\n                    allowed_by=verdict.rule)\n    return commit(proposal)\n\n# Why this works: the context map provides the named inputs; the policy\n# gate provides the written rules. The LLM proposes; neither the LLM nor\n# the human can bypass the rule check. Audit shows BOTH which inputs were\n# read and which rule allowed or denied the commit.\n# Related: see `policy-as-code-gate`, `policy-gated-agent-action`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -96,6 +196,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production version with structured-signal validation, parse-fail retry budget, per-branch audit records, and a typed exhaustiveness check that fails the build.",
+          "code": "INTENT = Enum(\"REFUND\", \"REPLACE\", \"ESCALATE\", \"REJECT\")\n\ndef call_with_validation(fn, schema, *, retries=2):\n    audit = []\n    for attempt in range(retries + 1):\n        t0 = now()\n        raw = fn()\n        ok, parsed_or_err = schema.validate(raw)\n        audit.append({\"attempt\": attempt, \"ok\": ok, \"ms\": now()-t0})\n        if ok:\n            return parsed_or_err, audit\n    raise SignalUnparseable(schema, audit)         # never silently coerce\n\ndef classify_intent(message):\n    return call_with_validation(\n        lambda: llm.classify(input=message, schema=INTENT),\n        schema=INTENT,\n    )\n\ndef score_risk(message):\n    return call_with_validation(\n        lambda: llm.score(input=message, schema=FloatRange(0, 1)),\n        schema=FloatRange(0, 1),\n    )\n\ndef handle_prod(message, audit_log):\n    intent, ia = classify_intent(message)\n    risk,   ra = score_risk(message)\n    audit_log.write({\"msg_id\": message.id, \"intent\": intent,\n                     \"risk\": risk, \"intent_audit\": ia, \"risk_audit\": ra})\n\n    if risk > 0.8:                       return route_to(\"human_queue\", message)\n    if intent == INTENT.REFUND:          return refund_workflow.run(message)\n    if intent == INTENT.REPLACE:         return replacement_workflow.run(message)\n    if intent == INTENT.ESCALATE:        return route_to(\"human_queue\", message)\n    if intent == INTENT.REJECT:          return polite_decline(message)\n\n    # Enum exhaustiveness: build-time check ensures every variant is handled.\n    assert_exhaustive(INTENT, intent)\n\n# Why this works: parse-fail retries are bounded and audited rather than\n# silent coercion; per-message audit records every branch chosen; enum\n# exhaustiveness is a compile-time check so adding a fifth intent fails\n# the build instead of silently falling through.\n# Related: see `structured-output`, `step-budget`, `json-only-action-schema`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with json-only-action-schema: every LLM call returns a typed JSON action; the dispatcher is pure deterministic code keyed on action_type.",
+          "code": "# The LLM emits a typed JSON action; the dispatcher branches on action_type.\n# The LLM never picks the next branch; it picks the next ACTION.\n\nACTION_SCHEMA = {\n    \"type\": \"object\",\n    \"required\": [\"action_type\", \"payload\"],\n    \"properties\": {\n        \"action_type\": {\"enum\": [\"refund\", \"replace\", \"escalate\", \"reject\"]},\n        \"payload\":     {\"type\": \"object\"},\n    },\n}\n\ndef next_action(message, history):\n    raw = llm.generate(\n        prompt          = ROUTING_PROMPT,\n        input           = {\"message\": message, \"history\": history},\n        response_format = {\"type\": \"json_schema\", \"schema\": ACTION_SCHEMA},\n    )\n    return validate(raw, ACTION_SCHEMA)\n\n# Deterministic dispatcher: every branch is enumerable, testable, and\n# debuggable from CODE, not from prompt traces.\nDISPATCH = {\n    \"refund\":   refund_workflow.run,\n    \"replace\":  replacement_workflow.run,\n    \"escalate\": lambda m: route_to(\"human_queue\", m),\n    \"reject\":   polite_decline,\n}\n\ndef handle(message, history):\n    action = next_action(message, history)\n    fn = DISPATCH[action[\"action_type\"]]       # KeyError = unknown action\n    return fn(message, **action[\"payload\"])\n\n# Why this works: json-only-action-schema constrains what the LLM can emit;\n# deterministic-control-flow guarantees the if/else lives in code. Together,\n# every branch is enumerable, every action is typed, and the LLM cannot\n# invent an action_type the dispatcher does not know about.\n# Related: see `json-only-action-schema`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -112,6 +232,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production disambiguation with adaptive threshold, single-question budget per turn, audit of asked-vs-acted, and replan when the clarifying answer is still ambiguous.",
+          "code": "MAX_CLARIFICATIONS_PER_TURN = 1\n\ndef handle_prod(request, history, audit):\n    threshold = adaptive_threshold(history)        # user-specific\n    asked     = 0\n\n    while True:\n        intent = classify(request, history)\n        audit.record({\"request\": request, \"top_intent\": intent.top,\n                      \"confidence\": intent.confidence,\n                      \"threshold\": threshold})\n\n        if intent.confidence >= threshold:\n            audit.record({\"decision\": \"act\", \"intent\": intent.top})\n            return act(intent)\n\n        if asked >= MAX_CLARIFICATIONS_PER_TURN:\n            # Avoid pestering: fall back to highest-likelihood + flag for review.\n            audit.record({\"decision\": \"act_with_flag\",\n                          \"intent\": intent.top,\n                          \"reason\": \"clarification budget exhausted\"})\n            return act(intent, flag_for_review=True)\n\n        question = llm.draft_clarification(\n            request,\n            candidates = intent.top_k,\n            default    = intent.top_k[0],\n        )\n        answer = ask_user(question)\n        audit.record({\"asked\": question, \"answer\": answer})\n        history = history + [request, question, answer]\n        request = answer\n        asked  += 1\n\n# Why this works: a per-turn clarification budget prevents the pestering\n# anti-pattern; the audit records confidence and threshold so post-hoc\n# tuning is data-driven. Falling back to the highest-likelihood intent\n# with a review flag is safer than refusing to act.\n# Related: see `confidence-reporting`, `human-in-the-loop`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with passive-goal-creator: ambiguity is detected during goal refinement, and the clarifying question is asked before any planning happens.",
+          "code": "# passive-goal-creator builds a refined goal from prompt + memory; if the\n# refined goal is still ambiguous, disambiguation asks ONE focused question\n# before the planner is allowed to start.\n\ndef refine_and_disambiguate(user_prompt, conversation_id):\n    history  = memory.recent_turns(conversation_id, k=10)\n    related  = memory.search_tasks(user_prompt, k=5)\n    examples = memory.examples(positive=True, negative=True, k=3)\n\n    refined = llm.refine_goal(\n        prompt        = user_prompt,\n        history       = history,\n        related_tasks = related,\n        examples      = examples,\n        schema        = GOAL_SCHEMA,\n    )\n\n    if refined.ambiguous:\n        # Disambiguation step: focused question with the most-likely default.\n        question = llm.draft_clarification(\n            refined,\n            candidates = refined.candidates,\n            default    = refined.candidates[0],\n        )\n        answer = ask_user(question)\n\n        # Re-refine WITH the answer; planner sees a single concrete goal.\n        refined = llm.refine_goal(\n            prompt        = answer,\n            history       = history + [user_prompt, question],\n            related_tasks = related,\n            examples      = examples,\n            schema        = GOAL_SCHEMA,\n        )\n\n    return planner.start(refined)\n\n# Why this works: the disambiguation step is positioned where it can\n# actually prevent wrong work — between goal-refinement and planning.\n# Asking later (during execution) is far more expensive to recover from.\n# Related: see `passive-goal-creator`, `socratic-questioning-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -128,6 +268,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production DCOP with per-agent message budget, quiescence detection, deadline, audit of message volume per neighbour, and replan if no improvement after K rounds.",
+          "code": "class AgentProd:\n    def __init__(self, var, domain, neighbours, msg_budget, audit):\n        self.var, self.domain, self.neighbours = var, domain, neighbours\n        self.value = pick_initial(domain)\n        self.nb_values = {}\n        self.msg_budget, self.audit = msg_budget, audit\n        self.last_improve_round = 0\n        self.round = 0\n\n    def step(self):\n        self.round += 1\n        best = min(self.domain, key=self.local_cost)\n        if best != self.value:\n            self.value = best\n            self.last_improve_round = self.round\n            for n in self.neighbours:\n                if self.msg_budget.allow(n):\n                    send(n, self.var, self.value)\n                    self.audit.message(self.var, n)\n                else:\n                    self.audit.dropped(self.var, n, reason=\"budget\")\n\n    def stuck(self, k=10):\n        return self.round - self.last_improve_round > k\n\nfor a in agents:\n    a.step()\nwhile not quiescent(agents) and now() < deadline:\n    process_one_message()\n    if all(a.stuck() for a in agents):\n        signal_replan(\"all agents stuck; possibly infeasible\")\n        break\n\n# Why this works: message budgets prevent neighbour-flooding; quiescence\n# detection is explicit rather than \"run for N rounds\"; the audit records\n# per-edge traffic so a bottleneck pair is visible. Universal-stuck is a\n# replan signal, not silent low-quality termination.\n# Related: see `step-budget`, `replan-on-failure`, `partial-global-planning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with contract-net-protocol: contract-net handles task-to-agent assignment; DCOP refines the parameter values within the assigned tasks.",
+          "code": "# Contract-net assigns WHICH agent owns which task; DCOP then negotiates\n# the SHARED-VARIABLE values across assigned tasks subject to constraints.\n\n# Stage 1: Contract-net assignment.\ndef assign_tasks(tasks):\n    assignments = {}\n    for task in tasks:\n        announce(task)\n        bids = collect_bids(task, timeout=BID_WINDOW)\n        winner = pick_lowest_cost_bid(bids)\n        award(winner, task)\n        assignments[task.id] = winner\n    return assignments\n\n# Stage 2: DCOP over the shared variables INSIDE assigned tasks.\ndef refine_via_dcop(assignments, shared_vars):\n    # Each assigned agent owns its task's parameters as DCOP variables.\n    dcop_agents = []\n    for task_id, agent in assignments.items():\n        for v in shared_vars[task_id]:\n            dcop_agents.append(DcopAgent(\n                owner      = agent,\n                var        = v,\n                domain     = v.domain,\n                neighbours = constraint_neighbours_of(v, assignments),\n            ))\n    run_until_quiescent(dcop_agents)\n    return {a.var: a.value for a in dcop_agents}\n\nassignments = assign_tasks(global_tasks)\nvalues = refine_via_dcop(assignments, shared_variables)\n\n# Why this works: contract-net decides WHO; DCOP decides WHAT VALUES. Each\n# pattern solves a different layer of coordination: assignment is a market;\n# parameter optimisation is constraint negotiation. Composing them lets the\n# team avoid centralising either decision.\n# Related: see `contract-net-protocol`, `partial-global-planning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -199,6 +359,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production bandit with reward windowing, cold-start handling, per-arm audit, and explicit replan when no arm clears a minimum reward floor.",
+          "code": "class ArmStats:\n    def __init__(self): self.window = deque(maxlen=200)   # recent rewards only\n    def update(self, r): self.window.append(r)\n    @property\n    def n(self):    return len(self.window)\n    @property\n    def mean(self): return sum(self.window)/max(self.n,1)\n\ndef ucb_pick(arms, stats, t, audit):\n    cold = [a for a in arms if stats[a].n < MIN_PULLS]\n    if cold:\n        choice = random_choice(cold)               # force minimum pulls\n        audit.record(t, choice, \"cold_start\")\n        return choice\n    score = lambda a: stats[a].mean + sqrt(2 * log(t) / stats[a].n)\n    choice = argmax(arms, key=score)\n    audit.record(t, choice, f\"ucb={score(choice):.3f}\")\n    return choice\n\ndef bandit_loop(arms, audit, budget):\n    stats = {a: ArmStats() for a in arms}\n    for t in range(1, budget+1):\n        a = ucb_pick(arms, stats, t, audit)\n        r = run(a)\n        stats[a].update(r)\n\n        # Replan trigger: if every arm's recent mean is under the floor,\n        # the action set is wrong — escalate to operator.\n        if t % AUDIT_INTERVAL == 0:\n            if all(stats[a].mean < REWARD_FLOOR for a in arms):\n                signal_replan(\"all arms below reward floor\", stats)\n                return Result(ok=False, audit=audit)\n    return Result(ok=True, best=argmax(arms, key=lambda a: stats[a].mean))\n\n# Why this works: windowed rewards adapt to non-stationary environments;\n# MIN_PULLS prevents UCB from locking on after a single lucky pull; the\n# audit lets post-hoc analysis see why each pull happened. Universal-floor\n# failure is a replan signal rather than silent low performance.\n# Related: see `bayesian-bandit-experimentation`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with skill-library: each skill is a bandit arm; reward is post-execution success; the library auto-prunes long-losing skills.",
+          "code": "# A skill-library accumulates reusable skills; exploration-exploitation\n# decides which skill to try when several apply, and which to retire.\n\nclass SkillLibrary:\n    def __init__(self):\n        self.skills = {}                           # name -> Skill\n        self.stats  = {}                           # name -> ArmStats\n\n    def applicable(self, task):\n        return [name for name, s in self.skills.items() if s.matches(task)]\n\n    def pick(self, task, strategy=\"thompson\"):\n        arms = self.applicable(task)\n        if not arms:\n            return None                            # caller falls back\n        if strategy == \"thompson\":\n            return argmax(arms, key=lambda a: self.stats[a].posterior.sample())\n        if strategy == \"epsilon_greedy\":\n            if random() < EPSILON:\n                return random_choice(arms)\n            return argmax(arms, key=lambda a: self.stats[a].mean)\n\n    def record(self, name, reward):\n        self.stats[name].update(reward)\n        if self.stats[name].n > MIN_PULLS \\\n           and self.stats[name].mean < RETIRE_THRESHOLD:\n            del self.skills[name]                  # prune the loser\n\n# Run loop: pick a skill, run it, score by success, update the bandit.\nlib = SkillLibrary()\nfor task in incoming:\n    name = lib.pick(task, strategy=\"thompson\")\n    if name is None:\n        result = fallback_solve(task)\n        lib.add(synthesise_skill_from(result))     # grow the library\n        continue\n    result = lib.skills[name].run(task)\n    lib.record(name, reward=score(result))\n\n# Why this works: the library grows over time; the bandit ensures new skills\n# get tried (cold-start), well-performing skills win their slots, and skills\n# that consistently fail are retired without manual curation.\n# Related: see `skill-library`, `bayesian-bandit-experimentation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -215,6 +395,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production goal-tree with per-branch step budgets, stuck-branch detection, audit per node, and replan up the tree when a sibling fails irrecoverably.",
+          "code": "MAX_DEPTH      = 5\nMAX_LEAVES     = 32\nBRANCH_BUDGET  = StepBudget(steps=20)\n\ndef decompose_prod(goal, depth=0, audit=None):\n    audit = audit or AuditLog()\n    audit.record(\"decompose\", goal, depth)\n    if depth >= MAX_DEPTH or is_actionable(goal):\n        return Leaf(goal)\n    children = llm.split(goal)\n    if not children or children == [goal]:\n        return Leaf(goal)\n    return Node(goal, [decompose_prod(c, depth+1, audit) for c in children])\n\ndef execute_prod(node, audit):\n    if isinstance(node, Leaf):\n        with BRANCH_BUDGET:\n            t0 = now()\n            try:\n                r = run_action(node.goal)\n                audit.record(\"leaf_ok\", node.goal, ms=now()-t0)\n                return Outcome(ok=True, value=r)\n            except IrrecoverableError as e:\n                audit.record(\"leaf_fail\", node.goal, err=str(e))\n                return Outcome(ok=False, err=str(e))\n\n    results = parallel_for(node.children) do |child|\n        return execute_prod(child, audit)\n    end\n\n    failed = [r for r in results if not r.ok]\n    if failed:\n        # Replan: walk up and ask the parent for a new decomposition.\n        audit.record(\"sibling_failure\", node.goal, failed)\n        new_children = llm.replan_children(node.goal, failed)\n        return execute_prod(Node(node.goal,\n                                 [decompose_prod(c) for c in new_children]),\n                            audit)\n    return combine(node.goal, [r.value for r in results])\n\n# Why this works: each leaf runs under a step budget so a single stuck\n# branch cannot exhaust the global budget; sibling failure triggers a\n# narrowly-scoped replan at the parent instead of a global restart.\n# Related: see `step-budget`, `replan-on-failure`, `hierarchical-agents`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with hierarchical-agents: each non-leaf node is owned by a sub-agent that runs its own loop and reports back to its parent.",
+          "code": "# goal-decomposition produces a tree of goals; hierarchical-agents assigns\n# one agent per non-leaf node, each running its own ReAct-style loop.\n\nclass NodeAgent:\n    def __init__(self, goal, parent=None):\n        self.goal, self.parent, self.children = goal, parent, []\n\n    def run(self):\n        if is_actionable(self.goal):\n            return run_leaf_action(self.goal)\n\n        sub_goals = self.llm_split(self.goal)\n        self.children = [NodeAgent(sg, parent=self) for sg in sub_goals]\n\n        # Children run in parallel; each is its own agent with its own loop.\n        results = parallel_for(self.children) do |child|\n            return child.run()\n        end\n\n        # Parent agent composes its children's outputs and reports up.\n        composed = self.llm_compose(self.goal, results)\n        if self.parent is not None:\n            self.parent.notify_child_done(self, composed)\n        return composed\n\n    def llm_split(self, goal):\n        return llm.split(goal, role=f\"node-agent for {goal}\")\n\n    def llm_compose(self, goal, results):\n        return llm.compose(goal, results, role=f\"node-agent for {goal}\")\n\nroot = NodeAgent(user_goal)\nfinal = root.run()\n\n# Why this works: each node is an agent with its own context window, so\n# decomposition scales beyond what one agent can hold. The tree gives\n# explicit structure; the hierarchical agents give per-node autonomy and\n# per-node attribution when a sub-tree fails.\n# Related: see `hierarchical-agents`, `plan-and-execute`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -231,6 +431,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production HTN+LLM with per-leaf token budget, deterministic-node audit, fallback when a leaf's LLM call returns low-confidence, and replan up the tree.",
+          "code": "class CompoundProd:\n    def __init__(self, name, children): self.name, self.children = name, children\n    def run(self, ctx):\n        ctx.audit.enter(self.name, kind=\"compound\")\n        results = [c.run(ctx) for c in self.children]\n        out = ctx.assemble(self.name, results)\n        ctx.audit.exit(self.name, ok=True)\n        return out\n\nclass PrimitiveProd:\n    def __init__(self, fn, name): self.fn, self.name = fn, name\n    def run(self, ctx):\n        ctx.audit.enter(self.name, kind=\"primitive\")\n        t0 = now()\n        try:\n            r = self.fn(ctx)\n            ctx.audit.exit(self.name, ok=True, ms=now()-t0)\n            return r\n        except Exception as e:\n            ctx.audit.exit(self.name, ok=False, err=str(e))\n            raise\n\nclass GenerativeLeafProd:\n    def __init__(self, prompt, budget, name):\n        self.prompt, self.budget, self.name = prompt, budget, name\n    def run(self, ctx):\n        ctx.audit.enter(self.name, kind=\"llm\")\n        for attempt in range(MAX_LEAF_RETRIES):\n            out = llm.generate(self.prompt, ctx, max_tokens=self.budget.tokens)\n            ctx.audit.attempt(self.name, attempt, conf=out.confidence)\n            if out.confidence >= LEAF_CONF_THRESHOLD:\n                ctx.audit.exit(self.name, ok=True, used=out.tokens)\n                return out.value\n        # Replan: ask the parent compound for a different decomposition.\n        ctx.audit.exit(self.name, ok=False, reason=\"low confidence\")\n        raise LeafReplan(self.name)\n\nplan = CompoundProd(\"draft_release_notes\", [\n    CompoundProd(\"collect\", [PrimitiveProd(fetch_prs, \"prs\"),\n                              PrimitiveProd(fetch_issues, \"issues\")]),\n    GenerativeLeafProd(\"summarise\", TokenBudget(1500), \"summarise\"),\n    PrimitiveProd(render_markdown, \"render\"),\n])\n\n# Why this works: the audit walks the HTN spine and records which leaves\n# called the LLM and at what cost; low-confidence leaves trigger a replan\n# at the parent rather than emitting weak generative output downstream.\n# Related: see `step-budget`, `replan-on-failure`, `goal-decomposition`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with deterministic-control-flow-not-prompt: HTN interior nodes branch on typed signals the LLM leaves emit; the if/else stays in code.",
+          "code": "# HTN interior nodes are deterministic; some interior nodes branch on a\n# typed signal an LLM leaf emits — which is exactly deterministic-control-\n# flow-not-prompt at the seam.\n\nSEVERITY = Enum(\"LOW\", \"MEDIUM\", \"HIGH\")\n\nclass ClassifyLeaf:                                   # generative leaf\n    def run(self, ctx):\n        return llm.classify(input=ctx.ticket, schema=SEVERITY)\n\nclass BranchOnSeverity:                               # deterministic node\n    def __init__(self, low, medium, high):\n        self.low, self.medium, self.high = low, medium, high\n    def run(self, ctx):\n        sev = ctx.get(\"severity\")                     # set by ClassifyLeaf\n        if sev == SEVERITY.LOW:    return self.low.run(ctx)\n        if sev == SEVERITY.MEDIUM: return self.medium.run(ctx)\n        if sev == SEVERITY.HIGH:   return self.high.run(ctx)\n        assert_exhaustive(SEVERITY, sev)\n\n# Compose the HTN. Branching is in CODE; the LLM emits a typed signal.\nplan = Compound(\"triage_ticket\", [\n    Primitive(load_ticket, name=\"load\"),\n    BindResult(\"severity\", ClassifyLeaf()),           # LLM -> typed enum\n    BranchOnSeverity(\n        low    = Compound(\"auto_close\", [...]),       # deterministic path\n        medium = Compound(\"queue\",      [...]),       # deterministic path\n        high   = Compound(\"page_oncall\",[...]),       # deterministic path\n    ),\n])\n\n# Why this works: the HTN gives structure for the known parts; the LLM is\n# bounded to producing TYPED SIGNALS the deterministic branches consume.\n# Neither the LLM nor the HTN can invent a fourth severity branch.\n# Related: see `deterministic-control-flow-not-prompt`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -247,6 +467,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production incremental planner with token budget, per-step audit, context-shift detection that forces re-grounding, and replan signal on tool errors.",
+          "code": "def incremental_plan_prod(goal, budget):\n    history     = []\n    observation = initial_observation(goal)\n    audit       = AuditLog()\n    last_ctx_fp = ctx_fingerprint(observation)\n\n    for i in range(budget.max_steps):\n        if budget.tokens_used > budget.tokens_cap:\n            audit.record(\"abort\", reason=\"token cap\")\n            return Result(ok=False, audit=audit)\n\n        # Context-shift guard: if the world has drifted, force a re-ground.\n        if drift(ctx_fingerprint(observation), last_ctx_fp) > DRIFT_THRESHOLD:\n            observation = re_ground(observation)\n            audit.record(\"re_ground\", step=i)\n            last_ctx_fp = ctx_fingerprint(observation)\n\n        t0 = now()\n        next_step = llm.next_step(\n            goal        = goal,\n            history     = history,\n            observation = observation,\n            schema      = STEP_SCHEMA,\n        )\n        audit.record(\"step\", i, next_step, ms=now()-t0)\n\n        if next_step.is_goal_met():\n            return Result(ok=True, history=history, audit=audit)\n\n        try:\n            observation = executor.run(next_step)\n            history.append((next_step, observation))\n        except ToolError as e:\n            audit.record(\"tool_error\", i, err=str(e))\n            signal_replan(goal, history, e)         # caller may restart\n            return Result(ok=False, audit=audit)\n\n    audit.record(\"abort\", reason=\"step budget\")\n    return Result(ok=False, audit=audit)\n\n# Why this works: each step is bounded by token cap AND step count; the\n# context-shift guard forces re-grounding when the world moves under the\n# plan; tool errors short-circuit to a replan instead of letting the next\n# step compound the failure.\n# Related: see `step-budget`, `replan-on-failure`, `react`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with single-path-plan-generator: incremental querying produces a single-path plan one step at a time; on failure, replan-on-failure restarts.",
+          "code": "# single-path-plan-generator emits ONE linear plan; incremental querying\n# produces it one step at a time. On failure, replan-on-failure restarts\n# from the new state with a fresh single path.\n\ndef incremental_single_path(goal, budget):\n    state    = initial_state()\n    progress = []\n\n    for step_idx in range(budget.max_steps):\n        # Each call produces ONE next step — single-path, incremental.\n        next_step = llm.next_step(\n            goal     = goal,\n            state    = state,\n            history  = progress,\n            schema   = STEP_SCHEMA,\n            mode     = \"single_path\",         # do NOT propose K alternatives\n        )\n\n        if next_step.is_goal_met():\n            return Result(ok=True, progress=progress)\n\n        outcome = executor.run(next_step, state)\n        if outcome.failed or surprising(outcome, next_step.expected):\n            # replan-on-failure: restart with a fresh single-path generator.\n            state    = state.apply(progress)\n            progress = []\n            continue                          # the outer loop becomes the replan\n\n        progress.append((next_step, outcome))\n        state = state.apply([(next_step, outcome)])\n\n    return Result(ok=False, reason=\"budget\", progress=progress)\n\n# Why this works: incremental querying lets the model see the actual\n# outcome of the prior step before proposing the next one; single-path\n# keeps the proposal cheap; replan-on-failure handles path-choice errors\n# without expensive in-plan search.\n# Related: see `single-path-plan-generator`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -263,6 +503,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production iteration node with per-element timeout, retry policy, budget cap, ordered audit log, and bounded concurrency adaptive to error rate.",
+          "code": "node IterationNodeProd:\n    inputs:\n        items: Array<T>\n        concurrency: int = 4\n        per_item_timeout_ms: int = 30000\n        per_item_retries: int = 2\n        total_budget_ms: int = 600000\n    subgraph: Subgraph(param: T -> result: R)\n    outputs:\n        results: Array<{index: int, ok: bool, value?: R, error?: str, attempts: int}>\n\nfunction run(node, items):\n    audit = AuditLog()\n    results = []\n    pool = AdaptiveConcurrencyPool(node.concurrency)\n    deadline = now() + node.total_budget_ms\n\n    for (i, item) in enumerate(items):\n        if now() > deadline:\n            audit.record(i, \"skipped_budget\")\n            results.append({index: i, ok: false, error: \"budget exhausted\", attempts: 0})\n            continue\n\n        pool.submit(i, () => {\n            for attempt in 1..node.per_item_retries+1:\n                t0 = now()\n                try:\n                    value = with_timeout(node.per_item_timeout_ms,\n                                         () => node.subgraph.run(param=item))\n                    audit.record(i, \"ok\", attempt=attempt, ms=now()-t0)\n                    return {index: i, ok: true, value: value, attempts: attempt}\n                except Timeout as t:\n                    audit.record(i, \"timeout\", attempt=attempt)\n                except Exception as e:\n                    audit.record(i, \"error\", attempt=attempt, err=str(e))\n            # If error rate climbs, throttle the pool down.\n            if pool.recent_error_rate() > ERROR_THROTTLE:\n                pool.shrink()\n            return {index: i, ok: false, error: \"max retries\", attempts: node.per_item_retries+1}\n        })\n\n    return pool.collect_sorted_by_index()\n\n# Why this works: per-element timeout and retry contain transient failures;\n# the audit log keeps a row per element so a flaky 47th item is locatable;\n# adaptive concurrency backs off when error rate climbs, preventing the\n# whole batch from melting upstream services.\n# Related: see `step-budget`, `circuit-breaker`, `parallelization`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with map-reduce: the iteration node is the Map; a separate Reduce node aggregates the per-element results into a single output.",
+          "code": "# IterationNode is structurally the MAP; a downstream ReduceNode performs\n# the structured aggregation. Together they implement map-reduce on the\n# visual canvas, with per-element observability the Map step gives.\n\nnode Pipeline:\n    nodes:\n        - id: load\n          type: Tool\n          tool: load_documents\n          outputs: {docs: Array<Doc>}\n\n        - id: extract              # the MAP — one subgraph per doc\n          type: Iteration\n          inputs: {items: \"$load.docs\", concurrency: 8}\n          subgraph:\n              - id: summ\n                type: LLM\n                prompt: \"Extract claims + evidence from $item\"\n                outputs: {partial: ClaimSet}\n          outputs: {results: Array<{index, ok, value: ClaimSet}>}\n\n        - id: reduce               # the REDUCE — single aggregator pass\n          type: LLM\n          prompt: \"Merge $items into one ClaimSet; resolve conflicts.\"\n          inputs: {items: \"$extract.results | filter ok | map value\"}\n          outputs: {final: ClaimSet}\n\n        - id: end\n          type: End\n          inputs: {final: \"$reduce.final\"}\n\n    edges:\n        - {from: load,    to: extract}\n        - {from: extract, to: reduce}\n        - {from: reduce,  to: end}\n\n# Why this works: the Iteration node gives per-element error scoping and\n# concurrency control, which raw \"map\" prompts do not. The Reduce node\n# stays single-call so conflict-resolution logic is in one place. The\n# canvas surface stays the source of truth.\n# Related: see `map-reduce`, `visual-workflow-graph`, `parallelization`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -279,6 +539,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production LATS with rollout audit, value-function calibration check, deadline + budget enforcement, and backtrack-when-stuck signal to the outer planner.",
+          "code": "function lats_prod(root, budget, deadline):\n    audit = AuditLog()\n    rollouts = 0\n    stuck_streak = 0\n\n    while rollouts < budget.rollouts and now() < deadline:\n        t0 = now()\n        leaf = select(root)\n        children = expand(leaf)\n        if not children:\n            v = value(leaf)\n            backpropagate(leaf, v)\n            audit.record(rollouts, leaf.id, kind=\"terminal\", v=v)\n            stuck_streak = (stuck_streak + 1) if v < IMPROVE_FLOOR else 0\n        else:\n            child = pick_unvisited(children)\n            v = simulate(child)                  # rollout under value fn\n            backpropagate(child, v)\n            audit.record(rollouts, child.id, kind=\"sim\", v=v,\n                         ms=now()-t0)\n            stuck_streak = 0\n\n        # Value-function calibration: occasionally check sim score vs oracle.\n        if rollouts % CALIBRATION_INTERVAL == 0:\n            drift = calibrate_value_fn(root)\n            if drift > DRIFT_LIMIT:\n                audit.record_warning(\"value_fn drift\", drift=drift)\n\n        if stuck_streak >= STUCK_LIMIT:\n            signal_replan(\"LATS stuck below IMPROVE_FLOOR\", best_trajectory(root))\n            return best_trajectory(root), audit\n\n        rollouts += 1\n\n    return best_trajectory(root), audit\n\n# Why this works: each rollout writes a row to the audit; periodic\n# calibration of the value function detects drift before it wastes\n# rollouts; persistent low-value streaks escalate to a replan instead of\n# burning the entire budget on a bad sub-tree.\n# Related: see `step-budget`, `replan-on-failure`, `process-reward-model`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with multi-path-plan-generator: the generator proposes K next-step candidates at each LATS expansion step; LATS scores and backtracks.",
+          "code": "# LATS handles SELECTION and BACKTRACK; multi-path-plan-generator handles\n# CANDIDATE PROPOSAL. Separating them lets each be tuned independently.\n\ndef multi_path_generator(node, history, K):\n    candidates = llm.propose_next_steps(\n        node=node, history=history, k=K,\n        schema=STEP_SCHEMA, diverse=True,\n    )\n    return dedupe(candidates)\n\ndef lats_with_generator(root, generator, K=5, budget=200):\n    for rollout in range(budget):\n        leaf = select(root)                       # UCT walk down\n        if leaf.is_terminal():\n            backpropagate(leaf, value(leaf))\n            continue\n\n        # MULTI-PATH GENERATOR is the seam: K candidates per expansion.\n        candidates = generator(leaf, history_of(leaf), K)\n        for c in candidates:\n            child = expand(leaf, c)\n            child.prior = score(c)                # used by UCT\n\n        # LATS-style: pick one unvisited child, simulate, backprop.\n        chosen = pick_unvisited(leaf.children)\n        v = simulate(chosen)\n        backpropagate(chosen, v)\n\n    return best_trajectory(root)\n\n# The generator can be swapped (CoT-style, ToT-style, beam-style) without\n# touching the LATS search; LATS can be swapped (UCT, AB-MCTS, BFS) without\n# touching the generator.\n\n# Why this works: separating proposal from search means the same generator\n# drives many search policies. LATS gets richer candidates than its own\n# expansion would produce, and the generator gets a search policy that\n# actually backtracks from low-value branches.\n# Related: see `multi-path-plan-generator`, `tree-of-thoughts`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -295,6 +575,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production LLMCompiler with per-task timeout, retry policy, audit per DAG node, replan when more than R% of tasks fail, and bounded global concurrency.",
+          "code": "function llm_compiler_prod(query, budget):\n    audit = AuditLog()\n    dag = planner.build(query)\n    audit.record_plan(dag)\n\n    results = {}\n    pending = {n.id: set(n.deps) for n in dag.nodes}\n    pool = ConcurrencyPool(min(MAX_PARALLEL, budget.parallelism))\n    failures = 0\n\n    deadline = now() + budget.total_ms\n\n    while (pending or pool.in_flight()) and now() < deadline:\n        for n in dag.nodes:\n            if n.id in pending and not pending[n.id]:\n                pool.submit(n.id, () => {\n                    t0 = now()\n                    for attempt in 1..PER_NODE_RETRIES+1:\n                        try:\n                            r = with_timeout(PER_NODE_TIMEOUT,\n                                             () => run_tool(n, results))\n                            audit.record(n.id, ok=True, attempt=attempt,\n                                         ms=now()-t0)\n                            return Ok(r)\n                        except (Timeout, ToolError) as e:\n                            audit.record(n.id, ok=False, attempt=attempt,\n                                         err=str(e))\n                    return Fail(\"max retries\")\n                })\n                del pending[n.id]\n\n        done_id, value = pool.wait_one()\n        if isinstance(value, Fail):\n            failures += 1\n            if failures > len(dag.nodes) * MAX_FAIL_RATIO:\n                # Replan: rebuild the DAG given what we now know.\n                dag = planner.build(query, prior_results=results, failures=failures)\n                pending = {n.id: set(n.deps) for n in dag.nodes if n.id not in results}\n                continue\n            results[done_id] = MissingValue(done_id)\n        else:\n            results[done_id] = value.unwrap()\n        for nid in pending:\n            pending[nid].discard(done_id)\n\n    return joiner.assemble(query, dag, results, audit=audit)\n\n# Why this works: per-node retries with timeouts contain transient tool\n# failures; the audit makes each DAG node's history inspectable; high\n# failure rates trigger a fresh plan instead of joining over too many gaps.\n# Related: see `step-budget`, `replan-on-failure`, `parallel-tool-calls`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with subagent-isolation: each DAG task runs inside its own isolated sandbox so a poisoned tool result cannot contaminate sibling tasks.",
+          "code": "# LLMCompiler dispatches DAG tasks concurrently; subagent-isolation gives\n# each task its own sandbox so cross-task contamination is structurally\n# impossible. The seam is the dispatcher allocating one sandbox per node.\n\nfunction llm_compiler_isolated(query):\n    dag = planner.build(query)\n    results = {}\n    pending = {n.id: set(n.deps) for n in dag.nodes}\n    pool = ConcurrencyPool(MAX_PARALLEL)\n\n    while pending or pool.in_flight():\n        for n in dag.nodes:\n            if n.id in pending and not pending[n.id]:\n                # ONE sandbox per DAG node; destroyed on completion.\n                sb = allocate_sandbox(isolation=\"strict\", caps=n.required_caps)\n                pool.submit(n.id, () => {\n                    try:\n                        sub = SubAgent(\n                            tools     = n.allowed_tools,    # least-privilege\n                            sandbox   = sb,\n                            inputs    = substitute(n.args, results),\n                        )\n                        return sub.run_and_return_structured()\n                    finally:\n                        sb.destroy()                         # no leak across nodes\n                })\n                del pending[n.id]\n\n        done_id, value = pool.wait_one()\n        # Returned value is STRUCTURED, not arbitrary text — joiner consumes it.\n        results[done_id] = value\n        for nid in pending:\n            pending[nid].discard(done_id)\n\n    return joiner.assemble(query, dag, results)\n\n# Why this works: tool results from one DAG node cannot leak into the\n# prompt context of another; if one node is compromised (poisoned web\n# page, prompt-injected document) the contamination stays in that node's\n# sandbox. The DAG concurrency benefit is preserved.\n# Related: see `subagent-isolation`, `rewoo`, `parallel-tool-calls`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -311,6 +611,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production map-reduce with chunk-level retry, partial-tolerance reduce, audit per chunk, deadline, and replan when conflict-resolution fails to converge.",
+          "code": "function map_reduce_prod(task, input, chunk_size, budget):\n    audit = AuditLog()\n    chunks = split(input, chunk_size)\n    deadline = now() + budget.total_ms\n\n    def map_one(chunk, idx):\n        for attempt in range(MAP_RETRIES + 1):\n            t0 = now()\n            try:\n                r = llm.map(\n                    task=task, chunk=chunk,\n                    schema=STRUCTURED_PARTIAL,\n                )\n                audit.record(idx, ok=True, ms=now()-t0, attempt=attempt)\n                return Outcome(idx=idx, ok=True, value=r)\n            except (LLMError, ValidationError) as e:\n                audit.record(idx, ok=False, err=str(e), attempt=attempt)\n        return Outcome(idx=idx, ok=False)\n\n    partials = parallel_for(enumerate(chunks)) do |i, c|\n        if now() > deadline: return Outcome(idx=i, ok=False, err=\"budget\")\n        return map_one(c, i)\n    end\n\n    successes = [p for p in partials if p.ok]\n    if len(successes) < len(chunks) * MIN_MAP_RATIO:\n        signal_replan(task, reason=\"too few successful map chunks\")\n        return Result(ok=False, audit=audit)\n\n    aggregate = llm.reduce(task=task, partials=[s.value for s in successes],\n                           protocol=\"dependencies + claims + sources\")\n\n    # Conflict-resolution pass; if it cannot reach convergence, replan.\n    for round in range(MAX_RESOLVE_ROUNDS):\n        calibrated = llm.calibrate(aggregate=aggregate,\n                                   partials=[s.value for s in successes],\n                                   resolve_conflicts=True)\n        if calibrated.unresolved_conflicts == 0:\n            return Result(ok=True, value=calibrated, audit=audit)\n        aggregate = calibrated\n    signal_replan(task, reason=\"conflicts did not converge\")\n    return Result(ok=False, audit=audit)\n\n# Why this works: per-chunk retries contain transient map failures; the\n# audit records which chunks contributed; partial reduce tolerates a\n# bounded miss-rate; conflicts that refuse to converge become a replan\n# signal instead of low-quality output.\n# Related: see `step-budget`, `replan-on-failure`, `iteration-node`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with self-consistency: the Map step runs k samples per chunk and votes; the Reduce step composes the voted partials.",
+          "code": "# self-consistency reduces noise WITHIN each map call by voting over k\n# samples; map-reduce composes the voted partials. The seam is the per-\n# chunk vote that becomes the reduce input.\n\ndef map_one_with_self_consistency(task, chunk, k=5):\n    samples = [llm.map(task=task, chunk=chunk, schema=STRUCTURED_PARTIAL,\n                       temperature=0.7)\n               for _ in range(k)]\n    return vote_structured(samples)               # field-by-field majority\n\ndef map_reduce_with_sc(task, input, chunk_size):\n    chunks = split(input, chunk_size)\n\n    # MAP with self-consistency per chunk.\n    partials = parallel_for(chunks) do |chunk|\n        return map_one_with_self_consistency(task, chunk, k=5)\n    end\n\n    # REDUCE consumes voted partials, which are already de-noised.\n    aggregate = llm.reduce(\n        task=task,\n        partials=partials,\n        protocol=\"dependencies + claims + sources\",\n    )\n    return llm.calibrate(\n        aggregate=aggregate,\n        partials=partials,\n        resolve_conflicts=True,\n    )\n\n# Why this works: per-chunk noise (which the model would otherwise\n# propagate into the reduce step as spurious conflicts) is killed by the\n# vote BEFORE reduce sees it. The reducer's conflict-resolution then only\n# faces real cross-chunk disagreement, not within-chunk randomness.\n# Related: see `self-consistency`, `iteration-node`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -327,6 +647,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production simulator-in-the-loop with calibration drift detection, per-strategy audit, sim-budget cap, and replan when no strategy clears the accept threshold.",
+          "code": "def evaluate_strategy_prod(world, strategy, audit):\n    sim = world.fork()\n    trace = []\n    t0 = now()\n    for action in strategy.steps:\n        outcome = sim.apply(action)\n        trace.append((action, outcome))\n        if sim.is_unsafe() or sim.is_terminal_failure():\n            audit.record(strategy.id, ok=False, ms=now()-t0,\n                         reason=\"sim caught failure\")\n            return Score(value=-inf, trace=trace, reason=\"sim caught failure\")\n    score = sim.utility()\n    audit.record(strategy.id, ok=True, ms=now()-t0, value=score)\n    return Score(value=score, trace=trace)\n\ndef pick_strategy_prod(goal, world, budget):\n    audit = AuditLog()\n    candidates = planner.propose_strategies(goal, k=budget.k)\n    if len(candidates) * SIM_COST_PER_STRATEGY > budget.sim_budget:\n        candidates = candidates[:budget.sim_budget // SIM_COST_PER_STRATEGY]\n\n    scored = [(evaluate_strategy_prod(world, s, audit), s) for s in candidates]\n    scored.sort(key=lambda x: x[0].value, reverse=True)\n\n    best_score, best = scored[0]\n    if best_score.value < ACCEPT_THRESHOLD:\n        signal_replan(goal, rejected=scored, audit=audit)\n        return None\n    return best, audit\n\ndef commit_with_calibration(strategy, world, real_world, audit):\n    for action in strategy.steps:\n        real_world.apply(action)\n        obs = real_world.observe()\n        sim_pred = world.predict_next(action)\n        if drift(sim_pred, obs) > DRIFT_LIMIT:\n            audit.record_warning(\"sim drift\", action=action, drift=drift(sim_pred, obs))\n            world.recalibrate(obs)              # keep the sim honest\n        else:\n            world.update_from_observation(obs)\n\n# Why this works: every candidate strategy is scored under the simulator\n# with explicit audit; calibration drift between sim and real-world is\n# detected and triggers recalibration; no-acceptable-strategy is a replan,\n# not a silent commit of the least-bad option.\n# Related: see `replan-on-failure`, `dry-run-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with world-model-as-tool: the simulator is exposed as a tool the planner can call directly, treating it as a first-class action.",
+          "code": "# world-model-as-tool makes the simulator a callable tool; the agent's\n# planner can choose to invoke `simulate(strategy)` as a regular action,\n# read the score, and only then commit a real action.\n\nTOOLS = [\n    Tool(\"simulate\",\n         schema={\"strategy\": StrategySpec},\n         description=\"Run a multi-step strategy in the internal world model. \"\n                     \"Returns aggregate utility + trace. Side-effect free.\"),\n    Tool(\"commit_action\",\n         schema={\"action\": ActionSpec},\n         description=\"Commit ONE action to the real world.\"),\n    # ... other domain tools\n]\n\ndef agent_loop(goal):\n    msgs = [system(goal)]\n    while True:\n        reply = llm.generate(msgs, tools=TOOLS)\n        if not reply.tool_calls:\n            return reply.content\n        for call in reply.tool_calls:\n            if call.name == \"simulate\":\n                score = world.evaluate_strategy(call.args.strategy)\n                msgs.append(tool_result(call.id, score))\n            elif call.name == \"commit_action\":\n                # Policy: refuse commit unless preceded by a simulate call\n                # whose score cleared ACCEPT_THRESHOLD.\n                if not recently_simulated_and_accepted(msgs, call.args.action):\n                    msgs.append(tool_error(call.id, \"simulate first\"))\n                    continue\n                real_world.apply(call.args.action)\n                world.update_from_observation(real_world.observe())\n                msgs.append(tool_result(call.id, \"committed\"))\n            else:\n                msgs.append(tool_result(call.id, dispatch(call)))\n\n# Why this works: the simulator is no longer a side-orchestration step but\n# a tool the model can choose, with a policy that gates commit on prior\n# simulation. The agent learns by experience when simulation is worth the\n# cost — small actions skip it, big ones don't.\n# Related: see `world-model-as-tool`, `policy-gated-agent-action`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -343,6 +683,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production multi-path generator with diversity gate, per-call token budget, audit of proposed-vs-expanded candidates, and replan when no candidate scores above the floor.",
+          "code": "def multi_path_generator_prod(node, history, K, audit, budget):\n    if budget.tokens_used > budget.tokens_cap:\n        audit.record(node.id, \"abort_token_cap\")\n        return []\n\n    t0 = now()\n    candidates = llm.propose_next_steps(\n        node=node, history=history, k=K,\n        schema=STEP_SCHEMA, diverse=True, temperature=0.7,\n    )\n    audit.record(node.id, \"propose\", k=K, ms=now()-t0,\n                 tokens=candidates.tokens_used)\n\n    candidates = dedupe(candidates)\n    if diversity_score(candidates) < DIVERSITY_FLOOR:\n        # Retry once with higher temperature to force spread.\n        more = llm.propose_next_steps(\n            node=node, history=history, k=K,\n            schema=STEP_SCHEMA, diverse=True, temperature=1.0,\n        )\n        candidates = dedupe(candidates + more)\n        audit.record(node.id, \"diversity_retry\", k=K)\n\n    # Score each candidate; replan if none clear the floor.\n    scored = [(score(c, node, history), c) for c in candidates]\n    scored.sort(reverse=True)\n    if scored and scored[0][0] < CANDIDATE_FLOOR:\n        signal_replan(node, reason=\"no candidate above floor\", audit=audit)\n        return []\n\n    audit.record(node.id, \"top_candidates\",\n                 picks=[c.id for _, c in scored[:K]])\n    return [c for _, c in scored[:K]]\n\n# Why this works: the diversity gate catches mode-collapse (the model\n# proposing K near-duplicates); per-call token tracking bounds cost; the\n# audit shows which candidates were proposed AND which the search policy\n# expanded; a floor-failure replans instead of expanding bad candidates.\n# Related: see `step-budget`, `replan-on-failure`, `tree-of-thoughts`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with adaptive-branching-tree-search: AB-MCTS uses the multi-path generator to populate candidate actions at each node it decides to expand.",
+          "code": "# AB-MCTS decides WHETHER to deepen or branch and (per-arm) WHICH MODEL\n# to use; multi-path-plan-generator decides WHAT the candidate next-steps\n# are. The seam: AB-MCTS asks the generator for K candidates whenever it\n# samples a \"branch\" action.\n\ndef multi_path_generator(node, history, K, model):\n    return llm.propose_next_steps(\n        node=node, history=history, k=K,\n        schema=STEP_SCHEMA, diverse=True, model=model,\n    )\n\ndef ab_mcts_with_generator(root, budget):\n    for _ in range(budget):\n        node = select(root)\n        action, model = sample_action(node)        # Thompson draw\n\n        if action == \"deepen\":\n            child = refine(node.best_child(), model=model)\n        else:  # action == \"branch\"\n            # multi-path generator gives K candidates; pick the best by\n            # the value-function prior.\n            candidates = multi_path_generator(node, history_of(node),\n                                              K=ab_branch_width(node), model=model)\n            child = expand_with(node, best_by_prior(candidates))\n\n        score = evaluate(child)\n        backpropagate(child, score)\n\n    return best_leaf(root)\n\n# Why this works: AB-MCTS owns search policy + model selection; the\n# generator owns proposal. Same generator drives many search strategies\n# (AB-MCTS, ToT, beam, MCTS) without rewriting the proposal logic.\n# Related: see `adaptive-branching-tree-search`, `lats`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -359,6 +719,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production two-loop with outer step budget, inner timeout, audit per subtask, milestone-miss detection, and replan when the inner loop reports irrecoverable failure.",
+          "code": "function outer_prod(goal, budget):\n    audit = AuditLog()\n    plan = outer_agent.decompose(goal)\n    global_state = {goal: goal, done: []}\n    outer_step = 0\n\n    for sub in plan:\n        outer_step += 1\n        if outer_step > budget.outer_steps:\n            audit.record(\"outer_budget_exhausted\"); break\n\n        interrupt = Channel()\n        deadline_for_sub = sub.estimated_ms * SAFETY_FACTOR\n        watchdog = schedule(deadline_for_sub, () => interrupt.signal(\"watchdog\"))\n\n        t0 = now()\n        result = inner_prod(sub, interrupt, audit, budget.inner_steps)\n        watchdog.cancel()\n        audit.record(\"subtask\", sub.id, ms=now()-t0, ok=result.ok)\n\n        global_state.done.append((sub, result))\n\n        # Milestone check: outer sees ONLY structured result + cumulative state.\n        if missed_milestone(sub, result, global_state):\n            audit.record(\"replan_trigger\", sub.id, reason=\"milestone miss\")\n            plan = outer_agent.replan(global_state)\n            continue\n\n        if outer_agent.should_replan(global_state):\n            plan = outer_agent.replan(global_state)\n\n    return outer_agent.summarise(global_state)\n\nfunction inner_prod(subtask, interrupt, audit, max_steps):\n    messages = [system_for(subtask)]\n    for step in 1..max_steps:\n        if interrupt.signalled():\n            audit.record(\"inner_interrupted\", subtask.id)\n            return Result(ok=False, reason=interrupt.reason())\n        reply = llm.generate(messages=messages, tools=tools_for(subtask))\n        messages.append(reply)\n        if not reply.tool_calls:\n            return Result(ok=True, value=reply.content)\n        for call in reply.tool_calls:\n            messages.append(tool_result(call.id, dispatch(call)))\n    return Result(ok=False, reason=\"inner step budget\")\n\n# Why this works: outer and inner budgets are explicit and independent;\n# the interrupt channel + watchdog prevent runaway inner loops; milestone\n# misses bubble up to the planner without rebuilding ReAct's per-step\n# planner cost.\n# Related: see `step-budget`, `replan-on-failure`, `planner-executor-observer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with planner-executor-observer: the outer loop's milestone checks are delegated to a third Observer role that decides loop/respond/replan.",
+          "code": "# outer-inner-agent-loop gives the two-loop SHAPE; planner-executor-observer\n# gives a third role (Observer) that is the only one allowed to call\n# loop/respond/replan. Composed: Observer reads cumulative subtask results\n# and tells Outer what to do next.\n\nfunction outer_with_observer(goal):\n    plan = planner.run(goal)\n    global_state = {goal: goal, done: []}\n\n    while True:\n        next_sub = plan.next(global_state.done)\n        if next_sub is None:\n            verdict = observer.judge(goal, plan, global_state.done)\n            if verdict == \"respond\":\n                return planner.summarise(goal, global_state.done)\n            if verdict == \"replan\":\n                plan = planner.run(goal, context=global_state.done)\n                continue\n\n        # Inner loop runs ReAct on ONE subtask, reports structured result.\n        interrupt = Channel()\n        result = inner_react(next_sub, interrupt)\n        global_state.done.append((next_sub, result))\n\n        # Observer reads CUMULATIVE state, not just the latest subtask.\n        verdict = observer.judge(goal, plan, global_state.done)\n        if verdict == \"replan\":\n            plan = planner.run(goal, context=global_state.done)\n            interrupt.signal(\"observer requested replan\")  # cancel in-flight\n        elif verdict == \"respond\":\n            return planner.summarise(goal, global_state.done)\n        # else: continue with current plan\n\n# Why this works: the outer loop dispatches; the Observer judges; the\n# inner loop acts. Three responsibilities, three roles. The Observer can\n# interrupt mid-run via the channel the outer-inner shape already provides.\n# Related: see `planner-executor-observer`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -375,6 +755,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production PGP with gossip rate limits, fragment-version vectors, audit of merges, conflict escalation, and replan when an agent's PGP stays inconsistent for K cycles.",
+          "code": "class AgentProd:\n    def __init__(self, id, neighbours, audit):\n        self.id, self.neighbours, self.audit = id, neighbours, audit\n        self.local_plan = []\n        self.pgp        = PartialGlobalPlan()\n        self.gossip_budget = TokenBucket(rate=GOSSIP_PER_SEC)\n        self.inconsistent_cycles = 0\n\n    def planning_tick(self):\n        t0 = now()\n        self.local_plan = planner.local(self.id, self.pgp, world_view(self.id))\n        fragment = self.pgp.derive_fragment_from(self.local_plan)\n        fragment.version = (self.id, now_logical())   # version vector\n        for n in self.neighbours:\n            if self.gossip_budget.try_take():\n                send(n, \"plan_fragment\", fragment)\n                self.audit.record(\"gossip\", from_=self.id, to=n,\n                                  ver=fragment.version)\n            else:\n                self.audit.record(\"gossip_dropped\", from_=self.id, to=n)\n        self.audit.record(\"plan_tick\", id=self.id, ms=now()-t0)\n\n    def on_message(self, sender, kind, payload):\n        if kind == \"plan_fragment\":\n            res = self.pgp.merge(sender, payload)\n            self.audit.record(\"merge\", sender, accepted=res.accepted,\n                              conflicts=res.conflicts)\n            if res.unresolved_conflict:\n                self.inconsistent_cycles += 1\n                if self.inconsistent_cycles > REPLAN_LIMIT:\n                    signal_replan(self.id, reason=\"persistent PGP conflict\")\n            else:\n                self.inconsistent_cycles = 0\n            if res.accepted:\n                schedule(self.planning_tick, in_=SHORT_DELAY)\n\n# Why this works: version-vectored fragments give the merge a clear order;\n# the gossip budget bounds per-edge traffic; persistent merge conflicts\n# escalate to a replan rather than leaving the agent stuck in disagreement.\n# Related: see `step-budget`, `replan-on-failure`, `distributed-constraint-optimization`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with blackboard: the partial global plan lives on a shared blackboard; agents read/write fragments instead of point-to-point gossip.",
+          "code": "# PGP describes the SHAPE of coordination (fragments + merge); blackboard\n# provides the SUBSTRATE (a shared, versioned space the agents read/write).\n# Composed, agents publish fragments to the blackboard rather than gossip\n# them peer-to-peer.\n\nclass Blackboard:\n    def __init__(self): self.fragments = {}        # owner_id -> Fragment\n    def publish(self, owner, fragment):\n        self.fragments[owner] = fragment\n        notify_subscribers(owner, fragment)\n    def view(self, requesting_agent):\n        # Visibility scoped to constraint-neighbours, not the whole board.\n        return {o: f for o, f in self.fragments.items()\n                if neighbours(requesting_agent, o)}\n\nbb = Blackboard()\n\nclass AgentBB:\n    def __init__(self, id, bb): self.id, self.bb = id, bb\n    def planning_tick(self):\n        view = self.bb.view(self.id)\n        pgp  = merge_fragments(view.values())\n        plan = planner.local(self.id, pgp, world_view(self.id))\n        fragment = pgp.derive_fragment_from(plan)\n        self.bb.publish(self.id, fragment)\n\n    def on_fragment_change(self, owner, fragment):\n        # Cheap reactive replan when a neighbour's fragment changes.\n        schedule(self.planning_tick, in_=SHORT_DELAY)\n\nfor a in agents:\n    every(PLAN_INTERVAL, a.planning_tick)\n    bb.subscribe(a.id, a.on_fragment_change)\n\n# Why this works: the blackboard centralises the shared substrate (so\n# fragments are observable + auditable) while PGP keeps the planning\n# semantics distributed. Late joiners catch up by reading the board; the\n# gossip protocol is replaced by pub-sub on fragment changes.\n# Related: see `blackboard`, `distributed-constraint-optimization`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -391,6 +791,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production goal-creator with memory-retrieval timeout, audit of which memory chunks influenced the refinement, fallback when memory is unavailable, and replan signal on schema violation.",
+          "code": "def passive_goal_creator_prod(user_prompt, conversation_id, audit):\n    t0 = now()\n    try:\n        history  = with_timeout(MEM_TIMEOUT,\n                    lambda: memory.recent_turns(conversation_id, k=10))\n    except Timeout:\n        audit.record(\"memory_timeout\", \"history\")\n        history = []\n    try:\n        related  = with_timeout(MEM_TIMEOUT,\n                    lambda: memory.search_tasks(user_prompt, k=5))\n    except Timeout:\n        audit.record(\"memory_timeout\", \"related\")\n        related = []\n    examples = memory.examples(positive=True, negative=True, k=3)\n\n    refined = llm.refine_goal(\n        prompt        = user_prompt,\n        history       = history,\n        related_tasks = related,\n        examples      = examples,\n        schema        = GOAL_SCHEMA,\n        instructions  = \"Cite which prior turns or tasks you relied on.\",\n    )\n\n    if not GOAL_SCHEMA.validate(refined).ok:\n        audit.record(\"schema_violation\", refined)\n        signal_replan(\"goal refinement failed schema\", refined)\n        return None\n\n    audit.record(\"refined\",\n                 user_prompt=user_prompt,\n                 cited_history=refined.cited_history_ids,\n                 cited_tasks  =refined.cited_task_ids,\n                 ms=now()-t0)\n\n    if refined.ambiguous:\n        return ask_user_to_disambiguate(refined.candidates)\n\n    return planner.start(refined)\n\n# Why this works: memory access is bounded by timeout so the goal step\n# stays responsive even when memory is degraded; the audit shows which\n# prior turns/tasks were cited so a wrong refinement is traceable; schema\n# failure becomes a replan signal rather than feeding bad goals downstream.\n# Related: see `step-budget`, `replan-on-failure`, `disambiguation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with prompt-response-optimiser: refined goals + observed outcomes feed back into a prompt-optimisation loop that improves the goal-creator over time.",
+          "code": "# passive-goal-creator produces refined goals; prompt-response-optimiser\n# observes downstream outcomes and improves the goal-creator's prompt or\n# parameters. The seam: the optimiser reads (refined_goal, outcome) pairs.\n\ndef goal_creation_with_optimisation(user_prompt, conv_id, prompt_store):\n    # Read the CURRENT optimiser-tuned prompt; refinements use it.\n    creator_prompt = prompt_store.get(\"goal_creator\")\n\n    history  = memory.recent_turns(conv_id, k=10)\n    related  = memory.search_tasks(user_prompt, k=5)\n\n    refined = llm.refine_goal(\n        prompt        = user_prompt,\n        history       = history,\n        related_tasks = related,\n        schema        = GOAL_SCHEMA,\n        system_prompt = creator_prompt,             # tuned by optimiser\n    )\n\n    # Run the planner / executor; capture outcome.\n    outcome = planner.run_to_completion(refined)\n\n    # Feed (refined_goal, outcome) to the optimiser as a training pair.\n    optimiser.record(\n        component  = \"goal_creator\",\n        input      = user_prompt,\n        refined    = refined,\n        outcome    = outcome,\n        signal     = outcome.user_satisfaction,\n    )\n    if optimiser.has_enough_data(\"goal_creator\"):\n        new_prompt = optimiser.propose_improvement(\"goal_creator\")\n        if optimiser.canary_passed(new_prompt):\n            prompt_store.set(\"goal_creator\", new_prompt)\n\n    return outcome\n\n# Why this works: the optimiser closes the loop between goal-creation\n# choices and downstream outcomes, so the prompt that drives goal\n# refinement is data-tuned rather than hand-written once. Canary gating\n# prevents bad prompts from going live.\n# Related: see `prompt-response-optimiser`, `proactive-goal-creator`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -462,6 +882,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production three-role loop with per-step budget, observer-verdict audit, replan-throttling to prevent ping-pong, and explicit failure when observer dissents repeatedly.",
+          "code": "function run_prod(goal, budget):\n    audit = AuditLog()\n    plan = planner.run(goal)\n    audit.record(\"plan\", plan)\n    results = []\n    replan_count = 0\n    consecutive_dissent = 0\n\n    while True:\n        if len(results) >= len(plan):\n            verdict = observer.judge(goal, plan, results)\n            audit.record(\"observer\", verdict, stage=\"end_of_plan\")\n            if verdict == \"respond\":\n                return executor.summarise(goal, results)\n            if verdict == \"replan\":\n                if replan_count >= MAX_REPLANS:\n                    audit.record(\"abort_replan_thrash\")\n                    return Result(ok=False, reason=\"too many replans\")\n                replan_count += 1\n                plan = planner.run(goal, context=results)\n                audit.record(\"plan\", plan, replan=replan_count)\n                continue\n\n        step = plan[len(results)]\n        if budget.exhausted(): return Result(ok=False, reason=\"budget\")\n        t0 = now()\n        outcome = executor.run(step, context=results)\n        results.append(outcome)\n        audit.record(\"step\", step.id, ms=now()-t0, ok=outcome.ok)\n\n        verdict = observer.judge(goal, plan, results)\n        audit.record(\"observer\", verdict, after_step=step.id)\n\n        if verdict == \"replan\":\n            consecutive_dissent += 1\n            if consecutive_dissent >= DISSENT_LIMIT:\n                return Result(ok=False, reason=\"observer keeps dissenting\")\n            replan_count += 1\n            plan = planner.run(goal, context=results)\n        else:\n            consecutive_dissent = 0\n        if verdict == \"respond\":\n            return executor.summarise(goal, results)\n\n# Why this works: replan throttling prevents the planner/observer from\n# ping-ponging forever; the audit records every observer verdict so post-\n# hoc analysis can show whether the observer or the planner was the\n# bottleneck; persistent dissent fails the run instead of looping silently.\n# Related: see `step-budget`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with evaluator-optimizer: the Observer's verdicts (and the executor's outcomes) feed an optimiser that tunes the planner's prompt over time.",
+          "code": "# planner-executor-observer is the runtime SHAPE; evaluator-optimizer\n# closes the loop OVER TIME — observer verdicts + outcomes become signal\n# the optimiser uses to refine the planner.\n\ndef run_with_optimiser(goal, prompt_store):\n    planner_prompt = prompt_store.get(\"planner\")\n    plan = planner.run(goal, system_prompt=planner_prompt)\n    results = []\n    verdicts = []\n\n    while True:\n        if len(results) >= len(plan):\n            verdict = observer.judge(goal, plan, results)\n            verdicts.append(verdict)\n            if verdict == \"respond\": break\n            if verdict == \"replan\":\n                plan = planner.run(goal, context=results,\n                                   system_prompt=planner_prompt)\n                continue\n\n        step = plan[len(results)]\n        outcome = executor.run(step, context=results)\n        results.append(outcome)\n        verdict = observer.judge(goal, plan, results)\n        verdicts.append(verdict)\n\n        if verdict == \"replan\":\n            plan = planner.run(goal, context=results,\n                               system_prompt=planner_prompt)\n        elif verdict == \"respond\":\n            break\n\n    # Feed signal back to optimiser: which goals needed replan vs. one-shot?\n    optimiser.record(\n        component = \"planner\",\n        goal      = goal,\n        plan      = plan,\n        verdicts  = verdicts,\n        outcome_quality = score(results),\n    )\n    if optimiser.canary_ready(\"planner\"):\n        prompt_store.set(\"planner\", optimiser.propose_improvement(\"planner\"))\n\n    return executor.summarise(goal, results)\n\n# Why this works: observer verdicts are a rich training signal — they\n# capture WHERE the plan went wrong, not just whether it failed. The\n# optimiser uses that signal to tune the planner prompt, so the system\n# improves run over run without rewriting the runtime shape.\n# Related: see `evaluator-optimizer`, `prompt-response-optimiser`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -478,6 +918,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production three-role harness with per-role token budgets, evaluator-context-leak guards, per-chunk audit, and replan-planner when too many chunks fail evaluation.",
+          "code": "function harness_prod(goal, budget):\n    audit = AuditLog()\n    feature_list = planner.run(goal)\n    audit.record(\"plan\", feature_list)\n    artefact = empty_artefact()\n    chunk_failures = 0\n\n    for chunk in feature_list.chunks:\n        attempts = 0\n        while attempts < MAX_RETRIES:\n            t0 = now()\n\n            # Generator: fresh context with ONLY plan + artefact + chunk.\n            gen_ctx = FreshContext(\n                feature_list=feature_list,\n                artefact=artefact,\n                chunk=chunk,\n                budget=budget.per_generator_call,\n            )\n            artefact = generator.run(gen_ctx)\n            audit.record(\"generate\", chunk.id, attempt=attempts,\n                         ms=now()-t0, tokens=gen_ctx.tokens_used)\n\n            # Evaluator: SEPARATE fresh context; no generator trace allowed.\n            eval_ctx = FreshContext(\n                artefact=artefact,\n                rubric=feature_list.rubric,\n                # NOT: generator_trace, generator_scratch, attempt history\n            )\n            assert_no_generator_leak(eval_ctx)\n            verdict = evaluator.run(eval_ctx)\n            audit.record(\"evaluate\", chunk.id, pass_=verdict.pass_,\n                         findings=verdict.findings)\n\n            if verdict.pass_: break\n            attempts += 1\n\n        if not verdict.pass_:\n            chunk_failures += 1\n            if chunk_failures > len(feature_list.chunks) * MAX_FAIL_RATIO:\n                # Replan: the plan itself may be wrong, not just one chunk.\n                feature_list = planner.run(goal, prior_findings=audit.findings())\n                audit.record(\"replan\", reason=\"too many chunk failures\")\n                continue\n\n    return Result(ok=chunk_failures==0, artefact=artefact, audit=audit)\n\n# Why this works: the assert_no_generator_leak guard makes the isolation\n# requirement structural rather than aspirational; per-role budgets keep\n# each agent's context small; a high cluster failure rate replans the\n# PLAN rather than retrying chunks against a broken plan forever.\n# Related: see `step-budget`, `replan-on-failure`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with frozen-rubric-reflection: the Evaluator runs against a frozen-rubric loaded from a versioned file, so its decisions are reproducible across runs.",
+          "code": "# The harness's Evaluator role gets its judgement criteria from a\n# frozen-rubric file (versioned, reviewed, unchanging within a run). The\n# seam: the rubric is loaded once, hashed, and pinned for the whole run.\n\nimport hashlib\n\ndef load_frozen_rubric(path):\n    raw   = read(path)\n    hash_ = hashlib.sha256(raw).hexdigest()\n    rules = parse_rubric(raw)\n    return FrozenRubric(rules=rules, version=hash_, path=path)\n\ndef harness_with_frozen_rubric(goal, rubric_path):\n    rubric = load_frozen_rubric(rubric_path)       # pinned for the whole run\n    feature_list = planner.run(goal)\n    artefact = empty_artefact()\n\n    for chunk in feature_list.chunks:\n        for attempt in range(MAX_RETRIES):\n            artefact = generator.run(\n                feature_list=feature_list,\n                artefact=artefact,\n                chunk=chunk,\n            )\n            verdict = evaluator.run(\n                artefact=artefact,\n                rubric=rubric,                     # frozen, hashed\n            )\n            # Audit pins the rubric version so the verdict is reproducible.\n            audit.record(\"evaluate\", chunk.id,\n                         rubric_version=rubric.version,\n                         pass_=verdict.pass_)\n            if verdict.pass_: break\n        else:\n            return Result(ok=False, chunk=chunk, rubric=rubric.version)\n\n    return Result(ok=True, artefact=artefact, rubric=rubric.version)\n\n# Why this works: freezing the rubric eliminates a major source of run-\n# over-run drift in the Evaluator; rubric changes become reviewable diffs;\n# the verdict + rubric hash in the audit makes any historical pass/fail\n# decision reproducible.\n# Related: see `frozen-rubric-reflection`, `spec-first-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -542,6 +1002,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production proactive creator with per-sensor consent gates, capture audit, fusion-confidence floor, and replan when the fused goal contradicts the user's typed prompt.",
+          "code": "def proactive_goal_creator_prod(user_prompt, session, audit):\n    if session.consent.disabled():\n        return passive_goal_creator(user_prompt, session.id)\n\n    notify_user(\"capturing context: \" +\n                \", \".join(session.devices.allowed_list()))\n    audit.record(\"capture_start\", devices=session.devices.allowed_list())\n\n    raw = {}\n    for device in session.devices.allowed_list():\n        t0 = now()\n        try:\n            raw[device] = with_timeout(SENSOR_TIMEOUT,\n                                       lambda: capture(device))\n            audit.record(\"capture_ok\", device, ms=now()-t0)\n        except (Timeout, SensorError) as e:\n            audit.record(\"capture_fail\", device, err=str(e))\n\n    engineered = context_engineer.filter_and_redact(raw)\n    audit.record(\"engineered\", kept=engineered.kept_keys(),\n                 dropped=engineered.dropped_keys())\n\n    refined = llm.fuse(\n        prompt=user_prompt,\n        multimodal_context=engineered,\n        schema=GOAL_SCHEMA,\n    )\n    audit.record(\"fused\", confidence=refined.confidence)\n\n    if refined.confidence < FUSION_FLOOR:\n        # Replan: fall back to passive (prompt-only) refinement.\n        audit.record(\"fallback_to_passive\", reason=\"low fusion confidence\")\n        return passive_goal_creator(user_prompt, session.id)\n\n    if refined.contradicts(user_prompt):\n        # Don't act on a contradiction silently — ask the user.\n        audit.record(\"contradiction\", typed=user_prompt, fused=refined)\n        return ask_user_to_resolve(user_prompt, refined)\n\n    return planner.start(refined)\n\n# Why this works: every sensor capture is audited and consent-gated;\n# low-confidence fusions fall back to the passive path rather than acting\n# on hallucinated multimodal signal; contradictions between what the user\n# typed and what was inferred are surfaced rather than silently overridden.\n# Related: see `passive-goal-creator`, `input-output-guardrails`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with input-output-guardrails: captured multimodal data is filtered through a guardrail pass before it can influence the refined goal.",
+          "code": "# Multimodal capture can leak PII (faces in the camera frame, secrets on\n# screen). input-output-guardrails sits BETWEEN capture and fusion to\n# strip/redact disallowed content.\n\nGUARDRAILS = Guardrails(\n    redact = [PII.FACE, PII.EMAIL, PII.CREDIT_CARD,\n              SECRET.API_KEY, SECRET.PASSWORD],\n    block  = [HARMFUL.CHILD_SAFETY, HARMFUL.WEAPONS_INSTRUCTIONS],\n    audit  = True,\n)\n\ndef proactive_with_guardrails(user_prompt, session):\n    if not session.consent.allows_capture(): return passive(user_prompt)\n    notify_user(\"capturing context: screen + camera\")\n\n    raw = collect_multimodal(session)\n\n    # GUARDRAIL SEAM: every captured stream passes through filter+redact.\n    safe = {}\n    for k, v in raw.items():\n        result = GUARDRAILS.process(v, source=k)\n        if result.blocked:\n            log(\"blocked\", source=k, reason=result.reason)\n            continue\n        safe[k] = result.redacted\n\n    # Fusion only ever sees the post-guardrail data.\n    refined = llm.fuse(\n        prompt=user_prompt,\n        multimodal_context=context_engineer.process(safe),\n        schema=GOAL_SCHEMA,\n    )\n    return planner.start(refined)\n\n# Why this works: the guardrail layer is the last point at which raw\n# multimodal data can be inspected and stripped; placing it BEFORE fusion\n# means the LLM never sees PII or secrets in the first place — they\n# cannot leak into downstream artefacts.\n# Related: see `input-output-guardrails`, `passive-goal-creator`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -558,6 +1038,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production decomposer with leaf-count cap, per-leaf timeout, audit of which leaves contributed to the final answer, and replan-decompose when aggregator finds gaps.",
+          "code": "MAX_LEAVES = 12\n\ndef query_decomposition_prod(question, budget):\n    audit = AuditLog()\n    leaves = decomposer_agent(question)\n    if len(leaves) > MAX_LEAVES:\n        audit.record(\"leaves_truncated\", original=len(leaves), kept=MAX_LEAVES)\n        leaves = pick_top_leaves(leaves, MAX_LEAVES)\n    audit.record(\"leaves\", leaves)\n\n    def answer_one(leaf):\n        t0 = now()\n        for attempt in range(LEAF_RETRIES + 1):\n            try:\n                r = with_timeout(LEAF_TIMEOUT, lambda: answerer_agent(leaf))\n                audit.record(\"leaf_ok\", leaf.id, attempt=attempt, ms=now()-t0)\n                return LeafResult(leaf=leaf, ok=True, value=r)\n            except (Timeout, ToolError) as e:\n                audit.record(\"leaf_fail\", leaf.id, attempt=attempt, err=str(e))\n        return LeafResult(leaf=leaf, ok=False)\n\n    leaf_answers = parallel_map(answer_one, leaves)\n    successes = [r for r in leaf_answers if r.ok]\n    if len(successes) < len(leaves) * MIN_LEAF_RATIO:\n        signal_replan(question, reason=\"too few leaf answers\")\n        return Result(ok=False, audit=audit)\n\n    agg = aggregator_agent(question, successes)\n    audit.record(\"aggregate\", used_leaves=[r.leaf.id for r in successes],\n                 conflicts=agg.conflicts)\n\n    # If the aggregator reports gaps, do ONE replan-decompose for the gap.\n    if agg.has_gaps:\n        gap_leaves = decomposer_agent.fill_gaps(question, agg.gaps)\n        extra = parallel_map(answer_one, gap_leaves)\n        agg = aggregator_agent(question, successes + extra)\n\n    return Result(ok=True, value=agg, audit=audit)\n\n# Why this works: bounded leaf count keeps cost predictable; per-leaf\n# retries contain transient failure; the aggregator's gap detection\n# triggers a narrow replan instead of returning a partial answer.\n# Related: see `step-budget`, `replan-on-failure`, `clone-fan-out-research`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with map-reduce: decomposer produces leaves (Map input); map step runs the answerer; reduce step is the aggregator with conflict resolution.",
+          "code": "# query-decomposition-agent produces the leaf SLICES; map-reduce gives the\n# parallel execution + structured reduce mechanics. The seam: the\n# decomposer's leaves become the map step's chunks.\n\ndef query_decomposition_via_map_reduce(question):\n    # Stage 1: decomposer produces independent leaves.\n    leaves = decomposer_agent(question)\n\n    # Stage 2: MAP — answer each leaf in parallel; structured outputs.\n    partials = parallel_for(leaves) do |leaf|\n        return llm.answer(\n            leaf=leaf,\n            context=retriever.search(leaf),\n            schema=STRUCTURED_LEAF_ANSWER,           # claims + evidence\n        )\n    end\n\n    # Stage 3: REDUCE — structured aggregation; explicit conflict pass.\n    aggregate = llm.reduce(\n        task=\"compose answer to original question\",\n        question=question,\n        partials=partials,\n        protocol=\"claims + evidence + provenance per leaf\",\n    )\n    return llm.calibrate(\n        aggregate=aggregate,\n        partials=partials,\n        resolve_conflicts=True,\n    )\n\n# Why this works: decomposer-agent gives the semantically meaningful split\n# that raw chunk-splitting cannot; map-reduce gives the structured reduce\n# step that ad-hoc aggregation lacks. Composed, the pipeline scales to\n# multi-part questions without losing per-leaf provenance.\n# Related: see `map-reduce`, `self-ask`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -642,6 +1142,16 @@
           "source_url": "https://docs.temporal.io/encyclopedia/retry-policies",
           "sdk_version": "temporalio>=1.6",
           "verified_notes": "Verified against https://docs.temporal.io/encyclopedia/retry-policies (RetryPolicy fields Initial Interval / Maximum Attempts / Non-Retryable Errors; ApplicationError with type and non_retryable) plus one-hop https://python.temporal.io/temporalio.common.RetryPolicy.html (RetryPolicy dataclass fields initial_interval: timedelta, maximum_attempts: int, non_retryable_error_types: Sequence[str] | None) and https://learn.temporal.io/getting_started/python/first_program_in_python/ (@workflow.defn class decorator, @workflow.run async method decorator, workflow.execute_activity_method with start_to_close_timeout=timedelta(...) and retry_policy=RetryPolicy(...) kwargs). The string-name overload workflow.execute_activity used here is listed alongside execute_activity_method in temporalio.workflow._activities. ApplicationError.type and exc.type attribute confirmed by retry-policies page snippet (type=\"InvalidChargeAmount\")."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with planner-executor-observer: the Observer is the only role allowed to issue a ReplanTrigger; executor never decides to replan.",
+          "code": "# planner-executor-observer separates planning, acting, and judging.\n# replan-on-failure uses TRIGGERS, but lets only the Observer issue them,\n# so the executor cannot mask failures or decide policy on its own.\n\nfunction run_with_observer_replan(goal):\n    plan     = planner.run(goal)\n    progress = []\n    replans  = 0\n\n    while True:\n        if all_done(plan, progress):\n            verdict = observer.judge(goal, plan, progress)\n            if verdict == \"respond\":\n                return executor.summarise(goal, progress)\n            if verdict == \"replan\":\n                replans += 1\n                if replans > MAX_REPLANS: return Result(ok=False, reason=\"thrash\")\n                plan = planner.run(goal, context=progress); continue\n\n        step = next_step(plan, progress)\n        try:\n            obs = executor.run(step)\n        except ToolError as e:\n            # Executor reports the error UP; it does NOT replan.\n            obs = ErrorObservation(step=step, err=str(e))\n\n        progress.append((step, obs))\n\n        # Observer is the sole replan authority.\n        verdict = observer.judge(goal, plan, progress)\n        if verdict == \"replan\":\n            replans += 1\n            if replans > MAX_REPLANS: return Result(ok=False, reason=\"thrash\")\n            # Preserve compatible partial progress.\n            keep = [(s, o) for (s, o) in progress\n                    if isinstance(o, ErrorObservation) is False\n                    and plan.still_valid(s)]\n            plan = planner.run(goal, progress=keep)\n            progress = keep\n        elif verdict == \"respond\":\n            return executor.summarise(goal, progress)\n\n# Why this works: separating WHO decides to replan from WHO executes\n# prevents the executor from masking errors as \"I'll try again\" forever;\n# the Observer reads cumulative state to decide whether a fresh plan is\n# warranted, with a hard replan cap to break thrash.\n# Related: see `planner-executor-observer`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -658,6 +1168,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production ReWOO with per-step retry, audit per DAG node, deadline, partial-result tolerance in the solver, and replan-from-planner when a critical-path step fails.",
+          "code": "function rewoo_prod(query, budget):\n    audit = AuditLog()\n    plan = planner.run(query, schema=REWOO_SCHEMA)\n    audit.record(\"plan\", plan)\n\n    results = {}\n    deadline = now() + budget.total_ms\n\n    for step in topological_order(plan.steps):\n        if now() > deadline:\n            audit.record(\"abort_deadline\", step.id)\n            results[step.id] = MissingValue(reason=\"deadline\")\n            continue\n\n        args = substitute(step.args, results)\n        for attempt in range(PER_STEP_RETRIES + 1):\n            t0 = now()\n            try:\n                results[step.id] = with_timeout(STEP_TIMEOUT,\n                                                lambda: run_tool(step.tool, args))\n                audit.record(\"step_ok\", step.id, attempt=attempt, ms=now()-t0)\n                break\n            except (Timeout, ToolError) as e:\n                audit.record(\"step_fail\", step.id, attempt=attempt, err=str(e))\n        else:\n            if step.id in plan.critical_path:\n                # Replan from the planner; observations stay OUT of its prompt.\n                plan = planner.run(\n                    query,\n                    prior_failures=audit.failures_summary(),\n                    schema=REWOO_SCHEMA,\n                )\n                audit.record(\"replan_critical\", step.id)\n                return rewoo_prod(query, budget)   # restart with new plan\n            results[step.id] = MissingValue(reason=\"max retries\")\n\n    # Solver sees resolved trace; tolerates MissingValue gracefully.\n    return solver.run(query, plan=plan, results=results, audit=audit)\n\n# Why this works: critical-path failures escalate to a replanner that\n# still never sees raw observations (preserving ReWOO's token-cost win);\n# non-critical-path failures pass MissingValue to the solver which the\n# solver knows how to handle. Every step is audited end-to-end.\n# Related: see `step-budget`, `replan-on-failure`, `llm-compiler`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with llm-compiler: ReWOO emits the DAG; LLMCompiler's task-fetching unit dispatches independent steps concurrently instead of topologically serial.",
+          "code": "# ReWOO produces a DAG of placeholder-referenced steps; llm-compiler is a\n# concurrent dispatcher for exactly that DAG shape. Composing them keeps\n# ReWOO's planner-never-sees-observations property AND collapses end-to-\n# end latency to the longest dependency chain.\n\nfunction rewoo_concurrent(query):\n    # ReWOO planner: builds the DAG with variable references (#t1, #t2).\n    plan = planner.run(query, schema=REWOO_SCHEMA)\n\n    # LLMCompiler-style task-fetching: dispatch steps as deps resolve.\n    results = {}\n    pending = {n.id: set(n.deps) for n in plan.steps}\n    pool = ConcurrencyPool(MAX_PARALLEL)\n\n    while pending or pool.in_flight():\n        for n in plan.steps:\n            if n.id in pending and not pending[n.id]:\n                args = substitute(n.args, results)\n                pool.submit(n.id, () => run_tool(n.tool, args))\n                del pending[n.id]\n\n        done_id, value = pool.wait_one()\n        results[done_id] = value\n        for nid in pending:\n            pending[nid].discard(done_id)\n\n    # ReWOO solver: reads resolved trace. Planner STILL never saw observations.\n    return solver.run(query, plan=plan, results=results)\n\n# Why this works: ReWOO's win is token-cost (planner ignores observations);\n# LLMCompiler's win is latency (overlap independent steps). The DAG shape\n# is common, so composing them gives BOTH wins on the same execution.\n# Related: see `llm-compiler`, `parallel-tool-calls`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -674,6 +1204,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production rumination with per-cycle token + tool budget, drift detection between cycles, audit of hypothesis evolution, and replan-from-question when the hypothesis stops moving.",
+          "code": "def ruminate_prod(question, budget):\n    audit = AuditLog()\n    trace = []\n    hypothesis = llm.initial_hypothesis(question)\n    audit.record(\"hypothesis_0\", hypothesis)\n    no_change_streak = 0\n\n    for cycle in range(budget.max_cycles):\n        if budget.tokens_used > budget.tokens_cap:\n            audit.record(\"abort_token_cap\", cycle=cycle); break\n        if budget.tool_calls_used > budget.tool_call_cap:\n            audit.record(\"abort_tool_cap\", cycle=cycle); break\n\n        prev = hypothesis\n        hypothesis = llm.think(question, hypothesis, trace)\n        evidence   = tools.search(scope=hypothesis,\n                                  budget=budget.per_cycle_tools)\n        notes      = llm.verify(hypothesis, evidence)\n        hypothesis = llm.revise(hypothesis, notes)\n        artefact   = llm.act(question, hypothesis, evidence, notes)\n\n        if hypothesis_distance(prev, hypothesis) < CHANGE_FLOOR:\n            no_change_streak += 1\n        else:\n            no_change_streak = 0\n        audit.record(\"cycle\", cycle, hypothesis=hypothesis,\n                     evidence_count=len(evidence),\n                     confidence=notes.confidence,\n                     no_change_streak=no_change_streak)\n\n        trace = compact(trace + [(hypothesis, evidence, notes, artefact)])\n\n        if notes.confidence >= THRESHOLD or notes.answer_ready:\n            return artefact, audit\n\n        if no_change_streak >= STUCK_LIMIT:\n            # Replan from the question — the hypothesis space is wrong.\n            hypothesis = llm.initial_hypothesis(question,\n                                                avoid=hypothesis,\n                                                prior_dead_ends=audit.dead_ends())\n            audit.record(\"replan_from_question\", reason=\"hypothesis stuck\")\n            no_change_streak = 0\n\n    audit.record(\"abort_cycle_budget\")\n    return None, audit\n\n# Why this works: token AND tool-call budgets are explicit; the audit\n# records hypothesis distance per cycle so drift / stuck / converging\n# states are visible; persistent no-change escalates to a fresh hypothesis\n# rather than wasting cycles in a dead frame.\n# Related: see `step-budget`, `replan-on-failure`, `extended-thinking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with todo-list-driven-agent: the rumination cycle externalises the working hypothesis and remaining sub-questions to a durable todo.md.",
+          "code": "# rumination-agent is a long-running single-agent cycle; todo-list-driven-\n# agent gives it a DURABLE plan that survives context truncation and lets\n# the rumination resume after pause or crash.\n\ndef ruminate_with_todo(question, sandbox):\n    if not sandbox.exists(\"hypothesis.md\"):\n        sandbox.write(\"hypothesis.md\",\n                      llm.initial_hypothesis(question).render())\n    if not sandbox.exists(\"todo.md\"):\n        sandbox.write(\"todo.md\", initial_todo(question))\n\n    while True:\n        hyp  = sandbox.read(\"hypothesis.md\")\n        todo = sandbox.read(\"todo.md\")\n        unticked = parse_checklist(todo).unticked\n        if not unticked:\n            return llm.act(question, hyp, sandbox.read(\"evidence.md\"))\n\n        item = unticked[0]\n\n        # ONE rumination cycle scoped to this checklist item.\n        evidence = tools.search(scope=hyp, item=item)\n        notes    = llm.verify(hyp, evidence)\n        hyp      = llm.revise(hyp, notes)\n\n        # Externalise the updated hypothesis + evidence summary; tick item;\n        # add follow-up questions; drop dead-ends.\n        sandbox.write(\"hypothesis.md\", hyp.render())\n        sandbox.append(\"evidence.md\", evidence.summary())\n        todo = update_checklist(todo, item, notes)\n        sandbox.write(\"todo.md\", todo)\n\n        if notes.confidence >= THRESHOLD:\n            return llm.act(question, hyp, sandbox.read(\"evidence.md\"))\n\n# Why this works: the hypothesis and remaining sub-questions live on disk,\n# so context truncation does not lose them; if the run pauses or crashes,\n# the next start reads the same files and continues. Rumination's coherence\n# requirement is met without holding everything in one window.\n# Related: see `todo-list-driven-agent`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -745,6 +1295,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production single-path generator with per-step expected-outcome assertion, audit of replan count, budget across replans, and explicit failure when replans exceed cap.",
+          "code": "def execute_single_path_prod(goal, budget):\n    audit = AuditLog()\n    state = initial_state()\n    plan  = single_path_generator(goal, state)\n    audit.record(\"initial_plan\", plan)\n    progress = []\n    replans  = 0\n\n    while True:\n        if budget.exhausted():\n            audit.record(\"abort_budget\")\n            return Result(ok=False, progress=progress, audit=audit)\n        if not plan:\n            audit.record(\"empty_plan_abort\")\n            return Result(ok=False, audit=audit)\n\n        step = plan[0]\n        t0 = now()\n        outcome = executor.run(step, state)\n        audit.record(\"step\", step.id, ms=now()-t0, ok=not outcome.failed)\n\n        if outcome.failed or surprising(outcome, step.expected):\n            replans += 1\n            audit.record(\"replan_trigger\", step.id, replan=replans,\n                         reason=\"failed\" if outcome.failed else \"surprising\")\n            if replans > MAX_REPLANS:\n                audit.record(\"abort_replan_thrash\")\n                return Result(ok=False, audit=audit)\n\n            state = state.apply(progress)\n            plan  = single_path_generator(goal=goal, state=state)\n            audit.record(\"new_plan\", plan)\n            progress = []\n            continue\n\n        progress.append((step, outcome))\n        state = state.apply([(step, outcome)])\n        plan = plan[1:]\n        if not plan and is_goal_met(goal, state):\n            return Result(ok=True, progress=progress, audit=audit)\n\n# Why this works: each step has an expected outcome that the executor\n# checks; surprises are explicit replan triggers; the replan counter caps\n# thrash; the audit records both successful steps and every replan\n# decision so post-hoc analysis can show whether single-path was the\n# right shape.\n# Related: see `step-budget`, `replan-on-failure`, `incremental-model-querying`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with replan-on-failure: single-path generates a linear plan; explicit replan triggers (tool error, surprise, observer dissent) replace the plan.",
+          "code": "# single-path-plan-generator deliberately produces ONE plan; recovery is\n# delegated to replan-on-failure with explicit triggers. The composition\n# names the contract: the generator never branches; the trigger-list does.\n\nREPLAN_TRIGGERS = [\n    \"tool_error\",\n    \"unexpected_observation\",\n    \"observer_dissent\",\n    \"timeout\",\n]\n\ndef execute_single_path_with_replan(goal):\n    state    = initial_state()\n    plan     = single_path_generator(goal, state)\n    progress = []\n\n    while plan:\n        step = plan[0]\n        try:\n            outcome = executor.run(step, state)\n            if observer.dissents(step, outcome):\n                raise ReplanTrigger(\"observer_dissent\", outcome)\n            if surprising(outcome, step.expected):\n                raise ReplanTrigger(\"unexpected_observation\", outcome)\n        except (ToolError, Timeout, ReplanTrigger) as exc:\n            trigger = getattr(exc, \"trigger\", type(exc).__name__)\n            assert trigger in REPLAN_TRIGGERS, f\"unhandled trigger {trigger}\"\n            # Preserve compatible partial progress.\n            keep = [(s, o) for (s, o) in progress\n                    if plan_still_valid(s, state)]\n            state = state.apply(keep)\n            plan  = single_path_generator(goal, state)   # fresh single path\n            progress = keep\n            continue\n\n        progress.append((step, outcome))\n        state = state.apply([(step, outcome)])\n        plan = plan[1:]\n\n    return Result(ok=True, progress=progress)\n\n# Why this works: single-path keeps the planner cheap; replan-on-failure's\n# trigger list ensures the run is not silently driven to budget exhaustion\n# on a broken plan. The two patterns split responsibility cleanly:\n# generation owns linearity; recovery owns trigger semantics.\n# Related: see `replan-on-failure`, `incremental-model-querying`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -816,6 +1386,16 @@
           "source_url": "https://github.com/AntonOsika/gpt-engineer",
           "sdk_version": "gpt-engineer>=0.3",
           "verified_notes": "Verified against https://github.com/AntonOsika/gpt-engineer README and one-hop https://gpt-engineer.readthedocs.io/en/latest/quickstart.html: gpte CLI (gpte <project_dir>), human-authored prompt file (no extension) as single source of truth, and --improve flag for re-running on the same spec (docs show the long-form --improve and the -i shortcut: 'the --improve flag (shortened to -i)'). Project layout with project/prompt and src/ output is the documented workflow."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with planner-generator-evaluator-harness: the human-authored spec IS the Planner's feature-list artefact, so the Planner role is replaced by a file read.",
+          "code": "# spec-first-agent says the spec is the source of truth. The harness's\n# Planner role normally produces a feature-list; composed with spec-first,\n# the Planner is replaced by parsing the spec file.\n\nimport hashlib\n\ndef load_spec_as_plan(spec_path):\n    raw = read(spec_path)\n    plan = parse_feature_list(raw)                 # markdown -> structured\n    plan.spec_hash = hashlib.sha256(raw).hexdigest()\n    return plan\n\ndef harness_spec_first(spec_path):\n    feature_list = load_spec_as_plan(spec_path)\n    artefact = empty_artefact()\n    audit = AuditLog()\n    audit.record(\"spec_loaded\", spec_path=spec_path,\n                 spec_hash=feature_list.spec_hash)\n\n    for chunk in feature_list.chunks:\n        for attempt in range(MAX_RETRIES):\n            # Generator works one chunk per fresh context.\n            artefact = generator.run(\n                feature_list=feature_list,\n                artefact=artefact,\n                chunk=chunk,\n            )\n            # Evaluator: fresh context, fixed rubric from the spec itself.\n            verdict = evaluator.run(\n                artefact=artefact,\n                rubric=feature_list.rubric,        # spec defines done\n            )\n            audit.record(\"chunk\", chunk.id, attempt=attempt,\n                         pass_=verdict.pass_,\n                         spec_hash=feature_list.spec_hash)\n            if verdict.pass_: break\n        else:\n            return Result(ok=False, chunk=chunk, spec=feature_list.spec_hash)\n\n    return Result(ok=True, artefact=artefact, spec=feature_list.spec_hash)\n\n# Why this works: spec-first replaces the Planner with a file, so the\n# definition of done is human-reviewed and version-controlled. The\n# Generator + Evaluator roles still get the harness's isolation\n# guarantees. The spec hash in the audit pins which version of \"done\"\n# was applied for any given run.\n# Related: see `planner-generator-evaluator-harness`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -832,6 +1412,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production reducer with effect-dispatch retry, idempotency keys, log compaction, audit per event, and replay-divergence detection that signals corrupt log slices.",
+          "code": "def reducer(state, event):\n    # Pure: no I/O, no clocks. Side effects returned as descriptors.\n    if event.kind == \"user_message\":\n        new = state.with_message(event.text)\n        return new, [Effect(\"llm_call\", id=event.id+\"_llm\",\n                            prompt=build_prompt(new))]\n    if event.kind == \"llm_reply\":\n        new = state.with_reply(event.reply)\n        fx = [Effect(\"tool\", id=event.id+\":\"+c.id,\n                     name=c.name, args=c.args)\n              for c in event.reply.tool_calls]\n        return new, fx\n    if event.kind == \"tool_result\":\n        new = state.with_tool_result(event.id, event.value)\n        return new, [Effect(\"llm_call\", id=event.id+\"_llm\",\n                            prompt=build_prompt(new))]\n    return state, []\n\nclass RuntimeProd:\n    def __init__(self, log, audit):\n        self.log, self.audit = log, audit\n        self.seen_effect_ids = set()              # idempotency\n\n    def handle(self, event):\n        state = self.replay()\n        new_state, fx = reducer(state, event)\n        self.log.append(event)\n        self.audit.record(\"event\", event.kind, event.id)\n        for e in fx:\n            if e.id in self.seen_effect_ids: continue\n            self.seen_effect_ids.add(e.id)\n            for attempt in range(EFFECT_RETRIES + 1):\n                try:\n                    self.dispatch(e); break\n                except TransientError:\n                    sleep(backoff(attempt))\n            else:\n                self.audit.record(\"effect_failed\", e.id)\n                self.handle(Event(\"effect_failed\", effect_id=e.id))\n\n    def replay(self, until=None):\n        state = INITIAL_STATE\n        prev_hash = b\"\"\n        for e in self.log.iter(until=until):\n            state, _ = reducer(state, e)\n            h = state.hash()\n            if e.expected_state_hash and e.expected_state_hash != h:\n                # Replay divergence — log slice is corrupt or reducer changed.\n                signal_replan(\"replay divergence\", at_event=e.id)\n                raise ReplayDivergence(e.id)\n            prev_hash = h\n        return state\n\n# Why this works: effects carry idempotency ids so retried dispatches\n# don't double-fire; log replay checks expected state hashes so a\n# reducer-version change or a corrupt log slice surfaces as a divergence\n# rather than silent drift. The audit logs every event and every dispatch.\n# Related: see `durable-workflow-snapshot`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with event-driven-agent: external events (webhooks, schedules) drop into the same append-only log the reducer consumes, unifying internal and external triggers.",
+          "code": "# event-driven-agent makes external triggers (webhooks, schedules, queue\n# messages) first-class events. Composed with stateless-reducer, both\n# internal effects and external triggers land on the SAME append-only log,\n# and the same reducer handles all of them.\n\nclass EventSource:                                # external sources\n    def __init__(self, runtime): self.runtime = runtime\n    def on_webhook(self, payload):\n        self.runtime.handle(Event(\"webhook_received\",\n                                  id=uuid(),\n                                  payload=payload))\n    def on_schedule(self, name):\n        self.runtime.handle(Event(\"scheduled_tick\",\n                                  id=uuid(),\n                                  name=name))\n\ndef reducer(state, event):\n    # Internal effects already handled (see production variant).\n    if event.kind == \"webhook_received\":\n        new = state.with_external_input(event.payload)\n        return new, [Effect(\"llm_call\", id=event.id+\"_llm\",\n                            prompt=build_prompt(new))]\n    if event.kind == \"scheduled_tick\":\n        new = state.with_tick(event.name)\n        return new, [Effect(\"llm_call\", id=event.id+\"_llm\",\n                            prompt=build_prompt(new))]\n    # ... other kinds\n    return state, []\n\nruntime = Runtime(log=AppendOnlyLog())\nsource  = EventSource(runtime)\nhttp_server.on_webhook(\"/orders\", source.on_webhook)\nscheduler.every(\"1h\", lambda: source.on_schedule(\"hourly_check\"))\n\n# Why this works: external triggers are events, not a parallel pathway, so\n# replay reconstructs ALL history — webhooks, schedules, internal effects,\n# everything. Pause/resume/time-travel work uniformly across internal and\n# external causes.\n# Related: see `event-driven-agent`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -848,6 +1448,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production preparation with per-section budget, audit of what the problem-space artefact contained, citation-coverage check, and replan when the planner cites nothing the artefact lists.",
+          "code": "def preparation_phase_prod(goal, audit, budget):\n    parts = {}\n    t0 = now()\n    parts[\"constraints\"]      = llm.enumerate_constraints(goal,\n                                  budget=budget.per_section)\n    parts[\"dependency_graph\"] = llm.derive_dependencies(goal,\n                                  budget=budget.per_section)\n    parts[\"success_criteria\"] = llm.declare_success_criteria(goal,\n                                  budget=budget.per_section)\n    parts[\"known_unknowns\"]   = llm.list_unknowns(goal,\n                                  budget=budget.per_section)\n    parts[\"candidate_decompositions\"] = llm.sketch_decompositions(goal,\n                                  budget=budget.per_section)\n    audit.record(\"prep\", goal=goal.id, ms=now()-t0,\n                 counts={k: len(v) for k, v in parts.items()})\n    return ProblemSpace(**parts)\n\ndef pipeline_prod(goal):\n    audit = AuditLog()\n    if not should_prepare(goal):\n        return executor.run(planner.run(goal=goal))\n\n    problem_space = preparation_phase_prod(goal, audit, BUDGETS.prep)\n    artefact_store.persist(goal.id, problem_space)\n\n    plan = planner.run(\n        goal=goal,\n        problem_space=problem_space,\n        rules=\"Cite the constraint or dependency you relied on.\",\n    )\n\n    coverage = citation_coverage(plan, problem_space)\n    audit.record(\"citation_coverage\", coverage)\n    if coverage < MIN_CITATION_COVERAGE:\n        # Replan: planner ignored the artefact — possibly stale or wrong.\n        audit.record(\"replan_low_citation_coverage\")\n        problem_space = preparation_phase_prod(goal, audit, BUDGETS.prep)\n        plan = planner.run(\n            goal=goal,\n            problem_space=problem_space,\n            rules=\"Cite the constraint or dependency you relied on.\",\n        )\n        require_citations(plan, problem_space)\n\n    return executor.run(plan)\n\n# Why this works: the artefact is built, persisted, and audited; the\n# planner's plan is checked for citation coverage to confirm the artefact\n# was actually used; low coverage triggers a replan rather than letting\n# the planner silently ignore the preparation work.\n# Related: see `step-budget`, `replan-on-failure`, `decision-context-maps`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with generate-and-test-strategy: each candidate decomposition from the problem space becomes a strategy candidate the test step ranks.",
+          "code": "# strategic-preparation-phase produces candidate decompositions as part of\n# the problem space; generate-and-test-strategy uses those candidates AS\n# the strategies to generate-and-test. The seam: prep.candidate_decompositions\n# -> generate-and-test's candidate list.\n\ndef pipeline_with_generate_and_test(goal):\n    if not should_prepare(goal):\n        return executor.run(planner.run(goal=goal))\n\n    problem_space = preparation_phase(goal)\n\n    # GENERATE: use the prep artefact's candidate_decompositions directly.\n    strategies = problem_space.candidate_decompositions\n    if len(strategies) < MIN_STRATEGIES:\n        # Augment with one more generative pass scoped to the artefact.\n        strategies += llm.propose_strategies(\n            goal=goal,\n            problem_space=problem_space,\n            existing=strategies,\n            k=MIN_STRATEGIES - len(strategies),\n        )\n\n    # TEST: score each strategy against constraints + success criteria.\n    scored = []\n    for s in strategies:\n        score = test_strategy(\n            strategy        = s,\n            constraints     = problem_space.constraints,\n            success_criteria= problem_space.success_criteria,\n            dependencies    = problem_space.dependency_graph,\n        )\n        scored.append((score, s))\n    scored.sort(reverse=True)\n\n    best_score, best = scored[0]\n    if best_score < ACCEPT_THRESHOLD:\n        # All strategies fail the test — replan from the problem space.\n        return signal_replan(\"no strategy clears test threshold\", scored)\n\n    return executor.run(planner.run(goal=goal, strategy=best,\n                                    problem_space=problem_space))\n\n# Why this works: preparation enumerates candidates without committing;\n# generate-and-test scores them against the same artefact's constraints.\n# The two patterns share their representation, so the test is honest about\n# what the preparation said matters.\n# Related: see `generate-and-test-strategy`, `decision-context-maps`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -864,6 +1484,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production todo-driven loop with per-item step budget, file-write audit, dead-end pruning, replan-from-goal when the list grows without items completing, and resumption-aware boot.",
+          "code": "def todo_driven_prod(goal, sandbox, budget):\n    audit = AuditLog()\n\n    # Resumption-aware: if a todo.md exists, continue; otherwise draft.\n    if not sandbox.exists(\"todo.md\"):\n        sandbox.write(\"todo.md\", agent.draft_plan(goal))\n        audit.record(\"draft\", goal=goal.id)\n    else:\n        audit.record(\"resume\", goal=goal.id)\n\n    iterations_without_progress = 0\n\n    while True:\n        if budget.iterations_used > budget.iterations_cap:\n            audit.record(\"abort_iter_cap\"); break\n\n        todo  = sandbox.read(\"todo.md\")\n        items = parse_checklist(todo)\n        unticked = [i for i in items if not i.done]\n\n        if not unticked:\n            return agent.summarise(goal, todo)\n\n        next_item = unticked[0]\n        t0 = now()\n        with StepBudget(steps=budget.per_item_steps):\n            outcome = agent.run_one_turn(\n                goal=goal,\n                current_item=next_item,\n                remaining=unticked,\n            )\n        audit.record(\"turn\", item=next_item.id, ms=now()-t0, ok=outcome.ok)\n\n        # Update the file; prune obvious dead-ends.\n        prev_unticked_count = len(unticked)\n        todo = update_checklist(todo, next_item, outcome)\n        todo = prune_dead_ends(todo, audit)\n        sandbox.write(\"todo.md\", todo)\n\n        new_unticked = [i for i in parse_checklist(todo) if not i.done]\n        if len(new_unticked) >= prev_unticked_count and not outcome.ticked_anything:\n            iterations_without_progress += 1\n            if iterations_without_progress > NO_PROGRESS_LIMIT:\n                # Replan from goal — the list itself may be wrong.\n                sandbox.write(\"todo.md\", agent.draft_plan(\n                    goal, prior_list=todo,\n                    audit_summary=audit.summary()))\n                audit.record(\"replan_from_goal\")\n                iterations_without_progress = 0\n        else:\n            iterations_without_progress = 0\n\n# Why this works: each turn writes an audit row; the todo file is the\n# durable plan AND the resumption point; no-progress detection escalates\n# to a goal-level replan rather than letting the agent grow the list\n# forever without finishing anything.\n# Related: see `step-budget`, `replan-on-failure`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with sandbox-isolation: the todo file lives inside a sandboxed VM whose filesystem is destroyed when the run ends, isolating per-run state.",
+          "code": "# todo-list-driven-agent persists plan to disk; sandbox-isolation gives\n# each run its OWN ephemeral filesystem so todo.md cannot leak across\n# runs and a compromised run cannot poison persistent host state.\n\ndef todo_driven_isolated(goal, base_image):\n    # Per-run sandbox: ephemeral filesystem, scoped network, no host mount.\n    sandbox = allocate_sandbox(\n        image     = base_image,\n        network   = \"egress_via_proxy_only\",\n        mounts    = [],                             # no host fs leak\n        ttl_ms    = MAX_RUN_MS,\n    )\n    try:\n        # The agent operates entirely inside the sandbox.\n        if not sandbox.exists(\"todo.md\"):\n            sandbox.write(\"todo.md\", agent.draft_plan(goal))\n\n        while True:\n            todo  = sandbox.read(\"todo.md\")\n            items = parse_checklist(todo)\n            unticked = [i for i in items if not i.done]\n            if not unticked:\n                # Final artefacts copied out via a typed return interface,\n                # NOT by reading the sandbox filesystem directly.\n                return sandbox.export(\"summary.md\")\n\n            outcome = agent.run_one_turn(\n                goal=goal,\n                current_item=unticked[0],\n                remaining=unticked,\n                sandbox=sandbox,\n            )\n            sandbox.write(\"todo.md\",\n                          update_checklist(todo, unticked[0], outcome))\n    finally:\n        sandbox.destroy()                           # ephemeral state gone\n\n# Why this works: the plan lives in the sandbox so it survives turns;\n# the sandbox dies with the run so leftover plan files don't contaminate\n# the next run; the host filesystem is never written by the agent. Pause-\n# resume requires snapshotting the sandbox, not the host.\n# Related: see `sandbox-isolation`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -880,6 +1520,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production graph runtime with per-node timeout, audit per edge traversal, schema validation at every connection, and replan-from-graph when a Conditional cascades to a dead-end branch.",
+          "code": "function execute_graph_prod(graph, inputs, audit):\n    validate_graph(graph)                          # types + connectivity\n    visited = []\n    values  = {\"$inputs\": inputs}\n    deadline = now() + GRAPH_BUDGET_MS\n\n    node = graph.start\n    while not isinstance(node, EndNode):\n        if now() > deadline:\n            audit.record(\"abort_deadline\", at=node.id); break\n\n        # Schema validation at the edge: every input slot must have a value.\n        inp = resolve_inputs(node, values)\n        ok, errs = node.input_schema.validate(inp)\n        if not ok:\n            audit.record(\"schema_violation\", node=node.id, errs=errs)\n            return Result(ok=False, audit=audit)\n\n        t0 = now()\n        try:\n            out = with_timeout(NODE_TIMEOUT,\n                               lambda: node.execute(inp))\n            audit.record(\"node_ok\", node.id, ms=now()-t0)\n        except (Timeout, NodeError) as e:\n            audit.record(\"node_fail\", node.id, err=str(e))\n            return Result(ok=False, audit=audit)\n\n        values[\"$\" + node.id] = out\n        visited.append(node.id)\n\n        next_id = graph.route_from(node, out)\n        if next_id is None:\n            # Conditional with no matching case — replan-from-graph.\n            audit.record(\"dead_end\", at=node.id, output=out)\n            new_graph = graph_planner.repair(graph, dead_end=node.id,\n                                             output=out, audit=audit)\n            if new_graph is None:\n                return Result(ok=False, audit=audit)\n            graph = new_graph\n            next_id = graph.route_from(node, out)\n        node = graph.node(next_id)\n        audit.record(\"edge\", from_=visited[-1], to=node.id)\n\n    return Result(ok=True, value=values, audit=audit)\n\n# Why this works: schema validation at each edge catches typed-input\n# mismatches before they become runtime errors; per-node timeouts contain\n# slow tools; dead-end conditionals trigger a structured graph repair\n# rather than crashing the canvas.\n# Related: see `step-budget`, `replan-on-failure`, `iteration-node`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with policy-as-code-gate: edges into sensitive nodes are guarded by a policy expression evaluated against the upstream node outputs.",
+          "code": "# visual-workflow-graph gives the structural canvas; policy-as-code-gate\n# adds a guarded-edge node type: outgoing edges fire only if a policy\n# expression evaluates to allow. The graph stays the source of truth; the\n# policy file is the source of allowed transitions.\n\ngraph:\n  nodes:\n    - id: classify\n      type: LLM\n      outputs: {intent: string, risk: float}\n\n    - id: policy_gate                              # NEW NODE TYPE\n      type: PolicyGate\n      policy: |\n          deny if risk > 0.8\n          deny if intent == \"refund\" and amount > 10000\n          deny if user.tenure_days < 30 and intent == \"escalate\"\n          allow otherwise\n      inputs:\n        risk:   \"$classify.risk\"\n        intent: \"$classify.intent\"\n        amount: \"$inputs.amount\"\n        user:   \"$inputs.user\"\n      branches:\n        allow: act\n        deny:  human_review\n\n    - id: act\n      type: Tool\n      tool: take_action\n\n    - id: human_review\n      type: Agent\n      tools: [open_ticket]\n\n    - id: end\n      type: End\n\nedges:\n  - {from: start,        to: classify}\n  - {from: classify,     to: policy_gate}\n  - {from: policy_gate,  to: [act, human_review]}\n  - {from: act,          to: end}\n  - {from: human_review, to: end}\n\n# Audit: every PolicyGate execution writes (inputs, rule, verdict).\n\n# Why this works: the policy lives in a reviewable expression, not buried\n# in a code node, so non-coders can read the rule. The graph runtime\n# enforces the gate uniformly; bypassing the policy means editing the\n# graph artefact, which is reviewable.\n# Related: see `policy-as-code-gate`, `iteration-node`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }

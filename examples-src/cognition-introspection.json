@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every lifecycle hook records a calibration meta entry so post-hoc review can ask whether stale-pain doses actually correlate with plans the agent later abandoned, and runaway self-questioning is bounded by a single-pass guard.",
+          "code": "AGE_BUCKETS = [(4*HOUR, 0.005), (12*HOUR, 0.010),\n               (24*HOUR, 0.020), (3*DAY, 0.030)]\nCAL_LOG = \"affect_calibration.jsonl\"\nin_sweep = False                       # guard against re-entrance\n\nfunction record_meta(event, plan, delta, why):\n    append_jsonl(CAL_LOG, {\n        \"ts\": now(), \"event\": event, \"plan_id\": plan.id,\n        \"delta\": delta, \"why\": why,\n        \"plan_age\": now() - plan.opened_at,\n        \"self_confidence\": model.estimate_certainty(plan.summary),\n    })\n\nfunction safe_bump(plan, dim, delta, why):\n    try:\n        affect.bump(dim, delta)\n        record_meta(\"bump\", plan, delta, why)\n    except Exception as e:\n        record_meta(\"skipped\", plan, 0.0, str(e))\n\non plan_event(kind, plan):\n    match kind:\n        \"step_done\":      safe_bump(plan, \"joy\",  +0.02, kind)\n        \"step_skipped\":   safe_bump(plan, \"pain\", +0.02, kind)\n        \"plan_completed\": safe_bump(plan, \"joy\",  +0.10, kind)\n        \"plan_archived\": safe_bump(plan, \"pain\", +0.08, kind)\n\nfunction tick_stale_pain(now):\n    global in_sweep\n    if in_sweep: return            # no recursive self-questioning\n    in_sweep = True\n    try:\n        for plan in open_plans():\n            dose = lookup_bucket(AGE_BUCKETS, now - plan.last_touched)\n            if dose: safe_bump(plan, \"pain\", dose, \"stale\")\n    finally:\n        in_sweep = False\n\n# Why this works: every affect bump is paired with its 'why' and a\n# confidence snapshot, so calibration drift is auditable later, and the\n# in_sweep guard prevents one stale-pain pass from triggering another.\n# Related: see `emotional-state-persistence`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: pairs lifecycle affect with `todo-list-driven-agent` so when a plan's accumulated stale-pain crosses a threshold the agent flips it into an explicit todo-review item rather than letting it rot quietly.",
+          "code": "STALE_PAIN_REVIEW = 0.30\n\nfunction plan_pain_score(plan):\n    # introspection: ask 'how much pain is this plan currently carrying?'\n    return affect.attributed_to(plan.id, dim=\"pain\")\n\nfunction tick_review_handoff(now):\n    for plan in open_plans():\n        pain = plan_pain_score(plan)\n        if pain < STALE_PAIN_REVIEW: continue\n        confidence_still_wants = model.estimate_certainty(\n            f\"is this plan still worth doing? {plan.summary}\")\n        if confidence_still_wants < 0.4:\n            # introspective uncertainty: hand off to the todo-list driver\n            todo_list.add({\n                \"kind\": \"plan_review\",\n                \"plan_id\": plan.id,\n                \"reason\": f\"pain={pain:.2f}, confidence={confidence_still_wants:.2f}\",\n                \"choices\": [\"complete\", \"archive\", \"reschedule\"],\n            })\n            affect.bump(\"pain\", -0.05)   # acknowledge the move\n        else:\n            # keep accumulating per the base pattern\n            dose = lookup_bucket(AGE_BUCKETS, now - plan.last_touched)\n            if dose: affect.bump(\"pain\", dose)\n\n# Why this works: stale-pain becomes a trigger for an introspective\n# self-check, and the 'I'm not sure' branch is handled explicitly by\n# routing the plan to the todo-list-driven loop rather than letting\n# bookkeeping silently continue.\n# Related: see `todo-list-driven-agent`, `emotional-state-persistence`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -42,6 +62,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: presence-quality drives `mode-adaptive-cadence` so the agent's loop interval reflects what the human is doing in the room, with confidence in the inferred quality logged for calibration.",
+          "code": "QUALITY_TO_MODE = {\n    \"walked-away\":           \"idle\",\n    \"composing\":             \"intense\",\n    \"thinking-with-the-room\":\"idle\",   # don't pre-empt thought\n    \"present\":               \"intense\",\n    \"distracted\":            \"idle\",\n    \"no-signal\":             \"idle\",\n}\n\nfunction confidence_in_quality(p, quality):\n    # introspection over the derived label itself\n    if quality == \"no-signal\": return 0.0\n    margin = quality_margin(p)             # second-best vs best\n    return clamp(margin, 0.0, 1.0)\n\nfunction tick_select_mode(ctx):\n    p       = presence_store.read()\n    quality = derive_presence_quality(p, now())\n    conf    = confidence_in_quality(p, quality)\n    append_jsonl(\"presence_calibration.jsonl\",\n        {\"ts\": now(), \"quality\": quality, \"confidence\": conf})\n\n    if conf < 0.3:\n        # 'I'm not sure what the human is doing' -> stay in idle,\n        # don't accelerate cadence on weak evidence\n        target_mode = \"idle\"\n    else:\n        target_mode = QUALITY_TO_MODE[quality]\n\n    cadence.set_mode(target_mode, reason=f\"presence={quality}@{conf:.2f}\")\n    run_normal_tick(ctx)\n\n# Why this works: the agent reads its own confidence in the derived\n# presence label before letting that label change cadence, so weak\n# signals don't pull the loop into intense mode and the decision trail\n# stays auditable against later transcripts.\n# Related: see `mode-adaptive-cadence`, `salience-triggered-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -58,6 +88,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every prompt build records what slice was injected and what the model claimed to know afterwards, so capability-drift between Awareness state and the model's behaviour is visible; an unknown-tool guard prevents the model from fabricating tools recursively.",
+          "code": "AWARENESS_LOG = \"awareness_audit.jsonl\"\n\nfunction build_prompt_with_audit(user_msg):\n    slice = {\n        \"identity\":  Awareness.identity,\n        \"env\":       Awareness.environment.summary(),\n        \"tools\":     [t.short() for t in Awareness.tools.values()],\n        \"task\":      Awareness.task,\n    }\n    audit_id = uuid()\n    append_jsonl(AWARENESS_LOG, {\n        \"audit_id\": audit_id, \"ts\": now(),\n        \"injected_tool_ids\": list(Awareness.tools.keys()),\n        \"injected_perms\":    Awareness.environment.permissions,\n    })\n    return system_with_awareness(slice, audit_id) + user(user_msg)\n\nfunction on_tool_call(call, audit_id):\n    if call.tool not in Awareness.tools:\n        # the 'I'm not sure I have this' branch must NOT trigger another\n        # call to self-check (no recursive introspection)\n        append_jsonl(AWARENESS_LOG, {\n            \"audit_id\": audit_id, \"ts\": now(),\n            \"event\": \"unknown_tool\", \"claimed\": call.tool,\n            \"available\": sorted(Awareness.tools.keys()),\n        })\n        return refuse_typed(\"tool_not_in_awareness\",\n            available=sorted(Awareness.tools.keys()))\n    conf = model.estimate_certainty(call.args)\n    append_jsonl(AWARENESS_LOG, {\n        \"audit_id\": audit_id, \"tool\": call.tool, \"confidence\": conf})\n    return dispatch(call)\n\n# Why this works: every slice the agent saw is captured beside what it\n# subsequently did, so a fabricated tool call is a deterministic typed\n# refusal rather than a runtime crash, and calibration is reviewable.\n# Related: see `tool-use`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: Awareness composes with `liminal-state-detection` so context shifts (host change, permission revoke) propagate a fresh awareness probe into the next turn instead of running stale.",
+          "code": "function detect_liminal(prev_env, curr_env):\n    # explicit self-interrogation: 'has my situation changed?'\n    if prev_env.host != curr_env.host:        return \"host_changed\"\n    if prev_env.user != curr_env.user:        return \"user_changed\"\n    if prev_env.permissions != curr_env.permissions:\n        return \"perms_changed\"\n    if prev_env.cwd != curr_env.cwd:          return \"cwd_changed\"\n    return None\n\nfunction tick(user_msg):\n    prev = Awareness.environment\n    curr = probe_environment()\n    liminal = detect_liminal(prev, curr)\n\n    if liminal:\n        # introspection triggers an awareness refresh AND a one-line\n        # system note so the model sees it crossed a threshold\n        Awareness.environment = curr\n        Awareness.tools       = registry.list_with_descriptions()\n        persist(Awareness)\n        note = f\"[liminal] {liminal}: tools and env reloaded\"\n    else:\n        note = None\n\n    slice = build_awareness_slice()\n    prompt = system_with_awareness(slice)\n    if note: prompt.append(system(note))\n    return model.complete(prompt + user(user_msg))\n\n# Why this works: the agent's picture of itself is refreshed at the\n# exact moments it would otherwise go stale (the liminal crossings),\n# and the model sees an explicit marker rather than silently inheriting\n# a state that no longer matches reality.\n# Related: see `liminal-state-detection`, `tool-discovery`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -74,6 +124,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each Belief carries a calibration confidence; Intentions reconsider against confidence-weighted Beliefs and abstain when the supporting belief is weak, with a recursion guard on the reconciliation loop.",
+          "code": "ABSTAIN_BELIEF_CONF = 0.35\nMAX_RECONCILE_PASSES = 2\nreconcile_depth = 0\n\nfunction update_beliefs_with_conf(observations):\n    for obs in observations:\n        existing = Beliefs.get(obs.prop)\n        new_conf = bayes_combine(existing.conf if existing else 0.5,\n                                 obs.source_reliability)\n        Beliefs.upsert(prop=obs.prop, source=obs.source,\n                       as_of=now(), conf=new_conf)\n    persist(Beliefs)\n\nfunction reconsider_intentions():\n    global reconcile_depth\n    if reconcile_depth >= MAX_RECONCILE_PASSES:\n        ledger.append(\"reconcile_capped\"); return\n    reconcile_depth += 1\n    try:\n        for i in Intentions:\n            supporting = beliefs_supporting(i, Beliefs)\n            avg_conf   = mean(b.conf for b in supporting)\n            if avg_conf < ABSTAIN_BELIEF_CONF:\n                # explicit 'I'm not sure' branch: abstain, don't pursue\n                i.status = \"abstained\"\n                ledger.append({\"event\": \"abstain\", \"intention\": i.id,\n                               \"belief_conf\": avg_conf})\n                continue\n            if not consistent(i.plan_id, Beliefs):\n                i.status = \"abandoned\"\n                ledger.append({\"event\": \"abandon\", \"intention\": i.id})\n        persist(Intentions)\n    finally:\n        reconcile_depth -= 1\n\nfunction tick(observations):\n    update_beliefs_with_conf(observations)\n    reconsider_desires()\n    reconsider_intentions()\n    answer = deliberate(Beliefs, Desires, Intentions)\n    return {answer, confidence: model.estimate_certainty(answer)}\n\n# Why this works: Intentions don't just survive consistency checks, they\n# survive a confidence check too, so a plan supported only by weakly-held\n# beliefs is parked rather than pursued, and the reconcile loop can't\n# trigger itself unboundedly.\n# Related: see `hypothesis-tracking`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: BDI composes with `plan-and-execute` so committed Intentions are handed to a planner only when belief support clears a floor; the planner reports failures back as new Beliefs.",
+          "code": "PLANNER_BELIEF_FLOOR = 0.5\n\nfunction commit_intention(goal, rationale):\n    supporting = beliefs_supporting_goal(goal, Beliefs)\n    if mean(b.conf for b in supporting) < PLANNER_BELIEF_FLOOR:\n        # introspective gate: don't hand a half-believed goal to the planner\n        return {\"committed\": False,\n                \"reason\": \"belief_support_below_floor\"}\n    intention = Intentions.add(goal=goal, status=\"active\",\n                               rationale=rationale)\n    plan = planner.decompose(goal, context=current_beliefs_slice())\n    Intentions.attach_plan(intention.id, plan)\n    return {\"committed\": True, \"intention\": intention.id,\n            \"plan_id\": plan.id}\n\nfunction execute_plan_step(intention_id):\n    intention = Intentions.get(intention_id)\n    step      = next_pending_step(intention.plan)\n    result    = executor.run(step)\n\n    # results feed back as observations -> Beliefs\n    update_beliefs_with_conf([Observation(\n        prop=f\"step_{step.id}_outcome={result.kind}\",\n        source=\"executor\", source_reliability=0.9)])\n\n    if result.kind == \"failed\":\n        # the failure is now a belief; reconcile may abandon the intention\n        reconsider_intentions()\n\n# Why this works: belief-confidence becomes the gate between BDI and the\n# planner, so plans only get scheduled when the agent's own self-check\n# of supporting beliefs is strong enough; failures flow back as typed\n# observations that the next tick can reason about.\n# Related: see `plan-and-execute`, `hypothesis-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -90,6 +160,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each consolidation pass emits a calibration record showing what was kept, what was archived, and how confident the cluster-keying was; a re-entrance guard prevents a triggered consolidation from triggering itself.",
+          "code": "MAX_PER_CLUSTER = 3\nCAL_LOG = \"consolidation_calibration.jsonl\"\nin_pass = False\n\nfunction stem_key_with_confidence(filename):\n    tokens = filename.replace(\".md\",\"\").split(\"-\")\n    key    = \"-\".join(tokens[:2])\n    # introspect: how confident are we that this clustering is right?\n    conf   = 1.0 if len(tokens) >= 3 else 0.5\n    return key, conf\n\nfunction consolidate(insight_dir):\n    global in_pass\n    if in_pass: return                  # no recursive consolidation\n    in_pass = True\n    try:\n        files = list_files(insight_dir)\n        by_cluster = {}\n        for f in files:\n            key, conf = stem_key_with_confidence(f)\n            by_cluster.setdefault(key, []).append((f, conf))\n\n        stamp       = now_iso()\n        archive_dir = f\"{insight_dir}/archive/insights-dedup-{stamp}\"\n        kept_total, evicted_total = 0, 0\n\n        for cluster, members in by_cluster.items():\n            if len(members) <= MAX_PER_CLUSTER:\n                kept_total += len(members); continue\n            members.sort(key=lambda m: mtime(m[0]), reverse=True)\n            keep, evict = members[:MAX_PER_CLUSTER], members[MAX_PER_CLUSTER:]\n            ensure_dir(archive_dir)\n            for f, conf in evict:\n                move(f, f\"{archive_dir}/{basename(f)}\")\n                append_jsonl(CAL_LOG, {\n                    \"ts\": now(), \"cluster\": cluster,\n                    \"file\": basename(f), \"clustering_confidence\": conf,\n                    \"action\": \"archive\"})\n            kept_total += len(keep); evicted_total += len(evict)\n\n        if archive_dir_exists(archive_dir):\n            chmod_readonly(archive_dir)\n        append_jsonl(CAL_LOG, {\"ts\": now(), \"event\": \"summary\",\n            \"kept\": kept_total, \"evicted\": evicted_total})\n    finally:\n        in_pass = False\n\n# Why this works: the mechanical pass writes a per-file confidence in\n# its own clustering decision so a later reviewer can spot keys that\n# were guessed weakly, and the in_pass guard ensures triggered runs\n# can't recurse into themselves.\n# Related: see `dream-consolidation-cycle`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: when cluster size exceeds the cap, hand off to `dream-consolidation-cycle` to propose a merged note before the mechanical archive runs, so semantically rich clusters get a chance to be summarised.",
+          "code": "MAX_PER_CLUSTER     = 3\nDREAM_HANDOFF_CAP   = 6        # only escalate big clusters\nDREAM_CONFIDENCE_MIN = 0.6\n\nfunction consolidate_with_dream_handoff(insight_dir):\n    files = list_files(insight_dir)\n    by_cluster = group_by(files, stem_key)\n\n    for cluster, members in by_cluster.items():\n        if len(members) <= MAX_PER_CLUSTER: continue\n\n        if len(members) >= DREAM_HANDOFF_CAP:\n            # introspection: 'do I actually understand this cluster?'\n            proposal = dream_cycle.summarise_cluster(\n                cluster=cluster, files=members)\n            conf = model.estimate_certainty(proposal.summary)\n            if conf >= DREAM_CONFIDENCE_MIN:\n                write_note(insight_dir,\n                    name=f\"{cluster}-merged-{now_iso()}.md\",\n                    body=proposal.summary,\n                    sources=[basename(f) for f in members])\n            else:\n                # the 'I'm not sure' branch: don't write a fuzzy merge,\n                # fall through to mechanical archive instead\n                log_event(\"dream_summary_low_conf\",\n                    cluster=cluster, confidence=conf)\n\n        # always run the mechanical archive of the oldest\n        members.sort(key=mtime, reverse=True)\n        for f in members[MAX_PER_CLUSTER:]:\n            archive(f)\n\n# Why this works: the cap stays mechanical and cheap, but oversized\n# clusters get one introspective summarisation attempt first; if the\n# model isn't confident in its own merge, the pattern falls back to\n# the safe mechanical path rather than writing a low-quality note.\n# Related: see `dream-consolidation-cycle`, `agentic-context-engineering-playbook`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -106,6 +196,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: the selector reports its confidence in the chosen move and abstains to 'rest' on low confidence; every pick is logged with calibration meta; back-to-back identical picks are blocked.",
+          "code": "MENU = {\n    \"revisit-tension\":    run_revisit_tension,\n    \"world-update\":       run_world_update,\n    \"trajectory-note\":    run_self_archaeology,\n    \"propose-experiment\": run_experiment_proposal,\n    \"rest\":               run_no_op,\n}\nSELECT_CONFIDENCE_MIN = 0.45\nrecent_moves = bounded_deque(maxlen=8)\nSELECT_LOG   = \"move_selection.jsonl\"\n\nfunction pick_move_with_confidence(ctx):\n    prompt = (f\"choose ONE move-id from {list(MENU.keys())} and a\\n\"\n              f\"single line 'confidence: 0..1'.\\n\"\n              f\"recent: {list(recent_moves)}; affect: {ctx.affect_snapshot};\\n\"\n              f\"open tensions: {ctx.open_tension_count}\")\n    out         = cheap_model.complete(prompt)\n    pick        = parse_move(out)\n    self_conf   = parse_confidence(out)\n    return pick, self_conf\n\nfunction idle_tick(ctx):\n    pick, self_conf = pick_move_with_confidence(ctx)\n    if pick not in MENU:\n        pick, self_conf = \"rest\", 0.0           # invalid -> rest\n    if self_conf < SELECT_CONFIDENCE_MIN:\n        pick = \"rest\"                            # 'not sure' -> rest\n    if recent_moves and pick == recent_moves[-1]:\n        pick = \"rest\"                            # no back-to-back\n    append_jsonl(SELECT_LOG, {\"ts\": now(), \"chosen\": pick,\n        \"self_confidence\": self_conf,\n        \"recent\": list(recent_moves)})\n    recent_moves.append(pick)\n    MENU[pick](ctx)\n\n# Why this works: an idle tick that doesn't know what to do explicitly\n# rests instead of forcing a move, and every selection is auditable\n# alongside the model's own confidence in the pick.\n# Related: see `confidence-reporting`, `salience-triggered-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: selector output feeds `mode-adaptive-cadence` so that confident, generative moves promote to intense cadence while rest moves keep the loop in idle, with bounded lock-in.",
+          "code": "GENERATIVE_MOVES = {\"propose-experiment\", \"revisit-tension\"}\n\nfunction idle_tick(ctx):\n    pick, self_conf = pick_move_with_confidence(ctx)\n    recent_moves.append(pick)\n\n    # introspective coupling: a confident generative move asks for faster\n    # cadence; rest stays idle; uncertain anything stays idle.\n    if pick == \"rest\" or self_conf < 0.4:\n        cadence.request_mode(\"idle\",\n            reason=f\"move={pick}, conf={self_conf:.2f}\")\n    elif pick in GENERATIVE_MOVES:\n        cadence.request_mode(\"intense\",\n            reason=f\"move={pick}, conf={self_conf:.2f}\")\n    else:\n        cadence.request_mode_unchanged()\n\n    MENU[pick](ctx)\n\nfunction cadence_request_mode(target, reason):\n    # cadence module enforces its own floor/ceiling and lock-in\n    if target == \"intense\":\n        cadence_state.mode = \"intense\"\n        cadence_state.lock_ticks_left = INTENSE_LOCK_TICKS\n    elif target == \"idle\" and cadence_state.lock_ticks_left == 0:\n        cadence_state.mode = \"idle\"\n    ledger.append({\"ts\": now(), \"cadence_request\": target,\n                   \"reason\": reason})\n\n# Why this works: the move-selector's introspective signal (which move,\n# how confident) becomes the input that cadence reads to set tempo, so\n# the agent's body-clock follows what its mind has decided to do.\n# Related: see `mode-adaptive-cadence`, `salience-triggered-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -122,6 +232,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every posterior update is logged with the entropy before and after, the agent abstains and asks when entropy is too high, and a question-budget bounds the recursion of 'ask-then-update'.",
+          "code": "ASK_THRESHOLD     = 0.6\nENTROPY_ASK       = 1.2\nQUESTION_BUDGET_PER_HOUR = 3\nposterior = Prior(reward_space=R_SPACE)\nq_used    = bounded_deque(maxlen=64)\nCAL_LOG   = \"cirl_calibration.jsonl\"\n\nfunction can_ask(now):\n    recent = [t for t in q_used if t > now - HOUR]\n    return len(recent) < QUESTION_BUDGET_PER_HOUR\n\nfunction observe_human(evidence):\n    h_before  = posterior.entropy()\n    likelihood = human_model.likelihood(evidence, R_SPACE)\n    posterior  = bayes_update(posterior, likelihood)\n    h_after   = posterior.entropy()\n    append_jsonl(CAL_LOG, {\"ts\": now(), \"kind\": evidence.kind,\n        \"entropy_before\": h_before, \"entropy_after\": h_after,\n        \"information_gain\": h_before - h_after})\n    persist(posterior)\n\nfunction act(state):\n    best = argmax(feasible_actions(state),\n        key=lambda a: expected_reward(a, state, posterior))\n    conf = model.estimate_certainty(best)\n    h    = posterior.entropy()\n\n    if conf < ASK_THRESHOLD or h > ENTROPY_ASK:\n        if can_ask(now()):\n            q_used.append(now())\n            return ask_informative_question(state, posterior)\n        # 'I'm not sure AND I've asked too much' -> safe default,\n        # don't loop asking forever\n        return safe_default_action(state)\n    return best\n\n# Why this works: every update has an audit trail of how much\n# uncertainty it dissolved, and the agent's appetite for asking is\n# rate-limited so introspective uncertainty can't turn into a recursive\n# interrogation of the human.\n# Related: see `confidence-reporting`, `human-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: when posterior entropy is high the agent uses `human-reflection` (escalate to operator) to resolve, with the operator's verdict folded back as high-reliability evidence.",
+          "code": "ESCALATE_ENTROPY = 1.5\n\nfunction loop():\n    while session_open():\n        s = sense()\n        h = posterior.entropy()\n\n        if h > ESCALATE_ENTROPY:\n            # introspective escalation: 'my model of what you want is\n            # too uncertain for me to keep acting -- please weigh in'\n            verdict = human_reflection.escalate(\n                state=s,\n                question=\"Which of these outcomes do you prefer?\",\n                options=top_uncertain_options(posterior, k=3),\n                rationale=f\"posterior entropy={h:.2f}\")\n            # operator answers are treated as a strong CIRL signal\n            observe_human(Evidence(\n                kind=\"operator_verdict\",\n                choice=verdict.choice,\n                source_reliability=0.95))\n            continue\n\n        a = act(s)\n        execute(a)\n        ev = wait_for_human_response()\n        observe_human(ev)\n\n# Why this works: ordinary CIRL handles drift in normal interaction,\n# but when the agent's own uncertainty crosses a threshold it routes to\n# explicit human-reflection rather than continuing to act on a vague\n# posterior, and the verdict comes back typed and high-reliability.\n# Related: see `human-reflection`, `preference-uncertain-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -138,6 +268,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: dream passes capture their own confidence in distilled themes; low-confidence themes are emitted as questions, not proposals, and a re-entrance guard prevents an affect-triggered dream from triggering another mid-pass.",
+          "code": "DREAM_PERIOD   = 4 * HOUR\nAFFECT_CEILING = 0.75\nTHEME_CONF_MIN = 0.55\nDREAM_LOG      = \"dream_calibration.jsonl\"\ndreaming       = False\n\nfunction should_dream(now):\n    return (not dreaming and\n            (now - last_dream > DREAM_PERIOD or\n             affect.max() > AFFECT_CEILING))\n\nfunction dream_pass(now):\n    global dreaming\n    dreaming = True\n    pause_tick_scheduler()\n    try:\n        thoughts = load_thoughts(since=now - 6*HOUR)\n        affect_h = load_affect(since=now - 6*HOUR)\n        proposal = strong_model.complete(\n            prompt=\"dream-pass: distil themes; for each theme report a\\n\"\n                   \"single confidence 0..1; do NOT edit rules.\",\n            thoughts=thoughts, affect=affect_h)\n\n        for theme in proposal.themes:\n            append_jsonl(DREAM_LOG, {\n                \"ts\": now(), \"theme\": theme.title,\n                \"confidence\": theme.confidence})\n            if theme.confidence >= THEME_CONF_MIN:\n                append(\"journal/dream/\", now, theme.entry)\n            else:\n                # 'I noticed something but I'm not sure' -> open question\n                tension_store.open(\n                    topic=theme.title, source=\"dream\",\n                    curiosity=theme.confidence, intrusiveness=0.2)\n\n        affect.apply_decay(factor=0.5)\n        last_dream = now\n    finally:\n        dreaming = False\n        resume_tick_scheduler()\n\n# Why this works: the deep pass is allowed to be uncertain about its own\n# distillations, and low-confidence themes turn into questions for the\n# next tick rather than confident journal claims, while the dreaming\n# flag keeps a high-affect spike from re-entering itself.\n# Related: see `open-question-tension-store`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: dream output is fed to `multi-axis-promotion-scoring` so themes that survived the dream become a strong consolidation signal for which thoughts get promoted to long-term insights.",
+          "code": "function dream_pass_with_promotion(now):\n    pause_tick_scheduler()\n    thoughts = load_thoughts(since=now - 6*HOUR)\n    proposal = strong_model.complete(\n        prompt=\"dream-pass: distil themes and list source thought ids.\",\n        thoughts=thoughts)\n\n    survivors = set()\n    for theme in proposal.themes:\n        append(\"journal/dream/\", now, theme.entry)\n        for source_id in theme.source_thought_ids:\n            survivors.add(source_id)\n            # add a 'dream-survival' event for each source thought;\n            # the consolidation axis in promotion scoring weights this.\n            promotion_scorer.record_event(\n                thought_id=source_id,\n                event_tag=\"dream-survival\",\n                weight=1.0)\n\n    # introspective check: how many of last window's thoughts crossed?\n    for t in thoughts:\n        if t.id not in survivors:\n            promotion_scorer.record_event(\n                thought_id=t.id,\n                event_tag=\"dream-skipped\",\n                weight=0.0)\n\n    affect.apply_decay(factor=0.5)\n    resume_tick_scheduler()\n    # downstream: promotion_scorer.score() now weights dream-survival\n\n# Why this works: the dream pass's introspective verdict 'this theme is\n# worth keeping' becomes a typed signal the promotion scorer reads, so\n# long-term memory grows from what the deep reflection actually kept,\n# not from what was merely frequent.\n# Related: see `multi-axis-promotion-scoring`, `episodic-summaries`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -154,6 +304,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every bump is paired with a calibration entry noting the cause, the value before and after, and an anti-pump guard that refuses bumps when the same dimension has already been pushed N times in a short window.",
+          "code": "DIMENSIONS = {\n    \"tenderness\": {\"half_life\": 4*HOUR},\n    \"fear\":       {\"half_life\": 1*HOUR},\n    \"joy\":        {\"half_life\": 2*HOUR},\n    \"shame\":      {\"half_life\": 2*HOUR},\n    \"pain\":       {\"half_life\": 30*MIN},\n}\nANTI_PUMP_WINDOW = 5 * MIN\nANTI_PUMP_MAX    = 4\nCAL_LOG          = \"affect_calibration.jsonl\"\nrecent_bumps     = bounded_deque(maxlen=64)\nstate = load_json(\"affect.json\", default={d: 0.0 for d in DIMENSIONS})\n\nfunction recently_bumped(dim, now):\n    return sum(1 for t,d in recent_bumps\n               if d == dim and t > now - ANTI_PUMP_WINDOW)\n\nfunction bump(dim, delta, cause):\n    if dim not in DIMENSIONS: return        # unknown dimension\n    if recently_bumped(dim, now()) >= ANTI_PUMP_MAX:\n        # 'am I being pumped?' guard against self-amplifying loops\n        append_jsonl(CAL_LOG, {\"ts\": now(), \"dim\": dim,\n            \"action\": \"refused_pump\", \"cause\": cause})\n        return\n    before = state[dim]\n    state[dim] = clamp(before + clamp(delta, -0.1, +0.1), 0.0, 1.0)\n    recent_bumps.append((now(), dim))\n    append_jsonl(CAL_LOG, {\"ts\": now(), \"dim\": dim, \"cause\": cause,\n        \"before\": before, \"after\": state[dim], \"delta\": delta})\n    persist(state)\n\nfunction badge_with_self_assessment():\n    snapshot = {d: round(v,2) for d,v in state.items() if v > 0.05}\n    dominant = max(state.items(), key=lambda kv: kv[1])\n    return {\"affect\": snapshot,\n            \"dominant\": dominant[0] if dominant[1] > 0.3 else None}\n\n# Why this works: the agent's mood becomes auditable -- every change is\n# logged with cause and delta, and a runaway loop trying to pump fear\n# or shame is mechanically refused before it can shape the next tick.\n# Related: see `provenance-ledger`, `dream-consolidation-cycle`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: affect spikes feed `dream-consolidation-cycle` directly -- when any dimension crosses a ceiling, a dream pass is scheduled instead of waiting for the slow timer.",
+          "code": "AFFECT_CEILING_FOR_DREAM = {\n    \"pain\":  0.75,\n    \"fear\":  0.70,\n    \"shame\": 0.60,\n}\n\nfunction bump_with_dream_trigger(dim, delta, cause):\n    bump(dim, delta, cause)\n    ceiling = AFFECT_CEILING_FOR_DREAM.get(dim)\n    if not ceiling: return\n    if state[dim] < ceiling: return\n\n    # introspection: 'this is heavier than I can carry into the next\n    # tick -- request a dream pass to release residue'\n    if not dream_cycle.is_running():\n        dream_cycle.request(\n            reason=f\"{dim}={state[dim]:.2f}>=ceiling\",\n            urgency=\"high\")\n    else:\n        # the 'not sure' branch: a dream is already in progress, just\n        # log the spike and let it ride; don't recursively re-request\n        log_event(\"affect_ceiling_while_dreaming\",\n            dim=dim, value=state[dim])\n\nfunction tick(observations):\n    decay(now())\n    for obs in observations:\n        for dim, delta in derive_affect_from(obs):\n            bump_with_dream_trigger(dim, delta, cause=obs.kind)\n    if dream_cycle.has_pending_request():\n        dream_cycle.run_now()\n\n# Why this works: the affect substrate has its own opinion about when\n# it needs help, and high spikes are routed to dream consolidation\n# instead of being carried silently into the next prompt, while the\n# already-running guard prevents trigger storms.\n# Related: see `dream-consolidation-cycle`, `affect-coupled-plan-lifecycle`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -180,6 +350,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: juxtaposition associations that survive a confidence threshold are written into `open-question-tension-store` rather than the insight stream, so unresolved pulls surface as questions for later attention.",
+          "code": "QUIET_THRESHOLD       = 4\nASSOCIATION_CONF_MIN  = 0.5\nstate = load_json(\"juxtaposition.json\", default={\"quiet_streak\": 0})\n\nfunction otherwise_quiet(ctx):\n    return (not ctx.chat_in_window and\n            ctx.urgent_preoccupation is None and\n            not ctx.in_cooldown)\n\nfunction juxtaposition_with_tension(ctx):\n    fragments = random_sample(load_old_material(), k=random_int(1,3))\n    seed = {\n        \"mode\": \"juxtaposition\",\n        \"fragments\": fragments,\n        \"instruction\": \"sit with these; report 'noticed: yes|no' and\\n\"\n                       \"a single 'confidence: 0..1' line.\",\n    }\n    out  = model.complete(seed)\n    conf = parse_confidence(out)\n\n    if not out.association_noticed:\n        return                                # tick closes silently\n\n    if conf >= ASSOCIATION_CONF_MIN:\n        # confident enough to be an insight\n        write_insight(out.text, sources=fragments, confidence=conf)\n    else:\n        # introspective uncertainty: the agent felt SOMETHING but isn't\n        # sure -> file it as an open tension for later, not an insight\n        tension_store.open(\n            topic=out.text[:60],\n            source=f\"juxtaposition[{[f.id for f in fragments]}]\",\n            curiosity=conf,\n            intrusiveness=0.2)\n\nfunction tick(ctx):\n    if ctx.salience_low and otherwise_quiet(ctx):\n        state.quiet_streak += 1\n        if state.quiet_streak > QUIET_THRESHOLD:\n            juxtaposition_with_tension(ctx)\n            return\n    else:\n        state.quiet_streak = 0\n    persist(state)\n    run_normal_tick(ctx)\n\n# Why this works: noticed-but-uncertain associations no longer have to\n# become claims; they become questions in the tension store, where the\n# agent's idle attention can return to them with fresh evidence later.\n# Related: see `open-question-tension-store`, `dream-consolidation-cycle`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -206,6 +386,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: each hypothesis's next-test is dispatched to `chain-of-verification` for an explicit verify step, and the verifier's result rewrites the hypothesis's confidence and status.",
+          "code": "VERIFY_CONFIDENCE_FLOOR = 0.3\n\nfunction run_next_test_for(hid):\n    h = store.get(hid)\n    if not h.next_test or h.status != \"active\":\n        return\n\n    # introspection: 'am I confident enough that this test is well-formed?'\n    test_conf = model.estimate_certainty(h.next_test)\n    if test_conf < VERIFY_CONFIDENCE_FLOOR:\n        # 'I'm not sure what would actually falsify this' -> ask CoVe\n        # to rewrite the next-test rather than executing a bad one\n        h.next_test = cove.rewrite_question(h.next_test, h.summary)\n        persist(store)\n        return\n\n    verdict = cove.verify_question(\n        question=h.next_test,\n        context=collect_relevant_context(h))\n    add_evidence(hid,\n        note=verdict.short_finding,\n        source=\"cove\",\n        supports=verdict.supports_hypothesis)\n\n    h = store.get(hid)\n    if h.confidence >= 0.85:\n        h.status = \"confirmed\"\n    elif h.confidence <= 0.10:\n        h.status = \"disconfirmed\"\n    persist(store)\n\nfunction periodic_verification_pass():\n    for h in store:\n        if h.status == \"active\" and time_since(h.updated_at) > 1*DAY:\n            run_next_test_for(h.id)\n\n# Why this works: the hypothesis ledger and CoVe's question-then-verify\n# shape are made to compose -- the agent introspects whether its own\n# next-test is well-formed before spending verification budget on it,\n# and the verdict cleanly flows back as typed evidence.\n# Related: see `chain-of-verification`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -222,6 +412,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each push and resume logs a calibration record (how confident the agent is that the frame is still relevant); expired frames are admitted as reconstruction and capped depth prevents infinite suspension.",
+          "code": "MAX_DEPTH = 4\nFRAME_TTL = 30 * MIN\nFRAME_LOG = \"frame_calibration.jsonl\"\nstack = load_json(\"frames.json\", default=[])\n\nfunction push_frame(goal, steps):\n    if len(stack) >= MAX_DEPTH:\n        raise TooManySuspensions      # hard cap, no recursion\n    stack.append({\"id\": uuid(), \"goal\": goal, \"steps\": steps,\n                  \"done\": 0, \"opened_at\": now()})\n    persist(stack)\n    append_jsonl(FRAME_LOG, {\"ts\": now(), \"event\": \"push\",\n        \"id\": stack[-1].id, \"goal\": goal, \"depth\": len(stack)})\n\nfunction on_interrupt(new_msg):\n    if stack:\n        top = stack[-1]\n        say(f\"hold on - finishing '{top.goal}' first, then to you\")\n    handle(new_msg)\n    resume()\n\nfunction resume():\n    if not stack: return\n    top = stack[-1]\n    age = now() - top.opened_at\n    still_relevant = model.estimate_certainty(\n        f\"is goal '{top.goal}' still worth resuming?\")\n\n    if age > FRAME_TTL or still_relevant < 0.3:\n        # 'I'm not sure I should still be doing this' -> admit\n        say(f\"'{top.goal}' is stale (age={age}, conf={still_relevant:.2f})\\n\"\n            f\"- reconstructing, not continuing\")\n        append_jsonl(FRAME_LOG, {\"ts\": now(), \"event\": \"expire\",\n            \"id\": top.id, \"age\": age, \"relevance\": still_relevant})\n        stack.pop(); persist(stack); return\n\n    say(f\"back to '{top.goal}' - step {top.done+1}/{top.steps}\")\n    append_jsonl(FRAME_LOG, {\"ts\": now(), \"event\": \"resume\",\n        \"id\": top.id, \"relevance\": still_relevant})\n    continue_step(top)\n\n# Why this works: resumption isn't automatic -- the agent re-checks\n# whether the frame still matters before continuing, and the depth\n# cap plus TTL ensure suspensions can't accumulate indefinitely.\n# Related: see `agent-resumption`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: when a frame is too stale or its relevance confidence is too low, hand off to `conversation-handoff` so the next agent (or the user) sees a structured snapshot rather than picking up cold.",
+          "code": "RELEVANCE_HANDOFF_FLOOR = 0.25\n\nfunction resume_with_handoff():\n    if not stack: return\n    top = stack[-1]\n    age = now() - top.opened_at\n    relevance = model.estimate_certainty(\n        f\"is goal '{top.goal}' still worth resuming given current context?\")\n\n    if age > FRAME_TTL and relevance < RELEVANCE_HANDOFF_FLOOR:\n        # introspection: 'this thread is too cold for me to safely\n        # continue alone' -> structured handoff instead of guessing\n        snapshot = {\n            \"frame_id\":  top.id,\n            \"goal\":      top.goal,\n            \"steps_done\": top.done,\n            \"steps_total\": top.steps,\n            \"age_at_handoff\": age,\n            \"relevance_estimate\": relevance,\n            \"opened_at\": top.opened_at,\n            \"last_known_context\": recent_context_window(),\n        }\n        handoff.emit(\n            target=\"successor_or_user\",\n            reason=\"frame_too_cold_for_self_resume\",\n            snapshot=snapshot)\n        stack.pop(); persist(stack); return\n\n    if relevance < 0.5:\n        say(f\"'{top.goal}' may be stale - resuming with reduced confidence\")\n    else:\n        say(f\"back to '{top.goal}' - step {top.done+1}/{top.steps}\")\n    continue_step(top)\n\n# Why this works: the introspective question 'do I actually still know\n# what I was doing here?' becomes the trigger for a structured handoff,\n# so a cold frame leaves a typed snapshot for whoever (human or agent)\n# picks it up instead of being silently dropped or badly resumed.\n# Related: see `conversation-handoff`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -238,6 +448,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each scheduled memo records the past-self's confidence at scheduling time; when fired, the future-self checks whether the original rationale still holds, with a depth cap preventing memos from recursively scheduling more memos.",
+          "code": "queue_file        = \"scheduled-thoughts.jsonl\"\nMEMO_LOG          = \"memo_calibration.jsonl\"\nMAX_CHAIN_DEPTH   = 3                  # bound recursive scheduling\n_schedule_depth   = 0\n\ntool schedule_future_thought(when, content, intent):\n    global _schedule_depth\n    if _schedule_depth >= MAX_CHAIN_DEPTH:\n        return \"refused: chain_depth_exceeded\"\n    fires_at = parse_when(when)\n    confidence_now = model.estimate_certainty(content)\n    entry = {\n        \"id\": uuid(), \"set_at\": now(), \"fires_at\": fires_at,\n        \"content\": content, \"intent\": intent,\n        \"past_self_confidence\": confidence_now,\n        \"chain_depth\": _schedule_depth + 1,\n        \"fired\": False,\n    }\n    append_jsonl(queue_file, entry)\n    append_jsonl(MEMO_LOG, {\"ts\": now(), \"event\": \"scheduled\",\n        \"id\": entry.id, \"confidence\": confidence_now})\n    return \"scheduled\"\n\nfunction drain_due_into_prompt(now):\n    out = []\n    for e in read_jsonl(queue_file):\n        if e.fired or e.fires_at > now: continue\n        e.fired = True\n        # introspect on firing: 'is past-self's note still relevant?'\n        future_conf = model.estimate_certainty(\n            f\"is this still worth attending to NOW? {e.content}\")\n        append_jsonl(MEMO_LOG, {\"ts\": now(), \"event\": \"fired\",\n            \"id\": e.id,\n            \"past_confidence\": e.past_self_confidence,\n            \"future_confidence\": future_conf})\n        if future_conf < 0.25:\n            # 'past-self was sure but I'm not' -> note but don't act\n            out.append(f\"[SYSTEM: stale memo from past-self skipped: {e.intent}]\")\n        else:\n            out.append(f\"[SYSTEM: scheduled note from past-self \"\n                       f\"(set {e.set_at}, fires {e.fires_at}, \"\n                       f\"past_conf={e.past_self_confidence:.2f}): {e.content}]\")\n    rewrite_jsonl(queue_file)\n    return out\n\nfunction tick_with_memos():\n    global _schedule_depth\n    _schedule_depth = max((e.chain_depth for e in due_memos()), default=0)\n    prompt = [system_main] + drain_due_into_prompt(now()) + [user_msg]\n    return model.complete(prompt)\n\n# Why this works: future-self isn't bound by past-self's certainty --\n# every fired memo gets a fresh confidence check, and chained memos\n# can't snowball because depth is propagated and capped.\n# Related: see `decision-log`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: memos that fire compose with `salience-triggered-output` so the agent only surfaces them to the user when the firing context is salient, otherwise stores them quietly in the thought stream.",
+          "code": "function drain_with_salience_routing(now, ctx):\n    for e in due_memos(now):\n        e.fired = True\n        # introspection: 'should the USER see this fire right now?'\n        relevance_now = model.estimate_certainty(\n            f\"is this memo content relevant to user's current focus? {e.content}\")\n        salience      = salience_attention.score(\n            topic=e.content, current_focus=ctx.user_focus)\n        impact        = relevance_now * salience\n\n        if impact >= 0.6:\n            # high impact -> user-visible salience-triggered surface\n            salience_triggered_output.emit(\n                kind=\"past_self_memo\",\n                text=e.content,\n                rationale=f\"past-intent: {e.intent}\")\n        elif impact >= 0.25:\n            # mid impact -> agent's working thought stream only\n            append_thought(\n                f\"[memo from past-self ({e.intent})]: {e.content}\")\n        else:\n            # low impact -> log and let it pass; user not interrupted\n            append_jsonl(\"memo_quietly_passed.jsonl\",\n                {\"id\": e.id, \"impact\": impact, \"content\": e.content})\n\n    rewrite_jsonl(queue_file)\n\n# Why this works: the past-self's commitment doesn't unconditionally\n# interrupt the user -- the firing agent introspects on current relevance\n# and salience together, and routes the memo to the right surface\n# (user, thought stream, or quiet log) accordingly.\n# Related: see `salience-triggered-output`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -254,6 +484,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: entering meditation records the agent's stated reason and confidence in needing the mode; every public-write attempt during meditation is logged as a typed refusal; auto-exit is bounded and a separate kill-file gives the operator a no-recursion exit path.",
+          "code": "INNER_ALLOWLIST = {\"inner_dialogue\", \"recall\",\n                   \"register_affect\", \"exit_meditation\"}\nMODE_FILE       = \"state/meditation.json\"\nKILL_FILE       = \"state/meditation.kill\"\nDEFAULT_BUDGET  = 15 * MIN\nINNER_TICK      = 10 * SEC\nMED_LOG         = \"meditation_audit.jsonl\"\n\nfunction enter_meditation(reason, budget=DEFAULT_BUDGET):\n    confidence = model.estimate_certainty(\n        f\"do I need to drop external surface now? reason: {reason}\")\n    if confidence < 0.5:\n        # 'I'm not sure I need this' -> don't enter, log the attempt\n        append_jsonl(MED_LOG, {\"ts\": now(), \"event\": \"refused_self_entry\",\n            \"reason\": reason, \"confidence\": confidence})\n        return\n    write_json(MODE_FILE, {\"on\": True, \"started_at\": now(),\n        \"budget\": budget, \"reason\": reason, \"confidence\": confidence})\n    append_jsonl(MED_LOG, {\"ts\": now(), \"event\": \"enter\",\n        \"reason\": reason, \"confidence\": confidence, \"budget\": budget})\n\nfunction in_meditation():\n    if file_exists(KILL_FILE):                # operator kill path\n        clear(MODE_FILE); remove(KILL_FILE); return False\n    s = read_json(MODE_FILE, default={\"on\": False})\n    if not s.on: return False\n    if now() - s.started_at > s.budget:\n        append_jsonl(MED_LOG, {\"ts\": now(), \"event\": \"auto_exit\"})\n        clear(MODE_FILE); return False\n    return True\n\nfunction dispatch(call):\n    if in_meditation():\n        if call.tool not in INNER_ALLOWLIST:\n            append_jsonl(MED_LOG, {\"ts\": now(), \"event\": \"public_blocked\",\n                \"tool\": call.tool})\n            return {\"error\": \"public_write_blocked_in_meditation\"}\n        out = run_inner(call)\n        append(\"journal/inner-dialogue/\" + today(), out)\n        return out\n    return run_normal(call)\n\n# Why this works: entering, exiting, and every blocked tool call leave\n# typed audit records, the agent's self-check gates entry against a\n# spurious meditation request, and the operator always has a kill\n# path that doesn't depend on the agent itself acting.\n# Related: see `circuit-breaker`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: meditation composes with `mode-adaptive-cadence` so the inner-tick rhythm is delegated to the cadence module, and exiting meditation restores the previously-active cadence mode rather than defaulting to idle.",
+          "code": "function enter_meditation_with_cadence(reason, budget=DEFAULT_BUDGET):\n    # introspective gate: do I really need to drop external surface?\n    if model.estimate_certainty(\n           f\"meditation justified by: {reason}\") < 0.5:\n        return\n\n    prior_cadence = cadence.current_mode_snapshot()\n    write_json(MODE_FILE, {\n        \"on\": True, \"started_at\": now(), \"budget\": budget,\n        \"reason\": reason, \"prior_cadence\": prior_cadence})\n\n    # hand cadence control to a meditation-only fast rhythm\n    cadence.push_mode(\n        name=\"meditation_inner\",\n        interval=INNER_TICK,\n        lock_until=now() + budget)\n\nfunction exit_meditation():\n    s = read_json(MODE_FILE, default={\"on\": False})\n    if not s.on: return\n    clear(MODE_FILE)\n    # restore cadence to whatever was running before\n    cadence.pop_mode(restore_to=s.prior_cadence)\n    ledger.append({\"ts\": now(), \"event\": \"meditation_exit\",\n        \"restored_mode\": s.prior_cadence.name})\n\nfunction tick_interval():\n    return cadence.next_interval()           # cadence owns timing\n\n# Why this works: meditation no longer has its own cadence logic; it\n# pushes a typed cadence mode while it owns the loop and pops it on\n# exit, so the agent comes back to the rhythm it was actually in\n# instead of falling into idle by default.\n# Related: see `mode-adaptive-cadence`, `subject-first-agent-architecture`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -270,6 +520,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every mode transition records the agent's confidence in the salience score that triggered it; low-confidence promotions are downgraded to a 'tentative' state that auto-reverts faster than full intense lock-in.",
+          "code": "MODES = {\"idle\": 60, \"intense\": 15, \"tentative_intense\": 30}\nFLOOR, CEIL              = 10, 600\nINTENSE_LOCK_TICKS       = 12\nTENTATIVE_LOCK_TICKS     = 3\nSALIENCE_THRESHOLD       = 0.6\nSALIENCE_CONF_FOR_FULL   = 0.7\nCAD_LOG                  = \"cadence_audit.jsonl\"\n\nstate = load_json(\"cadence.json\",\n    default={\"mode\": \"idle\", \"lock_ticks_left\": 0})\n\nfunction next_interval(tick_result, external_impulse):\n    s          = max(tick_result.novelty, external_impulse)\n    conf_in_s  = model.estimate_certainty(f\"is salience really {s:.2f}?\")\n\n    if external_impulse > 0.0:\n        target, lock = \"intense\", INTENSE_LOCK_TICKS\n    elif s >= SALIENCE_THRESHOLD and conf_in_s >= SALIENCE_CONF_FOR_FULL:\n        target, lock = \"intense\", INTENSE_LOCK_TICKS\n    elif s >= SALIENCE_THRESHOLD:\n        # 'I'm not sure this is really salient' -> tentative only\n        target, lock = \"tentative_intense\", TENTATIVE_LOCK_TICKS\n    elif state.lock_ticks_left > 0:\n        target, lock = state.mode, state.lock_ticks_left - 1\n    else:\n        target, lock = \"idle\", 0\n\n    if target != state.mode:\n        append_jsonl(CAD_LOG, {\"ts\": now(),\n            \"from\": state.mode, \"to\": target,\n            \"salience\": s, \"salience_confidence\": conf_in_s,\n            \"external\": external_impulse})\n    state.mode, state.lock_ticks_left = target, lock\n    persist(state)\n    return clamp(MODES[state.mode], FLOOR, CEIL)\n\n# Why this works: the cadence module asks itself how trustworthy the\n# salience signal is before locking into intense, and uncertain spikes\n# only get the shorter tentative lock-in, so weak signals can't drag\n# the loop into expensive fast-ticking.\n# Related: see `salience-triggered-output`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: cadence subscribes to `salience-triggered-output` events so the same salience the agent uses to decide whether to speak also adjusts how fast it thinks; both surfaces read the same signal once.",
+          "code": "function on_salience_event(event):\n    # event already carries salience score AND the agent's confidence\n    # in it from the salience-triggered-output reducer\n    if event.confidence < 0.3:\n        # 'not sure this matters' -> neither speak nor accelerate\n        log_event(\"salience_low_confidence\", score=event.score)\n        return\n\n    if event.score >= SPEAK_THRESHOLD and event.confidence >= 0.6:\n        salience_output.emit_to_user(event)\n\n    # cadence reaction is independent of whether we spoke\n    if event.score >= SALIENCE_THRESHOLD:\n        cadence.promote(\n            target=\"intense\",\n            lock_ticks=INTENSE_LOCK_TICKS,\n            reason=f\"salience event {event.id} score={event.score:.2f}\")\n\nfunction cadence_promote(target, lock_ticks, reason):\n    if target == \"intense\" and state.mode != \"intense\":\n        append_jsonl(\"cadence_audit.jsonl\", {\"ts\": now(),\n            \"event\": \"promote\", \"reason\": reason})\n    state.mode = target\n    state.lock_ticks_left = lock_ticks\n    persist(state)\n\n# Why this works: speaking-decisions and tempo-decisions share a single\n# introspective signal (score plus confidence in score), so the agent\n# can't end up speaking quickly while ticking slowly, or vice versa,\n# and the audit trail correlates the two cleanly.\n# Related: see `salience-triggered-output`, `salience-attention-mechanism`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -286,6 +556,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each promotion candidate is scored with an explicit per-axis confidence; low confidence in the consolidation axis routes the thought to a 'needs-more-evidence' bucket rather than a promotion decision.",
+          "code": "WEIGHTS = {\"frequency\":0.10, \"relevance\":0.20, \"diversity\":0.10,\n           \"recency\":0.15, \"consolidation\":0.30, \"conceptual\":0.15}\nPROMOTION_THRESHOLD       = 0.55\nCONSOLIDATION_CONF_FLOOR  = 0.4\nSCORE_LOG                 = \"score_events.jsonl\"\n\nfunction saturate(x, k=5): return 1 - exp(-k * x)\n\nfunction score_with_confidence(thought, events):\n    axes = {\n        \"frequency\":     (saturate(count(events, \"recall\")/10),\n                          confidence_count(events, \"recall\")),\n        \"relevance\":     (saturate(events.relevance_signal),\n                          events.relevance_confidence),\n        \"diversity\":     (saturate(events.distinct_contexts/5), 0.8),\n        \"recency\":       (half_life_recency(thought.last_seen), 1.0),\n        \"consolidation\": (saturate(count(events, \"dream-survival\")/3),\n                          confidence_count(events, \"dream-survival\")),\n        \"conceptual\":    (saturate(events.conceptual_depth),\n                          events.conceptual_confidence),\n    }\n    total = sum(WEIGHTS[a] * v for a,(v,_) in axes.items())\n    append_jsonl(SCORE_LOG, {\"ts\": now(), \"thought\": thought.id,\n        \"axes\": {a: {\"value\": v, \"confidence\": c}\n                  for a,(v,c) in axes.items()},\n        \"total\": total, \"event_type\": events.tag})\n    return total, axes\n\nfunction route_candidate(thought, events):\n    total, axes = score_with_confidence(thought, events)\n    cons_val, cons_conf = axes[\"consolidation\"]\n\n    if total < PROMOTION_THRESHOLD:\n        return \"skip\"\n    if cons_conf < CONSOLIDATION_CONF_FLOOR:\n        # 'I'm not sure dream-survival was real' -> hold for evidence\n        return \"needs_more_evidence\"\n    return \"promote_candidate\"\n\n# Why this works: a thought above threshold but weakly supported on the\n# load-bearing consolidation axis goes to a holding bucket rather than\n# directly into the promotion queue, so long-term memory only grows\n# from confidently-scored material.\n# Related: see `dream-consolidation-cycle`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: scoring composes with `salience-attention-mechanism` so the relevance and recency axes are sourced from the same attention model used elsewhere; an introspective check refuses to score thoughts whose attention signal is itself stale.",
+          "code": "ATTENTION_FRESHNESS_MAX = 24 * HOUR\n\nfunction score_via_attention(thought, events):\n    attn = salience_attention.score_for(thought.id)\n    if now() - attn.last_updated > ATTENTION_FRESHNESS_MAX:\n        # the agent's attention model for this thought is stale; don't\n        # score it now -- ask attention to refresh first\n        salience_attention.request_refresh(thought.id)\n        return None\n\n    axes = {\n        \"frequency\":     saturate(count(events, \"recall\")/10),\n        \"relevance\":     attn.relevance,         # from attention\n        \"diversity\":     saturate(events.distinct_contexts/5),\n        \"recency\":       attn.recency,           # from attention\n        \"consolidation\": saturate(count(events, \"dream-survival\")/3),\n        \"conceptual\":    saturate(events.conceptual_depth),\n    }\n    total = sum(WEIGHTS[a] * v for a,v in axes.items())\n    append_jsonl(\"score_events.jsonl\", {\"ts\": now(),\n        \"thought\": thought.id, \"axes\": axes, \"total\": total,\n        \"attention_age\": now() - attn.last_updated})\n    return total\n\nfunction is_promotion_candidate(thought, events):\n    score = score_via_attention(thought, events)\n    return score is not None and score >= PROMOTION_THRESHOLD\n\n# Why this works: the scoring pass doesn't synthesise its own relevance\n# and recency in isolation; it reads from the single attention surface\n# the rest of the agent uses, and refuses to score on stale attention,\n# so promotion decisions stay coherent with the agent's current focus.\n# Related: see `salience-attention-mechanism`, `dream-consolidation-cycle`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -302,6 +592,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each ask-now decision records the agent's confidence in its own intrusiveness score, and a per-window ask-budget prevents the tension store from interrogating the user recursively.",
+          "code": "ledger              = \"tensions.jsonl\"\nCURIOSITY_FLOOR     = 0.1\nDEFAULT_TTL         = 7 * DAY\nASK_NOW             = 0.7\nASK_BUDGET_PER_HOUR = 2\nTENSION_LOG         = \"tension_audit.jsonl\"\nask_history         = bounded_deque(maxlen=32)\n\nfunction can_ask_now(now):\n    recent = [t for t in ask_history if t > now - HOUR]\n    return len(recent) < ASK_BUDGET_PER_HOUR\n\nfunction open_tension(topic, source, curiosity, intrusiveness,\n                      ttl=DEFAULT_TTL):\n    intr_conf = model.estimate_certainty(\n        f\"how disruptive really is this for the user: {topic}?\")\n    append_jsonl(ledger, {\"kind\":\"open\", \"id\": uuid(),\n        \"opened_at\": now(), \"topic\": topic, \"source\": source,\n        \"curiosity\": curiosity, \"intrusiveness\": intrusiveness,\n        \"intrusiveness_confidence\": intr_conf,\n        \"expires_at\": now() + ttl})\n\nfunction next_move(now):\n    rows = active_tensions(now)\n    if not rows: return (\"none\", None)\n    top = rows[0]\n    # only consider asking if the intrusiveness estimate itself is\n    # confident; otherwise store quietly\n    if (top.intrusiveness >= ASK_NOW and\n        top.intrusiveness_confidence >= 0.5 and\n        can_ask_now(now)):\n        ask_history.append(now)\n        append_jsonl(TENSION_LOG, {\"ts\": now, \"event\": \"ask\",\n            \"topic\": top.topic, \"intr\": top.intrusiveness,\n            \"intr_conf\": top.intrusiveness_confidence})\n        return (\"ask_user\", top)\n    append_jsonl(TENSION_LOG, {\"ts\": now, \"event\": \"store_quiet\",\n        \"topic\": top.topic})\n    return (\"store_quiet\", rows[:5])\n\nfunction close_tension(ref, resolution):\n    append_jsonl(ledger, {\"kind\":\"close\", \"ref\": ref,\n        \"closed_at\": now(), \"resolution\": resolution})\n\n# Why this works: questions never get fired at the user purely because\n# the agent THINKS they're intrusive -- the agent also tracks how\n# confident it is in that judgment, and the rate limit prevents a\n# tension storm from becoming a user-interrogation storm.\n# Related: see `preoccupation-tracking`, `salience-triggered-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: highest-curiosity tensions feed `cognitive-move-selector` as a 'revisit-tension' candidate move, and the selector's pick decides whether the next idle tick actually pursues the tension.",
+          "code": "function next_idle_move(ctx):\n    tensions = active_tensions(now())[:5]\n    top      = tensions[0] if tensions else None\n\n    # offer the tension to the move selector instead of acting on it\n    ctx_for_selector = {\n        \"recent_thoughts\": ctx.recent_thoughts[-3:],\n        \"affect_snapshot\": ctx.affect_snapshot,\n        \"open_tension_count\": len(tensions),\n        \"top_tension\": top.topic if top else None,\n        \"top_curiosity\": top.curiosity if top else 0.0,\n    }\n    move, conf = pick_move_with_confidence(ctx_for_selector)\n\n    if move == \"revisit-tension\" and top and conf > 0.4:\n        # introspective handoff: the selector says revisit, and is\n        # confident enough -- pursue the tension this tick\n        thought = model.complete(\n            f\"sit with the open question: {top.topic}\\n\"\n            f\"source: {top.source}; curiosity: {top.curiosity:.2f}\")\n        if thought.resolves_question:\n            close_tension(top.id, resolution=thought.text)\n        else:\n            append_jsonl(\"tension_audit.jsonl\", {\"ts\": now(),\n                \"event\": \"revisit_no_resolution\",\n                \"topic\": top.topic, \"thought\": thought.text})\n    else:\n        # selector chose a different move or is uncertain -> tension\n        # stays in the store for a later tick\n        MENU[move](ctx)\n\n# Why this works: the tension store doesn't itself decide when to act;\n# it offers the highest-curiosity question to the move selector and\n# lets the selector's introspective pick decide, so tensions wait\n# politely until the agent's own move-selection says it's time.\n# Related: see `cognitive-move-selector`, `socratic-questioning-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -318,6 +628,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: the selector emits its confidence in the pick alongside the choice; low-confidence selections fall back to a 'no canonical' state where the losers are also visible to the model, and chronic losers are flagged for retirement review.",
+          "code": "VOICES         = [\"world-model\", \"critic\", \"prediction\"]\nRETIRE_WINDOW  = 50\nSELECT_CONF_OK = 0.4\nLOSERS_LOG     = \"proposer-losers.jsonl\"\nRETIRE_LOG     = \"proposer-retirement.jsonl\"\nwin_history    = bounded_deque(maxlen=RETIRE_WINDOW)\n\nfunction propose_and_select(ctx):\n    prompt = (f\"Produce one candidate per voice in {VOICES}, each\\n\"\n              f\"prefixed '[voice: <id>]'. Then output:\\n\"\n              f\"  selected: <voice>\\n\"\n              f\"  confidence: 0..1\\n\"\n              f\"  reason: <one sentence>\\n\"\n              f\"context: {ctx}\")\n    completion = model.complete(prompt)\n    candidates = parse_voice_blocks(completion)\n    sel_voice, sel_conf, reason = parse_selection(completion)\n\n    append_jsonl(LOSERS_LOG, {\"ts\": now(), \"selected\": sel_voice,\n        \"select_confidence\": sel_conf, \"reason\": reason,\n        \"losers\": {v:t for v,t in candidates.items() if v != sel_voice}})\n\n    if sel_conf < SELECT_CONF_OK:\n        # 'I produced candidates but I'm not sure which is canonical'\n        # -> don't pick; emit all candidates as parallel proposals\n        return {\"canonical\": None,\n                \"parallel\": candidates,\n                \"reason\": \"select_low_confidence\"}\n\n    win_history.append(sel_voice)\n    candidates_for_retirement_check()\n    return {\"canonical\": candidates[sel_voice],\n            \"loser_voices\": [v for v in candidates if v != sel_voice]}\n\nfunction candidates_for_retirement_check():\n    if len(win_history) < RETIRE_WINDOW: return\n    losing = [v for v in VOICES if v not in set(win_history)]\n    if losing:\n        append_jsonl(RETIRE_LOG, {\"ts\": now(),\n            \"chronic_losers\": losing,\n            \"note\": \"retirement decision requires explicit ratification\"})\n\n# Why this works: the proposer can introspect on its own selection step,\n# and a low-confidence pick keeps disagreement visible rather than\n# collapsing to a tentative canonical; chronic losers surface as a\n# typed retirement candidate, not a silent drop.\n# Related: see `inner-committee`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: proposer-losers feed `open-question-tension-store` so dissenting voices that scored close to the winner survive as questions for later reflection rather than being archived only.",
+          "code": "CLOSE_MARGIN = 0.15        # winner-vs-loser distance under which the\n                           # loser is treated as 'almost-canonical'\n\nfunction propose_and_select_with_tensions(ctx):\n    completion = model.complete(propose_prompt(ctx))\n    candidates = parse_voice_blocks(completion)\n    scores     = parse_per_voice_scores(completion)\n    sel_voice  = argmax(scores)\n\n    winner_score = scores[sel_voice]\n    for v, t in candidates.items():\n        if v == sel_voice: continue\n        margin = winner_score - scores[v]\n\n        if margin < CLOSE_MARGIN:\n            # the loser was almost canonical -> introspect: is there an\n            # unresolved pull here worth keeping alive?\n            curiosity = 1.0 - margin / CLOSE_MARGIN\n            tension_store.open(\n                topic=f\"alt-take[{v}]: {t[:60]}\",\n                source=f\"proposer-margin={margin:.2f}\",\n                curiosity=curiosity,\n                intrusiveness=0.1)\n        else:\n            # clearly weaker: archive as before, no tension\n            append_jsonl(\"proposer-losers.jsonl\",\n                {\"ts\": now(), \"voice\": v, \"text\": t,\n                 \"margin\": margin})\n\n    win_history.append(sel_voice)\n    return candidates[sel_voice]\n\n# Why this works: a near-tie between voices isn't an audit-log entry\n# the agent will never look at -- it becomes an open tension whose\n# curiosity reflects how close the loser came, so dissent has a\n# concrete chance to be revisited and not just remembered.\n# Related: see `open-question-tension-store`, `inner-committee`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -334,6 +664,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every recovery writes a calibration record showing what the model claims about the partial vs what was actually preserved; the model is forced to read the recovery marker once before any continuation attempt, with a depth cap on re-recovery.",
+          "code": "enum RecoveryStatus:\n    NONE\n    RECOVERED_FROM_PARTIAL\n    TIMEOUT_PARTIAL\n\nRECOVERY_LOG    = \"recovery_audit.jsonl\"\nMAX_RECOVERY_CHAIN = 2          # bound recovery-of-recovery\n\nfunction stream(thought_id, model_id):\n    tmp     = f\"thoughts/{thought_id}.partial.tmp\"\n    partial = f\"thoughts/{thought_id}.partial\"\n    canon   = f\"thoughts/{thought_id}.md\"\n    open(tmp, \"w\").write(start_marker(thought_id, now(), model_id))\n    for chunk in model.stream():\n        append(tmp, chunk)\n        if elapsed_since_flush() > 500*MS:\n            os.rename(tmp, partial); open(tmp, \"a\")\n    os.rename(tmp, canon); remove(partial)\n\nfunction recover_on_startup(prev_chain_depth=0) -> RecoveryStatus:\n    orphans = glob(\"thoughts/*.partial*\")\n    if not orphans: return RecoveryStatus.NONE\n    if prev_chain_depth >= MAX_RECOVERY_CHAIN:\n        # 'I keep recovering -- something is wrong; surface the loop'\n        append_jsonl(RECOVERY_LOG, {\"ts\": now(),\n            \"event\": \"recovery_chain_cap\", \"orphans\": orphans})\n        quarantine(orphans)\n        return RecoveryStatus.NONE\n    status = (RecoveryStatus.TIMEOUT_PARTIAL if was_watchdog()\n              else RecoveryStatus.RECOVERED_FROM_PARTIAL)\n    for p in orphans:\n        finalize_with_marker(p, status)\n        append_jsonl(RECOVERY_LOG, {\"ts\": now(), \"file\": p,\n            \"status\": status.name, \"bytes\": file_size(p),\n            \"chain_depth\": prev_chain_depth + 1})\n    return status\n\nfunction next_prompt():\n    last = recover_on_startup(prev_chain_depth=read_chain_depth())\n    if last == RecoveryStatus.NONE: return base_prompt()\n    return base_prompt() + system(\n        f\"last_partial_recovery: {last.name}; you are continuing from\\n\"\n        f\"a salvaged stream. Acknowledge before writing more.\")\n\n# Why this works: salvage isn't silent -- the model must see the typed\n# recovery status and acknowledge it before continuing, every recovery\n# is logged, and a chain cap quarantines a partial that keeps coming\n# back from the dead rather than recovering forever.\n# Related: see `agent-resumption`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: salvage composes with `append-only-thought-stream` so the partial becomes a typed entry in the stream with explicit provenance, and the next thought references the salvage id rather than continuing prose blindly.",
+          "code": "function finalize_into_stream(partial_path, status):\n    content    = read(partial_path)\n    bytes_seen = file_size(partial_path)\n    # introspection: 'how complete does this partial look?'\n    completeness = model.estimate_completeness(content)\n    salvage_id   = f\"salvage-{uuid()}\"\n\n    append_thought_entry(\n        id=salvage_id,\n        kind=\"salvaged_partial\",\n        body=content,\n        provenance={\n            \"recovery_status\": status.name,\n            \"bytes\": bytes_seen,\n            \"completeness_estimate\": completeness,\n            \"recovered_at\": now(),\n        })\n    delete(partial_path)\n    return salvage_id\n\nfunction next_thought_after_salvage(salvage_id):\n    salvage = read_thought_entry(salvage_id)\n    if salvage.provenance.completeness_estimate < 0.3:\n        # 'I don't think I can faithfully continue from this fragment'\n        # -> write a NEW thought that REFERENCES rather than CONTINUES\n        append_thought_entry(\n            kind=\"recovery_note\",\n            body=f\"Earlier stream was cut at {salvage_id}; restarting\\n\"\n                 f\"from scratch rather than continuing prose.\",\n            references=[salvage_id])\n    else:\n        append_thought_entry(\n            kind=\"continuation\",\n            body=model.continue_from(salvage.body),\n            references=[salvage_id])\n\n# Why this works: the partial isn't a sentence the model pretends it\n# wrote; it's a typed stream entry the next thought explicitly\n# references, and a low completeness estimate triggers a clean restart\n# rather than a guess-continuation.\n# Related: see `append-only-thought-stream`, `agent-resumption`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -350,6 +700,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each detector reports its own confidence in the diagnosis; only confident hints are injected, all decisions are logged for post-hoc correlation, and a re-entrance guard prevents the gate from analysing its own gate output.",
+          "code": "DIVERGENCE_PATTERNS = {\n    \"narration_loop\":      detect_narration_loop,\n    \"frustration_path\":    detect_frustration_path,\n    \"repetition_pressure\": detect_repetition_pressure,\n}\nHINT_CONFIDENCE_MIN = 0.5\nGATE_LOG            = \"pre_gate_audit.jsonl\"\nin_gate             = False\n\nfunction pre_tick_steer(recent_thoughts, recent_tool_calls,\n                        affect, preoccupations) -> str | None:\n    global in_gate\n    if in_gate: return None              # no recursive analysis\n    in_gate = True\n    try:\n        best = None\n        for pid, detector in DIVERGENCE_PATTERNS.items():\n            verdict = detector(recent_thoughts, recent_tool_calls,\n                               affect, preoccupations)\n            if not verdict: continue\n            append_jsonl(GATE_LOG, {\"ts\": now(), \"pattern\": pid,\n                \"confidence\": verdict.confidence,\n                \"suggested_move\": verdict.move})\n            if (verdict.confidence >= HINT_CONFIDENCE_MIN and\n                (best is None or verdict.confidence > best.confidence)):\n                best = verdict\n\n        if best is None:\n            append_jsonl(GATE_LOG, {\"ts\": now(), \"pattern\": None})\n            return None\n        return (f\"[steering] divergence pattern {best.pattern_id} \"\n                f\"detected (conf={best.confidence:.2f}); \"\n                f\"consider {best.move}\")\n    finally:\n        in_gate = False\n\nfunction build_prompt(base):\n    hint = pre_tick_steer(*ctx_slices())\n    if hint:\n        base.append(system(hint))\n    return base\n\n# Why this works: low-confidence detections become log lines, not\n# steering hints, so the model isn't pushed off-course by weak signals;\n# every decision (hint or no hint, which pattern, what confidence) is\n# captured so post-hoc review can measure whether hints actually help.\n# Related: see `circuit-breaker`, `degenerate-output-detection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: when the gate detects repetition pressure and the model's own answer-confidence is also low, escalate via `typed-tool-loop-detector` -- the dispatcher returns a typed refusal at the next tool call rather than letting the loop continue.",
+          "code": "ESCALATE_CONFIDENCE_BELOW = 0.4\n\nfunction pre_tick_steer_with_escalation(ctx) -> str | None:\n    detection = detect_repetition_pressure(ctx)\n    if not detection:\n        return None\n\n    # introspection: 'how confident is the model right now in general?'\n    recent_confidence = avg([t.confidence for t in ctx.recent_thoughts[-3:]\n                              if hasattr(t, \"confidence\")])\n\n    if (detection.confidence >= 0.6 and\n        recent_confidence is not None and\n        recent_confidence < ESCALATE_CONFIDENCE_BELOW):\n        # high diagnostic confidence + low answer confidence: don't\n        # just hint, arm a typed-tool-loop-detector trip for the next\n        # call so the model is forced to receive a refusal\n        tool_loop_detector.arm_trip(\n            reason=\"pre_gate_escalation_repetition_low_confidence\",\n            details={\"detection_confidence\": detection.confidence,\n                     \"answer_confidence\":   recent_confidence})\n        return (f\"[steering] repetition pressure (conf={detection.confidence:.2f})\\n\"\n                f\"AND low recent answer-confidence ({recent_confidence:.2f});\\n\"\n                f\"next tool call will be refused -- change approach now.\")\n\n    if detection.confidence >= 0.5:\n        return f\"[steering] repetition pressure; consider {detection.move}\"\n    return None\n\n# Why this works: the gate's introspective signal composes with the\n# tool-loop detector so a confident detection combined with low\n# self-confidence becomes a guaranteed circuit-trip on the next call,\n# rather than another optional hint the model can ignore.\n# Related: see `typed-tool-loop-detector`, `circuit-breaker`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -366,6 +736,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every touch records the agent's confidence in why the concern matters now; low-confidence touches receive smaller bumps; runaway self-touching (re-touching a topic many times per minute) is mechanically capped.",
+          "code": "CAP        = 7\nHALF_LIFE  = 7 * DAY\nTOUCH_LOG  = \"preoccupation_audit.jsonl\"\nTOUCH_RATE_MAX_PER_MIN = 3\nrecent_touches = bounded_deque(maxlen=64)\nstore          = load_json(\"preoccupations.json\", default=[])\n\nfunction recently_touched(topic):\n    cutoff = now() - 60   # seconds\n    return sum(1 for t,top in recent_touches if top == topic and t > cutoff)\n\nfunction touch(topic, delta=+0.1, affect_tag=None, reason=\"\"):\n    if recently_touched(topic) >= TOUCH_RATE_MAX_PER_MIN:\n        append_jsonl(TOUCH_LOG, {\"ts\": now(), \"event\": \"rate_capped\",\n            \"topic\": topic})\n        return\n    decay(now())\n    conf = model.estimate_certainty(\n        f\"is '{topic}' really weighing on me right now? because: {reason}\")\n    effective_delta = delta * conf      # 'not sure' -> smaller bump\n    p = find(store, topic) or new_entry(topic, affect_tag)\n    p.intensity = clamp(p.intensity + effective_delta, 0.0, 1.0)\n    p.last_touched = now()\n    if p not in store:\n        if len(store) >= CAP:\n            coldest = min(store, key=lambda x: x.intensity)\n            store.remove(coldest)\n            append_jsonl(TOUCH_LOG, {\"ts\": now(), \"event\": \"evict\",\n                \"topic\": coldest.topic})\n        store.append(p)\n    recent_touches.append((now(), topic))\n    append_jsonl(TOUCH_LOG, {\"ts\": now(), \"event\": \"touch\",\n        \"topic\": topic, \"reason\": reason, \"confidence\": conf,\n        \"effective_delta\": effective_delta,\n        \"intensity_after\": p.intensity})\n    persist(store)\n\nfunction sidebar():\n    decay(now())\n    return [f\"{p.topic} ({p.affect_tag}, {p.intensity:.2f})\"\n            for p in sorted(store, key=lambda x: -x.intensity)]\n\n# Why this works: a concern's weight in the sidebar reflects how\n# confidently the agent could explain why it matters, runaway re-touching\n# of the same topic is mechanically capped, and every touch is auditable\n# alongside its reason and the resulting intensity.\n# Related: see `awareness`, `salience-attention-mechanism`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: preoccupations above an intensity threshold feed `commitment-tracking` so a chronic concern becomes an explicit commitment with a status the agent must resolve, rather than living forever as a sidebar item.",
+          "code": "COMMITMENT_INTENSITY  = 0.65\nCOMMITMENT_AGE_FLOOR  = 3 * DAY\n\nfunction promote_to_commitment(p):\n    age = now() - p.opened_at\n    if p.intensity < COMMITMENT_INTENSITY: return\n    if age < COMMITMENT_AGE_FLOOR: return\n    if commitment_tracker.exists_for_topic(p.topic): return\n\n    # introspection: 'do I actually want to commit to acting on this,\n    # or is it just persistent worry?'\n    want_to_act = model.estimate_certainty(\n        f\"am I willing to commit to resolving '{p.topic}'?\")\n    if want_to_act < 0.5:\n        # 'I'm not sure I want to commit' -> leave as preoccupation,\n        # log the consideration so it's not re-asked next tick\n        append_jsonl(\"preoccupation_audit.jsonl\", {\"ts\": now(),\n            \"event\": \"commitment_declined\", \"topic\": p.topic,\n            \"confidence\": want_to_act})\n        return\n\n    commitment_tracker.add(\n        topic=p.topic,\n        rationale=f\"promoted from preoccupation (intensity={p.intensity:.2f}, age={age})\",\n        status=\"active\")\n    # release the preoccupation: it now lives in commitment-tracking\n    release(p.topic)\n\nfunction tick():\n    decay(now())\n    for p in list(store):\n        promote_to_commitment(p)\n    publish_sidebar()\n\n# Why this works: a chronic, high-intensity concern doesn't just keep\n# showing up in the sidebar forever; the agent introspects on whether\n# it's willing to commit, and either promotes the concern into a typed\n# commitment with status tracking or explicitly logs the decision not to.\n# Related: see `commitment-tracking`, `awareness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -382,6 +772,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each acceptance/refusal/handoff decision logs the inputs to the self-model lookup, the model's confidence in its own dry-run, and a self-model-refresh staleness flag; a recursion guard prevents nested self-model evaluations.",
+          "code": "SELF_LOG    = \"selfmodel_audit.jsonl\"\nHANDOFF_THRESHOLD     = 0.55\nSTALENESS_MAX         = 24 * HOUR\nin_evaluation         = False\n\nfunction accept_or_refuse(task):\n    global in_evaluation\n    if in_evaluation:\n        # 'I'm being asked to evaluate while evaluating' -> hard refuse\n        return refuse(reason=\"self_model_recursion\")\n    in_evaluation = True\n    try:\n        cls       = classify_task(task)\n        in_scope  = cls in SelfModel.capabilities\n        blocked   = any(d.class == cls for d in SelfModel.declared_limits)\n        stale     = (now() - SelfModel.last_refreshed) > STALENESS_MAX\n        answer    = model.dry_run(task)\n        confidence = model.estimate_certainty(answer)\n\n        decision = None\n        if blocked:\n            decision = (\"refuse\", lookup_limit(cls, SelfModel))\n        elif not in_scope or confidence < HANDOFF_THRESHOLD:\n            peer = registry.find_capable(cls, min_conf=0.7)\n            decision = ((\"handoff\", peer) if peer\n                        else (\"refuse\", \"no_capable_peer\"))\n        else:\n            decision = (\"accept\", confidence)\n\n        append_jsonl(SELF_LOG, {\"ts\": now(), \"task_class\": cls,\n            \"in_scope\": in_scope, \"blocked\": blocked,\n            \"dry_run_confidence\": confidence,\n            \"self_model_stale\": stale,\n            \"decision\": decision[0]})\n\n        kind, extra = decision\n        if kind == \"refuse\":  return refuse(reason=extra)\n        if kind == \"handoff\": return handoff(extra, task)\n        return accept(task, declared_confidence=extra)\n    finally:\n        in_evaluation = False\n\nfunction periodic_refresh():\n    SelfModel.confidence_by_class = eval_suite.replay_recent()\n    SelfModel.last_refreshed      = now()\n    persist(SelfModel)\n\n# Why this works: every acceptance/refusal is auditable against the\n# self-model snapshot that produced it, a stale self-model is flagged\n# rather than hidden, and the agent cannot recursively self-evaluate\n# while a self-evaluation is in flight.\n# Related: see `confidence-reporting`, `typed-refusal-codes`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: when the self-model says 'handoff', delegate via `decentralized-swarm-handoff` to a peer-discovery protocol rather than calling a hard-coded registry, with peer capability vouchers checked introspectively.",
+          "code": "function accept_or_refuse_with_swarm(task):\n    cls       = classify_task(task)\n    answer    = model.dry_run(task)\n    confidence = model.estimate_certainty(answer)\n\n    if cls in SelfModel.capabilities and confidence >= 0.7:\n        return accept(task, declared_confidence=confidence)\n\n    # introspective trigger: 'I'm not the right fit for this' ->\n    # publish a need-this-handled message to the swarm\n    needs = {\"task_class\": cls,\n             \"required_capabilities\": derive_required_caps(task),\n             \"min_peer_confidence\": 0.7,\n             \"requesting_agent\": SelfModel.identity}\n\n    candidates = swarm.broadcast_need(needs, timeout=2*SEC)\n    if not candidates:\n        return refuse(reason=\"no_peer_responded\")\n\n    # introspect on each peer's claim: does its voucher look credible?\n    scored = []\n    for c in candidates:\n        voucher_ok = swarm.verify_voucher(c.voucher)\n        if not voucher_ok: continue\n        # how confident am I in this peer's self-claim?\n        peer_conf = model.estimate_certainty(\n            f\"is peer {c.id} actually able to handle a {cls} task?\")\n        scored.append((c, peer_conf))\n\n    if not scored:\n        return refuse(reason=\"no_credible_peer\")\n    best, best_conf = max(scored, key=lambda x: x[1])\n    if best_conf < 0.5:\n        # 'I don't trust any candidate enough' -> refuse rather than hand off\n        return refuse(reason=\"peer_confidence_too_low\")\n    return handoff(best, task)\n\n# Why this works: self-model introspection ('not my fit') leads into a\n# swarm protocol where the agent introspects again on the credibility\n# of each volunteer, so handoffs only happen when the agent is willing\n# to vouch for both decisions.\n# Related: see `decentralized-swarm-handoff`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -398,6 +808,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each trajectory note carries a per-period confidence in the extracted position; periods with low extraction confidence are emitted as 'position unclear' rather than as a definite stance, and the pass is non-reentrant.",
+          "code": "ARCH_LOG       = \"archaeology_audit.jsonl\"\nPOSITION_CONF_MIN = 0.45\nrunning           = False\n\nfunction self_archaeology_pass(now, window=30*DAY):\n    global running\n    if running: return                      # one pass at a time\n    running = True\n    try:\n        thoughts = load_thoughts(since=now - window)\n        by_topic = group_by(thoughts, key=topic_of)\n\n        for topic, items in by_topic.items():\n            periods = bucket_by_period(items, n=3)\n            positions = []\n            for p in periods:\n                stance = model.extract_position(p.items, topic=topic)\n                conf   = model.estimate_certainty(stance.text)\n                positions.append({\n                    \"period\": p.label, \"dates\": p.range,\n                    \"position\": (stance.text if conf >= POSITION_CONF_MIN\n                                  else \"position unclear from this period\"),\n                    \"confidence\": conf,\n                    \"evidence\": stance.evidence_refs,\n                })\n                append_jsonl(ARCH_LOG, {\"ts\": now, \"topic\": topic,\n                    \"period\": p.label, \"confidence\": conf,\n                    \"unclear\": conf < POSITION_CONF_MIN})\n            note = render_trajectory_note(topic, positions)\n            write(f\"surfaces/trajectory/{slug(topic)}.md\", note)\n            for prior in positions[:-1]:\n                if prior.confidence >= POSITION_CONF_MIN:\n                    mark_superseded(topic, prior)\n    finally:\n        running = False\n\nfunction surface_for_query(query):\n    t = topic_of(query)\n    note = read(f\"surfaces/trajectory/{slug(t)}.md\", default=None)\n    if note: return [note] + raw_thoughts(t)\n    return raw_thoughts(t)\n\n# Why this works: a period the agent can't confidently summarise is\n# admitted as such rather than invented, so the trajectory note doesn't\n# fabricate a stance just to fill the slot, and the running flag\n# prevents a slow pass from being re-entered by a triggered re-run.\n# Related: see `confidence-reporting`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: trajectory notes feed `hypothesis-tracking` -- each per-period position becomes a hypothesis record so superseded stances are auditable against the evidence that moved them.",
+          "code": "function self_archaeology_to_hypotheses(now, window=30*DAY):\n    thoughts = load_thoughts(since=now - window)\n    by_topic = group_by(thoughts, key=topic_of)\n\n    for topic, items in by_topic.items():\n        periods   = bucket_by_period(items, n=3)\n        positions = []\n        prev_hid  = None\n\n        for p in periods:\n            stance = model.extract_position(p.items, topic=topic)\n            conf   = model.estimate_certainty(stance.text)\n            # each position becomes a hypothesis record\n            hid = hypothesis_store.commit(\n                summary=f\"on '{topic}' in {p.label}: {stance.text}\",\n                confidence=conf,\n                next_test=stance.what_would_falsify)\n            for ev in stance.evidence_refs:\n                hypothesis_store.add_evidence(\n                    hid, note=ev.note, source=ev.source,\n                    supports=True)\n            if prev_hid is not None:\n                # introspection: did THIS period actually supersede the prior?\n                supersedes = model.estimate_certainty(\n                    f\"is '{stance.text}' a revision of the prior period's view?\")\n                if supersedes >= 0.6:\n                    hypothesis_store.set_status(prev_hid, \"superseded\",\n                        by=hid, reason=f\"supersede_confidence={supersedes:.2f}\")\n            positions.append({\"period\": p.label, \"hid\": hid,\n                              \"confidence\": conf})\n            prev_hid = hid\n\n        write(f\"surfaces/trajectory/{slug(topic)}.md\",\n              render_trajectory_with_hids(topic, positions))\n\n# Why this works: a trajectory becomes a chain of typed hypotheses with\n# explicit supersede links, so 'I used to think X' is no longer a story\n# the agent tells -- it's a hypothesis whose superseded status is\n# linked to the next one that displaced it.\n# Related: see `hypothesis-tracking`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -414,6 +844,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each request records the Subject's own confidence that state suffices to answer; low-confidence state-only answers route to the LLM with that uncertainty preserved as input; a depth cap prevents reflection from triggering more reflection.",
+          "code": "REPLY_THRESHOLD       = 0.7\nREFLECTION_DEPTH_MAX  = 2\nSUBJ_LOG              = \"subject_audit.jsonl\"\nreflection_depth      = 0\n\nfunction handle(request):\n    global reflection_depth\n\n    # 1. State-first\n    if Subject.state_suffices(request):\n        answer    = Subject.respond_from_state(request)\n        confidence = Subject.score(answer)\n        append_jsonl(SUBJ_LOG, {\"ts\": now(), \"path\": \"state\",\n            \"confidence\": confidence})\n        if confidence > REPLY_THRESHOLD:\n            return answer\n        # 'state answered but I'm not sure' -> escalate to LLM with\n        # this uncertainty as explicit input\n\n    # 2. Conflict-driven hidden reflection\n    if Subject.conflicts and reflection_depth < REFLECTION_DEPTH_MAX:\n        reflection_depth += 1\n        try:\n            trace = llm.reflect(\n                state=Subject.snapshot(),\n                conflicts=Subject.conflicts)\n            Subject.absorb(trace)\n            append_jsonl(SUBJ_LOG, {\"ts\": now(), \"path\": \"reflect\",\n                \"depth\": reflection_depth})\n        finally:\n            reflection_depth -= 1\n\n    # 3. External generation, passing along self-uncertainty\n    self_uncert = Subject.current_uncertainty_for(request)\n    draft       = llm.generate(\n        request,\n        context=Subject.context_slice(),\n        agent_uncertainty=self_uncert)\n    draft_conf  = model.estimate_certainty(draft)\n    Subject.record(request, draft, draft_conf)\n    append_jsonl(SUBJ_LOG, {\"ts\": now(), \"path\": \"llm\",\n        \"agent_uncertainty\": self_uncert, \"draft_confidence\": draft_conf})\n    return draft\n\n# Why this works: the agent first asks its own state, only escalates\n# when its state-confidence is too low, propagates its own uncertainty\n# into the LLM call instead of pretending fresh, and bounds reflection\n# depth so a conflict can't trigger an infinite reflective regress.\n# Related: see `reflexive-metacognitive-agent`, `llm-as-periphery`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: the Subject composes with `awareness` -- its state-sufficiency check is grounded in the awareness store of current tools, environment, and identity, so 'state suffices' is concrete rather than guessed.",
+          "code": "function state_suffices_via_awareness(request):\n    cls = classify_request(request)\n\n    # introspection over the awareness store:\n    # - do my current tools include what this request needs?\n    # - does my current task already cover it?\n    # - does my identity/charter constrain the answer?\n    needs = derive_required_capabilities(request)\n    have  = set(Awareness.tools.keys())\n    if not needs.issubset(have):\n        log_event(\"state_insufficient_missing_tools\",\n            missing=list(needs - have))\n        return False\n\n    if cls == Awareness.task.goal_class:\n        # active task context already covers it\n        return True\n\n    cached_answer = Subject.recall_recent_answer(request)\n    if cached_answer is not None:\n        # introspect: 'is my cached answer still current given env?'\n        still_fresh = model.estimate_certainty(\n            f\"is this answer still valid in env={Awareness.environment.summary()}?\")\n        if still_fresh >= 0.7:\n            return True\n\n    return False\n\nfunction handle(request):\n    if state_suffices_via_awareness(request):\n        answer    = Subject.respond_from_state(request)\n        confidence = Subject.score(answer)\n        if confidence > REPLY_THRESHOLD:\n            return answer\n    return llm.generate(request,\n        context=Subject.context_slice() + Awareness.slice())\n\n# Why this works: the state-first decision isn't a vague self-claim;\n# it's grounded in the typed awareness store, so 'can I answer from\n# state?' is decided by concrete facts about tools, task, and env\n# rather than by the model's hopeful self-report.\n# Related: see `awareness`, `llm-as-periphery`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -430,6 +880,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each detector evaluation reports its own confidence in the trip mode; borderline trips return a warning rather than a hard refusal; trips and warnings are logged so per-tool caps can be tuned from data.",
+          "code": "WINDOW      = bounded_deque(maxlen=64)\nDEFAULTS    = {\"N\":4, \"M\":3, \"K\":5, \"J\":4, \"G\":40}\nPER_TOOL    = {\"http_get\": {\"N\":6}, \"shell\": {\"K\":3}}\nLOOP_LOG    = \"loop_audit.jsonl\"\nBORDERLINE_MARGIN = 1                # within 1 of cap -> warn, not trip\n\nfunction cap(tool, key):\n    return PER_TOOL.get(tool, {}).get(key, DEFAULTS[key])\n\nfunction near_or_over(observed, limit):\n    if observed >= limit:                      return (\"trip\", 1.0)\n    if observed >= limit - BORDERLINE_MARGIN:  return (\"warn\", 0.5)\n    return (\"ok\", 0.0)\n\nfunction precheck(tool, args, registry, state_probe):\n    h = hash_args(args)\n    WINDOW.append((now(), tool, h))\n    recent = list(WINDOW)\n\n    checks = {\n        \"generic_repeat\":      (count(recent, lambda e: e[1]==tool and e[2]==h),\n                                cap(tool,\"N\")),\n        \"unknown_tool_repeat\": (count(recent, lambda e: e[1]==tool) if tool not in registry else 0,\n                                cap(tool,\"M\")),\n        \"poll_no_progress\":    (state_probe.unchanged_for(tool), cap(tool,\"K\")),\n        \"ping_pong\":           (ping_pong_cycles(recent), cap(tool,\"J\")),\n        \"global_breaker\":      (len(recent), cap(tool,\"G\")),\n    }\n\n    for mode, (observed, limit) in checks.items():\n        verdict, severity = near_or_over(observed, limit)\n        if verdict == \"trip\":\n            append_jsonl(LOOP_LOG, {\"ts\": now(), \"mode\": mode,\n                \"tool\": tool, \"observed\": observed, \"limit\": limit,\n                \"action\": \"trip\"})\n            return trip(mode, tool, h, observed, limit)\n        if verdict == \"warn\":\n            append_jsonl(LOOP_LOG, {\"ts\": now(), \"mode\": mode,\n                \"tool\": tool, \"observed\": observed, \"limit\": limit,\n                \"action\": \"warn\", \"confidence\": severity})\n            # warning surfaces in the call's result but doesn't refuse\n            return {\"warning\": f\"{mode}_near_cap\",\n                    \"observed\": observed, \"limit\": limit}\n    return None\n\nfunction trip(mode, tool, h, observed, limit):\n    return {\"error\": \"tool_loop_detected\", \"mode\": mode,\n            \"observed\": {\"tool\": tool, \"arg_hash\": h,\n                         \"count\": observed, \"limit\": limit,\n                         \"window_size\": len(WINDOW)}}\n\n# Why this works: a near-trip surfaces as a typed warning the model can\n# react to without losing the next call, hard trips remain mechanical,\n# and the audit log feeds cap-tuning so per-tool limits are evidence-based\n# rather than guessed.\n# Related: see `circuit-breaker`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: trips compose with `pre-generative-loop-gate` -- a tripped mode arms a steering hint that the next pre-tick gate must inject, so the model sees both the dispatcher refusal AND a steering diagnosis.",
+          "code": "ARMED_STEERING = {}              # mode_id -> {\"hint\": str, \"set_at\": ts}\nARM_TTL        = 2 * MIN\n\nfunction trip_with_arm(mode, tool, h, observed, limit):\n    # introspective coupling: the dispatch trip ALSO tells the gate\n    # what diagnostic to surface on the next pre-tick\n    hint = (f\"[steering] previous tool call refused by mode={mode}\\n\"\n            f\"(tool={tool}, count={observed}/{limit}). Consider:\\n\"\n            f\"  - a different tool entirely\\n\"\n            f\"  - reading state instead of polling\\n\"\n            f\"  - asking the user for missing inputs\")\n    ARMED_STEERING[mode] = {\"hint\": hint, \"set_at\": now()}\n    return {\"error\": \"tool_loop_detected\", \"mode\": mode,\n            \"observed\": {\"tool\": tool, \"count\": observed,\n                         \"limit\": limit}}\n\nfunction pre_tick_steer_with_armed(ctx) -> str | None:\n    now_t = now()\n    for mode, entry in list(ARMED_STEERING.items()):\n        if now_t - entry.set_at > ARM_TTL:\n            del ARMED_STEERING[mode]\n            continue\n        # introspection: 'has the model already changed approach?'\n        if approach_changed_since(entry.set_at):\n            del ARMED_STEERING[mode]\n            continue\n        # one-shot: emit the hint and clear\n        hint = entry.hint\n        del ARMED_STEERING[mode]\n        return hint\n\n    return baseline_pre_tick_steer(ctx)\n\n# Why this works: a hard refusal isn't the end of the conversation --\n# it arms a steering diagnostic the next pre-tick gate will inject, so\n# the model receives both the typed error AND a coaching hint, and the\n# hint is dropped once the model has visibly changed approach.\n# Related: see `pre-generative-loop-gate`, `circuit-breaker`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -446,6 +916,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: surprise distance and the update pass record a calibration entry (which fields changed, model confidence in the diff); a depth cap prevents one surprise from triggering further surprise updates inside the same pass.",
+          "code": "WORLD_FILE        = \"surfaces/world.json\"\nSELF_FILE         = \"surfaces/self.json\"\nWORLD_LOG         = \"world_audit.jsonl\"\nSURPRISE_THRESHOLD = 0.4\nUPDATE_DEPTH_MAX  = 1\nupdate_depth      = 0\n\nfunction predict_then_observe(action):\n    expected = world_model.predict(action)\n    actual   = environment.execute(action)\n    surprise = distance(expected, actual)\n    if surprise > SURPRISE_THRESHOLD:\n        run_world_update_pass(action, expected, actual, surprise)\n    return actual\n\nfunction run_world_update_pass(action, expected, actual, surprise):\n    global update_depth\n    if update_depth >= UPDATE_DEPTH_MAX:\n        append_jsonl(WORLD_LOG, {\"ts\": now(),\n            \"event\": \"update_depth_capped\",\n            \"action\": action.id, \"surprise\": surprise})\n        return\n    update_depth += 1\n    try:\n        world  = load_json(WORLD_FILE)\n        patch  = model.world_update(world, action, expected, actual)\n        conf   = model.estimate_certainty(\n            f\"is this patch a faithful update of the world model?\")\n        if conf < 0.4:\n            # 'I'm not sure how to update the world' -> log and skip\n            append_jsonl(WORLD_LOG, {\"ts\": now(),\n                \"event\": \"update_skipped_low_confidence\",\n                \"surprise\": surprise, \"confidence\": conf})\n            return\n        validate_world_schema(patch)\n        new_world = apply(world, patch)\n        save_json(WORLD_FILE, new_world)\n        append_jsonl(WORLD_LOG, {\"ts\": now(),\n            \"event\": \"updated\", \"surprise\": surprise,\n            \"confidence\": conf, \"fields_changed\": diff_fields(world, new_world)})\n    finally:\n        update_depth -= 1\n\nfunction run_self_update_pass(reflection):\n    self_ = load_json(SELF_FILE)\n    patch = model.self_update(self_, reflection)\n    require_self_gate(patch)             # different gating path\n    save_json(SELF_FILE, apply(self_, patch))\n\n# Why this works: the world store can refuse to update on low-confidence\n# patches and never co-mutates with self; surprise-triggered updates\n# can't cascade because update_depth is bounded, and every update is\n# auditable against the surprise that prompted it.\n# Related: see `awareness`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: world-update patches above a size threshold compose with `quorum-on-mutation` so substantial changes to the agent's picture of the environment require a second-model sign-off before being persisted.",
+          "code": "QUORUM_PATCH_SIZE = 5         # fields changed\n\nfunction run_world_update_pass_with_quorum(action, expected, actual):\n    world  = load_json(WORLD_FILE)\n    patch  = model.world_update(world, action, expected, actual)\n    fields = count_fields(patch)\n\n    # always-applicable cheap introspection:\n    # 'am I confident this patch is correct?'\n    self_conf = model.estimate_certainty(\n        f\"is this world patch correct? {summarize(patch)}\")\n\n    if fields >= QUORUM_PATCH_SIZE or self_conf < 0.5:\n        # large change OR uncertain change -> require a second opinion\n        second_opinion = peer_model.review_patch(\n            world=world,\n            patch=patch,\n            action=action,\n            expected=expected, actual=actual)\n        if not second_opinion.approves:\n            append_jsonl(\"world_audit.jsonl\", {\"ts\": now(),\n                \"event\": \"quorum_rejected\",\n                \"fields\": fields, \"self_confidence\": self_conf,\n                \"reason\": second_opinion.reason})\n            return\n        append_jsonl(\"world_audit.jsonl\", {\"ts\": now(),\n            \"event\": \"quorum_approved\", \"fields\": fields,\n            \"self_confidence\": self_conf,\n            \"peer_confidence\": second_opinion.confidence})\n\n    validate_world_schema(patch)\n    save_json(WORLD_FILE, apply(world, patch))\n\n# Why this works: a large or low-confidence world update isn't applied\n# on the strength of one model's introspection alone; it requires a\n# typed peer-approval, while small confident patches still go through\n# fast. Self and world mutations remain on entirely separate paths.\n# Related: see `quorum-on-mutation`, `constitutional-charter`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }

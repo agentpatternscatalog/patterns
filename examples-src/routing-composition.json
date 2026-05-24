@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-profile latency/cost budget, fallback to a leaner profile when the specialist refuses or its model errors, and per-route observability tagged with chosen profile id.",
+          "code": "# Profiles ship with budgets and a fallback ladder.\nPROFILES = load_profiles(\"profiles/*.yaml\")\nBUDGETS  = {p.id: {\"latency_ms\": p.budget.latency_ms,\n                   \"cost_usd\":   p.budget.cost_usd} for p in PROFILES.values()}\n\nfunction handle(query):\n    route       = router.classify(query, profiles=list(PROFILES))\n    chain       = [route] + PROFILES[route].fallback_profiles    # ordered\n    specialists = {pid: agent_for(resolve(pid)) for pid in chain}\n\n    for pid in chain:\n        t0 = now()\n        try:\n            with budget_guard(BUDGETS[pid]) as guard:\n                result = specialists[pid].handle(query)\n            tracer.emit(\"route.ok\", profile=pid, route=route,\n                        latency_ms=now()-t0, cost_usd=guard.spent_usd)\n            return result\n        catch (RefusedByProfile, ProviderError, BudgetExceeded) as e:\n            tracer.emit(\"route.fallback\", profile=pid, route=route,\n                        reason=type(e).name, latency_ms=now()-t0)\n            continue\n    tracer.emit(\"route.exhausted\", route=route)\n    return degrade(query, reason=\"all_profiles_failed\")\n\n# Why this works: each profile carries its own latency/cost ceiling and an\n# explicit fallback ladder, so a refusal or outage demotes to a leaner profile\n# instead of failing the request, and every demotion shows up as a trace row.\n# Related: see `personality-variant-overlay`, `fallback-chain`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: agent-persona-profile + verification on route choice; a verifier judges whether the classifier's profile pick matches the query before the specialist runs.",
+          "code": "# Related: verification-of-route-choice\nPROFILES = load_profiles(\"profiles/*.yaml\")\n\nfunction handle(query):\n    candidate   = router.classify(query, profiles=list(PROFILES))\n    profile     = resolve(candidate)\n\n    # Verifier sees the query AND the chosen profile's persona/motivator;\n    # it returns {accept | reroute | escalate} with a reason.\n    verdict = verifier.judge(\n        query=query,\n        profile_summary=summarise(profile),\n        alternatives=[p.id for p in PROFILES.values() if p.id != candidate],\n    )\n    if verdict.kind == \"reroute\":\n        candidate = verdict.suggested_profile\n        profile   = resolve(candidate)\n        tracer.emit(\"route.reroute\", from_=candidate, to=verdict.suggested_profile,\n                    reason=verdict.reason)\n    elif verdict.kind == \"escalate\":\n        return human_handoff(query, reason=verdict.reason)\n\n    specialists = {pid: agent_for(resolve(pid)) for pid in PROFILES}\n    return specialists[candidate].handle(\n        query,\n        system_prompt=compose_prompt(profile),\n        tools=profile.action_set,\n        memory=profile.knowledge_bindings.memory_partitions,\n    )\n\n# Why this works: the verifier judges the route choice using the typed profile\n# summary, so a miscategorised query is corrected before the wrong specialist\n# spends tokens on it. The profile object makes that judgement reviewable.\n# Related: see `agent-as-judge`, `personality-variant-overlay`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -45,6 +65,16 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://dspy.ai/learn/optimization/optimizers/: dspy.Module, dspy.ChainOfThought, dspy.MIPROv2, dspy.evaluate.answer_exact_match all referenced. Page shows verbatim `dspy.MIPROv2(metric=dspy.evaluate.answer_exact_match, auto=\"light\", num_threads=24)` then `tp.compile(react, trainset=trainset)` — confirms metric, auto (\"light\"/\"medium\"), num_threads kwargs and .compile(program, trainset=...)."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: automatic-workflow-search + eval-as-contract + step-budget; each candidate workflow is scored against a contract benchmark AND charged a step-budget penalty so the search prefers cheap winners.",
+          "code": "# Related: eval-as-contract, step-budget\nOPERATORS = [Ensemble, Review, Revise, Plan, Execute]\nCONTRACT  = load_eval_contract(\"contracts/v3.yaml\")   # eval-as-contract\nSTEP_CAP  = 25                                        # step-budget per run\n\nfunction score_with_budget(workflow, eval_set):\n    raw_passes = 0\n    overage    = 0\n    for case in eval_set:\n        trace = run_with_step_cap(workflow, case, cap=STEP_CAP)\n        if CONTRACT.passes(case, trace.output):\n            raw_passes += 1\n        overage += max(0, trace.steps - STEP_CAP * 0.6)   # penalise bloat\n    return raw_passes / len(eval_set) - 0.01 * (overage / len(eval_set))\n\nfunction search(seed, eval_set, budget):\n    tree = root(seed)\n    best = (seed, score_with_budget(seed, eval_set))\n    for _ in 1..budget:\n        node  = select_ucb(tree)\n        op    = sample(OPERATORS)\n        child = mutate(node.workflow, op)\n        s     = score_with_budget(child, eval_set)\n        backprop(node, s); attach(node, child, s)\n        if s > best.score:\n            best = (child, s)\n            tracer.emit(\"search.new_best\", op=op.name, score=s)\n    return best.workflow\n\n# Why this works: the contract benchmark gates correctness while the step-budget\n# penalty makes the optimiser prefer compositions that pass without burning the\n# budget, so deployed workflows are both correct and cheap by construction.\n# Related: see `eval-as-contract`, `step-budget`, `lats`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -61,6 +91,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: each service task carries a per-route latency/cost budget; on agent refusal or schema-validation failure, the engine walks a fallback chain (deterministic handler -> simpler agent -> human task) with per-route trace rows.",
+          "code": "# Related: BPMN service tasks with budgeted agents and a fallback chain.\nROUTES = {\n    \"summarise_explanation\": [\n        Route(\"agent.summary\",      handler=summary_agent,   budget_ms=4000, cost_usd=0.04),\n        Route(\"agent.summary_lite\", handler=summary_lite,    budget_ms=2000, cost_usd=0.01),\n        Route(\"deterministic.tmpl\", handler=template_render, budget_ms=200,  cost_usd=0.0),\n        Route(\"human.review\",       handler=human_task,      budget_ms=None, cost_usd=None),\n    ],\n}\n\nfunction execute_service_task(node, ctx):\n    route = router.classify(node, choices=list(ROUTES.keys()))\n    for r in ROUTES[node.id]:\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=r.budget_ms, cost_usd=r.cost_usd):\n                out = r.handler(ctx.slice(node.input_schema))\n            validated = validate(out, node.output_schema)\n            tracer.emit(\"bpmn.task.ok\", node=node.id, route=r.name,\n                        latency_ms=now()-t0)\n            return validated\n        catch (AgentRefused, SchemaError, BudgetExceeded, ProviderError) as e:\n            tracer.emit(\"bpmn.task.fallback\", node=node.id, route=r.name,\n                        reason=type(e).name, latency_ms=now()-t0)\n            continue\n    raise BpmnTaskFailed(node.id)\n\nfunction run(case):\n    return bpmn_engine.run(\"loan-application\", case=case,\n                           service_executor=execute_service_task)\n\n# Why this works: BPMN keeps the auditable spine; per-route budgets and the\n# fallback chain ensure that an LLM refusal or outage at one service task\n# demotes through cheaper handlers down to a human review, all visible in trace.\n# Related: see `fallback-chain`, `hybrid-symbolic-neural-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: bpmn-dmn-deterministic-shell + policy-gated-agent-action; before any 'unstructured' service task runs an agent, a DMN-encoded policy table decides whether the agent is permitted for this case's risk class.",
+          "code": "# Related: policy-gated-agent-action\nfunction execute_service_task(node, ctx):\n    if node.type != \"unstructured\":\n        return deterministic_handlers[node.id](ctx)\n\n    # Policy gate: DMN table maps (risk_class, data_class, tenant) -> allowed_agents\n    policy = dmn_engine.evaluate(\n        table=\"agent-policy\",\n        inputs={\"risk_class\":  ctx.risk_class,\n                \"data_class\":  ctx.data_class,\n                \"tenant\":      ctx.tenant_id,\n                \"node\":        node.id},\n    )\n    if not policy.allowed_agents:\n        tracer.emit(\"policy.deny\", node=node.id, reason=policy.reason)\n        return deterministic_fallbacks[node.id](ctx)   # safe-path\n\n    route = router.classify(node, choices=policy.allowed_agents)\n    specialists = {\"summary\": summary_agent,\n                   \"intake\":  intake_agent,\n                   \"draft\":   draft_agent}\n    result = specialists[route].handle(\n        input=ctx.slice(node.input_schema),\n        schema=node.output_schema,\n    )\n    return validate(result, node.output_schema)\n\nfunction run(case):\n    return bpmn_engine.run(\"loan-application\", case=case,\n                           service_executor=execute_service_task)\n\n# Why this works: the DMN policy gate decides which agents are even eligible\n# per case BEFORE the router classifies, so high-risk cases cannot end up at a\n# free-form agent even if the router would have picked one.\n# Related: see `policy-gated-agent-action`, `hybrid-symbolic-neural-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -77,6 +127,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-dependency breakers with per-call latency budget, fallback chain on open state, structured trace per state transition and per fallback hop.",
+          "code": "# One breaker per (dependency, route). State transitions are logged.\nBREAKERS = {}    # key -> {state, opened_at, failures}\nTHRESHOLD = 0.5\nCOOLDOWN  = 30\n\nfunction breaker_for(dep, route):\n    key = (dep.id, route)\n    if key not in BREAKERS:\n        BREAKERS[key] = {\"state\": \"closed\", \"opened_at\": null,\n                         \"failures\": rolling_window(size=50)}\n    return BREAKERS[key]\n\nfunction call_with_fallbacks(route, request, deps):\n    for dep in deps:\n        b = breaker_for(dep, route)\n        if b.state == \"open\":\n            if now() - b.opened_at < COOLDOWN:\n                tracer.emit(\"breaker.skip\", dep=dep.id, route=route)\n                continue                       # try next dep\n            b.state = \"half_open\"\n            tracer.emit(\"breaker.half_open\", dep=dep.id, route=route)\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=dep.latency_budget_ms):\n                out = dep.invoke(request)\n            b.failures.record(ok=true)\n            if b.state == \"half_open\":\n                b.state = \"closed\"\n                tracer.emit(\"breaker.close\", dep=dep.id, route=route)\n            tracer.emit(\"dep.ok\", dep=dep.id, route=route, latency_ms=now()-t0)\n            return out\n        catch (DepError, BudgetExceeded) as e:\n            b.failures.record(ok=false)\n            if b.state == \"half_open\" or b.failures.error_rate() > THRESHOLD:\n                b.state = \"open\"; b.opened_at = now()\n                tracer.emit(\"breaker.open\", dep=dep.id, route=route,\n                            reason=type(e).name)\n            continue\n    return degrade(request, reason=\"all_deps_open\")\n\n# Why this works: per-(dep, route) breakers stop a degraded route from poisoning\n# unrelated traffic on the same dep; latency budgets convert slow as well as\n# error responses into failure signal; every state change is auditable.\n# Related: see `fallback-chain`, `graceful-degradation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: circuit-breaker + kill-switch + degenerate-output-detection; the breaker trips on both raw API errors AND on a downstream judge flagging outputs as degenerate, and a global kill-switch can force-open the breaker.",
+          "code": "# Related: kill-switch, degenerate-output-detection\nSTATE = \"closed\"\nfailures  = rolling_window(size=N)\nopened_at = null\nTHRESHOLD = 0.5\nCOOLDOWN  = 30\n\nfunction call(dep, request):\n    global STATE, opened_at\n    if killswitch.is_set(dep.id):\n        tracer.emit(\"killswitch.open\", dep=dep.id)\n        return fallback(request)\n    if STATE == \"open\":\n        if now() - opened_at < COOLDOWN:\n            return fallback(request)\n        STATE = \"half_open\"\n    try:\n        result = dep.invoke(request)\n        # Treat degenerate outputs as failures, not successes.\n        verdict = degenerate_detector.judge(result)\n        if verdict.is_degenerate:\n            failures.record(ok=false)\n            tracer.emit(\"dep.degenerate\", dep=dep.id, kind=verdict.kind)\n            if STATE == \"half_open\" or failures.error_rate() > THRESHOLD:\n                STATE = \"open\"; opened_at = now()\n            return fallback(request)\n        failures.record(ok=true)\n        if STATE == \"half_open\":\n            STATE = \"closed\"\n        return result\n    catch Error as e:\n        failures.record(ok=false)\n        if STATE == \"half_open\" or failures.error_rate() > THRESHOLD:\n            STATE = \"open\"; opened_at = now()\n        return fallback(request)\n\n# Why this works: the breaker trips on quality regressions as well as transport\n# errors, so a vendor that goes silently bad (repeated empty/loop output) is\n# detected; the kill-switch gives operators an immediate global override.\n# Related: see `kill-switch`, `degenerate-output-detection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -155,6 +225,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: scaffold loading is budgeted (per-request token cap), each scaffold has an A/B-tested fallback, and per-route telemetry records which scaffolds fired and at what token cost.",
+          "code": "# Each scaffold knows its token weight; a budget caps total scaffold tokens.\nSCAFFOLDS = {\n    \"extract:invoice\": [Scaffold(\"inv.schema\", tokens=120, fallback=\"inv.schema.lite\"),\n                        Scaffold(\"inv.few\",    tokens=480, fallback=null)],\n    \"classify:intent\": [Scaffold(\"intent.lbl\", tokens=80,  fallback=null)],\n    \"code:python\":     [Scaffold(\"pep8\",       tokens=140, fallback=null),\n                        Scaffold(\"py.few\",     tokens=520, fallback=\"py.few.lite\")],\n}\nMAX_SCAFFOLD_TOKENS = 600\n\nfunction build_prompt(request):\n    route       = router.classify(request)         # the lane / task type\n    specialists = SCAFFOLDS.get(route, [])\n\n    chosen, spent = [], 0\n    for s in specialists:\n        if spent + s.tokens <= MAX_SCAFFOLD_TOKENS:\n            chosen.append(s); spent += s.tokens\n        elif s.fallback and spent + lookup(s.fallback).tokens <= MAX_SCAFFOLD_TOKENS:\n            f = lookup(s.fallback)\n            chosen.append(f); spent += f.tokens\n            tracer.emit(\"scaffold.demoted\", route=route, from_=s.id, to=f.id)\n\n    prompt = base_system_prompt()\n    for s in chosen: prompt = splice(prompt, s)\n\n    tracer.emit(\"scaffold.fired\", request=request.id, route=route,\n                ids=[s.id for s in chosen], tokens=spent)\n    return prompt\n\n# Why this works: budgeting scaffold tokens keeps cheap requests cheap even\n# when the library grows, the per-scaffold fallback retains *some* help when\n# the full one would overflow, and the trace lets operators A/B which fired.\n# Related: see `context-window-packing`, `agent-skills`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: dynamic-scaffolding + multi-model-routing; the classifier also picks the model tier per task type, so heavy scaffolds only fire when a model strong enough to use them is selected.",
+          "code": "# Related: multi-model-routing\nSCAFFOLDS = {\n    \"extract:invoice\":  [INVOICE_SCHEMA, INVOICE_FEWSHOTS],\n    \"classify:intent\":  [INTENT_LABELS],\n    \"summarize:legal\":  [LEGAL_STYLE_HINTS, LEGAL_FEWSHOTS],\n    \"code:python\":      [PEP8_HINTS, PYTHON_FEWSHOTS],\n}\nMODEL_TIER = {\n    \"extract:invoice\":  \"frontier\",   # needs schema-following depth\n    \"classify:intent\":  \"small\",\n    \"summarize:legal\":  \"frontier\",\n    \"code:python\":      \"mid\",\n}\nspecialists = {\n    \"small\":    small_model_agent,\n    \"mid\":      mid_model_agent,\n    \"frontier\": frontier_model_agent,\n}\n\nfunction handle(request):\n    route  = router.classify(request)\n    tier   = MODEL_TIER.get(route, \"small\")\n    parts  = SCAFFOLDS.get(route, [])\n\n    # Drop heavy scaffolds if routed to a small model — they would not help\n    # and would crowd the small context window.\n    if tier == \"small\":\n        parts = [s for s in parts if s.weight == \"light\"]\n\n    prompt = base_system_prompt()\n    for s in parts: prompt = splice(prompt, s)\n\n    tracer.emit(\"scaffold.fired\", route=route, tier=tier,\n                scaffolds=[s.id for s in parts])\n    return specialists[tier].handle(request, system_prompt=prompt)\n\n# Why this works: scaffold choice and model choice are made together from the\n# same route label, so a frontier-tier task gets the deep scaffolds it can\n# actually exploit and a small-tier task is not bloated with examples it cannot.\n# Related: see `multi-model-routing`, `complexity-based-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -213,6 +303,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-feature degraded mode with a per-route latency budget that triggers degradation BEFORE the dep times out, fallback chain across feature variants, and a disclosure rendered to the user with a stable mode id.",
+          "code": "# Each feature has a chain of variants, ordered from full to degraded.\nFEATURE_CHAIN = {\n    \"vision\":    [\"vision.full\",    \"vision.captions\",  \"text_only\"],\n    \"retrieval\": [\"rag.cited\",      \"rag.summarised\",   \"no_citations\"],\n    \"code_exec\": [\"sandbox.full\",   \"sandbox.dry_run\",  \"plain_summary\"],\n}\nBUDGET_MS = {\"vision.full\": 4000, \"rag.cited\": 2500, \"sandbox.full\": 5000}\n\nfunction respond(request):\n    features = required_features(request)\n    chosen, notices = {}, []\n\n    for f in features:\n        for variant in FEATURE_CHAIN[f]:\n            t0 = now()\n            if not health.ok(variant):\n                tracer.emit(\"feature.skip\", feature=f, variant=variant)\n                continue\n            try:\n                with budget_guard(latency_ms=BUDGET_MS.get(variant, 1000)):\n                    chosen[f] = run_variant(variant, request)\n                tracer.emit(\"feature.ok\", feature=f, variant=variant,\n                            latency_ms=now()-t0)\n                if variant != FEATURE_CHAIN[f][0]:\n                    notices.append(disclosure(f, variant))\n                break\n            catch (DepError, BudgetExceeded) as e:\n                tracer.emit(\"feature.fallback\", feature=f, variant=variant,\n                            reason=type(e).name, latency_ms=now()-t0)\n                continue\n        else:\n            notices.append(disclosure(f, \"unavailable\"))\n\n    return assemble(run_pipeline(request, chosen), notices=notices)\n\n# Why this works: degradation triggers on budget overrun as well as on outage,\n# so a slow-but-up dep does not stall the user, and the disclosure carries a\n# stable variant id the client can render and the audit log can group on.\n# Related: see `fallback-chain`, `circuit-breaker`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: graceful-degradation + circuit-breaker; the breaker's open state for a dependency forces the matching feature into its degraded mode without even attempting the call, and re-closing the breaker restores full mode.",
+          "code": "# Related: circuit-breaker\nDEGRADED = {\n    \"vision\":     \"text_only\",\n    \"retrieval\":  \"no_citations\",\n    \"code_exec\":  \"plain_summary\",\n}\nDEP_FOR = {\"vision\": \"vision_api\", \"retrieval\": \"vector_db\",\n           \"code_exec\": \"sandbox\"}\n\nfunction respond(request):\n    features = required_features(request)\n    notices  = []\n\n    for f in features:\n        dep_state = breakers[DEP_FOR[f]].state          # closed | open | half\n        if dep_state == \"open\":\n            # Breaker is tripped — do not call. Use degraded mode directly.\n            request.mode[f] = DEGRADED[f]\n            notices.append(disclosure(f, DEGRADED[f], reason=\"breaker_open\"))\n            tracer.emit(\"degrade.from_breaker\", feature=f, dep=DEP_FOR[f])\n            continue\n        try:\n            request.mode[f] = call_through_breaker(DEP_FOR[f], request)\n        catch (DepError, BreakerOpened) as e:\n            request.mode[f] = DEGRADED[f]\n            notices.append(disclosure(f, DEGRADED[f], reason=type(e).name))\n\n    answer = run_pipeline(request)\n    return assemble(answer, notices=notices)\n\n# Why this works: a tripped breaker becomes the explicit trigger for entering\n# a feature's degraded mode, so the user-visible disclosure and the breaker\n# state stay consistent and recovery (breaker closes) restores full mode.\n# Related: see `circuit-breaker`, `fallback-chain`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -267,6 +377,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-expert latency/cost budget, fallback chain (expert -> generalist -> templated answer) when an expert refuses or errors, and per-route trace with chosen-expert id and aggregation method.",
+          "code": "# Each expert ships with its own per-call budget; aggregator weights too.\nEXPERTS = {\n    \"legal\":   Specialist(agent=LEGAL_AGENT,   budget_ms=6000, cost_usd=0.08),\n    \"medical\": Specialist(agent=MEDICAL_AGENT, budget_ms=6000, cost_usd=0.08),\n    \"finance\": Specialist(agent=FINANCE_AGENT, budget_ms=4000, cost_usd=0.05),\n    \"code\":    Specialist(agent=CODE_AGENT,    budget_ms=5000, cost_usd=0.06),\n}\n\nfunction route(request):\n    scores = router_model.score_domains(request, labels=list(EXPERTS))\n    top    = scores.top_k(k=2, min_score=0.4)\n\n    if len(top) == 0:\n        tracer.emit(\"route.generalist\", reason=\"no_domain_match\")\n        return generalist.answer(request)\n\n    function try_expert(label):\n        s = EXPERTS[label]\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=s.budget_ms, cost_usd=s.cost_usd):\n                out = s.agent.answer(request)\n            tracer.emit(\"expert.ok\", expert=label, latency_ms=now()-t0)\n            return out\n        catch (ExpertRefused, ProviderError, BudgetExceeded) as e:\n            tracer.emit(\"expert.fallback\", expert=label, reason=type(e).name)\n            return null\n\n    if len(top) == 1:\n        return try_expert(top[0].label) or generalist.answer(request)\n\n    outputs = [o for o in parallel_map(try_expert, [t.label for t in top]) if o]\n    if not outputs:\n        return generalist.answer(request)\n    tracer.emit(\"expert.aggregate\", experts=[t.label for t in top])\n    return aggregator.merge(outputs, weights=top.scores)\n\n# Why this works: each expert is bounded so one slow specialist cannot stall\n# the request; if every expert refuses or errors the generalist takes over,\n# and every route choice and aggregation is auditable per-expert.\n# Related: see `fallback-chain`, `complexity-based-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: mixture-of-experts-routing + agent-as-judge; when multiple experts fire, instead of a fixed aggregator a judge agent picks the best answer with a reasoned rationale that is stored alongside the verdict.",
+          "code": "# Related: agent-as-judge\nEXPERTS = {\n    \"legal\":   Agent(prompt=LEGAL_PROMPT,    tools=LEGAL_TOOLS),\n    \"medical\": Agent(prompt=MEDICAL_PROMPT,  tools=MEDICAL_TOOLS),\n    \"finance\": Agent(prompt=FINANCE_PROMPT,  tools=FINANCE_TOOLS),\n    \"code\":    Agent(prompt=CODE_PROMPT,     tools=CODE_TOOLS),\n}\n\nfunction route(request):\n    scores = router_model.score_domains(request, labels=list(EXPERTS))\n    top    = scores.top_k(k=3, min_score=0.3)\n\n    if len(top) <= 1:\n        return EXPERTS[top[0].label].answer(request) if top else generalist(request)\n\n    # Fan out to candidate experts.\n    candidates = parallel_map(\n        lambda label: {\"expert\": label,\n                       \"answer\": EXPERTS[label].answer(request)},\n        [t.label for t in top],\n    )\n\n    # Judge picks the best answer with a written rationale.\n    verdict = judge_agent.choose(\n        question=request,\n        candidates=candidates,\n        criteria=[\"correctness\", \"domain_fit\", \"completeness\"],\n    )\n    persist_verdict(request.id, verdict)         # for later analysis\n    tracer.emit(\"experts.judged\", chosen=verdict.expert,\n                reason=verdict.rationale)\n    return verdict.answer\n\n# Why this works: aggregation by judge captures domain reasoning the weighted\n# vote cannot, and persisting the rationale gives the team a corpus to refine\n# expert prompts and the router weights against actual disagreement cases.\n# Related: see `agent-as-judge`, `supervisor`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -283,6 +413,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-module latency budget, fallback chain (preferred module -> simpler module -> templated answer) on refusal or error, and trace rows for every dispatched module and integration call.",
+          "code": "# Each specialist module has its own per-call budget and fallback id.\nspecialists = {\n    \"calc\":    Module(handler=CalculatorModule(),  budget_ms=200,  fallback=\"calc.lite\"),\n    \"kb_sql\":  Module(handler=SQLKnowledgeBase(),  budget_ms=1500, fallback=\"kb.cache\"),\n    \"code\":    Module(handler=PythonSandbox(),     budget_ms=8000, fallback=\"code.lint\"),\n    \"weather\": Module(handler=WeatherAPI(),        budget_ms=1200, fallback=null),\n}\n\nfunction dispatch_one(name, args):\n    chain = [name] + ([specialists[name].fallback] if specialists[name].fallback else [])\n    for mid in chain:\n        m = specialists.get(mid) or fallback_modules.get(mid)\n        if not m: continue\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=m.budget_ms):\n                out = m.handler.handle(validate(args, m.handler.schema))\n            tracer.emit(\"mrkl.module.ok\", module=mid, latency_ms=now()-t0)\n            return out\n        catch (ModuleRefused, ToolError, BudgetExceeded) as e:\n            tracer.emit(\"mrkl.module.fallback\", module=mid, reason=type(e).name)\n            continue\n    return {\"error\": \"module_unavailable\", \"name\": name}\n\nfunction handle(query):\n    plan    = router.classify(query, choices=list(specialists), allow_multi=true)\n    results = {c.name: dispatch_one(c.name, c.args) for c in plan.calls}\n    return llm.generate(prompt=\"Compose user-facing answer from expert outputs.\",\n                        question=query, outputs=results)\n\n# Why this works: each module is bounded and its fallback is explicit, so a\n# slow SQL or sandbox does not stall the LLM's integration step, and a missing\n# module surfaces in the integrated answer as a typed error rather than silence.\n# Related: see `fallback-chain`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: mrkl-systems + verification-on-route-choice; before each module call runs, a cheap verifier checks the router's choice and may reroute to a different module or refuse if no module fits.",
+          "code": "# Related: verification-of-route-choice\nspecialists = {\n    \"calc\":     CalculatorModule(),\n    \"kb_sql\":   SQLKnowledgeBase(conn=DB),\n    \"code\":     PythonSandbox(),\n    \"weather\":  WeatherAPISpecialist(),\n    \"medical\":  MedicalQAModel(),\n}\n\nfunction handle(query):\n    plan = router.classify(query, choices=list(specialists), allow_multi=true)\n\n    verified_calls = []\n    for call in plan.calls:\n        verdict = verifier.judge(\n            query=query,\n            chosen_module=call.name,\n            args=call.args,\n            alternatives=[n for n in specialists if n != call.name],\n        )\n        if verdict.kind == \"accept\":\n            verified_calls.append(call)\n        elif verdict.kind == \"reroute\":\n            tracer.emit(\"mrkl.reroute\", from_=call.name, to=verdict.suggested,\n                        reason=verdict.reason)\n            verified_calls.append(Call(name=verdict.suggested, args=verdict.args))\n        else:\n            tracer.emit(\"mrkl.refuse\", module=call.name, reason=verdict.reason)\n\n    results = {}\n    for c in verified_calls:\n        args = validate(c.args, specialists[c.name].schema)\n        results[c.name] = specialists[c.name].handle(args)\n\n    return llm.generate(\n        prompt=\"Compose user-facing answer using expert outputs.\",\n        question=query, outputs=results,\n    )\n\n# Why this works: the verifier intercepts router mistakes BEFORE the wrong\n# module is invoked, so calculator confusions and SQL-against-prose mismatches\n# are corrected cheaply rather than producing junk that must be filtered later.\n# Related: see `agent-as-judge`, `hybrid-symbolic-neural-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -341,6 +491,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-tier latency/cost budget, fallback ladder that respects sensitivity (sensitive degrades instead of crossing the boundary), trace per tier with chosen-route + sensitivity class.",
+          "code": "# Related: in-boundary tiers vs frontier escalation, all budgeted and traced.\nOPEN_SMALL = self_hosted_client(\"qwen-2.5-7b\")\nOPEN_LARGE = self_hosted_client(\"llama-3.1-70b\")\nFRONTIER   = hosted_client(\"claude-sonnet-4-6\")\n\nSPECIALISTS = {\n    \"open_small\": {\"client\": OPEN_SMALL, \"budget_ms\": 1500, \"cost_usd\": 0.001},\n    \"open_large\": {\"client\": OPEN_LARGE, \"budget_ms\": 6000, \"cost_usd\": 0.01},\n    \"frontier\":   {\"client\": FRONTIER,   \"budget_ms\": 8000, \"cost_usd\": 0.08},\n}\nTHRESHOLD = 0.7\n\nfunction try_tier(tier, request):\n    s = SPECIALISTS[tier]\n    t0 = now()\n    try:\n        with budget_guard(latency_ms=s.budget_ms, cost_usd=s.cost_usd):\n            out = s.client.generate(request)\n        tracer.emit(\"tier.ok\", tier=tier, latency_ms=now()-t0,\n                    cost_usd=s.cost_usd, confidence=out.confidence)\n        return out\n    catch (ProviderError, BudgetExceeded) as e:\n        tracer.emit(\"tier.error\", tier=tier, reason=type(e).name)\n        return null\n\nfunction route(request):\n    sensitive = pii_classifier.is_sensitive(request)\n    tracer.emit(\"sensitivity\", sensitive=sensitive)\n    if sensitive:\n        for tier in [\"open_large\", \"open_small\"]:        # NEVER frontier\n            out = try_tier(tier, request)\n            if out and out.confidence >= THRESHOLD: return out\n        return degrade(request, reason=\"sensitive_uncertain\")\n    for tier in [\"open_small\", \"open_large\", \"frontier\"]:\n        out = try_tier(tier, request)\n        if out and out.confidence >= THRESHOLD: return out\n    return degrade(request, reason=\"all_tiers_low_conf\")\n\n# Why this works: budgets cap spend per tier and the fallback ladder is split\n# by sensitivity so the cost-cascade can never silently exfiltrate regulated\n# data even when the in-boundary tiers all return low-confidence output.\n# Related: see `fallback-chain`, `complexity-based-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: open-weight-cascade + pii-redaction; if a request straddles sensitivity classes, the redactor strips identified PII before any cross-boundary call, and the original PII is reattached locally to the rendered answer.",
+          "code": "# Related: pii-redaction\nOPEN_SMALL = self_hosted_client(\"qwen-2.5-7b\")\nOPEN_LARGE = self_hosted_client(\"llama-3.1-70b\")\nFRONTIER   = hosted_client(\"claude-sonnet-4-6\")\nspecialists = {\"open_small\": OPEN_SMALL, \"open_large\": OPEN_LARGE,\n               \"frontier\":   FRONTIER}\n\nfunction route(request):\n    sens = pii_classifier.classify(request)    # {none | redactable | hard}\n    if sens == \"hard\":\n        return specialists[\"open_large\"].generate(request)   # stays in-boundary\n\n    if sens == \"redactable\":\n        # Strip PII, keep a local re-attach map.\n        scrubbed, mapping = pii_redactor.redact(request)\n        tracer.emit(\"pii.redacted\", spans=len(mapping))\n        out = specialists[\"frontier\"].generate(scrubbed)\n        # Re-attach PII on the trusted host before the user sees the answer.\n        return pii_redactor.reattach(out, mapping)\n\n    # No PII: ordinary cost-cascade.\n    out = specialists[\"open_small\"].generate(request)\n    if out.confidence >= 0.7:\n        return out\n    return specialists[\"frontier\"].generate(request)\n\n# Why this works: redactable requests get frontier quality without sending raw\n# PII across the boundary, the local re-attach keeps the user-facing answer\n# complete, and hard-sensitive requests stay home regardless of confidence.\n# Related: see `pii-redaction`, `sovereign-inference-stack`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -370,6 +540,16 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://docs.cohere.com/v2/docs/tool-use-overview: cohere.ClientV2 documented; co.chat(model, messages, tools) signature documented; response.message.tool_calls documented; tool role messages with tool_call_id documented; tools schema {\"type\":\"function\",\"function\":{name,description,parameters}} documented; model string \"command-a-plus-05-2026\" appears verbatim in the page's code examples."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: parallel-tool-calls + multi-model-routing; the host dispatches each tool call to a model/provider sized for that tool, runs them concurrently under a shared turn budget, and surfaces per-call routing telemetry.",
+          "code": "# Related: multi-model-routing\nTOOL_ROUTE = {\n    \"web_search\":   \"openai/gpt-4o-mini\",     # cheap parsing model\n    \"code_run\":     \"anthropic/claude-sonnet-4-6\",\n    \"db_query\":     \"local/qwen-2.5-7b\",      # in-boundary\n    \"image_caption\":\"openai/gpt-4o\",\n}\nspecialists = {model_id: provider_client(model_id)\n               for model_id in set(TOOL_ROUTE.values())}\n\nfunction step(messages):\n    reply = llm.generate(messages, tools=TOOLS)\n    messages.append(reply)\n    if not reply.tool_calls: return reply\n\n    function dispatch(call):\n        model_id = TOOL_ROUTE.get(call.name, \"openai/gpt-4o-mini\")\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=PER_TOOL_BUDGET_MS):\n                out = specialists[model_id].run_tool(call.name, call.args)\n            tracer.emit(\"tool.ok\", tool=call.name, model=model_id,\n                        latency_ms=now()-t0)\n            return out\n        catch (ToolError, BudgetExceeded) as e:\n            tracer.emit(\"tool.fail\", tool=call.name, model=model_id,\n                        reason=type(e).name)\n            return {\"error\": type(e).name}\n\n    results = parallel_map(dispatch, reply.tool_calls,\n                           max_concurrency=MAX_PARALLEL)\n    for c, r in zip(reply.tool_calls, results):\n        messages.append(tool_result(c.id, r))\n    return null\n\n# Why this works: fanning out independent tool calls already saves wall-clock;\n# routing each tool to a model sized for the work saves cost on cheap tools\n# without giving up depth on heavy ones, all visible per call in the trace.\n# Related: see `multi-model-routing`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -399,6 +579,16 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://github.com/FellouAI/eko: Eko, BrowserAgent, FileAgent all imported from @eko-ai/eko in quickstart; Eko constructor accepts { llms, agents }; llms entry shape { provider, model, apiKey } documented (upstream example uses claude-sonnet-4-5-20250929); eko.run() accepts a natural-language string. All named API elements confirmed; model identifier \"claude-sonnet-4-6\" is a plausible value but not present on the upstream page (upstream shows claude-sonnet-4-5-20250929)."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: parallelization (voting) + agent-as-judge + step-budget; n samples run concurrently under a shared wall-clock budget, a judge picks the best with a written rationale, and stragglers are cancelled.",
+          "code": "# Related: agent-as-judge, step-budget\nfunction voted_judged_run(task, n=5, wall_budget_ms=8000):\n    pending = {}\n    for i in 1..n:\n        pending[i] = spawn(lambda: llm.generate(task, temperature=0.7))\n\n    samples = []\n    deadline = now() + wall_budget_ms\n    for handle in await_any(pending.values(), until=deadline):\n        samples.append(handle.result)\n        if now() >= deadline:\n            break\n\n    # Cancel stragglers — step-budget on the parallel fan.\n    for i, h in pending.items():\n        if not h.done:\n            h.cancel()\n            tracer.emit(\"sample.cancelled\", index=i)\n\n    if not samples:\n        return abort(\"no_samples_in_budget\")\n    if len(samples) == 1:\n        return samples[0]\n\n    verdict = judge_agent.choose(\n        question=task, candidates=samples,\n        criteria=[\"correctness\", \"clarity\", \"completeness\"],\n    )\n    tracer.emit(\"voted.judged\", picked=verdict.index, rationale=verdict.rationale,\n                samples_kept=len(samples))\n    return verdict.answer\n\n# Why this works: voting catches unlucky samples, the judge resolves ties with\n# a reasoned pick instead of majority count, and the wall-clock cap with\n# cancellation prevents one slow sample from dragging the whole turn.\n# Related: see `agent-as-judge`, `best-of-n`, `step-budget`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -470,6 +660,16 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://github.com/BrainBlend-AI/atomic-agents: AtomicAgent, AgentConfig, BaseIOSchema exported from atomic_agents; SystemPromptGenerator imported from atomic_agents.context (verbatim: `from atomic_agents.context import SystemPromptGenerator, ChatHistory`); generic typing AtomicAgent[InputSchema, OutputSchema] confirmed; AgentConfig(client, model, system_prompt_generator) and SystemPromptGenerator(background=[...]) documented; .run() method documented. BaseIOSchema is only shown being subclassed upstream, not instantiated directly with no args, but the class itself is exported."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: prompt-chaining + multi-model-routing; each step in the chain is dispatched to a model tier sized for its work, with per-step retry and a trace row per (step, model) hop.",
+          "code": "# Related: multi-model-routing\nSTEPS = [\n    Step(name=\"extract\",   prompt=EXTRACT_PROMPT,   schema=ExtractOut,   tier=\"small\"),\n    Step(name=\"classify\",  prompt=CLASSIFY_PROMPT,  schema=ClassifyOut,  tier=\"small\"),\n    Step(name=\"summarize\", prompt=SUMMARIZE_PROMPT, schema=SummaryOut,   tier=\"frontier\"),\n]\nspecialists = {\n    \"small\":    small_model_client,\n    \"mid\":      mid_model_client,\n    \"frontier\": frontier_model_client,\n}\nMAX_RETRIES = 2\n\nfunction run(input):\n    value = input\n    for step in STEPS:\n        for attempt in 1..MAX_RETRIES:\n            t0 = now()\n            try:\n                raw = specialists[step.tier].generate(step.prompt, input=value)\n                value = validate(raw, step.schema)\n                tracer.emit(\"chain.step.ok\", step=step.name, tier=step.tier,\n                            attempt=attempt, latency_ms=now()-t0)\n                break\n            catch ValidationError as e:\n                tracer.emit(\"chain.step.retry\", step=step.name, tier=step.tier,\n                            attempt=attempt, reason=e.message)\n                continue\n        else:\n            return abort(step.name)\n    return value\n\n# Why this works: each step pays only for the tier its sub-problem needs, so\n# the chain is cheap on extraction/classification and rich on the synthesis\n# tail; per-step retries localise failures without rerunning earlier work.\n# Related: see `multi-model-routing`, `pipes-and-filters`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -486,6 +686,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-provider latency budget, fallback chain with translation between provider message formats, preservation of partial stream so the client sees one continuous response, structured trace per provider hop.",
+          "code": "# Each provider has its own latency budget; the gateway owns conversation state.\nPROVIDERS = [\n    {\"id\": \"anthropic\", \"client\": ANTHROPIC, \"budget_ms\": 12000},\n    {\"id\": \"openai\",    \"client\": OPENAI,    \"budget_ms\": 10000},\n    {\"id\": \"local\",     \"client\": LOCAL_70B, \"budget_ms\":  8000},\n]\n\nfunction stream_chat(client_stream, conversation):\n    partial = \"\"\n    for p in PROVIDERS:\n        t0 = now()\n        try:\n            messages = p.client.translate(conversation)        # normalise schemas\n            with budget_guard(latency_ms=p.budget_ms):\n                for chunk in p.client.stream(messages):\n                    partial += chunk.text\n                    client_stream.send(chunk)\n            tracer.emit(\"provider.ok\", provider=p.id, latency_ms=now()-t0,\n                        bytes=len(partial))\n            return\n        catch (StreamError, ProviderError, BudgetExceeded) as e:\n            tracer.emit(\"provider.fallback\", provider=p.id,\n                        reason=type(e).name, partial_bytes=len(partial),\n                        latency_ms=now()-t0)\n            # Preserve already-streamed text so the next provider continues\n            # from where this one died, not from scratch.\n            conversation.append_partial(partial)\n            partial = \"\"\n            continue\n    client_stream.error(\"all_providers_failed\")\n\n# Why this works: per-provider budgets convert slow as well as failing\n# providers into a fallback trigger; partial-stream preservation lets the\n# user see one continuous response across the swap.\n# Related: see `circuit-breaker`, `multi-model-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: provider-fallback + circuit-breaker; a provider that has tripped its breaker is skipped without an attempted stream, and the breaker observes both transport errors and mid-stream truncation as failure signals.",
+          "code": "# Related: circuit-breaker\nPROVIDERS = [\"anthropic\", \"openai\", \"local\"]\nspecialists = {\"anthropic\": ANTHROPIC, \"openai\": OPENAI, \"local\": LOCAL_70B}\nbreakers   = {p: Breaker(threshold=0.5, cooldown=30) for p in PROVIDERS}\n\nfunction stream_chat(client_stream, conversation):\n    partial = \"\"\n    for pid in PROVIDERS:\n        if breakers[pid].is_open():\n            tracer.emit(\"breaker.skip\", provider=pid)\n            continue\n        try:\n            messages = specialists[pid].translate(conversation)\n            received_any = false\n            for chunk in specialists[pid].stream(messages):\n                partial += chunk.text\n                client_stream.send(chunk)\n                received_any = true\n            if not received_any:\n                # Treat empty stream as a breaker failure signal.\n                breakers[pid].record(ok=false)\n                tracer.emit(\"provider.empty_stream\", provider=pid)\n                continue\n            breakers[pid].record(ok=true)\n            return\n        catch StreamError as e:\n            breakers[pid].record(ok=false)\n            tracer.emit(\"provider.stream_error\", provider=pid,\n                        reason=type(e).name, partial=len(partial))\n            conversation.append_partial(partial); partial = \"\"\n            continue\n    client_stream.error(\"all_providers_failed_or_open\")\n\n# Why this works: the breaker stops the fallback chain from probing a provider\n# that is already known-bad, and recording mid-stream truncation as a failure\n# means a silently-degrading provider trips its breaker like any error would.\n# Related: see `circuit-breaker`, `degenerate-output-detection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -515,6 +735,16 @@
           "verified_date": "2026-05-21",
           "last_updated": "2026-05-21",
           "verified_notes": "Verified against https://api-docs.deepseek.com: OpenAI SDK pattern with base_url=\"https://api.deepseek.com\" documented; DEEPSEEK_API_KEY env var used in upstream examples; model \"deepseek-v4-pro\" appears verbatim in the parameter table and in curl/Python/Node code examples; client.chat.completions.create(model, messages=[...]) shown."
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: provider-string-routing + provider-fallback + multi-model-routing; a list of provider/model strings forms a fallback ladder, the host iterates through them under per-string latency budgets, and trace rows tag every hop.",
+          "code": "# Related: provider-fallback, multi-model-routing\nREGISTRY = {\n    \"openai\":    OpenAIProvider(env=\"OPENAI_API_KEY\"),\n    \"anthropic\": AnthropicProvider(env=\"ANTHROPIC_API_KEY\"),\n    \"google\":    GoogleProvider(env=\"GOOGLE_API_KEY\"),\n    \"local\":     LocalProvider(base_url=\"http://localhost:8080\"),\n}\nBUDGETS = {\n    \"anthropic/claude-sonnet-4-6\": {\"latency_ms\": 12000},\n    \"openai/gpt-4o\":               {\"latency_ms\": 10000},\n    \"local/qwen-2.5-7b\":           {\"latency_ms\":  8000},\n}\n\nfunction generate_one(provider_model, prompt):\n    prefix, model = provider_model.split(\"/\", 1)\n    return REGISTRY[prefix].complete(model=model, prompt=prompt)\n\nfunction generate_with_fallback(chain, prompt):\n    for provider_model in chain:\n        t0 = now()\n        try:\n            with budget_guard(BUDGETS.get(provider_model, {\"latency_ms\": 8000})):\n                out = generate_one(provider_model, prompt)\n            tracer.emit(\"provider.ok\", provider_model=provider_model,\n                        latency_ms=now()-t0)\n            return out\n        catch (ProviderError, BudgetExceeded) as e:\n            tracer.emit(\"provider.fallback\", provider_model=provider_model,\n                        reason=type(e).name, latency_ms=now()-t0)\n            continue\n    raise AllProvidersFailed(chain)\n\n# Pick the chain per tenant/quality target — strings make this trivial.\nchain = [\"anthropic/claude-sonnet-4-6\", \"openai/gpt-4o\", \"local/qwen-2.5-7b\"]\nout = generate_with_fallback(chain, \"Hello\")\n\n# Why this works: the chain is a list of strings, so changing fallback order\n# per tenant is a config edit, not a code change; per-string latency budgets\n# convert slow as well as failing hops into fallback triggers.\n# Related: see `provider-fallback`, `multi-model-routing`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -531,6 +761,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-lane latency/cost budget, fallback chain when a specialist refuses or errors (lane -> generalist chat -> templated apology), classifier confidence threshold with safe-default routing, per-route observability.",
+          "code": "# Each lane carries its own budget and fallback identity.\nLANES = {\n    \"command\": Lane(handler=deterministic_action_handler,\n                    budget_ms=500,   fallback=\"chat\"),\n    \"agent\":   Lane(handler=multi_step_agent,\n                    budget_ms=15000, fallback=\"chat\"),\n    \"chat\":    Lane(handler=plain_chat_model,\n                    budget_ms=8000,  fallback=null),\n}\nCONF_THRESHOLD = 0.55\n\nfunction route(request):\n    pick = classifier.classify(request, labels=list(LANES))\n    if pick.confidence < CONF_THRESHOLD:\n        tracer.emit(\"route.low_confidence\", picked=pick.label,\n                    confidence=pick.confidence)\n        pick.label = \"chat\"      # safe default\n\n    label = pick.label\n    while label is not null:\n        lane = LANES[label]\n        t0 = now()\n        try:\n            with budget_guard(latency_ms=lane.budget_ms):\n                out = lane.handler(request)\n            tracer.emit(\"route.ok\", lane=label, latency_ms=now()-t0,\n                        confidence=pick.confidence)\n            return out\n        catch (LaneRefused, ProviderError, BudgetExceeded) as e:\n            tracer.emit(\"route.fallback\", lane=label, fallback=lane.fallback,\n                        reason=type(e).name, latency_ms=now()-t0)\n            label = lane.fallback\n    return templated_apology(request)\n\n# Why this works: low classifier confidence routes to the broad chat lane\n# instead of guessing wrong, per-lane budgets bound the worst-case latency,\n# and the fallback ladder ensures a refused or errored lane still answers.\n# Related: see `fallback-chain`, `disambiguation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: routing + verification-of-route-choice + disambiguation; the verifier judges low-confidence picks and, instead of guessing, hands back to a disambiguation step that asks the user to clarify before any lane runs.",
+          "code": "# Related: verification-of-route-choice, disambiguation\nLANES = {\n    \"command\": deterministic_action_handler,\n    \"agent\":   multi_step_agent,\n    \"chat\":    plain_chat_model,\n}\n\nfunction route(request):\n    pick = classifier.classify(request, labels=list(LANES))\n\n    verdict = verifier.judge(\n        request=request, picked=pick.label,\n        confidence=pick.confidence,\n        alternatives=[l for l in LANES if l != pick.label],\n    )\n\n    if verdict.kind == \"accept\":\n        chosen = pick.label\n    elif verdict.kind == \"reroute\":\n        tracer.emit(\"route.reroute\", from_=pick.label, to=verdict.suggested,\n                    reason=verdict.reason)\n        chosen = verdict.suggested\n    elif verdict.kind == \"ambiguous\":\n        # Do NOT guess. Ask the user.\n        question = disambiguator.compose(\n            request=request, candidates=verdict.candidates,\n        )\n        tracer.emit(\"route.disambiguate\", candidates=verdict.candidates)\n        return ask_user(question)\n    else:\n        return human_handoff(request, reason=verdict.reason)\n\n    specialists = LANES\n    return specialists[chosen](request)\n\n# Why this works: the verifier converts low classifier confidence into either\n# a corrected route or a user-facing question, so genuinely ambiguous requests\n# get clarified instead of being silently routed to whichever lane scored 0.51.\n# Related: see `agent-as-judge`, `disambiguation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -547,6 +797,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-agent latency/cost budget, fallback chain when chosen agent refuses/errors, reputation update from outcome AND from fallback events, observability per route taken with reputation snapshot.",
+          "code": "# Reputation updated by both outcome quality and operational reliability.\nstate Reputation:\n    score_by_agent: dict[agent_id, float]\n    last_updated:   dict[agent_id, timestamp]\n\nHALF_LIFE  = 30 * DAY\nBUDGETS    = registry.budgets_by_agent           # ms + usd per agent\n\nfunction decay(now):\n    for a, s in Reputation.score_by_agent.items():\n        dt = now - Reputation.last_updated[a]\n        Reputation.score_by_agent[a] = s * 0.5 ** (dt / HALF_LIFE)\n\nfunction route(task):\n    decay(now())\n    candidates  = registry.capable_for(task.kind)\n    specialists = {a: registry.agent(a) for a in candidates}\n    ranked      = sorted(candidates, key=lambda a:\n                         Reputation.score_by_agent.get(a, 0.3), reverse=true)\n\n    for a in ranked:\n        t0 = now()\n        try:\n            with budget_guard(BUDGETS[a]):\n                result = specialists[a].handle(task)\n            outcome = judge.score(task, result)\n            update_score(a, delta=(outcome - 0.5) * 0.1)\n            tracer.emit(\"trust.route.ok\", agent=a, latency_ms=now()-t0,\n                        outcome=outcome, reputation=Reputation.score_by_agent[a])\n            return result\n        catch (AgentRefused, ProviderError, BudgetExceeded) as e:\n            # Operational failure also hurts reputation, not just bad outputs.\n            update_score(a, delta=-0.05)\n            tracer.emit(\"trust.route.fallback\", agent=a, reason=type(e).name,\n                        reputation=Reputation.score_by_agent[a])\n            continue\n    return degrade(task, reason=\"all_agents_failed\")\n\n# Why this works: reputation reflects both quality and reliability, so a\n# specialist that refuses or times out drops in ranking the same way a low-\n# scoring output does, and routing self-corrects without operator intervention.\n# Related: see `fallback-chain`, `circuit-breaker`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: trust-and-reputation-routing + shadow-canary; new or low-reputation agents run as a shadow on a small fraction of traffic, their outputs are scored but not shown, and only sustained quality promotes them into the live weighted pool.",
+          "code": "# Related: shadow-canary\nstate Reputation:\n    score_by_agent: dict[agent_id, float]\n    promoted:       set[agent_id]                # eligible for live routing\n\nSHADOW_FRACTION = 0.05\nPROMOTION_GATE  = {\"min_samples\": 100, \"min_score\": 0.7}\n\nfunction route(task):\n    candidates = registry.capable_for(task.kind)\n    live       = [a for a in candidates if a in Reputation.promoted]\n    shadows    = [a for a in candidates if a not in Reputation.promoted]\n\n    # 1. Live routing — reputation-weighted sample among promoted agents.\n    weights = {a: Reputation.score_by_agent.get(a, 0.5) for a in live}\n    chosen  = weighted_sample(weights) if live else random_choice(shadows)\n    specialists = {a: registry.agent(a) for a in candidates}\n    primary = specialists[chosen].handle(task)\n\n    # 2. Shadow run — a fraction of traffic also goes to a low-rep candidate.\n    if shadows and random() < SHADOW_FRACTION:\n        shadow = random_choice(shadows)\n        async_run(lambda: score_shadow(shadow, task, primary))\n        tracer.emit(\"trust.shadow\", agent=shadow)\n\n    update_score(chosen, judge.score(task, primary))\n    return primary\n\nfunction score_shadow(agent_id, task, reference):\n    out   = registry.agent(agent_id).handle(task)\n    score = judge.compare(task, reference, out)\n    record_shadow_sample(agent_id, score)\n    s = shadow_stats(agent_id)\n    if s.samples >= PROMOTION_GATE.min_samples and s.mean >= PROMOTION_GATE.min_score:\n        Reputation.promoted.add(agent_id)\n        tracer.emit(\"trust.promote\", agent=agent_id, score=s.mean)\n\n# Why this works: new agents earn live traffic by demonstrating quality on\n# shadow runs first, so bad newcomers never harm a user but good newcomers\n# can climb into the rotation without a manual review gate.\n# Related: see `shadow-canary`, `bayesian-bandit-experimentation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }

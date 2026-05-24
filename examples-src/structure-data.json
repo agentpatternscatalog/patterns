@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: GPU service pins model_version + schema_version per request; CPU side detects content-vs-schema drift and partial-parses on truncation.",
+          "code": "schema GenerateRequest:\n    prompt: str; params: dict\n    schema_version: str           # e.g. \"answer.v3\"\n    schema_hint: json_schema\n\nschema GenerateResponse:\n    text: str; finish: str        # \"stop\" | \"length\" | \"schema_violation\"\n    model_version: str; schema_version: str\n\nfunction llm_service__generate(req) -> GenerateResponse:\n    out = model.generate(req.prompt, **req.params, schema=req.schema_hint)\n    return GenerateResponse(text=out.text, finish=out.finish,\n                            model_version=MODEL_VERSION,\n                            schema_version=req.schema_version)\n\nfunction business_service__answer(query):\n    schema = StructuredSchema(RagAnswer, version=\"answer.v3\")\n    reply  = http.post(LLM_URL + \"/generate\", body=GenerateRequest(\n        prompt=render(query), params={\"max_tokens\": 800},\n        schema_version=schema.version, schema_hint=schema.to_json_schema()))\n    if reply.schema_version != schema.version:\n        raise SchemaDriftError(\"GPU served stale schema\")\n    allow_partial = (reply.finish == \"length\")\n    parsed = parse_and_validate(reply.text, schema, allow_partial=allow_partial)\n    return parsed.mark_truncated() if allow_partial else parsed\n\n# Why this works: echoing model_version and schema_version makes tier drift\n# observable, and partial-parse on length-stop preserves usable output.\n# Related: see `fti-llm-pipeline-split`, `prompt-caching`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: business service composes rate-limiting + tool-use against the LLM microservice, with validation+retry on parse failure.",
+          "code": "schema AgentStep:\n    thought: str\n    tool:    optional {name: str, args: dict}\n    answer:  optional str\n\nschema  = StructuredSchema(AgentStep)\nlimiter = TokenBucket(rate_per_sec=20)\n\nfunction business_service__step(history):\n    limiter.acquire()\n    prompt = render_agent_prompt(history, tools=TOOL_REGISTRY)\n    for attempt in range(3):\n        reply = http.post(LLM_URL + \"/generate\", body={\n            \"prompt\": prompt, \"params\": {\"max_tokens\": 400},\n            \"schema_hint\": schema.to_json_schema()})\n        try:\n            parsed = parse_and_validate(reply.text, schema); break\n        except ParseError as e:\n            prompt += \"\\nLast reply failed: \" + str(e) + \"\\nReturn valid JSON.\"\n    else:\n        raise ExhaustedRetries()\n    if parsed.tool:\n        result = TOOL_REGISTRY[parsed.tool.name](**parsed.tool.args)\n        return business_service__step(history + [parsed, result])\n    return parsed.answer\n\n# Why this works: rate-limiting protects the GPU tier from CPU spikes;\n# validation+retry keeps the tool loop alive without re-running retrieval.\n# Related: see `rate-limiting`, `tool-use`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -32,6 +52,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: clause-tagged transcript is a schema-versioned artefact; drift is detected when downstream returns spans with unknown language codes.",
+          "code": "schema TaggedClause:\n    text: str; script: str; lang: str           # BCP-47, e.g. \"hi-Latn\"\n    span: {start: int, end: int}\n\nschema TaggedUtterance:\n    schema_version: str                         # \"clause-tag.v2\"\n    raw: str; clauses: list[TaggedClause]\n\nKNOWN_LANGS = load_known_lang_set()             # pinned to schema v2\n\nfunction handle(utterance):\n    schema = StructuredSchema(TaggedUtterance, version=\"clause-tag.v2\")\n    tokens = unicode_tokenise(utterance)\n    clauses = [TaggedClause(text=c.text, script=detect_script(c.text),\n                            lang=detect_language(c.text), span=c.span)\n               for c in split_into_clauses(tokens)]\n    tagged = TaggedUtterance(schema_version=schema.version,\n                              raw=utterance, clauses=clauses)\n    parsed = parse_and_validate(tagged.to_json(), schema)\n    for cl in parsed.clauses:\n        if cl.lang not in KNOWN_LANGS:\n            log_drift(\"unknown lang\", cl.lang, schema_version=schema.version)\n    slots = flatten(extract_entities(cl.text, lang=cl.lang, script=cl.script)\n                    for cl in parsed.clauses)\n    return route(infer_intent(parsed.clauses), [normalise(s) for s in slots])\n\n# Why this works: pinning the clause-tag schema and language set to a version\n# turns silent tagger drift into an alert instead of a downstream failure.\n# Related: see `structured-output`, `input-output-guardrails`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: code-switched slot extraction feeds a tool-use loop with structured output; never collapses to a single language.",
+          "code": "schema Slot:\n    name: str; value: str          # ORIGINAL script preserved\n    lang: str; script: str\n\nschema BookingCall:\n    intent: str                    # \"book_train\" | \"book_flight\" | ...\n    slots: list[Slot]\n\nschema = StructuredSchema(BookingCall)\n\nfunction handle(utterance):\n    tagged = tag_clauses(utterance)\n    prompt = render_extraction_prompt(tagged, examples=CODE_SWITCHED_FEW_SHOT)\n    reply  = llm.generate(prompt, schema_hint=schema.to_json_schema())\n    parsed = parse_and_validate(reply.text, schema)\n    args   = {s.name: normalise(s.value, source_script=s.script)\n              for s in parsed.slots}\n    result = TOOL_REGISTRY[parsed.intent](**args)\n    # Reply mirrors the user's original language mix instead of forcing one.\n    return compose_reply(result, mirror_languages_of=tagged)\n\n# Why this works: tool-use and structured-output keep the code-switched\n# discipline end-to-end; original script and BCP-47 tags survive the loop.\n# Related: see `tool-use`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -61,6 +101,16 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Verified against https://dspy.ai/learn/programming/signatures/ and one-hop linked DSPy docs. Confirmed: import dspy; class-based dspy.Signature with docstring-as-instruction; dspy.InputField(); dspy.OutputField(); typed annotations including typing.Literal (signatures page Example C uses Literal['sadness','joy',...]); dspy.ChainOfThought(SignatureClass) and the auto-added `reasoning` output field; dspy.Predict mentioned as the plain form. dspy.LM('openai/gpt-4o-mini') and dspy.configure(lm=...) confirmed on the language_models page (provider/model string pattern). dspy.Example and dspy.BootstrapFewShot(metric=...).compile(student=..., trainset=...) confirmed via API Reference links from the Optimization overview (Primitives/Example and Optimizers/BootstrapFewShot).",
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: signatures wrap a tool-use module; the compiler optimises predictor instructions and tool-selection few-shots against a metric.",
+          "code": "signature ChooseTool:\n    inputs:  { question: str, tools: list[ToolSpec] }\n    outputs: { tool_name: str, tool_args: dict, reasoning: str }\n\nsignature AnswerFromResult:\n    inputs:  { question: str, tool_name: str, tool_result: str }\n    outputs: { answer: str, citation: str }\n\nmodule ToolAgent(signatures=[ChooseTool, AnswerFromResult]):\n    def forward(question):\n        sc = StructuredSchema(ChooseTool.outputs)\n        sa = StructuredSchema(AnswerFromResult.outputs)\n        raw_choice = predict(self.ChooseTool, question=question, tools=TOOL_REGISTRY)\n        choice     = parse_and_validate(raw_choice, sc)\n        result     = TOOL_REGISTRY[choice.tool_name](**choice.tool_args)\n        raw_ans    = predict(self.AnswerFromResult, question=question,\n                              tool_name=choice.tool_name, tool_result=result)\n        return parse_and_validate(raw_ans, sa)\n\nmetric   = lambda p, g: g.answer in p.answer and p.citation == g.citation\ntrainset = load_labelled_tool_traces()\ncompiled = teleprompter.compile(module=ToolAgent, trainset=trainset,\n                                metric=metric, max_demos=6)\nresult = compiled(question=\"What is the GDP of Italy in 2024?\")\n\n# Why this works: typed signatures give the compiler a stable contract to\n# optimise around; composing with tool-use lets the search learn both tool\n# choice and answer grounding in one pass.\n# Related: see `structured-output`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -77,6 +127,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: feature store and model registry carry schema_version + embed_model; inference refuses to serve on feature-vs-model drift.",
+          "code": "schema FeatureRecord:\n    schema_version: str; doc_id: str; chunk_id: str; text: str\n    embedding: list[float]; embed_model: str\n\nschema ModelArtifact:\n    name: str; version: str; weights_uri: str\n    expected_feat_ver: str; expected_embed_model: str\n\nfunction feature_pipeline(raw_docs):\n    for d in raw_docs:\n        for ch in split(normalise(d)):\n            feature_store.upsert(FeatureRecord(\n                schema_version=\"feat.v4\", doc_id=d.id, chunk_id=uuid(),\n                text=ch.text, embed_model=EMBED_MODEL,\n                embedding=embed(ch.text, model=EMBED_MODEL)))\n\nfunction answer(query):\n    schema   = StructuredSchema(RagAnswer)\n    artifact = model_registry.load_latest(\"qa-tuned\")\n    docs     = feature_store.search(query, k=5)\n    for d in docs:\n        if d.schema_version != artifact.expected_feat_ver: raise FeatureDrift()\n        if d.embed_model    != artifact.expected_embed_model: raise EmbedDrift()\n    reply = artifact.generate(prompt=render(query, docs),\n                               schema_hint=schema.to_json_schema())\n    return parse_and_validate(reply.text, schema)\n\n# Why this works: version metadata on both integration surfaces makes drift\n# fail loudly at request time, not silently in answers.\n# Related: see `business-llm-microservice-split`, `cdc-vector-sync`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: feature pipeline composes with cdc-vector-sync; inference composes structured-output + validation+retry.",
+          "code": "schema FeatureRecord:\n    doc_id: str; chunk_id: str; text: str\n    embedding: list[float]; op: str        # \"upsert\" | \"delete\"\n\nschema RagAnswer:\n    answer: str; citations: list[str]\n\nschema = StructuredSchema(RagAnswer)\n\nfunction on_cdc_event(event):\n    if event.op == \"delete\":\n        feature_store.delete(doc_id=event.doc_id); return\n    for ch in split(normalise(event.doc)):\n        rec = FeatureRecord(doc_id=event.doc.id, chunk_id=uuid(),\n                            text=ch.text, embedding=embed(ch.text), op=\"upsert\")\n        validate(rec, FeatureRecord); feature_store.upsert(rec)\n\nfunction answer(query):\n    model  = model_registry.load_latest(\"qa-tuned\")\n    docs   = feature_store.search(query, k=5)\n    prompt = render(query, docs)\n    for attempt in range(3):\n        reply = model.generate(prompt=prompt, schema_hint=schema.to_json_schema())\n        try: return parse_and_validate(reply.text, schema)\n        except ParseError as e: prompt += \"\\nPrev reply invalid: \" + str(e)\n    raise ExhaustedRetries()\n\n# Why this works: CDC keeps the index near-real-time with source-of-truth;\n# validation+retry stops single bad completions from failing the request.\n# Related: see `cdc-vector-sync`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -130,6 +200,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: partial-parse keeps the core record usable when an extension fails; discriminator-vs-extension mismatch flagged as content drift.",
+          "code": "schema Record:\n    schema_version: str          # \"record.v2\"\n    id: str; supplier: str; lead_time_days: int\n    material_type: enum { yarn, fabric, trim }\n    yarn:    optional YarnExt\n    fabric:  optional FabricExt\n    trim:    optional TrimExt\n\nschema YarnExt:   { weight: float, fibre: str }\nschema FabricExt: { width_cm: float, weave: str }\nschema TrimExt:   { attachment: str }\n\nfunction parse_record(raw) -> ParsedRecord:\n    schema = StructuredSchema(Record, version=\"record.v2\")\n    core   = parse_and_validate(raw, schema, allow_partial=True)\n    populated = [k for k in [\"yarn\", \"fabric\", \"trim\"] if core[k] is not None]\n    if populated != [core.material_type]:\n        return ParsedRecord(core=core, ext=None,\n                            errors=[\"discriminator/extension mismatch\"])\n    ext_cls = {\"yarn\": YarnExt, \"fabric\": FabricExt, \"trim\": TrimExt}[core.material_type]\n    try:\n        ext = parse_and_validate(core[core.material_type], StructuredSchema(ext_cls))\n        return ParsedRecord(core=core, ext=ext, errors=[])\n    except ParseError as e:\n        return ParsedRecord(core=core, ext=None, errors=[str(e)])\n\n# Why this works: splitting core and extension validation lets a malformed\n# sub-type degrade gracefully; the cross-check catches silent producer bugs.\n# Related: see `schema-extensibility`, `translation-layer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: composes with schema-extensibility — extension blocks live under reserved namespaces inside the versioned envelope.",
+          "code": "schema Envelope:\n    schema_version: str           # \"env.v1\"\n    type: str; payload: object\n    extensions: map<str, any>?\n\nschema Record:\n    id: str; supplier: str\n    material_type: enum { yarn, fabric, trim }\n\nschema YarnExt:   { weight: float, fibre: str }\nschema FabricExt: { width_cm: float, weave: str }\n\nfunction write(record, sub_ext):\n    validate(record, StructuredSchema(Record))\n    return Envelope(schema_version=\"env.v1\", type=\"material-record\",\n                    payload=record,\n                    extensions={ \"x-mat.\" + record.material_type: sub_ext })\n\nfunction read(envelope):\n    core    = parse_and_validate(envelope.payload, StructuredSchema(Record))\n    key     = \"x-mat.\" + core.material_type\n    ext_raw = (envelope.extensions or {}).get(key)\n    ext_cls = {\"yarn\": YarnExt, \"fabric\": FabricExt}.get(core.material_type)\n    if ext_raw is None or ext_cls is None:\n        return CoreView(core, ext=ext_raw)              # opaque round-trip\n    return FullView(core, parse_and_validate(ext_raw, StructuredSchema(ext_cls)))\n\n# Why this works: reserved-namespace extensions let new sub-types ship\n# without bumping schema_version, while old clients still round-trip safely.\n# Related: see `schema-extensibility`, `translation-layer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -146,6 +236,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: templates carry schema_version; shaper retries once on parse failure with a tightened reminder, logs drift when a known-good template starts failing.",
+          "code": "template_registry = {\n    \"onboarding-qa\": {\n        version: \"qa.v4\",\n        frame: \"Answer using ONLY the policy text. JSON only.\",\n        few_shot: [...],\n        output_schema: AnswerWithCitation,\n    },\n}\nfailure_window = SlidingWindow(minutes=15)\n\nfunction handle(user_input, task_id):\n    tpl    = template_registry[task_id]\n    schema = StructuredSchema(tpl.output_schema, version=tpl.version)\n    prompt = tpl.frame + restate_goal(user_input) \\\n           + render_few_shot(tpl.few_shot) + \"\\nUser: \" + user_input\n    for attempt in range(2):\n        raw = llm.generate(prompt, schema_hint=schema.to_json_schema())\n        try:\n            shaped = parse_and_validate(raw, schema)\n            failure_window.record_success(task_id); return shaped\n        except ParseError as e:\n            prompt += \"\\nFailed schema (\" + str(e) + \"). Return ONLY valid JSON.\"\n    failure_window.record_failure(task_id, schema_version=tpl.version)\n    if failure_window.rate(task_id) > 0.1:\n        alert(\"template drift\", task_id=task_id, schema_version=tpl.version)\n    raise ParseError(\"optimiser exhausted retries\")\n\n# Why this works: pinning schema_version per template makes drift observable;\n# one tightened retry absorbs most parse failures without re-rendering.\n# Related: see `prompt-versioning`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: composes with dynamic-scaffolding and structured-output — picks scaffold depth by goal complexity, enforces same schema regardless.",
+          "code": "template_registry = { ... }              # each entry has output_schema\n\nfunction choose_scaffold(user_input):\n    return \"plan-then-act\" if needs_multi_step(user_input) else \"direct\"\n\nfunction handle(user_input, task_id):\n    tpl       = template_registry[task_id]\n    scaffold  = choose_scaffold(user_input)\n    schema    = StructuredSchema(tpl.output_schema)\n    frame     = tpl.frame + scaffold_frame(scaffold)\n    prompt    = frame + restate_goal(user_input) \\\n              + render_few_shot(tpl.few_shot, scaffold=scaffold) \\\n              + \"\\nUser: \" + user_input\n    raw       = llm.generate(prompt, schema_hint=schema.to_json_schema())\n    parsed    = parse_and_validate(raw, schema)\n    # Consumer contract is invariant: drop scaffold-only fields on the way out.\n    return project_to_consumer_view(parsed, schema=schema)\n\n# Why this works: dynamic-scaffolding pays for chain-of-thought only when the\n# goal warrants it; structured-output keeps the downstream contract identical.\n# Related: see `dynamic-scaffolding`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -175,6 +285,16 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Verified against https://github.com/BrainBlend-AI/atomic-agents (README) and the upstream BaseIOSchema source (atomic-agents/atomic_agents/base/base_io_schema.py). Confirmed: `from atomic_agents import BaseIOSchema` import; BaseIOSchema is a subclass of pydantic.BaseModel (`class BaseIOSchema(BaseModel)`); README documents subclassing BaseIOSchema with pydantic `Field(..., description=...)` (e.g., CustomOutputSchema, QueryAgentInputSchema); docstrings on schemas are actively required and validated via `_validate_description` raising ValueError on a missing/empty docstring; further inheritance (subclass-of-subclass) is supported through normal pydantic semantics plus `__pydantic_init_subclass__` validation hooks — so AnswerSchemaV11(AnswerSchema) is the supported extension pattern. Pydantic `Field` with `default`, `default_factory`, `ge`, `le`, `description`, and `model_dump()` are standard pydantic v2 API (used identically in the atomic-agents README examples).",
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: composes with polymorphic-record — versioned envelope carries a polymorphic payload; reader validates core and sub-type extension independently.",
+          "code": "schema Envelope:\n    schema_version: str            # \"env.v2\"\n    type: str; payload: object\n    extensions: map<str, any>?\n\nschema EventCore:\n    event_type: enum { order_placed, order_shipped, order_cancelled }\n    order_id: str; ts: str\n\nschema OrderPlacedExt:    { sku: str, qty: int, price: float }\nschema OrderShippedExt:   { carrier: str, tracking: str }\nschema OrderCancelledExt: { reason: str }\n\nEXT_BY_TYPE = {\"order_placed\": OrderPlacedExt,\n                \"order_shipped\": OrderShippedExt,\n                \"order_cancelled\": OrderCancelledExt}\n\nfunction read(env):\n    if major(env.schema_version) > MAX_KNOWN_MAJOR:\n        raise IncompatibleSchemaError(env.schema_version)\n    core    = parse_and_validate(env.payload, StructuredSchema(EventCore))\n    ext_cls = EXT_BY_TYPE.get(core.event_type)\n    ext_raw = (env.extensions or {}).get(\"x-order.\" + core.event_type)\n    if ext_cls is None or ext_raw is None:\n        return CoreOnlyView(core, opaque=ext_raw)\n    return FullView(core, parse_and_validate(ext_raw, StructuredSchema(ext_cls)))\n\n# Why this works: nesting a polymorphic record inside the versioned envelope\n# lets new sub-types ship as new x-order.* extensions without a major bump.\n# Related: see `polymorphic-record`, `translation-layer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },

@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: a stream loop with backpressure, a cancel-token that interrupts mid-push, and a per-window quota that survives reconnect.",
+          "code": "SIGIL                = \"!\"\nUNSOLICITED_WINDOW   = 600     # seconds\nMAX_INFLIGHT_PUSHES  = 2       # backpressure ceiling\n\nstate = {\n    \"memory\":        load_memory(),\n    \"last_push_ts\":  load_persisted(\"last_push_ts\", default=0),\n    \"inflight\":      0,\n    \"cancel\":        new_cancel_token(),\n}\n\nfunction on_user_message(text):\n    if text == \"!stop\":\n        state.cancel.fire()                       # interrupt any active push\n        return ack(\"cancelled\")\n    if text.startswith(SIGIL):\n        verb, args = parse_sigil(text[1:])\n        apply_to_memory(state.memory, verb, args) # bypasses the model\n        return ack(verb)\n    state.cancel = new_cancel_token()             # reset per user turn\n    stream = agent.reply_stream(text, state, cancel=state.cancel)\n    for chunk in stream:\n        if state.cancel.fired(): break\n        emit(chunk, marker=\"tentative\")           # partial-result render\n    emit_marker(\"final\")\n\nfunction on_agent_push(candidate):\n    if state.inflight >= MAX_INFLIGHT_PUSHES:     # backpressure\n        log(\"dropped: inflight cap\", candidate); return\n    if now() - state.last_push_ts < UNSOLICITED_WINDOW:\n        return\n    state.inflight += 1\n    try:\n        push_to_user(candidate.message)\n        state.last_push_ts = now()\n        persist(\"last_push_ts\", state.last_push_ts)   # survives reconnect\n    finally:\n        state.inflight -= 1\n# Why this works: the quota is persisted so reconnects do not reset the\n# rate-limit, the cancel token interrupts both user replies and pushes,\n# and the inflight ceiling stops a slow consumer from queueing pushes.\n# Related: see `salience-triggered-output`, `stop-cancel`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: bidirectional-impulse-channel composed with `salience-triggered-output` and `audit`, so every sigil and every unsolicited push lands in the audit log.",
+          "code": "SIGIL              = \"!\"\nUNSOLICITED_WINDOW = 600\nSALIENCE_THRESHOLD = 0.65\n\nstate = { \"memory\": load_memory(), \"last_push_ts\": 0 }\n\nfunction audit(kind, payload):\n    append_audit_log({\n        \"ts\":   now_iso(),\n        \"kind\": kind,                # \"sigil\" | \"push\" | \"rejected\"\n        \"payload\": payload,\n    })\n\nfunction on_user_message(text):\n    if text.startswith(SIGIL):\n        verb, args = parse_sigil(text[1:])\n        apply_to_memory(state.memory, verb, args)\n        audit(\"sigil\", {\"verb\": verb, \"args\": args})\n        return ack(verb)\n    return agent.reply(text, state)\n\nfunction on_agent_tick():\n    candidate = agent.scan_for_signal(state)\n    if candidate is none: return\n    score = salience_score(candidate, state)      # salience-triggered-output\n    if score < SALIENCE_THRESHOLD:\n        audit(\"rejected\", {\"reason\": \"sub-threshold\", \"score\": score})\n        return\n    if now() - state.last_push_ts < UNSOLICITED_WINDOW:\n        audit(\"rejected\", {\"reason\": \"rate-limit\"})\n        return\n    for chunk in stream_push(candidate.message):  # one channel, streamed\n        emit(chunk)\n    state.last_push_ts = now()\n    audit(\"push\", {\"score\": score, \"summary\": candidate.summary})\n# Why this works: salience gates the push, the channel still carries both\n# sides on one surface, and the audit log gives ops a single record of\n# every sigil and every push without a second sidecar.\n# Related: see `salience-triggered-output`, `decision-log`, `streaming-typed-events`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -74,6 +94,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: a real-time DSM decode loop with backpressure on the source, a cancel-token for barge-in, and consistency markers separating tentative emissions from finalised ones.",
+          "code": "DELAY_STEPS      = 16          # latency budget, in shared-axis steps\nMAX_BUFFER       = 64          # backpressure ceiling on the source\nFINALISE_AFTER   = 4           # steps a token must persist to be \"final\"\n\nstate = {\n    \"buffer\":   [],            # incoming source tokens\n    \"emitted\":  [],            # (step, token, marker) tuples\n    \"cancel\":   new_cancel_token(),\n}\n\nfunction decode_stream(stream_source):\n    for src_tok in stream_source:\n        if state.cancel.fired():\n            emit_marker(\"cancelled\"); return\n        if len(state.buffer) >= MAX_BUFFER:\n            yield_to_source()                       # backpressure\n            continue\n        state.buffer.append(src_tok)\n        out = model.step(src_tok)                   # offset-aligned next pair\n        if len(state.buffer) <= DELAY_STEPS:\n            continue                                # still inside the offset\n        tentative = out.target_token\n        emit(tentative, marker=\"tentative\")         # partial-result render\n        state.emitted.append((len(state.buffer), tentative, \"tentative\"))\n        finalise_old_emissions()\n\nfunction finalise_old_emissions():\n    cutoff = len(state.buffer) - FINALISE_AFTER\n    for i, (step, tok, marker) in enumerate(state.emitted):\n        if marker == \"tentative\" and step <= cutoff:\n            emit_marker(\"final\", index=i, token=tok)\n            state.emitted[i] = (step, tok, \"final\")\n\nfunction on_barge_in():\n    state.cancel.fire()                             # interrupt mid-stream\n# Why this works: the offset itself remains the read/write policy, but\n# the wrapping loop adds the three production concerns DSM alone ignores\n# - backpressure on the source, a cancel token for barge-in, and\n# consistency markers so the UI can replace tentative tokens cleanly.\n# Related: see `streaming-typed-events`, `stop-cancel`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: DSM composed with `streaming-typed-events`, so the offset-aligned token stream surfaces as typed `partial_transcript`/`final_transcript` events on one transport.",
+          "code": "DELAY_STEPS = 16\n\nfunction dsm_to_typed_events(stream_source):\n    buffer = []\n    last_event_id = 0\n    yield sse(id=++last_event_id, event=\"turn_start\", data={})\n    for src_tok in stream_source:\n        buffer.append(src_tok)\n        out = model.step(src_tok)\n        if len(buffer) <= DELAY_STEPS:\n            continue                              # inside the offset window\n        # Partial transcript: tentative, the same offset structure\n        # that drives DSM also drives the typed event vocabulary.\n        yield sse(id=++last_event_id,\n                  event=\"partial_transcript\",\n                  data={\"text\": out.target_token,\n                        \"step\": len(buffer)})\n        if out.is_segment_boundary:\n            yield sse(id=++last_event_id,\n                      event=\"final_transcript\",\n                      data={\"text\": out.segment_text,\n                            \"step\": len(buffer)})\n    yield sse(id=++last_event_id, event=\"done\", data={})\n# Why this works: DSM keeps the decoder-only architecture and the\n# fixed-offset read policy, while streaming-typed-events gives the\n# client a typed vocabulary it can route on. The offset is what\n# turns each model step into a partial-vs-final event, with no\n# learned policy layered on top.\n# Related: see `streaming-typed-events`, `multilingual-voice-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -90,6 +130,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: streaming reply that re-reads the proxy mid-stream, cancels and reshapes if the human updates state, and marks tokens emitted before the change as tentative.",
+          "code": "PROXY_PATH = \"~/.agent/proxy.json\"\n\nstate = {\n    \"proxy\":  read_or_default(PROXY_PATH),\n    \"cancel\": new_cancel_token(),\n}\n\nwatch_file(PROXY_PATH, on_change=function(new_proxy):\n    state.proxy = new_proxy\n    state.cancel.fire()                        # interrupt active stream\n)\n\nfunction stream_reply(user_text):\n    shape  = derive_shape(state.proxy)\n    prompt = assemble(user_text, shape)\n    state.cancel = new_cancel_token()\n    stream = model.generate_stream(prompt, cancel=state.cancel)\n    emitted = []\n    for chunk in stream:\n        if state.cancel.fired():\n            for i in 0..len(emitted)-1:\n                emit_marker(\"tentative\", index=i)\n            emit_marker(\"reshape\", reason=\"proxy changed\")\n            return restart_with(state.proxy, user_text)\n        emit(chunk, marker=\"tentative\")\n        emitted.append(chunk)\n    emit_marker(\"final\")\n\nfunction derive_shape(proxy):\n    if proxy.energy <= 3 or proxy.fatigue >= 7:\n        return \"short; one anchor; do not open new threads\"\n    if proxy.environment == \"winding-down\":\n        return \"stay present; no homework\"\n    return \"normal\"\n# Why this works: the proxy is hot-reloaded under a file watcher so an\n# in-flight reply can be cancelled the moment the human's state changes,\n# and consistency markers let the UI redraw the partial answer in the\n# new shape instead of stranding tokens written for the old one.\n# Related: see `liminal-state-detection`, `now-anchoring`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: embodied-proxy-handoff composed with `interruptible-agent-execution`, so a proxy change becomes a first-class interrupt that the agent loop drains and replans against.",
+          "code": "PROXY_PATH = \"~/.agent/proxy.json\"\n\ninterrupts = new_queue()\nstate      = { \"proxy\": read_or_default(PROXY_PATH) }\n\nwatch_file(PROXY_PATH, on_change=function(new_proxy):\n    interrupts.push({\"kind\": \"proxy_changed\", \"proxy\": new_proxy})\n)\n\nfunction agent_loop(user_text):\n    plan = planner.make(user_text, proxy=state.proxy)\n    for step in plan:\n        # Drain interrupts BEFORE each step — interruptible-agent-execution\n        while not interrupts.empty():\n            ev = interrupts.pop()\n            if ev.kind == \"proxy_changed\":\n                state.proxy = ev.proxy\n                plan = planner.replan(remaining=plan.from(step),\n                                      proxy=state.proxy)\n                emit_marker(\"replanned\", reason=\"proxy\")\n                break\n        for chunk in step.run_stream(proxy=state.proxy):\n            emit(chunk)\n\nfunction prompt_shape(proxy):\n    if proxy.energy <= 3 or proxy.fatigue >= 7:\n        return \"short; one anchor; do not open new threads\"\n    if proxy.environment == \"winding-down\":\n        return \"stay present; no homework\"\n    return \"normal\"\n# Why this works: the proxy file becomes the source of interrupts, the\n# interruptible loop drains them between steps, and the planner gets\n# the new shape before producing more tokens — so a tired user does\n# not finish a long-form answer they did not want.\n# Related: see `interruptible-agent-execution`, `liminal-state-detection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -106,6 +166,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: classify mode per turn, stream the reply with tentative/final markers, and abort + reclassify if the inferred mode changes mid-stream.",
+          "code": "ANCHOR_HOUR = 7\n\nstate = { \"cancel\": new_cancel_token(), \"mode\": \"present\" }\n\nfunction classify_mode(features):\n    if features.hours_to_anchor <= 1 and features.len < 40: return \"just-woke\"\n    if features.hour >= 22 or (features.len < 30 and features.single_emoji):\n        return \"winding-down\"\n    if features.gap_seconds < 30 and features.len > 200: return \"focused\"\n    if features.gap_seconds > 1800 and features.len < 20: return \"distracted\"\n    return \"present\"\n\nfunction respond_stream(msg, prev_ts):\n    feats          = extract_features(msg, prev_ts)\n    state.mode     = classify_mode(feats)\n    state.cancel   = new_cancel_token()\n    shape          = shape_for(state.mode)\n    stream         = agent.reply_stream(msg, shape=shape, cancel=state.cancel)\n    written        = 0\n    for chunk in stream:\n        if state.cancel.fired():\n            emit_marker(\"tentative\", chars=written)\n            emit_marker(\"reshape\", new_mode=state.mode)\n            return respond_stream(msg, prev_ts)            # reclassify\n        emit(chunk, marker=\"tentative\")\n        written += len(chunk)\n        # Recheck mode periodically — a long pause mid-stream from the\n        # user can flip them from focused to distracted.\n        if written % 200 == 0:\n            new_mode = classify_mode(extract_features(msg, prev_ts))\n            if new_mode != state.mode:\n                state.mode = new_mode\n                state.cancel.fire()\n    emit_marker(\"final\")\n\nfunction shape_for(mode):\n    return {\n        \"just-woke\":    \"one anchor surface, no questions\",\n        \"winding-down\": \"short, no homework\",\n        \"focused\":      \"deeper engagement, no hedging\",\n        \"distracted\":   \"hold; acknowledge only\",\n        \"present\":      \"normal\",\n    }[mode]\n# Why this works: classifying once per turn misses mid-stream drift;\n# the loop recomputes the mode while writing and uses a cancel token\n# plus tentative/final markers to recover the surface when the user\n# slips from one state to another.\n# Related: see `embodied-proxy-handoff`, `now-anchoring`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: liminal-state-detection composed with `audit`, so every classified mode plus its derived shape is logged for later tuning of the thresholds.",
+          "code": "ANCHOR_HOUR = 7\n\nfunction extract_features(msg, prev_ts):\n    n = current_time()\n    return {\n        \"hour\":            n.hour,\n        \"hours_to_anchor\": min_distance(n.hour, ANCHOR_HOUR),\n        \"gap_seconds\":     (n - prev_ts).seconds if prev_ts else infinity,\n        \"len\":             len(msg.text),\n        \"punct_density\":   punctuation_count(msg.text) / max(1, len(msg.text)),\n        \"single_emoji\":    is_solo_emoji(msg.text),\n    }\n\nfunction classify_mode(f):\n    if f.hours_to_anchor <= 1 and f.len < 40: return \"just-woke\"\n    if f.hour >= 22 or (f.len < 30 and f.single_emoji): return \"winding-down\"\n    if f.gap_seconds < 30 and f.len > 200: return \"focused\"\n    if f.gap_seconds > 1800 and f.len < 20: return \"distracted\"\n    return \"present\"\n\nfunction respond(msg, prev_ts):\n    feats = extract_features(msg, prev_ts)\n    mode  = classify_mode(feats)\n    shape = shape_for(mode)\n    audit_log.append({\n        \"ts\":       now_iso(),\n        \"features\": feats,\n        \"mode\":     mode,\n        \"shape\":    shape,\n        \"user_id\":  msg.user_id,\n    })\n    return agent.reply(msg, response_shape=shape)\n# Why this works: composing detection with audit produces the data set\n# the team needs to tune thresholds — every classification, every input\n# feature, and every chosen shape is logged together, so later you can\n# see which inputs produced which modes and adjust the rules.\n# Related: see `decision-log`, `embodied-proxy-handoff`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -122,6 +202,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: streamed emission of an over-threshold event with backpressure, a cancel-token, and tentative/final markers so the consumer can rollback a push the agent later retracts.",
+          "code": "THRESHOLD       = 0.65\nWINDOW_SECONDS  = 1800\nMAX_PER_WINDOW  = 1\nMAX_INFLIGHT    = 1\n\nstate = {\n    \"emissions\": load_persisted_emissions(),\n    \"inflight\":  0,\n    \"cancel\":    new_cancel_token(),\n}\n\nfunction over_threshold(candidate):\n    return salience(candidate, state) >= THRESHOLD\n\nfunction window_has_capacity():\n    cutoff = now() - WINDOW_SECONDS\n    recent = [e for e in state.emissions if e.ts >= cutoff]\n    return len(recent) < MAX_PER_WINDOW\n\nfunction maybe_emit_stream(candidate):\n    if not over_threshold(candidate): return\n    if state.inflight >= MAX_INFLIGHT: return       # backpressure\n    if not window_has_capacity():      return\n    state.inflight += 1\n    state.cancel    = new_cancel_token()\n    try:\n        for chunk in render_stream(candidate):\n            if state.cancel.fired():\n                emit_marker(\"retracted\")\n                return\n            emit(chunk, marker=\"tentative\")\n        # Re-check salience at finalise time — late-arriving evidence\n        # can drop the score below threshold while we were streaming.\n        if not over_threshold(candidate):\n            emit_marker(\"retracted\", reason=\"score dropped\"); return\n        emit_marker(\"final\")\n        state.emissions.append({\"ts\": now(), \"id\": candidate.id})\n        persist_emissions(state.emissions)\n    finally:\n        state.inflight -= 1\n# Why this works: scoring once and committing is too eager — the loop\n# streams under a cancel token, rechecks salience at finalise, and only\n# then counts the emission against the per-window quota, so a stale\n# candidate does not consume the budget.\n# Related: see `bidirectional-impulse-channel`, `stop-cancel`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: salience-triggered-output composed with `audit`, so every candidate event - emitted, sub-threshold, or rate-limited - lands in a single decision log.",
+          "code": "THRESHOLD      = 0.65\nWINDOW_SECONDS = 1800\nMAX_PER_WINDOW = 1\n\nemissions = []\n\nfunction salience(event, state):\n    return (W_NOVELTY * novelty(event, state.recent)\n          + W_GOAL    * goal_relevance(event, state.goals)\n          + W_RECENCY * recency_decay(event.ts)\n          + W_PREDERR * prediction_error(event, state.model)\n          - W_FATIGUE * state.fatigue)\n\nfunction audit_decision(event, score, decision, extra={}):\n    append_audit({\n        \"ts\":       now_iso(),\n        \"event_id\": event.id,\n        \"score\":    score,\n        \"decision\": decision,        # \"emit\" | \"sub-threshold\" | \"rate-limit\"\n        \"window\":   WINDOW_SECONDS,\n        \"extra\":    extra,\n    })\n\nfunction maybe_emit(candidate, state):\n    score = salience(candidate, state)\n    if score < THRESHOLD:\n        audit_decision(candidate, score, \"sub-threshold\")\n        return\n    cutoff = now() - WINDOW_SECONDS\n    recent = [e for e in emissions if e.ts >= cutoff]\n    if len(recent) >= MAX_PER_WINDOW:\n        audit_decision(candidate, score, \"rate-limit\",\n                       extra={\"recent_count\": len(recent)})\n        return\n    emit(candidate)\n    emissions.append({\"ts\": now(), \"score\": score, \"id\": candidate.id})\n    audit_decision(candidate, score, \"emit\")\n# Why this works: composing salience with audit produces a complete\n# decision log - the team can replay why a given event did or did not\n# fire, tune the threshold against ground truth, and detect drift\n# when the score distribution shifts under model changes.\n# Related: see `decision-log`, `bidirectional-impulse-channel`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -193,6 +293,16 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Verified against https://docs.haystack.deepset.ai/docs/agent and the Haystack data-classes API reference. Confirmed: `from haystack.components.agents import Agent`, `from haystack.components.generators.chat import OpenAIChatGenerator`, `from haystack.dataclasses import ChatMessage, StreamingChunk`, Agent constructor kwargs `chat_generator` / `tools` / `streaming_callback`, `agent.run(messages=...)`, `ChatMessage.from_user(...)`, `StreamingChunk.content`, `StreamingChunk.tool_calls` (list of ToolCallDelta with `.id`, `.tool_name`, `.arguments`), `StreamingChunk.tool_call_result` (singular `ToolCallResult | None` with `.origin` (a `ToolCall` having `.id`) and `.result`). Wave 5 fix: changed `chunk.tool_call_results` iteration to a single `chunk.tool_call_result` null-check to match the documented singular field.",
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: streaming-typed-events composed with `citation-streaming`, so a `citation` event lands as soon as a span is supported, separately from the text deltas it annotates.",
+          "code": "# Extended event vocabulary, composed with citation-streaming:\n#   text_delta   { text, span_id }\n#   citation     { span_id, source, anchor, confidence }\n#   tool_start   { id, name, args }\n#   tool_end     { id, result }\n#   done         {}\n#   error        { message }\n\nfunction handle_request(req, last_event_id=none):\n    cursor = resume_cursor(last_event_id) or new_cursor(req)\n    cancel = new_cancel_token()\n    set_sse_headers()\n\n    for step in agent.run(cursor=cursor, cancel=cancel):\n        for chunk in step.stream():\n            if cancel.fired(): break\n            span_id = chunk.span_id or new_span_id()\n            yield sse(id=next_id(), event=\"text_delta\",\n                      data={\"text\": chunk.text, \"span_id\": span_id})\n            # citation-streaming: emit the supporting source AS SOON AS\n            # it resolves, in its own typed event, NOT inside text_delta\n            for cite in chunk.citations:\n                yield sse(id=next_id(), event=\"citation\",\n                          data={\"span_id\":    span_id,\n                                \"source\":     cite.source,\n                                \"anchor\":     cite.anchor,\n                                \"confidence\": cite.confidence})\n        for call in step.tool_calls:\n            yield sse(id=next_id(), event=\"tool_start\",\n                      data={\"id\": call.id, \"name\": call.name,\n                            \"args\": call.args})\n            yield sse(id=next_id(), event=\"tool_end\",\n                      data={\"id\": call.id, \"result\": dispatch(call)})\n\n    yield sse(id=next_id(), event=\"done\", data={})\n# Why this works: keeping `citation` as a separate typed event lets the\n# client render footnote markers and tooltips independently of the\n# text deltas they decorate, and lets citations arrive late without\n# blocking the visible stream.\n# Related: see `citation-streaming`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -209,6 +319,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: voice loop with backpressure on the mic, a cancel-token wired to barge-in, partial vs final transcript markers, and reconnect-resume keyed on turn id.",
+          "code": "MAX_AUDIO_BUFFER = 250    # ms of audio queued before mic backpressures\n\nstate = {\n    \"turn_id\":  new_turn_id(),\n    \"cancel\":   new_cancel_token(),\n    \"resume\":   load_persisted(\"resume_cursor\", default=none),\n}\n\nfunction run_voice_agent(voice: Voice, mic, speaker):\n    if \"sts\" in voice.capabilities:\n        run_sts(voice, mic, speaker); return\n    require({\"tts\", \"stt\"}.issubset(voice.capabilities))\n    run_cascade(voice, mic, speaker)\n\nfunction run_sts(voice, mic, speaker):\n    src = mic.stream(max_buffer_ms=MAX_AUDIO_BUFFER)   # backpressure\n    for ev in voice.converse(src, resume=state.resume, cancel=state.cancel):\n        if ev.type == \"barge_in\":\n            speaker.cancel()\n            state.cancel.fire()\n        elif ev.type == \"partial_transcript\":\n            emit(ev, marker=\"tentative\")\n        elif ev.type == \"final_transcript\":\n            emit(ev, marker=\"final\")\n        elif ev.type == \"audio_chunk\":\n            speaker.play(ev.audio)\n        elif ev.type == \"turn_end\":\n            state.resume = ev.cursor\n            persist(\"resume_cursor\", state.resume)     # reconnect survives\n            state.turn_id = new_turn_id()\n            state.cancel  = new_cancel_token()\n\nfunction run_cascade(voice, mic, speaker):\n    src = mic.stream(max_buffer_ms=MAX_AUDIO_BUFFER)\n    for ev in voice.listen(src, resume=state.resume):\n        if ev.type == \"partial_transcript\":\n            emit(ev, marker=\"tentative\")\n        elif ev.type == \"final_transcript\":\n            emit(ev, marker=\"final\")\n            reply  = agent.reply(ev.text)\n            state.cancel = new_cancel_token()\n            for chunk in voice.speak(reply, cancel=state.cancel):\n                speaker.play(chunk)\n# Why this works: the capability branch stays at the top, but every\n# branch carries the same production wiring - mic backpressure caps\n# buffering, a cancel token handles barge-in, partial/final markers\n# drive the visible transcript, and persisted resume cursors let a\n# dropped connection pick up at the right turn.\n# Related: see `stop-cancel`, `streaming-typed-events`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: unified-voice-interface composed with `streaming-typed-events`, so every provider, mode, and event flows through one typed event vocabulary the client routes on.",
+          "code": "# Typed event vocabulary, shared by every Voice implementation and\n# every mode (tts | stt | sts) — the client never branches on provider.\n#   turn_start | partial_transcript | final_transcript\n#   voice_activity_start | voice_activity_stop\n#   audio_chunk | barge_in | turn_end | error\n\nfunction voice_to_typed_stream(voice: Voice, mic):\n    last_event_id = 0\n    yield sse(id=++last_event_id, event=\"turn_start\",\n              data={\"capabilities\": list(voice.capabilities)})\n    if \"sts\" in voice.capabilities:\n        source = voice.converse(mic.stream())\n    else:\n        source = voice.listen(mic.stream())\n    for ev in source:\n        # Same vocabulary regardless of which Voice implementation\n        # produced the event — that is the unification.\n        yield sse(id=++last_event_id, event=ev.type, data=ev.data)\n        if ev.type == \"turn_end\":\n            yield sse(id=++last_event_id, event=\"done\", data={})\n            return\n\nfunction client_route(ev):\n    switch ev.event:\n        case \"partial_transcript\": ui.show_tentative(ev.data.text)\n        case \"final_transcript\":   ui.commit(ev.data.text)\n        case \"audio_chunk\":        speaker.enqueue(ev.data.audio)\n        case \"barge_in\":           ui.flash(\"interrupted\")\n        case \"voice_activity_start\": ui.mic_indicator(true)\n        case \"voice_activity_stop\":  ui.mic_indicator(false)\n        case \"error\":              ui.error_banner(ev.data.message)\n        case \"done\":               ui.finalise()\n# Why this works: the Voice interface unifies the modes, the typed\n# event vocabulary unifies the transport, and the two compose so that\n# the client gets one switch over event names and the agent loop gets\n# one set of providers behind one contract.\n# Related: see `streaming-typed-events`, `multilingual-voice-agent`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }

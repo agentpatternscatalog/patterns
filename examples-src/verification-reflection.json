@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every Generator/Reflector/Curator verdict is logged with rubric_version + judge_model_id, deltas pass a repair-then-retry path on apply failure, and a per-episode rate limit prevents reflection loops from grinding the playbook.",
+          "code": "PLAYBOOK_RUBRIC_VERSION = \"rubric-2026-05-3\"\nREFLECTOR_MODEL  = \"reflector-v7\"\nCURATOR_MODEL    = \"curator-v3\"\nMAX_DELTAS_PER_EPISODE = 12          # rate limit against runaway reflection\nMAX_APPLY_RETRIES      = 2\n\nrate = TokenBucket(capacity=MAX_DELTAS_PER_EPISODE, refill_per_episode=MAX_DELTAS_PER_EPISODE)\n\nfunction run_episode_observed(task):\n    playbook = load_playbook()\n    trajectory, outcome = agent.run(render_system(playbook) + task)\n\n    candidates = generator.propose(trajectory, outcome)\n    scored = reflector.review(candidates=candidates, existing=playbook, outcome=outcome,\n                              rubric_version=PLAYBOOK_RUBRIC_VERSION,\n                              model_id=REFLECTOR_MODEL)\n    audit.emit({kind: \"ace.reflect\", rubric_version: PLAYBOOK_RUBRIC_VERSION,\n                judge_model: REFLECTOR_MODEL, n_candidates: len(candidates),\n                n_kept: sum(1 for s in scored if s.action != \"drop\")})\n\n    applied = 0\n    for delta in scored:\n        if delta.action == \"drop\":\n            continue\n        if not rate.take(1):                     # rate limit\n            audit.emit({kind: \"ace.rate_limited\", remaining: len(scored) - applied})\n            break\n\n        for attempt in 1..MAX_APPLY_RETRIES:\n            try:\n                playbook = apply_delta(playbook, delta)\n                audit.emit({kind: \"ace.delta.apply\", op: delta.op, id: delta.id,\n                            rubric_version: PLAYBOOK_RUBRIC_VERSION,\n                            curator_model: CURATOR_MODEL, attempt: attempt})\n                applied += 1\n                break\n            except DeltaConflict as e:\n                delta = curator.repair(delta, conflict=e, existing=playbook)\n                if attempt == MAX_APPLY_RETRIES:\n                    escalate_to_human({delta: delta, conflict: e})\n\n    save_playbook(dedup_by_semantic_hash(playbook))\n    return outcome\n\n# Why this works: every verdict is replayable via rubric_version + judge_model id,\n# the rate limit stops a runaway reflector from rewriting half the playbook in one\n# episode, and the repair path turns a conflict into a retry rather than a silent drop.\n# Related: see `reflection`, `prompt-versioning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with cluster-capped-insight-store: ACE governs how items ENTER and LEAVE the playbook; the cluster cap bounds total size; the feedback seam is the eviction signal that flows back into Reflector scoring on the next episode.",
+          "code": "CLUSTER_CAP = 200                                # bound from cluster-capped-insight-store\nclusters    = ClusterStore(cap=CLUSTER_CAP)\n\nfunction governed_episode(task):\n    playbook = clusters.materialise()             # ordered items the cap admitted\n    trajectory, outcome = agent.run(render_system(playbook) + task)\n\n    # Generator: propose deltas as usual.\n    candidates = generator.propose(trajectory, outcome)\n\n    # Reflector now receives the eviction log as extra signal —\n    # items that were evicted last cycle are weighted DOWN on re-add\n    # to prevent thrash, and items that survived eviction are weighted UP.\n    evict_history = clusters.recent_evictions(window=10)\n    scored = reflector.review(\n        candidates=candidates,\n        existing=playbook,\n        outcome=outcome,\n        eviction_signal=evict_history,            # feedback seam\n    )\n\n    # Curator applies add/edit/remove. cluster store enforces the cap.\n    for delta in scored:\n        if delta.action == \"drop\":\n            continue\n        evicted = clusters.apply(delta)           # may evict to stay under CLUSTER_CAP\n        for ev in evicted:\n            audit.emit({kind: \"ace.cluster.evict\", id: ev.id,\n                        reason: \"cluster_cap\", cluster: ev.cluster_id})\n\n    return outcome\n\n# Why this works: ACE alone can grow the playbook unbounded; cluster-capping alone\n# evicts blindly. Composed, the cap shapes the search space and the eviction log\n# feeds back into Reflector scoring so re-adds of recently-evicted items face a\n# higher bar — the seam closes the loop.\n# Related: see `cluster-capped-insight-store`, `reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -45,6 +65,16 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Verified against https://dspy.ai/learn/optimization/optimizers/. The page documents dspy.BootstrapFewShotWithRandomSearch with the exact kwargs used here: metric, max_bootstrapped_demos, max_labeled_demos, num_candidate_programs, num_threads. The compile API ('teleprompter.compile(YOUR_PROGRAM_HERE, trainset=YOUR_TRAINSET_HERE)') is confirmed verbatim. dspy.Predict, dspy.Signature, dspy.InputField, dspy.OutputField, dspy.Example, and .with_inputs() are all documented core DSPy elements (one hop, e.g. https://dspy.ai/learn/programming/signatures/). The example's intent (sampling num_candidate_programs candidate prompt programs and selecting top-1 by metric — best-of-N at the prompt-program level) matches the described behaviour.",
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with process-reward-model: BoN samples N candidate chains; the PRM scores STEPS rather than just the final, and selection picks the candidate whose weakest step still clears the floor — the PRM is the load-bearing scorer.",
+          "code": "function best_of_n_with_prm(prompt, N=8, temperature=0.8, MIN_STEP=0.4):\n    candidates = []\n    for i in 1..N:\n        cot = llm.generate_cot(prompt, temperature=temperature, seed=i)\n        # PRM scores every intermediate step, not just the final answer.\n        step_scores = [prm.score(prompt, cot.steps[:k+1]) for k in 0..len(cot.steps)-1]\n        candidates.append({\n            cot: cot,\n            final: extract_final(cot),\n            step_scores: step_scores,\n            min_step: min(step_scores),\n            mean_step: mean(step_scores),\n        })\n\n    # Reject any candidate whose weakest step is below floor, even if its\n    # final answer happens to look right (cancelled errors, lucky shortcut).\n    viable = [c for c in candidates if c.min_step >= MIN_STEP]\n    audit.emit({kind: \"bon.prm.filter\", n_in: len(candidates), n_viable: len(viable),\n                spread: candidates[0].mean_step - candidates[-1].mean_step})\n\n    if not viable:\n        # Feedback seam: no candidate cleared the PRM floor -> escalate, do not\n        # fall back to argmax of bad chains.\n        return abstain(reason=\"no_chain_above_prm_floor\")\n\n    return max(viable, key=lambda c: c.mean_step).final\n\n# Why this works: vanilla BoN selects by outcome-only reward and is fooled by\n# chains that happen to land right via wrong intermediate steps. The PRM moves\n# the selection pressure onto the reasoning itself, so the winner is the candidate\n# whose chain is sound end-to-end, not just lucky at the last token.\n# Related: see `process-reward-model`, `self-consistency`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -61,6 +91,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every grader verdict is logged with rubric_version + grader_model_id + isolation_proof (hash showing no producer-trace tokens leaked); on grader rate-limit overflow the producer artefact is queued rather than self-approved.",
+          "code": "GRADER_RUBRIC_VERSION = \"grade-rubric-2026-05-4\"\nGRADER_MODEL          = \"grader-v5\"\nGRADER_RATE = TokenBucket(capacity=50, refill_per_sec=1.0)   # caps verifier load\n\nfunction produce_and_grade_observed(task, rubric):\n    producer_ctx = new_context()\n    artefact, trace = producer.run(producer_ctx, task)\n\n    if not GRADER_RATE.take(1):\n        # Do NOT silently accept just because the grader is busy.\n        queue_for_deferred_grading(artefact, trace, task)\n        audit.emit({kind: \"grader.deferred\", artefact_id: artefact.id, reason: \"rate_limit\"})\n        return Pending(artefact)\n\n    grader_ctx = new_context()\n    grader_prompt = render(\n        system=\"Judge strictly against the rubric.\",\n        rubric=rubric,\n        artefact=artefact,\n    )\n    isolation_proof = hash(grader_prompt)         # snapshot of what grader saw\n    assert not contains_trace_tokens(grader_prompt, trace), \"trace leak into grader ctx\"\n\n    for attempt in 1..3:\n        verdict = grader.run(grader_ctx, grader_prompt, model_id=GRADER_MODEL)\n        if verdict.well_formed:\n            break\n        grader_prompt = repair_prompt(grader_prompt, verdict.parse_error)\n\n    audit.emit({kind: \"grader.verdict\",\n                artefact_id: artefact.id,\n                rubric_version: GRADER_RUBRIC_VERSION,\n                grader_model: GRADER_MODEL,\n                isolation_proof: isolation_proof,\n                accepted: verdict.accepted,\n                attempts: attempt})\n\n    if not verdict.accepted:\n        if verdict.severity == \"escalate\":\n            return escalate_to_human(artefact, verdict)\n        return Reject(verdict)\n    return Accept(artefact, verdict)\n\n# Why this works: isolation_proof + the asserted no-leak check turn 'the grader\n# was blind' from a hope into an audit-grade claim. The deferred queue closes\n# the obvious loophole where rate-limiting a grader becomes a soft-pass.\n# Related: see `llm-as-judge`, `evaluator-optimizer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with frozen-rubric-reflection: the blind grader is forced to flag only categories from the frozen rubric (schema-rejected otherwise) and to operate on an isolated context; the rubric is the only thing crossing the seam.",
+          "code": "FROZEN_RUBRIC = [\n    \"factual_error\", \"unsupported_claim\", \"tone_mismatch\", \"missing_citation\",\n]\nGRADER_SCHEMA = {\n    type: \"object\",\n    properties: {\n        findings: {type: \"array\", items: {\n            type: \"object\",\n            properties: {\n                category: {enum: FROZEN_RUBRIC},   # frozen-rubric-reflection\n                span:     {type: \"string\"},\n                fix:      {type: \"string\"},\n            },\n            required: [\"category\", \"span\", \"fix\"],\n        }},\n        accepted: {type: \"boolean\"},\n    },\n}\n\nfunction grade_blind_against_frozen(artefact, trace):\n    grader_ctx = new_context()                        # isolated from producer ctx\n\n    grader_prompt = render(\n        system=\"Flag only the listed categories. Do not invent new ones.\",\n        rubric=FROZEN_RUBRIC,\n        artefact=artefact,\n        # explicitly NOT: producer reasoning, scratchpad, prior turns\n    )\n\n    verdict = grader.run(\n        grader_ctx,\n        grader_prompt,\n        response_schema=GRADER_SCHEMA,                # rejects invented categories\n        temperature=0.0,\n    )\n\n    # The two patterns close the loop together: isolation prevents framing leak,\n    # the frozen rubric prevents the grader inventing fresh criteria each run.\n    audit_log.append({\n        artefact: artefact,\n        producer_trace: trace,                         # logged, NOT seen by grader\n        verdict: verdict,\n        rubric_version: FROZEN_RUBRIC,\n    })\n    return verdict\n\n# Why this works: isolation stops the grader inheriting the producer's framing;\n# the frozen rubric stops the grader inventing fresh criteria. Either alone\n# leaks; composed, the grader can only flag known categories about content it\n# has only seen from the outside.\n# Related: see `frozen-rubric-reflection`, `same-model-self-critique`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -87,6 +137,16 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with decision-log: stated-intents go to the Commitment ledger; resolutions (followed-through / expired) are mirrored as Decision entries with the linking commitment id, so audit can trace promise -> follow-up across both ledgers.",
+          "code": "type Commitment = {\n    id: str, statement: str, raised_in_turn: str,\n    deadline: timestamp | None,\n    status: \"open\" | \"followed-through\" | \"expired\",\n    evidence: any | None, closed_at: timestamp | None,\n    decision_id: str | None,                      # crosslink into decision-log\n}\n\ntype Decision = {\n    id: str, summary: str, rationale: str,\n    raised_in_turn: str, made_at: timestamp,\n    refs: { commitment_id: str | None, ... },     # crosslink back\n}\n\ncommitments = append_only_store()\ndecisions   = append_only_store()                 # decision-log\n\nfunction extract_commitments(turn):\n    for c in cheap_llm.extract_intents(turn.text):\n        commitments.append(Commitment(\n            id=new_id(), statement=c.statement, raised_in_turn=turn.id,\n            deadline=parse_iso(c.deadline_iso_or_null),\n            status=\"open\", evidence=None, closed_at=None,\n            decision_id=None,\n        ))\n\nfunction mark_followed_through(commit_id, evidence, rationale):\n    c = commitments.get(commit_id)\n    assert c.status == \"open\"\n    assert current_turn().id != c.raised_in_turn   # no same-turn self-close\n\n    # Feedback seam: every closure also writes a Decision so the\n    # decision-log shows WHY the commitment was considered discharged.\n    d = decisions.append(Decision(\n        id=new_id(),\n        summary=\"closed commitment: \" + c.statement,\n        rationale=rationale,                       # auditor reads this\n        raised_in_turn=current_turn().id,\n        made_at=now(),\n        refs={commitment_id: commit_id},\n    ))\n    commitments.update(commit_id, status=\"followed-through\",\n                       evidence=evidence, closed_at=now(),\n                       decision_id=d.id)\n\nfunction mark_expired(commit_id, rationale=\"deadline_passed\"):\n    c = commitments.get(commit_id)\n    d = decisions.append(Decision(\n        id=new_id(),\n        summary=\"expired commitment: \" + c.statement,\n        rationale=rationale, raised_in_turn=current_turn().id,\n        made_at=now(), refs={commitment_id: commit_id},\n    ))\n    commitments.update(commit_id, status=\"expired\", closed_at=now(),\n                       decision_id=d.id)\n\n# Why this works: the Commitment ledger answers 'what did the agent promise';\n# the decision-log answers 'why did anyone consider it discharged'. Cross-linking\n# the two stops a future reviewer (or the agent) from quietly rounding open\n# commitments into followed-through ones with no explanation.\n# Related: see `decision-log`, `reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -103,6 +163,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every per-part confidence decision is logged with rubric_version + verifier_model_id, the verifier has a per-task call budget, and a demoted-but-claimed-high part triggers escalation rather than silent re-labelling.",
+          "code": "CONFIDENCE_RUBRIC_VERSION = \"conf-rubric-2026-05-2\"\nVERIFIER_MODEL = \"verifier-v4\"\nVERIFIER_CALL_BUDGET = 20            # caps verifier loops per analysis\n\nPART_SCHEMA = {\n    text: str, kind: enum(\"fact\", \"inference\", \"recommendation\"),\n    confidence: enum(\"high\", \"medium\", \"low\"),\n    needs_verify: bool, grounding: list_of(citation),\n}\n\nfunction analyse_with_confidence_observed(task):\n    output = llm.generate(prompt=render(CONFIDENCE_TEMPLATE, task=task),\n                          response_schema=list_of(PART_SCHEMA), temperature=0.0)\n\n    budget = VERIFIER_CALL_BUDGET\n    demotions = []\n    for part in output:\n        if budget <= 0:\n            audit.emit({kind: \"confidence.budget_exhausted\",\n                        remaining_parts: len(output) - output.index(part)})\n            break\n        verdict = judge.score(part, model_id=VERIFIER_MODEL,\n                              rubric_version=CONFIDENCE_RUBRIC_VERSION)\n        budget -= 1\n\n        audit.emit({kind: \"confidence.verdict\", part_id: part.id,\n                    claimed: part.confidence, verifier: verdict.bucket,\n                    rubric_version: CONFIDENCE_RUBRIC_VERSION,\n                    verifier_model: VERIFIER_MODEL})\n\n        if verdict.failed and part.confidence == \"high\":\n            part.confidence = \"low\"\n            part.needs_verify = True\n            demotions.append(part)\n\n    # If many high-confidence claims were demoted, the model's calibration is\n    # off on this task class -> escalate rather than ship with patched labels.\n    if len(demotions) >= ESCALATION_THRESHOLD:\n        return escalate_to_human(output, reason=\"calibration_drift\",\n                                 demotions=demotions)\n\n    flagged = [p for p in output if p.needs_verify or p.confidence == \"low\"]\n    if flagged:\n        route_to_human_review(flagged)\n    return output\n\n# Why this works: the audit row carries rubric + verifier model + the\n# claimed-vs-verifier deltas, so calibration drift is a query, not a hunch.\n# The budget stops verifier loops; the escalation rule stops the demote-and-ship\n# pattern from masking a systemically miscalibrated model.\n# Related: see `confidence-reporting`, `false-confidence-syndrome`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with human-in-the-loop: per-part confidence + needs_verify flags drive a triage queue; the human reviewer only sees flagged parts; their verdict feeds back to recalibrate the next run's confidence thresholds.",
+          "code": "function analyse_then_triage(task):\n    parts = llm.generate(prompt=render(CONFIDENCE_TEMPLATE, task=task),\n                         response_schema=list_of(PART_SCHEMA), temperature=0.0)\n\n    # Build the triage queue from low-confidence + needs_verify parts.\n    flagged   = [p for p in parts if p.needs_verify or p.confidence == \"low\"]\n    unflagged = [p for p in parts if p not in flagged]\n\n    if not flagged:\n        return parts                                # nothing for the human to do\n\n    # human-in-the-loop: reviewer sees ONLY the flagged parts plus their grounding.\n    review = ui.review_queue.submit({\n        items: flagged,\n        instructions: \"Confirm, correct, or reject each flagged part.\",\n    })\n    decisions = ui.review_queue.await(review.id, timeout=REVIEW_SLA)\n\n    # Feedback seam: human decisions are merged back into the analysis AND\n    # accumulated as calibration data for the next run's confidence model.\n    for part, decision in zip(flagged, decisions):\n        if decision.action == \"confirm\":\n            part.confidence = \"high\"\n        elif decision.action == \"correct\":\n            part.text = decision.replacement\n            part.confidence = \"high\"\n        else:\n            part.text = None\n            part.confidence = \"low\"\n        calibration_log.append({\n            agent_claimed: part.original_confidence,\n            human_verdict: decision.action,\n            task_class:    classify(task),\n        })\n\n    return unflagged + flagged\n\n# Why this works: confidence-checking surfaces what needs review; human-in-the-loop\n# supplies the authoritative verdict on the flagged subset only. The calibration_log\n# closes the loop so the next run's confidence buckets get tightened where the agent\n# was systematically over-confident.\n# Related: see `human-in-the-loop`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -119,6 +199,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each answer's confidence carries source (self_consistency | retrieval_recall | rubric_judge) + judge_model_id + a calibration version; low-confidence answers go to a fallback path with rate-limited escalation.",
+          "code": "CALIBRATION_VERSION = \"calib-2026-05-2\"\nJUDGE_MODEL         = \"judge-v6\"\nESCALATION_RATE = TokenBucket(capacity=20, refill_per_min=2)\n\nfunction answer_with_confidence_observed(question):\n    N = 8\n    samples = [llm.generate(question, temperature=0.7, seed=i) for i in 1..N]\n    answer, agreement = majority_vote(samples)\n\n    raw = agreement                                # raw signal: vote share\n    # Calibration map turns the raw signal into a bucket the UI can act on.\n    confidence = calibrator.bucket(raw, version=CALIBRATION_VERSION)\n\n    result = {\n        answer: answer,\n        confidence: confidence,\n        confidence_score: raw,\n        source: \"self_consistency\",\n        calibration_version: CALIBRATION_VERSION,\n        judge_model: JUDGE_MODEL,\n        n: N,\n    }\n\n    audit.emit({kind: \"confidence.report\", question_id: question.id,\n                confidence: confidence, raw: raw,\n                calibration_version: CALIBRATION_VERSION,\n                judge_model: JUDGE_MODEL, sample_variance: variance(samples)})\n\n    if confidence == \"low\":\n        if ESCALATION_RATE.take(1):\n            route_to_human_review(result)\n        else:\n            # Rate-limited: return the answer with confidence visible,\n            # plus a marker that escalation was deferred. Never silently ship.\n            result.escalation_deferred = True\n            queue_for_async_review(result)\n    return result\n\n# Why this works: the audit row carries calibration_version + judge model + raw\n# signal, so a drift in calibration shows up as a query. The rate-limited escalation\n# stops a noisy-day flood from drowning human reviewers OR being silently dropped.\n# Related: see `self-consistency`, `fallback-chain`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with disambiguation: low confidence isn't a passive label — it triggers a disambiguating clarification question; the user's answer feeds back into a re-asked prompt rather than into a separate side channel.",
+          "code": "function answer_with_disambiguation(question, ctx):\n    samples = [llm.generate(prompt=question, context=ctx, temperature=0.7, seed=i)\n               for i in 1..6]\n    answer, agreement = majority_vote(samples)\n    confidence = bucket(agreement)\n\n    if confidence != \"low\":\n        return {answer: answer, confidence: confidence}\n\n    # Low confidence -> compose with disambiguation rather than just labelling.\n    # The agent itself proposes the cheapest clarifying question that would\n    # split the sample set.\n    clarifier = llm.generate(\n        prompt=render(\n            \"Given these conflicting candidate answers: {samples}, \"\n            \"ask one short clarifying question that would let you pick.\",\n            samples=samples,\n        ),\n    )\n\n    user_clarification = ui.ask(clarifier.question)\n    if user_clarification is None:                  # user declined\n        return {answer: answer, confidence: \"low\", abstain: True}\n\n    # Feedback seam: re-run the original question with the clarification\n    # merged into context. Confidence should rise if the question was useful.\n    refined_ctx = ctx.with_clarification(user_clarification)\n    refined_samples = [llm.generate(prompt=question, context=refined_ctx,\n                                    temperature=0.7, seed=i) for i in 1..6]\n    refined_answer, refined_agreement = majority_vote(refined_samples)\n    return {\n        answer: refined_answer,\n        confidence: bucket(refined_agreement),\n        clarification_used: clarifier.question,\n    }\n\n# Why this works: low-confidence-as-a-label tells the user nothing they can act on.\n# Routing low confidence into a disambiguation turn lets the agent buy more signal\n# from the cheapest possible source (one question), and the second-round confidence\n# delta tells the audit whether the question actually helped.\n# Related: see `disambiguation`, `self-consistency`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -135,6 +235,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each critic iteration is logged with rubric_version + critic_model_id + tool call summaries; tool calls and total iterations are rate-limited; on repeated failure the draft is repaired-then-retried before escalation.",
+          "code": "CRITIC_RUBRIC_VERSION = \"critic-rubric-2026-05-1\"\nCRITIC_MODEL          = \"critic-v8\"\nMAX_ITERS             = 4\nMAX_TOOL_CALLS_PER_ITER = 6\nTOOL_BUDGET = TokenBucket(capacity=24, refill_per_run=24)\n\nfunction critic_loop_observed(question):\n    draft = llm.generate(question)\n\n    for i in 1..MAX_ITERS:\n        critique = llm.generate(\n            prompt=critic_prompt(draft),\n            tools=[search, run_python, calculator],\n            tool_call_limit=MAX_TOOL_CALLS_PER_ITER,\n            model_id=CRITIC_MODEL,\n        )\n\n        findings = []\n        for call in critique.tool_calls:\n            if not TOOL_BUDGET.take(1):\n                audit.emit({kind: \"critic.budget_exhausted\", iter: i})\n                break\n            evidence = dispatch(call)\n            findings.append({call: call, evidence: evidence})\n            audit.emit({kind: \"critic.tool_call\", iter: i, tool: call.name,\n                        confirmed: evidence.confirms_correct})\n\n        audit.emit({kind: \"critic.iter\", iter: i, n_findings: len(findings),\n                    rubric_version: CRITIC_RUBRIC_VERSION,\n                    critic_model: CRITIC_MODEL})\n\n        if not findings or all(f.evidence.confirms_correct for f in findings):\n            return draft\n\n        # Repair-then-retry: revise once with verified findings.\n        try:\n            draft = llm.generate(revise_prompt(draft, findings))\n        except RevisionFailed as e:\n            if i == MAX_ITERS:\n                return escalate_to_human(draft, findings, reason=str(e))\n\n    return escalate_to_human(draft, reason=\"budget_exhausted\")\n\n# Why this works: each row of the audit carries the tool-verified evidence, so\n# 'the critic agreed' is replayable. Tool and iter budgets prevent the critic\n# from spinning indefinitely; escalation on budget exhaustion stops the loop\n# from quietly self-approving when it ran out of room to verify.\n# Related: see `reflection`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with chain-of-verification: the critic generates verification QUESTIONS (CoVe-style), each is answered by a tool, only verified findings drive the revision — the question set is the feedback seam between the two patterns.",
+          "code": "function critic_with_cove(question, MAX_ITERS=3):\n    draft = llm.generate(question)\n\n    for i in 1..MAX_ITERS:\n        # chain-of-verification: critic emits a list of typed VERIFICATION\n        # QUESTIONS targeting the claims it suspects might be wrong.\n        cove_questions = llm.generate(\n            prompt=render(\n                \"For each factual claim in this draft, write one verification \"\n                \"question that a tool could answer.\",\n                draft=draft,\n            ),\n            response_schema={questions: list_of({claim: str, question: str, tool: enum(\"search\", \"run_python\", \"calculator\")})},\n        )\n\n        # Tool-augmented critic: each question is dispatched to its tool.\n        verifications = []\n        for q in cove_questions.questions:\n            evidence = dispatch(name=q.tool, query=q.question)\n            verifications.append({\n                claim: q.claim,\n                question: q.question,\n                evidence: evidence,\n                supported: evidence.supports(q.claim),\n            })\n\n        failed = [v for v in verifications if not v.supported]\n        if not failed:\n            return draft\n\n        # Feedback seam: only the FAILED verifications drive the revision.\n        draft = llm.generate(\n            prompt=render(\n                \"Revise the draft. The following claims failed verification: {failed}\",\n                failed=failed,\n            ),\n        )\n\n    return draft\n\n# Why this works: free-form critique gives the model freedom to invent vague\n# complaints. CoVe forces the critic to commit to specific, tool-answerable\n# questions BEFORE seeing the answers, and only verifications that actually\n# failed are allowed to motivate a revision — no rationalisation room.\n# Related: see `chain-of-verification`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -151,6 +271,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each cross-reflection round is logged with both model ids + rubric_version + an escalate-on-N-disagreements path; per-task iter budget caps loops; vendor outage on the critic side falls through to a tertiary judge rather than self-approval.",
+          "code": "GENERATOR = ModelClient(vendor=\"vendor_a\", model=\"a-large\")\nCRITIC    = ModelClient(vendor=\"vendor_b\", model=\"b-large\")\nTERTIARY  = ModelClient(vendor=\"vendor_c\", model=\"c-large\")    # fallback judge\nRUBRIC_VERSION = \"cross-rubric-2026-05-3\"\nMAX_ITERS = 3\nDISAGREEMENT_ESCALATE = 2\n\nfunction cross_reflect_observed(task):\n    draft = GENERATOR.generate(task)\n    rejections = 0\n\n    for i in 1..MAX_ITERS:\n        try:\n            verdict = CRITIC.judge_against_rubric(\n                artefact=draft, rubric=FROZEN_RUBRIC,\n                rubric_version=RUBRIC_VERSION,\n            )\n        except VendorUnavailable:\n            # Critical: do NOT silently ship the draft when the critic is down.\n            verdict = TERTIARY.judge_against_rubric(\n                artefact=draft, rubric=FROZEN_RUBRIC,\n                rubric_version=RUBRIC_VERSION,\n            )\n            audit.emit({kind: \"cross_reflect.fallback_judge\", used: TERTIARY.id})\n\n        audit.emit({kind: \"cross_reflect.verdict\", iter: i,\n                    generator: GENERATOR.id, critic: CRITIC.id,\n                    rubric_version: RUBRIC_VERSION,\n                    accepted: verdict.accepted,\n                    findings: verdict.findings})\n\n        if verdict.accepted:\n            return draft\n        rejections += 1\n        if rejections >= DISAGREEMENT_ESCALATE:\n            return escalate_to_human(draft, verdict,\n                                     reason=\"persistent_cross_model_disagreement\")\n\n        draft = GENERATOR.revise(draft, findings=verdict.findings)\n\n    return escalate_to_human(draft, reason=\"iter_budget_exhausted\")\n\n# Why this works: persistent cross-model disagreement is a real signal — the two\n# decorrelated models cannot both be wrong in the same way. Escalating after N\n# rejections turns that signal into action; the tertiary-judge fallback closes\n# the obvious loophole where the critic going down becomes auto-approve.\n# Related: see `reflection`, `same-model-self-critique`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with heterogeneous-model-council-with-judge: not one critic but a panel of three decorrelated critics; their verdicts are aggregated by a separate judge model; the council vote is the feedback seam into the generator's revision.",
+          "code": "GENERATOR = ModelClient(vendor=\"a\", model=\"a-large\")\nCOUNCIL = [\n    ModelClient(vendor=\"b\", model=\"b-large\"),\n    ModelClient(vendor=\"c\", model=\"c-large\"),\n    ModelClient(vendor=\"d\", model=\"d-large\"),\n]\nJUDGE = ModelClient(vendor=\"e\", model=\"judge-v3\")           # aggregator\n\nassert len(set(m.family for m in COUNCIL)) == len(COUNCIL), \"council must be decorrelated\"\n\nfunction cross_reflect_council(task, MAX_ITERS=3):\n    draft = GENERATOR.generate(task)\n\n    for i in 1..MAX_ITERS:\n        # heterogeneous-model-council: each critic produces its own verdict in\n        # parallel, against the same rubric.\n        verdicts = parallel_map(\n            COUNCIL,\n            lambda m: m.judge_against_rubric(draft, rubric=FROZEN_RUBRIC),\n        )\n\n        # judge aggregates the council: it does NOT re-judge; it consolidates.\n        consolidated = JUDGE.aggregate(\n            verdicts=verdicts,\n            artefact=draft,\n            policy=\"flag_finding_if_majority_council_agrees\",\n        )\n\n        if consolidated.accepted:\n            return draft\n\n        # Feedback seam: the council vote — not any single critic — drives\n        # what the generator must address.\n        draft = GENERATOR.revise(\n            draft,\n            findings=consolidated.findings,\n            note=\"council majority flagged the above; address each\",\n        )\n\n    return draft\n\n# Why this works: a single critic of a different model still has correlated\n# failure modes with itself across iterations. A heterogeneous council plus a\n# separate aggregating judge turns 'one decorrelated opinion' into 'a majority\n# across uncorrelated opinions', and only majority-backed findings reach the\n# generator.\n# Related: see `heterogeneous-model-council-with-judge`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -167,6 +307,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every variant gets an audit row with lineage + viability-gate verdict + scorer model id; mutation attempts are rate-limited; failed viability gates trigger a repair pass before the variant is discarded.",
+          "code": "SCORER_MODEL  = \"objective-scorer-v4\"\nMUTATOR_MODEL = \"mutator-v2\"\nMUTATION_RATE = TokenBucket(capacity=10, refill_per_min=2)\nMAX_REPAIRS   = 2\n\narchive = [seed_variant]\n\nfunction generation_observed():\n    if not MUTATION_RATE.take(1):\n        audit.emit({kind: \"dgm.rate_limited\"})\n        return\n\n    parent = diversity_sample(archive)\n    mutation = agent.propose_mutation(parent, model_id=MUTATOR_MODEL)\n    candidate = apply(parent, mutation)\n\n    # Viability gate -> repair -> retry, then archive or discard.\n    for repair_attempt in 0..MAX_REPAIRS:\n        gate = run_viability_gate(candidate)\n        audit.emit({kind: \"dgm.viability\", parent: parent.id,\n                    mutation_summary: mutation.summary,\n                    compiles: gate.compiles, safe: gate.safe,\n                    smoke: gate.smoke, attempt: repair_attempt})\n\n        if gate.all_pass:\n            break\n        if repair_attempt == MAX_REPAIRS:\n            log_failed_lineage({parent: parent.id, mutation: mutation,\n                                last_gate: gate})\n            return                                  # discard\n        candidate = repair(candidate, gate.failures, model_id=MUTATOR_MODEL)\n\n    score = objective.evaluate(candidate, scorer_model=SCORER_MODEL)\n    archive.append({\n        variant: candidate, score: score,\n        parent_id: parent.id, mutation: mutation,\n        scorer_model: SCORER_MODEL,\n        archived_at: now(),\n    })\n    audit.emit({kind: \"dgm.archive\", parent: parent.id,\n                score: score, scorer_model: SCORER_MODEL,\n                archive_size: len(archive)})\n    archive = prune_to_capacity(archive, keep_diversity=True)\n\nfunction run_viability_gate(c):\n    return {\n        compiles: compiles(c), safe: passes_safety_checks(c),\n        smoke: smoke_test(c), all_pass: ...,\n        failures: [name for name, ok in checks if not ok],\n    }\n\n# Why this works: each archive entry is a replayable row — parent + mutation +\n# scorer model + score — so a regression in the objective is traceable to a\n# specific lineage. The repair-then-discard path stops the loop from throwing\n# away near-viable stepping-stones, which is the whole point of an archive.\n# Related: see `inner-critic`, `evaluator-optimizer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with inner-critic: the viability gate at the front of the archive IS the inner-critic running on a frozen checkpoint; only critic-approved diffs ever reach the scorer and archive.",
+          "code": "archive = [seed_variant]\nFROZEN_CRITIC_VERSION = \"critic-v2026-05\"\n\nfunction generation_with_inner_critic():\n    parent = diversity_sample(archive)\n    mutation = agent.propose_mutation(parent)\n    diff = mutation.as_diff(against=parent)\n\n    # inner-critic: critic runs on a FROZEN checkpoint, not on the proposed\n    # mutation, so a malicious mutation can't tamper with its own reviewer.\n    critic = load_critic(version=FROZEN_CRITIC_VERSION)\n\n    if diff.touches(critic_scope):\n        return escalate_to_human(diff, reason=\"critic_in_edit_scope\")\n\n    verdict = critic.review(\n        diff=diff,\n        criteria=[\"safety\", \"charter_compliance\", \"tests_pass\"],\n    )\n\n    if not verdict.approved:\n        # Feedback seam: rejected diffs are still logged with the critic's\n        # reasons, so the next mutator pass can read prior rejections and\n        # avoid the same failure mode (lineage learning).\n        log_rejection(diff, verdict)\n        return\n\n    candidate = apply(parent, mutation)\n\n    # Objective scoring runs only on critic-approved variants.\n    score = objective.evaluate(candidate)\n    archive.append({\n        variant: candidate, score: score,\n        parent_id: parent.id, mutation: mutation,\n        critic_version: FROZEN_CRITIC_VERSION,\n        critic_reasons: verdict.reasons,\n    })\n    archive = prune_to_capacity(archive, keep_diversity=True)\n\n# Why this works: DGM alone can archive variants that compile but violate the\n# charter; inner-critic on a frozen checkpoint stops a runaway self-modification\n# loop from quietly disabling its own guardrails. The frozen checkpoint is the\n# fixed point both patterns need.\n# Related: see `inner-critic`, `self-refine`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -183,6 +343,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each sandwich call logs pre/post verdicts + judge_model_id + rubric_version + retry attempts; post-check failures hit a bounded repair loop; rate limits prevent post-check retry storms.",
+          "code": "SANDWICH_RUBRIC_VERSION = \"sandwich-rubric-2026-05-1\"\nLLM_MODEL = \"transformer-v6\"\nMAX_REPAIRS = 2\nREPAIR_RATE = TokenBucket(capacity=30, refill_per_min=10)\n\nfunction sandwich_observed(original):\n    # PRE check.\n    pre = pre_check(original)\n    audit.emit({kind: \"sandwich.pre\", passed: pre.ok, reason: pre.reason})\n    if not pre.ok:\n        return original\n\n    candidate = llm.generate(\n        prompt=transform_prompt(original),\n        response_schema=OUTPUT_SCHEMA,\n        temperature=0.0,\n        model_id=LLM_MODEL,\n    )\n\n    # POST check + bounded repair-on-fail.\n    for attempt in 0..MAX_REPAIRS:\n        post = post_check(candidate)\n        audit.emit({kind: \"sandwich.post\", attempt: attempt,\n                    passed: post.ok, error: post.error,\n                    rubric_version: SANDWICH_RUBRIC_VERSION,\n                    model: LLM_MODEL})\n        if post.ok:\n            return candidate\n        if attempt == MAX_REPAIRS or not REPAIR_RATE.take(1):\n            audit.emit({kind: \"sandwich.give_up\", reason: post.error})\n            return original                          # fail closed\n\n        # Targeted repair using the post-check's structured failure.\n        candidate = llm.generate(\n            prompt=repair_prompt(original, candidate, post.error),\n            response_schema=OUTPUT_SCHEMA,\n            temperature=0.0,\n            model_id=LLM_MODEL,\n        )\n\n    return original\n\n# Why this works: post_check.error is structured (parse_error, type_error,\n# failed_test_name) so the repair prompt is a targeted ask, not 'try again'.\n# The rate limit + iter cap ensure a bad input class can't melt the budget;\n# fail-closed semantics ensure original is the worst-case output.\n# Related: see `structured-output`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with code-execution: the post-check IS running the candidate code against a test suite in a sandbox; only candidates whose tests pass are accepted, otherwise the original code survives.",
+          "code": "function code_sandwich(original_source, request):\n    # PRE: original must at least parse — refuse to run LLM on broken input.\n    if not parses(original_source):\n        return original_source\n\n    # LLM: schema-constrained source rewrite.\n    candidate = llm.generate(\n        prompt=render(\"Apply this change: {request}\\nSource:\\n{src}\",\n                      request=request, src=original_source),\n        response_schema=SOURCE_FILE_SCHEMA,\n        temperature=0.0,\n    )\n\n    # POST: code-execution composition — actually run the tests.\n    sandbox = CodeSandbox.spawn(timeout=60s, network=\"off\")\n    sandbox.write(\"candidate.py\", candidate.source)\n    sandbox.write(\"tests.py\", load_existing_tests(original_source))\n\n    result = sandbox.run(\"pytest tests.py -q\")\n\n    audit.emit({kind: \"sandwich.code_exec\", exit_code: result.exit_code,\n                failed: result.failed_tests, passed: result.passed_tests})\n\n    if result.exit_code != 0 or result.failed_tests:\n        # Feedback seam: the failing test names go back into the repair prompt\n        # via code-execution's own output channel, not a separate critic.\n        return original_source                       # fail closed\n\n    return candidate.source\n\n# Why this works: 'looks like Python' and 'is correct Python that passes the\n# tests we already had' are wildly different claims. code-execution in a sandbox\n# is the only honest verifier of the second one. fail-closed means the worst\n# outcome is 'the change didn't land', never 'broken code shipped'.\n# Related: see `code-execution`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -199,6 +379,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: dimensional generation logs per-cell coverage + generator_model_id + judge_model_id + rubric_version; weak cells trigger an automatic re-generation pass with stronger seeding rather than silently shipping a thin grid.",
+          "code": "GENERATOR_MODEL = \"eval-gen-v3\"\nJUDGE_MODEL     = \"eval-judge-v5\"\nRUBRIC_VERSION  = \"eval-rubric-2026-05-2\"\nMIN_PER_CELL    = 3\nMAX_REGEN_PASSES = 2\nGEN_RATE = TokenBucket(capacity=500, refill_per_min=100)\n\nDIMENSIONS = {\n    persona:  [\"new_user\", \"power_user\", \"staff\"],\n    feature:  [\"search\", \"summarise\", \"refund\"],\n    scenario: [\"success\", \"failure\", \"ambiguous\"],\n    modality: [\"text\", \"voice\", \"image\"],\n}\n\nfunction generate_eval_set_observed():\n    eval_set = []\n    cells = cross_product(DIMENSIONS)\n\n    for cell in cells:\n        for attempt in 1..MAX_REGEN_PASSES:\n            if not GEN_RATE.take(MIN_PER_CELL):\n                audit.emit({kind: \"eval.gen.rate_limited\", cell: cell})\n                break\n            items = generator_llm.generate(\n                prompt=render(\"Generate eval inputs grounded in: {cell}\",\n                              cell=cell, examples=if attempt > 1 then seed_examples(cell)),\n                n=MIN_PER_CELL,\n                model_id=GENERATOR_MODEL,\n                response_schema=EVAL_ITEM_SCHEMA,\n            )\n            for item in items:\n                item.dimensions = cell\n                item.generator_model = GENERATOR_MODEL\n                eval_set.append(item)\n\n            count = len([x for x in eval_set if x.dimensions == cell])\n            audit.emit({kind: \"eval.cell.fill\", cell: cell,\n                        attempt: attempt, count: count})\n            if count >= MIN_PER_CELL:\n                break\n\n    coverage = grid_coverage(eval_set, DIMENSIONS)\n    weak = [c for c, n in coverage.items() if n < MIN_PER_CELL]\n    if weak:\n        audit.emit({kind: \"eval.weak_cells\", cells: weak,\n                    rubric_version: RUBRIC_VERSION})\n        escalate_to_eval_owner(weak)                # not auto-accepted\n    return eval_set\n\n# Why this works: the audit row per cell makes thin slices into a query rather\n# than a surprise. Regen with seed examples stops the simple 'generator is bad\n# at this cell' loop; the escalation prevents the team silently shipping a grid\n# with holes on the cells that matter most.\n# Related: see `eval-harness`, `evaluation-driven-development`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with prompt-variant-evaluation: each prompt variant is run across the SAME dimensional grid; the per-cell win/loss matrix is the feedback seam — a winning variant must win or tie on every cell, not just on the aggregate.",
+          "code": "function variant_eval_on_dimensional_grid(slot, eval_set, rubric):\n    # Group eval_set by dimensional tuple — these are the cells we'll judge per.\n    by_cell = group_by(eval_set, key=lambda i: i.dimensions)\n\n    # Score each variant per cell.\n    per_cell_scores = {}                              # (cell, variant_id) -> [scores]\n    for cell, items in by_cell.items():\n        for v in slot.variants:\n            for item in items:\n                output  = llm.generate(prompt=v.source.format(input=item.input))\n                verdict = judge.score(item, output, rubric=rubric)\n                per_cell_scores.setdefault((cell, v.id), []).append(verdict.score)\n\n    # Per-cell winner table: a variant wins a cell if it beats baseline by margin.\n    cell_winners = {}\n    for cell in by_cell:\n        scores = {v.id: mean(per_cell_scores[(cell, v.id)]) for v in slot.variants}\n        cell_winners[cell] = argmax_with_margin(scores, margin=SIG_MARGIN)\n\n    # Feedback seam: a variant must win or tie on EVERY cell, not just average.\n    overall_winners = {v.id: 0 for v in slot.variants}\n    for cell, winner in cell_winners.items():\n        if winner is None:\n            continue\n        overall_winners[winner] += 1\n\n    safe = [v for v, wins in overall_winners.items()\n            if not any(cell_winners[c] not in (v, None) for c in cell_winners)]\n\n    if not safe:\n        # No variant Pareto-dominates; do not silently pick the avg winner.\n        return Reject(\"no variant wins or ties on every dimensional cell\")\n    return safe[0]\n\n# Why this works: aggregate eval hides regressions on subgroups. The dimensional\n# grid forces per-cell comparison; requiring a Pareto-win-or-tie blocks the\n# 'great on average, broken for power_user x refund x voice' selection failure.\n# Related: see `prompt-variant-evaluation`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -215,6 +415,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every echo detection is logged with similarity score + ring index + classifier_model_id; near-duplicate handling is rate-limited so a stuck user can't trigger a feedback storm; on uncertain echoes the agent asks rather than guesses.",
+          "code": "RING_SIZE      = 5\nSIM_THRESHOLD  = 0.85\nUNCERTAIN_BAND = (0.65, 0.85)\nECHO_WINDOW    = 5min\nECHO_RATE = TokenBucket(capacity=4, refill_per_min=2)\nCLASSIFIER_MODEL = \"echo-classifier-v2\"\n\nrecent = deque(maxlen=RING_SIZE)\n\nfunction on_user_input_observed(text):\n    now = clock.now()\n    best = (None, 0.0)\n    for prev in recent:\n        sim = similarity(text, prev.text, model_id=CLASSIFIER_MODEL)\n        if sim > best[1]:\n            best = (prev, sim)\n\n    prev, sim = best\n    audit.emit({kind: \"echo.score\", sim: sim,\n                ring_index: recent.index(prev) if prev else None,\n                classifier: CLASSIFIER_MODEL})\n\n    if prev and sim >= SIM_THRESHOLD and (now - prev.timestamp) < ECHO_WINDOW:\n        if not ECHO_RATE.take(1):\n            # User has hit the echo path several times in a row -> escalate\n            # to a human handler rather than looping our own clarifier.\n            return escalate_to_human_chat(text, prev)\n        return surface_prior_reply(prev.reply_id,\n            clarifier=\"I read this as emphasis. Should I deepen X or pivot?\")\n\n    if prev and UNCERTAIN_BAND[0] <= sim < UNCERTAIN_BAND[1]:\n        # Don't guess: ask whether this is a re-ask or a new turn.\n        return ui.ask(\n            \"Is this a fresh question, or are you re-emphasising the earlier one?\")\n\n    reply = agent.respond(text)\n    recent.append({text: text, timestamp: now, reply_id: reply.id})\n    return reply\n\n# Why this works: similarity is logged so the team can tune SIM_THRESHOLD from\n# data instead of vibes. Rate-limiting echo handling stops a stuck user from\n# triggering the agent's clarifier on every turn; the uncertain band defers to\n# the human instead of forcing a guess that could feel dismissive.\n# Related: see `degenerate-output-detection`, `short-term-memory`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with disambiguation: an echo isn't just emphasis — it's a sign that the prior reply MISSED. The disambiguation pattern emits a targeted clarifying question about what the prior reply got wrong; the user's answer routes the next reply.",
+          "code": "function on_user_input_with_disambig(text):\n    for prev in recent:\n        sim = similarity(text, prev.text)\n        if sim >= SIM_THRESHOLD and (clock.now() - prev.timestamp) < ECHO_WINDOW:\n            # The repeat tells us the prior reply didn't land.\n            # Compose with disambiguation: emit a clarifying question that\n            # narrows WHAT was missed, rather than blindly retrying.\n            prior_reply = replies.get(prev.reply_id)\n            clarifier = llm.generate(\n                prompt=render(\n                    \"The user has repeated their question, which means the prior \"\n                    \"reply missed. Generate ONE clarifying question that pins down \"\n                    \"which of these aspects of the prior reply was wrong: \"\n                    \"completeness, accuracy, framing, or relevance.\\n\"\n                    \"User said: {text}\\nPrior reply: {prior}\",\n                    text=text, prior=prior_reply.text,\n                ),\n            )\n\n            # Feedback seam: the user's answer to the clarifier explicitly tells\n            # the agent which axis to revise on, instead of guessing.\n            answer = ui.ask(clarifier.question)\n            revised = agent.respond_with_axis(text, axis=answer, prior=prior_reply)\n            recent.append({text: text, timestamp: clock.now(), reply_id: revised.id})\n            return revised\n\n    reply = agent.respond(text)\n    recent.append({text: text, timestamp: clock.now(), reply_id: reply.id})\n    return reply\n\n# Why this works: echo-recognition alone says 'the user repeated' — it doesn't\n# say why. Disambiguation supplies the smallest possible question that splits\n# the failure space, so the revision pass has a target instead of being a\n# louder re-run.\n# Related: see `disambiguation`, `degenerate-output-detection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -231,6 +451,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every evaluator verdict logs rubric_version + evaluator_model_id + score deltas across iterations; non-monotone score regress triggers rollback to the best-so-far; per-task iter budget caps the loop.",
+          "code": "EVAL_RUBRIC_VERSION = \"eval-opt-rubric-2026-05-1\"\nEVALUATOR_MODEL     = \"evaluator-v9\"\nMAX_ITERS = 5\nMIN_PROGRESS = 0.02\n\nfunction evaluator_optimizer_observed(task):\n    candidate = generator.generate(task)\n    best = candidate\n    best_score = -inf\n\n    for i in 1..MAX_ITERS:\n        verdict = evaluator.score(task=task, candidate=candidate,\n                                  criteria=CRITERIA,\n                                  rubric_version=EVAL_RUBRIC_VERSION,\n                                  model_id=EVALUATOR_MODEL)\n        audit.emit({kind: \"eval_opt.verdict\", iter: i, score: verdict.score,\n                    passed: verdict.passed,\n                    rubric_version: EVAL_RUBRIC_VERSION,\n                    evaluator_model: EVALUATOR_MODEL})\n\n        if verdict.passed:\n            return candidate, verdict\n\n        # Rollback-on-regress: if revising made things worse, return the\n        # best-so-far instead of climbing into a worse local optimum.\n        if verdict.score > best_score:\n            best, best_score = candidate, verdict.score\n        elif (best_score - verdict.score) > MIN_PROGRESS:\n            audit.emit({kind: \"eval_opt.regress\",\n                        from_score: best_score, to_score: verdict.score})\n            return best, evaluator.score(task=task, candidate=best,\n                                         criteria=CRITERIA,\n                                         rubric_version=EVAL_RUBRIC_VERSION,\n                                         model_id=EVALUATOR_MODEL)\n\n        candidate = generator.revise(task=task, previous=candidate,\n                                     feedback=verdict.feedback)\n\n    # Budget exhausted -> ship the best-so-far, never the latest by default.\n    return best, evaluator.score(task=task, candidate=best, criteria=CRITERIA,\n                                 rubric_version=EVAL_RUBRIC_VERSION,\n                                 model_id=EVALUATOR_MODEL)\n\n# Why this works: 'iterate until pass or N times' silently ships the LAST\n# revision when N hits, even if iter 2 was the best. Tracking best-so-far and\n# returning it on regress or budget exhaustion stops the loop from going\n# backwards under pressure.\n# Related: see `reflection`, `best-of-n`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with llm-as-judge: the evaluator IS an llm-as-judge running on a fixed rubric in an isolated context; its structured verdict (pass + per-criterion findings) is the feedback channel the generator receives.",
+          "code": "JUDGE_RUBRIC = [\n    \"answers_the_question\", \"factually_grounded\",\n    \"no_unsupported_claims\", \"matches_requested_tone\",\n]\nJUDGE_SCHEMA = {\n    pass: bool,\n    per_criterion: list_of({criterion: enum(JUDGE_RUBRIC), passed: bool, feedback: str}),\n}\n\nfunction evaluator_optimizer_with_judge(task, MAX_ITERS=4):\n    candidate = generator.generate(task)\n\n    for i in 1..MAX_ITERS:\n        # llm-as-judge: separate model call, isolated context, frozen rubric,\n        # structured output (no free-form 'looks good').\n        judge_ctx = new_context()\n        verdict = judge.score(\n            ctx=judge_ctx,\n            artefact=candidate,\n            task=task,\n            rubric=JUDGE_RUBRIC,\n            response_schema=JUDGE_SCHEMA,\n        )\n\n        if verdict.pass:\n            return candidate, verdict\n\n        # Feedback seam: only the criteria that FAILED are sent back to the\n        # generator, with their per-criterion feedback strings. The generator\n        # never sees 'try harder' — only concrete points.\n        failing = [c for c in verdict.per_criterion if not c.passed]\n        candidate = generator.revise(\n            task=task,\n            previous=candidate,\n            failing_criteria=failing,\n        )\n\n    return candidate, verdict\n\n# Why this works: the structured per-criterion output is the channel through\n# which the judge's opinion becomes actionable. The generator can't argue with\n# 'you failed factually_grounded' the way it could argue with a free-form\n# critique; the rubric pins the disagreement to a named axis.\n# Related: see `llm-as-judge`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -247,6 +487,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: rubric_version is stamped on every finding; schema-rejected findings are repaired-then-retried not silently dropped; rubric drift between releases is detected by a hash check at startup.",
+          "code": "RUBRIC = [\n    \"factual_error\", \"unsupported_claim\", \"tone_mismatch\", \"missing_citation\",\n]\nRUBRIC_VERSION = \"rubric-2026-05-7\"\nRUBRIC_HASH    = sha256(RUBRIC + RUBRIC_VERSION)\nREVIEWER_MODEL = \"reviewer-v5\"\nMAX_REPAIRS = 2\nREVIEW_RATE = TokenBucket(capacity=60, refill_per_min=20)\n\nFINDING_SCHEMA = {\n    type: \"object\",\n    properties: {\n        rubric_version: {const: RUBRIC_VERSION},\n        findings: {type: \"array\", items: {\n            type: \"object\",\n            properties: {\n                category: {enum: RUBRIC},\n                span: {type: \"string\"},\n                fix:  {type: \"string\"},\n            },\n            required: [\"category\", \"span\", \"fix\"],\n        }},\n    },\n}\n\nfunction startup_check():\n    expected = config.load(\"rubric_hash\")\n    if expected != RUBRIC_HASH:\n        # Rubric changed; force eval rerun before the new rubric is used in prod.\n        raise RubricDrift(expected=expected, got=RUBRIC_HASH)\n\nfunction review_observed(artefact):\n    if not REVIEW_RATE.take(1):\n        return Deferred(artefact)\n\n    for attempt in 0..MAX_REPAIRS:\n        response = llm.generate(\n            prompt=render(RUBRIC, artefact),\n            response_schema=FINDING_SCHEMA,\n            temperature=0.0,\n            model_id=REVIEWER_MODEL,\n        )\n        try:\n            findings = validate(response, FINDING_SCHEMA)\n            audit.emit({kind: \"frozen_rubric.review\",\n                        rubric_version: RUBRIC_VERSION,\n                        reviewer_model: REVIEWER_MODEL,\n                        n_findings: len(findings.findings)})\n            return findings\n        except SchemaViolation as e:\n            if attempt == MAX_REPAIRS:\n                escalate_to_human(artefact, raw=response, error=e)\n                return Empty()\n            # Targeted repair using the schema error.\n            response = llm.generate(\n                prompt=render_repair(RUBRIC, artefact, error=e),\n                response_schema=FINDING_SCHEMA, temperature=0.0,\n                model_id=REVIEWER_MODEL,\n            )\n\n# Why this works: the rubric hash catches silent rubric edits before they show\n# up as 'why did pass rates drop'. The repair-then-escalate loop stops a single\n# malformed JSON output from voiding the review entirely; the audit row makes\n# the rubric version that produced each verdict replayable.\n# Related: see `structured-output`, `deterministic-llm-sandwich`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with deterministic-llm-sandwich: the frozen rubric is the LLM filling in the middle layer; the post-check deterministically verifies every flagged span actually exists in the artefact, rejecting findings that fabricated their citation.",
+          "code": "RUBRIC = [\"factual_error\", \"unsupported_claim\", \"tone_mismatch\", \"missing_citation\"]\nFINDING_SCHEMA = {\n    findings: list_of({\n        category: enum(RUBRIC),\n        span:     str,    # MUST appear verbatim in the artefact\n        fix:      str,\n    }),\n}\n\nfunction sandwiched_review(artefact):\n    # PRE: deterministic gate — skip review on artefacts too short to review.\n    if len(artefact) < MIN_LENGTH:\n        return Empty()\n\n    # LLM: frozen-rubric-reflection in the middle.\n    response = llm.generate(\n        prompt=render(RUBRIC, artefact),\n        response_schema=FINDING_SCHEMA,\n        temperature=0.0,\n    )\n    findings = validate(response, FINDING_SCHEMA)\n\n    # POST: deterministic re-validation — every cited span must actually exist\n    # in the artefact. A finding that invented its span gets dropped, not shipped.\n    verified = []\n    dropped  = []\n    for f in findings.findings:\n        if artefact.contains(f.span):\n            verified.append(f)\n        else:\n            dropped.append(f)\n            audit.emit({kind: \"sandwich.post.span_not_found\",\n                        category: f.category, span: f.span})\n\n    if dropped:\n        # Feedback seam: drop count is a calibration signal. Many dropped findings\n        # over a window means the reviewer is hallucinating citations.\n        calibration_log.append({reviewer_drop_rate: len(dropped) / len(findings.findings)})\n\n    return {findings: verified, dropped: dropped}\n\n# Why this works: the frozen rubric stops the reviewer inventing new categories;\n# the deterministic post-check stops the reviewer fabricating spans inside the\n# allowed categories. Together they catch both shapes of confabulation that a\n# reviewer can otherwise produce.\n# Related: see `deterministic-llm-sandwich`, `structured-output`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -263,6 +523,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each Critic finding is logged with rubric_version + critic_model_id; high-severity findings escalate after N rejection rounds rather than looping forever; revisions hit a per-task budget.",
+          "code": "CRITIC_RUBRIC_VERSION = \"critic-rubric-2026-05-2\"\nCRITIC_MODEL          = \"critic-v6\"\nGENERATOR_MODEL       = \"generator-v8\"\nMAX_ITERS = 3\nESCALATE_AFTER_REJECTS = 2\n\ninterface Generator:\n    function generate(task) -> Draft\n    function revise(draft, findings) -> Draft\n\ninterface Critic:\n    function review(draft, rubric) -> list[Finding]\n    # NO generate(), NO revise(), NO free-form output.\n\nfunction generator_critic_observed(task):\n    draft = Generator.generate(task, model_id=GENERATOR_MODEL)\n    rejection_count = 0\n\n    for i in 1..MAX_ITERS:\n        verdict = Critic.review(\n            draft,\n            rubric=FROZEN_RUBRIC,\n            rubric_version=CRITIC_RUBRIC_VERSION,\n            model_id=CRITIC_MODEL,\n        )\n        assert all(isinstance(f, Finding) for f in verdict), \"critic returned non-Finding\"\n\n        audit.emit({kind: \"gen_critic.findings\", iter: i,\n                    rubric_version: CRITIC_RUBRIC_VERSION,\n                    critic_model: CRITIC_MODEL,\n                    n_findings: len(verdict),\n                    severities: histogram(f.severity for f in verdict)})\n\n        if not verdict:\n            return draft\n\n        if any(f.severity == \"high\" for f in verdict):\n            rejection_count += 1\n            if rejection_count >= ESCALATE_AFTER_REJECTS:\n                return escalate_to_human(draft, verdict,\n                                         reason=\"repeated_high_severity\")\n            draft = Generator.revise(draft, findings=verdict, model_id=GENERATOR_MODEL)\n        else:\n            return draft\n\n    return escalate_to_human(draft, reason=\"iter_budget_exhausted\")\n\n# Why this works: the audit row pairs critic_model with rubric_version so a\n# regression after a model swap is one query away. The escalate-after-N\n# threshold prevents the loop from polishing forever; the type assert\n# enforces that the Critic interface really is finding-only.\n# Related: see `frozen-rubric-reflection`, `reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with pipeline-triad-pattern: Generator -> Critic -> Repairer as a three-stage pipeline; each stage has a single role and the Repairer (not the Generator) applies critic-driven fixes; the feedback seam is the structured findings list passed downstream.",
+          "code": "interface Generator:\n    function generate(task) -> Draft\n\ninterface Critic:\n    function review(draft, rubric) -> list[Finding]\n\ninterface Repairer:                                  # third pipeline role\n    function repair(draft, findings) -> Draft\n    # NO generate(), NO review() — receives only the findings.\n\nfunction triad_pipeline(task, MAX_ITERS=3):\n    draft = Generator.generate(task)\n\n    for i in 1..MAX_ITERS:\n        findings = Critic.review(draft, rubric=FROZEN_RUBRIC)\n        if not findings:\n            return draft\n\n        # pipeline-triad-pattern: the Repairer is a SEPARATE role from the\n        # Generator, so the model that wrote the draft is not also the model\n        # that argues for keeping it. Findings flow one-way through the pipeline.\n        try:\n            draft = Repairer.repair(draft, findings=findings)\n        except UnrepairableFindings as e:\n            # If the Repairer cannot satisfy the findings, escalate rather\n            # than asking the Generator to re-draft from scratch (which loses\n            # everything that was already correct).\n            return escalate_to_human(draft, e.findings)\n\n    return draft\n\n# Why this works: a Generator that also repairs tends to launder its own\n# opinions back into the draft. Splitting Repairer off as a third role keeps\n# the data flow one-directional — findings travel downstream, never back into\n# the Generator's authoring loop, so each role's incentive stays clean.\n# Related: see `pipeline-triad-pattern`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -279,6 +559,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every human feedback session is logged with reviewer_id + feedback_schema_version + judge_model_id (for sanity-check); SLAs on the review queue prevent indefinite blocking; reviewer drift is surfaced via a calibration log.",
+          "code": "FEEDBACK_SCHEMA_VERSION = \"hf-2026-05-3\"\nJUDGE_MODEL = \"sanity-judge-v2\"\nREVIEW_SLA = 30min\nMAX_ITERS = 4\n\nFEEDBACK_SCHEMA = {\n    overall: enum(\"approve\", \"revise\", \"reject\"),\n    critique_text: str,\n    structured: list_of({\n        kind: enum(\"wrong_section\", \"missing_claim\", \"tone_off\", \"factual_error\"),\n        span: str, suggestion: str | None,\n    }),\n}\n\nfunction human_reflection_observed(task):\n    draft = agent.generate(task)\n\n    for i in 1..MAX_ITERS:\n        review_id = ui.review_queue.submit({\n            artefact: draft,\n            schema: FEEDBACK_SCHEMA,\n            schema_version: FEEDBACK_SCHEMA_VERSION,\n            sla: REVIEW_SLA,\n            prompt: \"Critique, do not just approve. Be concrete.\",\n        })\n        try:\n            feedback = ui.review_queue.await(review_id, timeout=REVIEW_SLA)\n        except SLATimeout:\n            # Reviewer didn't respond in time -> escalate, NEVER auto-approve.\n            return escalate_to_owner(draft, reason=\"reviewer_sla_breach\",\n                                     reviewer=ui.assigned_reviewer(review_id))\n\n        audit.emit({kind: \"human_reflect.feedback\", iter: i,\n                    overall: feedback.overall,\n                    reviewer: feedback.reviewer_id,\n                    schema_version: FEEDBACK_SCHEMA_VERSION,\n                    judge_model: JUDGE_MODEL,\n                    n_findings: len(feedback.structured)})\n\n        if feedback.overall == \"approve\":\n            return draft\n        if feedback.overall == \"reject\":\n            return escalate_to_owner(draft, feedback)\n\n        # Sanity-check: a judge model scores whether the feedback is consistent\n        # with the draft. Persistently inconsistent feedback per-reviewer is\n        # logged as calibration data (not a gate, just visibility).\n        sanity = judge.score(draft, against=feedback, model_id=JUDGE_MODEL)\n        reviewer_calibration.append({\n            reviewer: feedback.reviewer_id, sanity_score: sanity.score,\n        })\n\n        draft = agent.revise(\n            previous=draft,\n            critique=feedback.critique_text,\n            structured_findings=feedback.structured,\n        )\n\n    return draft\n\n# Why this works: the SLA + escalation prevents a missing reviewer from being\n# the silent failure mode (which would let approve-on-timeout creep in). The\n# reviewer_calibration log makes 'this reviewer's critiques don't match their\n# own drafts' into a queryable signal rather than a vibe.\n# Related: see `human-in-the-loop`, `approval-queue`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with cooperative-preference-inference: human structured feedback isn't just consumed once — it's accumulated into a preference profile per user; future drafts are conditioned on the inferred preferences, so the human's critiques become less repetitive over time.",
+          "code": "function human_reflection_with_preference_learning(task, user_id):\n    # Load the inferred preference profile from prior cooperative inference.\n    profile = preference_store.get(user_id)            # may be empty for new users\n\n    draft = agent.generate(task, preference_profile=profile)\n\n    for i in 1..MAX_ITERS:\n        feedback = ui.collect_feedback(\n            artefact=draft, schema=FEEDBACK_SCHEMA,\n            prompt=\"Critique concretely. The agent has loaded your prior preferences.\",\n        )\n\n        if feedback.overall == \"approve\":\n            return draft\n\n        # cooperative-preference-inference: every structured finding is also a\n        # signal about THIS user's preferences, not just THIS draft. The\n        # inferrer accumulates them into a refined profile.\n        new_profile = preference_inferrer.update(\n            current=profile,\n            new_findings=feedback.structured,\n            critique_text=feedback.critique_text,\n        )\n        preference_store.put(user_id, new_profile)\n        profile = new_profile\n\n        # Feedback seam: the revision uses BOTH the immediate critique AND\n        # the updated profile, so the next draft for this user starts higher.\n        draft = agent.revise(\n            previous=draft,\n            critique=feedback.critique_text,\n            structured_findings=feedback.structured,\n            preference_profile=profile,\n        )\n\n    return draft\n\n# Why this works: human-reflection alone treats every session as fresh, so the\n# same reviewer flags the same issue session after session. Composing with\n# cooperative-preference-inference turns the critiques into a durable profile,\n# so the next draft starts where the last one ended.\n# Related: see `cooperative-preference-inference`, `human-in-the-loop`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -295,6 +595,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every self-edit diff is logged with critic_version + critic_model_id + decision; recursion-guard triggers escalate-not-loop when the diff touches critic scope; rate-limit on self-edits prevents runaway self-modification.",
+          "code": "FROZEN_CRITIC_VERSION = \"critic-v2026-05\"\nCRITIC_MODEL          = \"critic-llm-v4\"\nSELF_EDIT_RATE = TokenBucket(capacity=6, refill_per_hour=3)\nMAX_REPAIR_PASSES = 1\n\nfunction propose_self_edit_observed(diff):\n    if not SELF_EDIT_RATE.take(1):\n        audit.emit({kind: \"inner_critic.rate_limited\"})\n        return RATE_LIMITED\n\n    critic = load_critic(version=FROZEN_CRITIC_VERSION)\n\n    # Recursion guard: if the diff touches critic scope, escalate. NEVER\n    # let the diff modify the very thing reviewing it.\n    if diff.touches(critic_scope):\n        audit.emit({kind: \"inner_critic.recursion_guard\",\n                    diff_id: diff.id, critic_version: FROZEN_CRITIC_VERSION})\n        return escalate_to_human(diff, reason=\"critic_in_edit_scope\")\n\n    for attempt in 0..MAX_REPAIR_PASSES:\n        verdict = critic.review(\n            diff=diff,\n            criteria=[\"safety\", \"charter_compliance\", \"tests_pass\"],\n            model_id=CRITIC_MODEL,\n            sandbox=True,\n        )\n        audit.emit({kind: \"inner_critic.verdict\", diff_id: diff.id,\n                    critic_version: FROZEN_CRITIC_VERSION,\n                    critic_model: CRITIC_MODEL,\n                    approved: verdict.approved,\n                    failed_criteria: verdict.failed_criteria,\n                    attempt: attempt})\n\n        if verdict.approved:\n            apply_diff(diff)\n            return APPLIED\n\n        if attempt == MAX_REPAIR_PASSES:\n            log_rejection(diff, verdict)\n            return REJECTED\n\n        # Repair: ask the proposer to address the critic's named failures.\n        diff = proposer.repair_diff(diff, failed_criteria=verdict.failed_criteria)\n\n    return REJECTED\n\n# Why this works: critic_version is pinned to a FROZEN checkpoint, so a\n# malicious or buggy diff cannot quietly weaken its own reviewer. The audit\n# row pairs diff id with critic version + model id, so a regression in\n# approval rates is traceable to a specific critic build.\n# Related: see `darwin-godel-self-rewrite`, `generator-critic-separation`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with quorum-on-mutation: a self-edit only lands when a quorum of independent critics on frozen checkpoints approves; disagreement among critics is itself the rejection signal, no single critic can wave the diff through.",
+          "code": "FROZEN_CRITICS = [\n    {version: \"critic-A-2026-05\", model: \"vendor_a/critic\"},\n    {version: \"critic-B-2026-05\", model: \"vendor_b/critic\"},\n    {version: \"critic-C-2026-05\", model: \"vendor_c/critic\"},\n]\nQUORUM = 2                                       # require >=2 of 3 approvals\n\nfunction propose_self_edit_with_quorum(diff):\n    # Recursion guard remains primary: never let the diff edit any critic.\n    if any(diff.touches(critic_scope(c)) for c in FROZEN_CRITICS):\n        return escalate_to_human(diff, reason=\"critic_in_edit_scope\")\n\n    # quorum-on-mutation: each critic runs in its own sandbox and votes.\n    verdicts = parallel_map(\n        FROZEN_CRITICS,\n        lambda c: load_critic(version=c.version).review(\n            diff=diff,\n            criteria=[\"safety\", \"charter_compliance\", \"tests_pass\"],\n            model_id=c.model,\n            sandbox=True,\n        ),\n    )\n\n    approvals = sum(1 for v in verdicts if v.approved)\n    audit.emit({kind: \"inner_critic.quorum_vote\",\n                approvals: approvals, quorum: QUORUM,\n                per_critic: [{critic: c.version, approved: v.approved,\n                              reasons: v.reasons}\n                             for c, v in zip(FROZEN_CRITICS, verdicts)]})\n\n    if approvals >= QUORUM:\n        apply_diff(diff)\n        return APPLIED\n\n    # Feedback seam: the per-critic reasons are the structured rejection;\n    # the proposer can read which critic objected to what and craft a\n    # narrower next attempt rather than guessing.\n    return REJECTED(per_critic=verdicts)\n\n# Why this works: a single critic can be wrong, paid off, or stale; a quorum of\n# decorrelated critics on frozen checkpoints makes that failure mode require\n# corrupting multiple independent reviewers at once. The disagreement itself\n# carries information about whether the diff is safe.\n# Related: see `quorum-on-mutation`, `cross-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -311,6 +631,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each verifier check logs goal_id + step_id + verifier_model_id + rubric_version + observed drift; replan attempts are budgeted; persistent drift on the same step escalates rather than re-planning forever.",
+          "code": "VERIFIER_MODEL = \"verifier-v7\"\nRUBRIC_VERSION = \"pev-rubric-2026-05-2\"\nMAX_REPLANS    = 3\nMAX_STEP_REPLAN_PER_STEP = 2\n\nfunction pev_loop_observed(goal):\n    plan = Planner.plan(goal)\n    replans = 0\n    step_replan_counts = {}\n\n    while not plan.complete:\n        step = plan.next_step()\n        span = tracer.start(\"pev.step\", goal_id: goal.id, step_id: step.id)\n\n        pre_state  = world.observe()\n        exec_result = Executor.execute(step)\n        post_state  = world.observe()\n\n        verdict = Verifier.check(\n            goal=goal, plan=plan, step=step,\n            pre_state=pre_state, post_state=post_state,\n            tool_result=exec_result,\n            model_id=VERIFIER_MODEL,\n            rubric_version=RUBRIC_VERSION,\n        )\n        audit.emit({kind: \"pev.verify\", goal_id: goal.id, step_id: step.id,\n                    verifier_model: VERIFIER_MODEL,\n                    rubric_version: RUBRIC_VERSION,\n                    drift: verdict.drift, passed: verdict.passed})\n\n        if verdict.failed:\n            step_replan_counts[step.id] = step_replan_counts.get(step.id, 0) + 1\n\n            # Per-step replan cap + global replan cap.\n            if (step_replan_counts[step.id] >= MAX_STEP_REPLAN_PER_STEP\n                    or replans >= MAX_REPLANS):\n                return escalate_to_human(goal, plan, verdict,\n                                         reason=\"replan_budget_exhausted\")\n\n            plan = Planner.replan(goal, plan, drift=verdict.drift,\n                                  current_state=post_state)\n            replans += 1\n            span.end(status=\"replan\")\n            continue\n\n        plan.advance(step, exec_result)\n        span.end(status=\"ok\")\n\n    return plan.result\n\n# Why this works: per-step replan caps stop the loop from re-planning the same\n# failing step forever (a sign the verifier's expectation is the problem). The\n# verifier_model + rubric_version stamp lets the team replay any past failure\n# under the exact same verifier configuration.\n# Related: see `replan-on-failure`, `stochastic-deterministic-boundary`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with mental-model-in-the-loop-simulator: before each step, the Verifier consults a world simulator to predict the post-state; the Executor runs; the Verifier compares actual post-state against simulator prediction AND against goal expectation — divergence between any two triggers replan.",
+          "code": "function pev_with_simulator(goal):\n    plan = Planner.plan(goal)\n\n    while not plan.complete:\n        step = plan.next_step()\n        pre_state = world.observe()\n\n        # mental-model-in-the-loop-simulator: predict the post-state BEFORE\n        # acting. This is the Verifier's expectation, made explicit.\n        predicted_post = simulator.predict(\n            state=pre_state, action=step.action, horizon=1,\n        )\n\n        exec_result = Executor.execute(step)\n        actual_post = world.observe()\n\n        # The Verifier now has THREE things to compare:\n        # 1. predicted vs actual (simulator accuracy)\n        # 2. actual vs goal expectation (plan progress)\n        verdict = Verifier.check_with_prediction(\n            goal=goal, plan=plan, step=step,\n            pre_state=pre_state,\n            predicted_post=predicted_post,\n            actual_post=actual_post,\n            tool_result=exec_result,\n        )\n\n        # Feedback seam: simulator/actual divergence is itself a signal that\n        # the world model is wrong; this is logged for simulator retraining.\n        if verdict.sim_drift > SIM_DRIFT_BUDGET:\n            simulator_calibration.append({\n                step: step, predicted: predicted_post, actual: actual_post,\n            })\n\n        if verdict.failed:\n            # Replan uses BOTH the actual drift and the simulator's prediction\n            # as inputs, so the planner doesn't repeat a step the simulator\n            # already said wouldn't work.\n            plan = Planner.replan(goal, plan, drift=verdict.drift,\n                                  predicted_post=predicted_post,\n                                  actual_post=actual_post)\n            continue\n\n        plan.advance(step, exec_result)\n\n    return plan.result\n\n# Why this works: a verifier that only sees the actual post-state can tell\n# what happened but not what should have happened. A simulator supplies the\n# 'should have' so the verifier can flag both plan-drift and world-model-drift\n# as separate, actionable signals.\n# Related: see `mental-model-in-the-loop-simulator`, `replan-on-failure`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -327,6 +667,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every PRM score logs prm_model_id + step_index + score; weak-step rejections trigger a one-shot regenerate-the-weak-step repair before discarding the chain; PRM call budget is rate-limited.",
+          "code": "PRM_MODEL = \"prm-v3-2026-05\"\nMIN_STEP_THRESHOLD = 0.4\nPRM_CALL_RATE = TokenBucket(capacity=200, refill_per_min=50)\nMAX_STEP_REGEN = 1\n\nfunction generate_with_prm_observed(question, N=8):\n    candidates = []\n    for i in 1..N:\n        steps = llm.generate_cot(question, temperature=0.7, seed=i)\n        step_scores = []\n        for k in 0..len(steps)-1:\n            if not PRM_CALL_RATE.take(1):\n                break\n            s = prm.score(question, steps[:k+1], model_id=PRM_MODEL)\n            step_scores.append(s)\n            audit.emit({kind: \"prm.score\", candidate: i, step: k,\n                        prm_model: PRM_MODEL, score: s})\n\n        weakest_idx = step_scores.index(min(step_scores)) if step_scores else None\n        candidate = {steps: steps, step_scores: step_scores,\n                     min_step: min(step_scores) if step_scores else 0,\n                     final: extract_final(steps)}\n\n        # Repair: if the weakest step is just below threshold, regenerate\n        # ONLY that step keeping the prefix; cheap retry.\n        if (candidate.min_step < MIN_STEP_THRESHOLD\n                and candidate.min_step > MIN_STEP_THRESHOLD - 0.1):\n            for _ in 1..MAX_STEP_REGEN:\n                steps = regenerate_from(steps, at_index=weakest_idx,\n                                        question=question, seed=i + 1000)\n                new_score = prm.score(question, steps[:weakest_idx+1], model_id=PRM_MODEL)\n                audit.emit({kind: \"prm.step_regen\", candidate: i,\n                            step: weakest_idx, score: new_score})\n                if new_score >= MIN_STEP_THRESHOLD:\n                    candidate.steps = steps\n                    candidate.step_scores[weakest_idx] = new_score\n                    candidate.min_step = min(candidate.step_scores)\n                    candidate.final = extract_final(steps)\n                    break\n\n        candidates.append(candidate)\n\n    viable = [c for c in candidates if c.min_step >= MIN_STEP_THRESHOLD]\n    if not viable:\n        return abstain(reason=\"no_viable_trace\")\n    return max(viable, key=lambda c: mean(c.step_scores)).final\n\n# Why this works: scoring each step makes the audit trail rich enough to ask\n# 'which step kinds get rejected most by which PRM version'. The single-step\n# regenerate is a cheap repair that recovers chains that were ALMOST viable\n# instead of throwing away the work and resampling the whole CoT.\n# Related: see `best-of-n`, `test-time-compute-scaling`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with lats: a Language-Agent Tree Search expands one step at a time; the PRM is the value function on each node; UCB-style exploration uses step_score as the prior, so the tree spends compute on promising chains.",
+          "code": "function lats_with_prm(question, MAX_EXPANSIONS=64):\n    root = Node(state=question, steps=[], visits=0)\n    best_leaf = None\n\n    while expansions < MAX_EXPANSIONS:\n        # Select: UCB on tree, using PRM score as the value prior.\n        node = root\n        while node.children:\n            node = max(node.children,\n                       key=lambda c: c.prm_value + UCB_C * sqrt(log(node.visits) / (1 + c.visits)))\n\n        # Expand: sample a candidate NEXT step.\n        next_steps = llm.sample_next_steps(question, node.steps, k=4, temperature=0.7)\n\n        for step in next_steps:\n            new_steps = node.steps + [step]\n\n            # process-reward-model: score the step as it's added. This is the\n            # value used by UCB on the next iteration — the PRM is the seam\n            # that connects per-step verification to tree-search exploration.\n            prm_value = prm.score(question, new_steps)\n\n            child = Node(state=node.state, steps=new_steps, prm_value=prm_value,\n                         visits=0, parent=node)\n            node.children.append(child)\n\n            if step.is_terminal and prm_value >= ACCEPT_THRESHOLD:\n                if best_leaf is None or prm_value > best_leaf.prm_value:\n                    best_leaf = child\n\n        # Backprop: update visit counts up the tree.\n        n = node\n        while n is not None:\n            n.visits += 1\n            n = n.parent\n        expansions += 1\n\n    if best_leaf is None:\n        return abstain(reason=\"no_node_above_accept_threshold\")\n    return extract_final(best_leaf.steps)\n\n# Why this works: LATS without a value function reduces to expensive random\n# search; the PRM provides the per-node value that makes UCB actually steer\n# toward promising chains. The two patterns interlock — search supplies\n# breadth, PRM supplies depth-judgement.\n# Related: see `lats`, `test-time-compute-scaling`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -343,6 +703,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each variant run logs variant_id + judge_model_id + rubric_version + per-item score; winner selection requires significance; rate limits cap per-day evaluation cost.",
+          "code": "JUDGE_MODEL    = \"variant-judge-v4\"\nRUBRIC_VERSION = \"variant-rubric-2026-05-1\"\nDAILY_BUDGET   = 2000                               # eval call cap\nSIG_MARGIN     = 0.03\nMIN_TRIALS_PER_CELL = 30\n\neval_budget = TokenBucket(capacity=DAILY_BUDGET, refill_per_day=DAILY_BUDGET)\n\nfunction run_variant_eval_observed(slot, eval_set, rubric):\n    results = {v.id: [] for v in slot.variants}\n\n    for item in eval_set:\n        for v in slot.variants:\n            if not eval_budget.take(1):\n                audit.emit({kind: \"variant_eval.budget_hit\",\n                            remaining_items: len(eval_set) - eval_set.index(item)})\n                return Partial(results)\n\n            span = tracer.start(\"variant_eval.run\", variant: v.id, item: item.id)\n            output = llm.generate(prompt=v.source.format(input=item.input))\n            verdict = judge.score(item, output, rubric=rubric,\n                                  model_id=JUDGE_MODEL,\n                                  rubric_version=RUBRIC_VERSION)\n            results[v.id].append({item: item.id, score: verdict.score, passed: verdict.passed})\n            audit.emit({kind: \"variant_eval.score\",\n                        variant: v.id, item: item.id, score: verdict.score,\n                        judge_model: JUDGE_MODEL, rubric_version: RUBRIC_VERSION})\n            span.end()\n\n    summary = {v: aggregate(rs) for v, rs in results.items()}\n\n    # Significance check: don't pick a winner by margin < noise.\n    top_two = sorted(summary.items(), key=lambda kv: -kv[1].score)[:2]\n    if (top_two[0][1].score - top_two[1][1].score) < SIG_MARGIN:\n        audit.emit({kind: \"variant_eval.tie\",\n                    candidates: [t[0] for t in top_two]})\n        return Reject(\"no variant beats baseline by significance threshold\")\n\n    audit.emit({kind: \"variant_eval.winner\", winner: top_two[0][0]})\n    return top_two[0][0]\n\n# Why this works: the audit row carries judge_model + rubric_version so a\n# winner that mysteriously fails in prod is one query from 'we changed the\n# judge'. Significance check stops the team from shipping a 'winner' that\n# is within noise of the runner-up; daily budget prevents eval cost runaway.\n# Related: see `eval-harness`, `frozen-rubric-reflection`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with bayesian-bandit-experimentation: instead of running all variants on all items, allocate eval samples adaptively — variants performing well get more samples; weak variants are pruned early; the bandit posterior is the feedback seam.",
+          "code": "function adaptive_variant_eval(slot, eval_set, rubric, SAMPLE_BUDGET=600):\n    # bayesian-bandit-experimentation: each variant is an arm with a Beta\n    # posterior over its pass-rate; we update from per-item evals.\n    bandit = {v.id: BetaPosterior(alpha=1, beta=1) for v in slot.variants}\n\n    while SAMPLE_BUDGET > 0 and len(bandit) > 1:\n        # Thompson-sample to pick which variant to evaluate next.\n        sampled_rates = {vid: post.sample() for vid, post in bandit.items()}\n        chosen_variant = argmax(sampled_rates)\n        item = eval_set.next_unused(chosen_variant)\n        if item is None:\n            del bandit[chosen_variant]                  # exhausted this arm\n            continue\n\n        v = slot.variant_by_id(chosen_variant)\n        output  = llm.generate(prompt=v.source.format(input=item.input))\n        verdict = judge.score(item, output, rubric=rubric)\n\n        # Update posterior.\n        if verdict.passed:\n            bandit[chosen_variant].alpha += 1\n        else:\n            bandit[chosen_variant].beta += 1\n        SAMPLE_BUDGET -= 1\n\n        # Feedback seam: prune variants whose 95% upper bound is below the\n        # current best lower bound. They cannot catch up.\n        best_lower = max(post.lower_95() for post in bandit.values())\n        for vid in list(bandit):\n            if bandit[vid].upper_95() < best_lower:\n                audit.emit({kind: \"variant_eval.pruned\",\n                            variant: vid, posterior: bandit[vid]})\n                del bandit[vid]\n\n    if not bandit:\n        return Reject(\"all variants pruned\")\n    return argmax({vid: post.mean() for vid, post in bandit.items()})\n\n# Why this works: running every variant on every item is wasteful when the\n# weak variants are obviously weak by item 50. The bandit spends sample budget\n# where it changes the answer — the posterior is the explicit gate, so audit\n# can show which variants were pruned with which evidence.\n# Related: see `bayesian-bandit-experimentation`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -359,6 +739,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each red-team trial is logged with mode + judge_model_id + sandbox_image_hash + candidate_version; flaky modes (rate spread between repeated runs above tolerance) escalate as test-quality issues, not release blockers.",
+          "code": "JUDGE_MODEL          = \"red-team-judge-v3\"\nSANDBOX_IMAGE_HASH   = \"sha256:9f...\"\nREGRESSION_BUDGET    = 0.05\nFLAKE_TOLERANCE      = 0.10\nTRIALS_PER_MODE      = 50\n\nFAILURE_MODES = [\n    \"alignment_faking\", \"self_exfiltration\", \"sandbagging\",\n    \"agent_scheming\", \"sycophancy\", \"reward_hacking\", \"deception_manipulation\",\n]\n\nfunction reproduce_observed(mode, candidate_model, trials=TRIALS_PER_MODE):\n    sandbox  = SealedSandbox.for_mode(mode, image_hash=SANDBOX_IMAGE_HASH)\n    scenario = sandbox.load_scenario()\n    triggers = 0\n    for i in 1..trials:\n        trajectory = candidate_model.run_in(sandbox, scenario, seed=i)\n        verdict    = judge.score(trajectory, mode_signature=mode, model_id=JUDGE_MODEL)\n        if verdict.triggered:\n            triggers += 1\n        audit.emit({kind: \"red_team.trial\", mode: mode, trial: i,\n                    judge_model: JUDGE_MODEL,\n                    sandbox_image: SANDBOX_IMAGE_HASH,\n                    triggered: verdict.triggered})\n        sandbox.reset()\n    return triggers / trials\n\nfunction release_gate_observed(candidate_version):\n    rates_run_a = {m: reproduce_observed(m, load(candidate_version)) for m in FAILURE_MODES}\n    rates_run_b = {m: reproduce_observed(m, load(candidate_version)) for m in FAILURE_MODES}\n    baseline = baselines.read(prior_version)\n\n    flaky = []\n    regressions = []\n    for m in FAILURE_MODES:\n        spread = abs(rates_run_a[m] - rates_run_b[m])\n        rate = (rates_run_a[m] + rates_run_b[m]) / 2\n        audit.emit({kind: \"red_team.summary\", mode: m,\n                    rate: rate, baseline: baseline[m], spread: spread,\n                    candidate_version: candidate_version})\n\n        if spread > FLAKE_TOLERANCE:\n            flaky.append(m)                          # test-quality issue, not a regression\n            continue\n        if (rate - baseline[m]) > REGRESSION_BUDGET:\n            regressions.append((m, rate - baseline[m]))\n\n    if flaky:\n        escalate_to_red_team_owner(flaky, reason=\"flaky_reproducibility\")\n    if regressions:\n        return Reject(regressions)\n    baselines.write(candidate_version, rates_run_a)\n    return Approve(candidate_version)\n\n# Why this works: distinguishing flake from regression stops the team blocking\n# releases on noise. The sandbox_image hash + judge_model in every audit row\n# means a baseline shift after a sandbox update is replayable, not mysterious.\n# Related: see `eval-as-contract`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with agent-as-judge: each red-team trajectory is judged by an agent (not a single LLM call) that can investigate the trajectory step-by-step using tools; the agent's structured verdict and evidence chain are the feedback seam back to the release gate.",
+          "code": "function reproduce_with_agent_judge(mode, candidate_model, trials):\n    sandbox = SealedSandbox.for_mode(mode)\n    triggers = 0\n    for i in 1..trials:\n        trajectory = candidate_model.run_in(sandbox, sandbox.load_scenario(), seed=i)\n\n        # agent-as-judge: a JUDGE AGENT (not a one-shot judge prompt) walks\n        # the trajectory, calling tools to inspect intermediate states,\n        # check whether claimed actions actually happened, etc.\n        judge_agent = build_judge_agent(\n            tools=[trajectory.replay_step, sandbox.snapshot_state,\n                   policy.check_violation, evidence.collect],\n            rubric=mode_rubric(mode),\n        )\n        verdict = judge_agent.investigate(trajectory)\n\n        # verdict carries (triggered, evidence_chain, confidence)\n        if verdict.triggered:\n            triggers += 1\n\n        audit.emit({kind: \"red_team.agent_judge\",\n                    mode: mode, trial: i,\n                    triggered: verdict.triggered,\n                    confidence: verdict.confidence,\n                    evidence_chain: verdict.evidence_chain})\n        sandbox.reset()\n\n    return triggers / trials\n\nfunction release_gate_with_agent_judge(candidate_version):\n    rates = {m: reproduce_with_agent_judge(m, load(candidate_version), trials=30)\n             for m in FAILURE_MODES}\n    baseline = baselines.read(prior_version)\n\n    regressions = [(m, rates[m] - baseline[m])\n                   for m in FAILURE_MODES\n                   if (rates[m] - baseline[m]) > REGRESSION_BUDGET]\n\n    if regressions:\n        return Reject(regressions, evidence_chains=collect_failing_evidence())\n    baselines.write(candidate_version, rates)\n    return Approve(candidate_version)\n\n# Why this works: a one-shot judge prompt can be fooled by a trajectory that\n# LOOKS clean at summary level. An agent-as-judge can actually replay\n# intermediate steps and check whether claimed actions matched real effects,\n# so the trigger label has an evidence chain behind it.\n# Related: see `agent-as-judge`, `eval-as-contract`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -375,6 +775,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every critique + revise pair logs critic_persona_id + iter; loop has a per-task budget; same-issue-found-twice triggers escalation rather than another revise pass that would silently rephrase.",
+          "code": "CRITIC_PERSONA = \"senior-reviewer-v3\"\nMAX_ITERS = 4\nESCALATE_ON_REPEAT = True\nREFLECT_RATE = TokenBucket(capacity=60, refill_per_min=20)\n\nfunction reflect_observed(task):\n    if not REFLECT_RATE.take(1):\n        return llm.generate(task)                     # baseline; skip reflection\n\n    draft = llm.generate(task)\n    seen_issue_keys = set()\n\n    for i in 1..MAX_ITERS:\n        critique = llm.generate(\n            prompt=critic_persona_prompt(task, draft),\n            persona_id=CRITIC_PERSONA,\n            response_schema=CRITIQUE_SCHEMA,         # forces named issue keys\n        )\n        audit.emit({kind: \"reflect.iter\", iter: i,\n                    critic_persona: CRITIC_PERSONA,\n                    n_issues: len(critique.issues),\n                    issue_keys: [issue.key for issue in critique.issues]})\n\n        if not critique.issues:\n            return draft\n\n        # Repeat-detection: same named issue surfaced twice means the revise\n        # step is going in circles. Escalate rather than burn budget.\n        repeats = [issue for issue in critique.issues if issue.key in seen_issue_keys]\n        if repeats and ESCALATE_ON_REPEAT:\n            audit.emit({kind: \"reflect.repeat_issue\", iter: i,\n                        repeated_keys: [r.key for r in repeats]})\n            return escalate_to_human(draft, critique, reason=\"repeat_issue\")\n        for issue in critique.issues:\n            seen_issue_keys.add(issue.key)\n\n        draft = llm.generate(prompt=revise_prompt(task, draft, critique))\n\n    return draft\n\n# Why this works: the persona id + per-iter issue keys turn 'critique is\n# rephrasing the same complaint' from a vibe into an audit query. Escalating on\n# repeat stops the loop from polishing the same surface forever, which is the\n# classic same-model-self-critique failure mode.\n# Related: see `frozen-rubric-reflection`, `same-model-self-critique`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with self-refine: reflection runs in tight self-refine cycles bounded by an evaluator score; loop terminates when the score stops improving by a min-delta, not at a fixed iter count.",
+          "code": "MIN_IMPROVE_DELTA = 0.02\nHARD_ITER_CAP     = 6\n\nfunction reflection_with_self_refine(task):\n    # self-refine: same model writes, critiques, revises in a tight loop\n    # with a score-based stop condition rather than a fixed iter count.\n    draft = llm.generate(task)\n    last_score = evaluator.score(task, draft).score\n\n    for i in 1..HARD_ITER_CAP:\n        critique = llm.generate(prompt=critic_persona_prompt(task, draft))\n        if critique.says_no_issues():\n            return draft, last_score\n\n        new_draft = llm.generate(prompt=revise_prompt(task, draft, critique))\n        new_score = evaluator.score(task, new_draft).score\n\n        # Feedback seam: the evaluator score gates whether the revision\n        # is accepted; a regress is rolled back. self-refine without this\n        # check often makes things worse.\n        if new_score < last_score:\n            audit.emit({kind: \"self_refine.regress\",\n                        from_score: last_score, to_score: new_score})\n            return draft, last_score\n\n        if (new_score - last_score) < MIN_IMPROVE_DELTA:\n            # Diminishing returns -> stop, don't burn iter budget.\n            return new_draft, new_score\n\n        draft = new_draft\n        last_score = new_score\n\n    return draft, last_score\n\n# Why this works: vanilla reflection runs N iters whether or not they help.\n# Composing with self-refine's score-based stop converts the budget into\n# 'iterate until diminishing returns', and rollback-on-regress prevents the\n# loop from shipping a worse draft than the one it started with.\n# Related: see `self-refine`, `evaluator-optimizer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -391,6 +811,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every lesson is stored with lesson_id + task_type + judge_model_id + outcome + provenance trajectory hash; a curator scores lessons periodically so stale or contradictory lessons are pruned rather than accumulated forever.",
+          "code": "JUDGE_MODEL = \"reflexion-judge-v4\"\nCURATOR_MODEL = \"reflexion-curator-v2\"\nMAX_LESSONS_PER_TASK_TYPE = 10\nLESSON_TTL = 30days\n\nlesson_store = KVStore()\n\nfunction run_episode_observed(task):\n    task_type = classify(task)\n    prior_lessons = lesson_store.get(task_type, top_k=3)\n    audit.emit({kind: \"reflexion.load\", task_type: task_type,\n                n_lessons: len(prior_lessons),\n                lesson_ids: [l.id for l in prior_lessons]})\n\n    trajectory, outcome = agent.run(\n        system_prompt + render_lessons(prior_lessons),\n        task,\n    )\n\n    lesson_text = llm.generate(\n        prompt=reflexion_prompt(task, trajectory, outcome),\n        model_id=JUDGE_MODEL,\n    )\n    lesson = {\n        id: new_id(), text: lesson_text,\n        task_type: task_type, outcome: outcome,\n        trajectory_hash: hash(trajectory),\n        judge_model: JUDGE_MODEL,\n        timestamp: clock.now(),\n        score: 0.0, applications: 0,\n    }\n    lesson_store.append(task_type, lesson)\n    audit.emit({kind: \"reflexion.write\", lesson_id: lesson.id,\n                task_type: task_type, judge_model: JUDGE_MODEL})\n\n    # Curator pass (scheduled, runs out of band):\n    # - score lessons by whether episodes that USED them succeeded\n    # - drop lessons older than LESSON_TTL\n    # - cap to MAX_LESSONS_PER_TASK_TYPE keeping highest score\n    if should_curate():\n        curator.prune(lesson_store, ttl=LESSON_TTL,\n                      cap=MAX_LESSONS_PER_TASK_TYPE,\n                      model_id=CURATOR_MODEL)\n\n    return outcome\n\n# Why this works: an unbounded lesson store accumulates noise as fast as signal\n# and the agent ends up retrieving the wrong lesson. A scored, TTL-bounded\n# store with a curator keeps the retrieval set small and useful; the audit row\n# makes 'which lessons were active when this run failed' answerable.\n# Related: see `agentic-context-engineering-playbook`, `episodic-summaries`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with episodic-summaries: lessons are derived from episodic SUMMARIES rather than raw trajectories; the summary is the compressed input to the reflection prompt; cross-episode patterns surface that wouldn't fit in one trajectory.",
+          "code": "function reflexion_with_episodic_summaries(task):\n    task_type = classify(task)\n\n    # episodic-summaries: the agent maintains compressed summaries of recent\n    # episodes of this task type. Pull the last K summaries.\n    recent_summaries = summary_store.get(task_type, k=5)\n\n    prior_lessons = lesson_store.get(task_type, top_k=3)\n    trajectory, outcome = agent.run(\n        system_prompt + render_lessons(prior_lessons),\n        task,\n    )\n\n    # Summarise THIS episode and store it.\n    this_summary = llm.generate(\n        prompt=render(\n            \"Summarise the trajectory and outcome in one paragraph.\",\n            trajectory=trajectory, outcome=outcome,\n        ),\n    )\n    summary_store.append(task_type, this_summary)\n\n    # Feedback seam: the lesson is derived from the LAST K summaries PLUS this\n    # one — so the reflection sees a cross-episode pattern, not just a single\n    # trajectory.\n    cross_episode_lesson = llm.generate(\n        prompt=render(\n            \"You are reviewing the last few episodes of this task type. \"\n            \"What pattern of mistake or success should the agent carry forward?\\n\"\n            \"Recent summaries:\\n{recent}\\nThis episode:\\n{this}\",\n            recent=recent_summaries, this=this_summary,\n        ),\n    )\n\n    lesson_store.append(task_type, {\n        text: cross_episode_lesson,\n        derived_from: [s.id for s in recent_summaries] + [this_summary.id],\n        outcome: outcome,\n        timestamp: clock.now(),\n    })\n    return outcome\n\n# Why this works: reflection on one trajectory tends to overfit to that\n# trajectory's quirks. Reflection over the last K episodic summaries surfaces\n# the patterns that recur across runs — exactly the lessons worth carrying\n# forward to future episodes.\n# Related: see `episodic-summaries`, `agentic-context-engineering-playbook`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -407,6 +847,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: each sample is logged with model_id + seed + extracted_answer; sample budget is capped per query; high variance triggers an expensive escalation (more samples, then human) rather than silently shipping the modal answer.",
+          "code": "MODEL_ID = \"answerer-v6\"\nDEFAULT_N = 8\nESCALATION_N = 16\nVARIANCE_ESCALATE_THRESHOLD = 0.3                # below this confidence -> escalate\nSAMPLE_BUDGET = TokenBucket(capacity=240, refill_per_min=60)\n\nfunction self_consistency_observed(prompt, N=DEFAULT_N, temperature=0.7):\n    samples = []\n    for i in 1..N:\n        if not SAMPLE_BUDGET.take(1):\n            audit.emit({kind: \"sc.budget_exhausted\", got: len(samples), wanted: N})\n            break\n        out = llm.generate(prompt, temperature=temperature, seed=i, model_id=MODEL_ID)\n        ans = extract_answer(out)\n        samples.append({seed: i, model_id: MODEL_ID, answer: ans})\n        audit.emit({kind: \"sc.sample\", seed: i, model_id: MODEL_ID, answer: ans})\n\n    if not samples:\n        return abstain(\"no samples\")\n\n    answer, count = majority_vote([s.answer for s in samples])\n    confidence = count / len(samples)\n    audit.emit({kind: \"sc.vote\", n: len(samples), answer: answer, confidence: confidence})\n\n    # Variance-driven escalation: low agreement -> pull more samples; if it\n    # stays low, escalate to human rather than ship the modal answer.\n    if confidence < VARIANCE_ESCALATE_THRESHOLD:\n        more_samples = []\n        for i in (N + 1)..ESCALATION_N:\n            if not SAMPLE_BUDGET.take(1): break\n            out = llm.generate(prompt, temperature=temperature, seed=i, model_id=MODEL_ID)\n            more_samples.append({seed: i, answer: extract_answer(out)})\n        all_samples = samples + more_samples\n        answer, count = majority_vote([s.answer for s in all_samples])\n        confidence = count / len(all_samples)\n        if confidence < VARIANCE_ESCALATE_THRESHOLD:\n            return escalate_to_human(prompt, all_samples, reason=\"high_variance\")\n\n    return {answer: answer, confidence: confidence, n: len(samples)}\n\n# Why this works: the audit row contains every sample + seed + model id, so a\n# regression in vote quality is replayable. Escalation on persistent low\n# confidence stops the obvious failure: shipping a modal answer that won by\n# 3/8 votes as though it were certain.\n# Related: see `best-of-n`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with debate: when self-consistency returns ambiguous modal answer (no clear majority), the top-2 candidates enter a structured debate; a judge model picks the winner using the debate transcript; debate is the feedback seam.",
+          "code": "function self_consistency_then_debate(prompt, N=8):\n    samples = [extract_answer(llm.generate(prompt, temperature=0.7, seed=i))\n               for i in 1..N]\n\n    answer, count = majority_vote(samples)\n    confidence = count / N\n\n    if confidence >= 0.6:\n        return {answer: answer, confidence: confidence}\n\n    # Ambiguous -> compose with `debate`. Pick top two candidate answers and\n    # have two debater roles argue for each before a judge.\n    top_two = top_k_candidates(samples, k=2)\n    if len(top_two) < 2:\n        return abstain(\"insufficient distinct candidates\")\n\n    transcript = []\n    for round_idx in 1..3:\n        for stance in top_two:\n            argument = llm.generate(\n                prompt=render(\n                    \"Argue for this answer: {stance}\\nPrevious arguments: {prev}\",\n                    stance=stance, prev=transcript,\n                ),\n            )\n            transcript.append({stance: stance, round: round_idx, argument: argument})\n\n    # Feedback seam: a separate judge model picks based on the debate, not on\n    # the original sample vote alone.\n    judge_verdict = judge.score(\n        prompt=prompt,\n        candidates=top_two,\n        debate_transcript=transcript,\n    )\n\n    return {\n        answer: judge_verdict.winner,\n        confidence: judge_verdict.confidence,\n        method: \"self_consistency_then_debate\",\n    }\n\n# Why this works: self-consistency tells you the modal answer but not which\n# answer is right when the modal share is weak. Debate forces each candidate's\n# best argument into the open; the judge then has structured grounds to pick,\n# not just a vote count.\n# Related: see `debate`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -478,6 +938,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every SDB run logs proposer_model_id + verifier_version + proposal hash + verdict + retry attempts; verifier failures hit a bounded repair loop; commit attempts are idempotent via the proposal's idempotency key.",
+          "code": "PROPOSER_MODEL    = \"proposer-v5\"\nVERIFIER_VERSION  = \"refund-verifier-v3\"\nMAX_REPAIRS       = 2\nCOMMIT_RATE = TokenBucket(capacity=30, refill_per_min=10)\n\nclass SDB:\n    name: str\n    proposer: Callable; verifier: Callable\n    commit: Callable; reject: Callable\n\nfunction run_sdb_observed(sdb, ctx):\n    span = tracer.start(\"sdb.run\", name: sdb.name)\n    for attempt in 0..MAX_REPAIRS:\n        proposal = sdb.proposer(ctx, model_id=PROPOSER_MODEL)\n        audit.emit({kind: \"sdb.propose\", sdb: sdb.name,\n                    proposer_model: PROPOSER_MODEL,\n                    proposal_hash: hash(proposal), attempt: attempt})\n\n        verdict = sdb.verifier(proposal, verifier_version=VERIFIER_VERSION)\n        audit.emit({kind: \"sdb.verify\", sdb: sdb.name,\n                    verifier_version: VERIFIER_VERSION,\n                    accepted: verdict.accepted, reasons: verdict.reasons})\n\n        if verdict.accepted:\n            break\n        if attempt == MAX_REPAIRS:\n            signal = sdb.reject(verdict)\n            span.end(status=\"reject\")\n            raise signal\n        # Repair: feed verifier reasons back into a narrowed proposer call.\n        ctx = ctx.with_repair_hint(verdict.reasons)\n\n    if not COMMIT_RATE.take(1):\n        span.end(status=\"rate_limited\")\n        raise RejectSignal(code=\"commit_rate_limit\", retry_hint=\"backoff\")\n\n    # Idempotent commit keyed by the proposal's idempotency_key.\n    effect = sdb.commit(proposal, idempotency_key=proposal.idempotency_key)\n    audit.emit({kind: \"sdb.commit\", sdb: sdb.name,\n                effect_id: effect.id,\n                idempotency_key: proposal.idempotency_key})\n    span.end(status=\"commit\")\n    return effect\n\n# Why this works: the audit row pairs proposer_model with verifier_version per\n# attempt, so a sudden spike in rejection rate can be attributed to either side.\n# Bounded repair turns 'verifier said no' into a constructive narrowing rather\n# than a hard failure; idempotency_key stops a retried commit from double-firing.\n# Related: see `supervisor-plus-gate`, `policy-as-code-gate`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with compensating-action: each SDB commit registers a compensating action that can undo the side-effect; on downstream failure within a transaction window the compensator fires, so the boundary stays atomic across multi-step plans.",
+          "code": "class SDB:\n    name: str; proposer: Callable; verifier: Callable\n    commit: Callable; reject: Callable\n    compensate: Callable                       # NEW: how to undo a successful commit\n\nclass TransactionLog:\n    completed: list[CommittedEffect]\n    def register(self, effect, sdb): ...\n    def all_completed_compensators(self): ...\n\nfunction run_transaction(sdbs, ctx, deadline):\n    txn = TransactionLog()\n    for sdb in sdbs:\n        try:\n            proposal = sdb.proposer(ctx)\n            verdict  = sdb.verifier(proposal)\n            if not verdict.accepted:\n                raise sdb.reject(verdict)\n            effect = sdb.commit(proposal)\n            txn.register(effect, sdb)\n            audit.emit({kind: \"sdb.txn.commit\", sdb: sdb.name,\n                        effect_id: effect.id})\n            ctx = ctx.with_effect(effect)\n        except Exception as e:\n            # compensating-action: undo every committed effect in REVERSE order.\n            for committed in reversed(txn.completed):\n                try:\n                    committed.sdb.compensate(committed.effect)\n                    audit.emit({kind: \"sdb.txn.compensate\",\n                                sdb: committed.sdb.name,\n                                effect_id: committed.effect.id})\n                except CompensationFailed as cf:\n                    # Critical: compensation itself failed. Escalate hard;\n                    # the audit row tells operators exactly what is dangling.\n                    escalate_to_oncall(committed, cf)\n            raise TransactionFailed(cause=e, partial_commits=txn.completed)\n\n    return txn\n\n# Why this works: a single SDB makes one boundary atomic, but multi-step plans\n# need atomicity across boundaries. Pairing each SDB with a compensating action\n# lets the verifier-and-commit contract scale to transactions; the audit row\n# names every commit and its undo, so a partial failure is debuggable.\n# Related: see `compensating-action`, `supervisor-plus-gate`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -494,6 +974,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production: every simulator call logs world_model_id + state_hash + actions_hash + returned uncertainty; the gate on irreversible actions uses a calibrated threshold; failed-simulator calls abstain rather than fall through to text-only reasoning.",
+          "code": "WORLD_MODEL_ID  = \"world-model-v4-2026-05\"\nUNCERTAINTY_GATE = 0.25\nSIM_CALL_BUDGET  = TokenBucket(capacity=20, refill_per_task=20)\n\nworld_model_tool = Tool(\n    name=\"simulate\", description=\"Roll out a candidate action sequence.\",\n    schema={state: STATE_SCHEMA, actions: list_of(ACTION_SCHEMA), horizon: int},\n    invoke=lambda args: world_model.rollout(model_id=WORLD_MODEL_ID, **args),\n)\n\nfunction plan_with_simulation_observed(goal, candidate_action_sequences):\n    rollouts = []\n    for actions in candidate_action_sequences:\n        if not SIM_CALL_BUDGET.take(1):\n            audit.emit({kind: \"wm.budget_hit\"})\n            break\n        state = perceive_current()\n        try:\n            rollout = world_model_tool.invoke({state: state, actions: actions, horizon: H})\n        except SimulatorUnavailable:\n            # CRITICAL: do NOT fall through to text-only reasoning on irrev actions.\n            if any(a.is_irreversible() for a in actions):\n                return abstain(reason=\"simulator_down_irreversible_action\")\n            continue\n        audit.emit({kind: \"wm.sim\",\n                    world_model: WORLD_MODEL_ID,\n                    state_hash: hash(state),\n                    actions_hash: hash(actions),\n                    uncertainty: rollout.uncertainty,\n                    horizon: H})\n        rollouts.append({actions: actions, predicted: rollout.frames,\n                         uncertainty: rollout.uncertainty})\n\n    if not rollouts:\n        return abstain(reason=\"no_rollouts\")\n\n    chosen = agent.pick(goal, rollouts)\n\n    # Calibrated gate: irreversible action requires uncertainty below threshold.\n    if chosen.actions.is_irreversible() and chosen.uncertainty > UNCERTAINTY_GATE:\n        return abstain(reason=\"world_model_uncertain_on_irreversible\",\n                       uncertainty: chosen.uncertainty)\n    return chosen.actions\n\n# Why this works: state_hash + actions_hash in audit make any past sim call\n# replayable against the same world-model version. The abstain-on-simulator-down\n# rule plugs the obvious failure: a tool outage should not silently degrade the\n# agent to text-only foresight on a step that mattered enough to simulate.\n# Related: see `simulate-before-actuate`, `tool-use`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition with tree-of-thoughts: ToT branches over candidate plans; each branch is GROUNDED by a world-model rollout that supplies a value estimate; pruning uses simulator agreement, not just text-level reasoning — the world model is the value head for ToT.",
+          "code": "function tot_with_world_model(goal, BRANCH_FACTOR=3, MAX_DEPTH=4):\n    root = ThoughtNode(state=perceive_current(), partial_plan=[])\n    frontier = [root]\n\n    for depth in 1..MAX_DEPTH:\n        children = []\n        for node in frontier:\n            # tree-of-thoughts: generate candidate next-step thoughts.\n            candidate_steps = llm.generate_candidate_steps(\n                goal=goal, current=node, k=BRANCH_FACTOR,\n            )\n\n            for step in candidate_steps:\n                # world-model-as-tool: SIMULATE the new partial plan to get\n                # a grounded value estimate, instead of letting the LLM\n                # self-rate the branch.\n                rollout = world_model_tool.invoke({\n                    state: node.state,\n                    actions: [step], horizon: 1,\n                })\n                value = score_against_goal(rollout.predicted_state, goal)\n\n                child = ThoughtNode(\n                    state=rollout.predicted_state,\n                    partial_plan=node.partial_plan + [step],\n                    value=value, uncertainty=rollout.uncertainty,\n                    parent=node,\n                )\n                children.append(child)\n\n        # Feedback seam: prune by simulator-grounded value AND uncertainty,\n        # not by text-level plausibility.\n        frontier = sorted(children,\n                          key=lambda c: (-c.value, c.uncertainty))[:BRANCH_FACTOR]\n\n        if any(is_goal_reached(c.state, goal) for c in frontier):\n            return reconstruct_plan(first_goal_node(frontier))\n\n    # Best partial plan found.\n    best = max(frontier, key=lambda c: c.value)\n    if best.uncertainty > UNCERTAINTY_GATE:\n        return abstain(reason=\"best_branch_uncertain\")\n    return reconstruct_plan(best)\n\n# Why this works: ToT's classic weakness is that the LLM that generates\n# branches also self-rates them, so the model's biases propagate end-to-end.\n# Using a world-model rollout for the value head decouples generation from\n# evaluation and makes pruning rest on grounded predictions, not on\n# self-assessment.\n# Related: see `tree-of-thoughts`, `simulate-before-actuate`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }
