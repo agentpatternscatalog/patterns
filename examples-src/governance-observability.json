@@ -16,6 +16,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: judge emits structured verdicts with PII redaction, sampling, retention, and dashboard hook.",
+          "code": "JUDGE_SAMPLE_RATE = 0.10\nRETENTION_DAYS = 90\n\nfunction judge_run_production(task, trajectory):\n    if rand() >= JUDGE_SAMPLE_RATE:\n        return null                                  # skip; sampled out\n    redacted = pii.scrub(trajectory)                 # strip emails, tokens\n    verdict = judge_model.score(\n        rubric=RUBRIC,\n        steps=redacted.steps,\n        tools=redacted.tool_calls,\n        final=redacted.final_answer,\n    )\n    record = {\n        ts: now(),\n        task_id: task.id,\n        correctness: verdict.correctness,\n        efficiency: verdict.efficiency,\n        process: verdict.process_quality,\n        rationale_hash: sha256(verdict.rationale),  # text retained < N days\n    }\n    audit.emit(\"judge.verdict\", record, ttl_days=RETENTION_DAYS)\n    dashboard.publish(\"agent.judge.score\", verdict.process_quality)\n    if verdict.process_quality < FLOOR:\n        alert.page(\"process-quality regression\", task_id=task.id)\n    return verdict\n\n# Why this works: sampling caps judge cost as traffic grows, and PII\n# scrubbing plus rationale-hashing keeps the audit safe to retain.\n# Related: see `llm-as-judge`, `sampled-prompt-trace-eval`, `pii-redaction`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: agent-as-judge composed with decision-log so every verdict cites the exact thought/decision it scored.",
+          "code": "function judge_with_decision_log(task, trajectory):\n    decisions = decision_log.fetch(task.id)          # related: decision-log\n    verdict = judge_model.score(\n        rubric=RUBRIC,\n        steps=trajectory.steps,\n        decisions=decisions,                          # judge sees WHY too\n        final=trajectory.final_answer,\n    )\n    for finding in verdict.findings:\n        decision_id = finding.citing_decision_id\n        decision_log.attach_verdict(decision_id, {\n            judge_score: finding.score,\n            judge_note:  finding.note,\n            ts:          now(),\n        })\n    audit.emit(\"judge.linked_verdict\", {\n        task_id: task.id,\n        decisions_cited: [f.citing_decision_id for f in verdict.findings],\n        overall: verdict.overall,\n    })\n    return verdict\n\n# Why this works: linking each judge finding back to a specific logged\n# decision turns the verdict into actionable repair rather than a score.\n# Related: see `decision-log`, `llm-as-judge`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -32,6 +52,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: cadenced evaluator with tiered sampling, PII-safe inputs, retention windows, and dashboard SLO.",
+          "code": "EVAL_CADENCE = \"15m\"\nRETENTION_DAYS = 30\n\nfunction scheduled_evaluator_tick(agent):\n    cases = []\n    cases += curated.load(tier=\"smoke\")                # cheap, every tick\n    cases += traffic.sample(rate=0.02, scrubbed=True)  # PII-stripped\n    if hour_aligned():\n        cases += adversarial.generate(n=10)            # once an hour\n\n    out = []\n    for c in cases:\n        result = agent.run(c.input)\n        v = judge.score(c, result)\n        audit.emit(\"evaluator.case\", {\n            ts: now(), tier: c.tier, passed: v.passed,\n            score: v.score, latency_ms: result.latency_ms,\n        }, ttl_days=RETENTION_DAYS)\n        out.append(v)\n\n    rate = pass_rate(out)\n    dashboard.publish(\"agent.eval.pass_rate\", rate)\n    if rate < SLO:\n        alert.page(\"evaluator: SLO breach\", rate=rate)\n\n# Why this works: tier-aware sampling keeps per-tick cost bounded while\n# adversarial probes run on a slower cadence; PII scrub makes the audit safe.\n# Related: see `dual-evaluation-offline-online`, `pii-redaction`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: evaluator composed with lineage-tracking so every regression is traceable to a specific prompt/model/index version.",
+          "code": "function evaluator_with_lineage(agent):\n    snapshot = lineage.capture(agent)                 # related: lineage-tracking\n    # {prompt_hash, model_id, tool_versions, index_version}\n    cases = suite.load()\n    results = []\n    for c in cases:\n        out = agent.run(c.input)\n        v = judge.score(c, out)\n        lineage.attach(v.id, snapshot)                # bind verdict to lineage\n        results.append(v)\n\n    rate = pass_rate(results)\n    audit.emit(\"evaluator.lineage_tick\", {\n        snapshot: snapshot,\n        pass_rate: rate,\n        ts: now(),\n    })\n    if rate < prior_rate(snapshot.predecessor) - DRIFT:\n        delta = lineage.diff(snapshot.predecessor, snapshot)\n        alert.page(\"regression\", changed=delta.fields)\n\n# Why this works: pairing evaluator runs with a lineage snapshot lets\n# regressions name the exact upstream change instead of starting a manhunt.\n# Related: see `lineage-tracking`, `eval-harness`, `prompt-versioning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -48,6 +88,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: chain emits per-middleware spans, redacts PII before audit, samples verbose payloads, and exposes a halt hook.",
+          "code": "function instrumented_invoke(ctx, request, call):\n    chain_span = tracer.start(\"mw.chain\", n=len(MW))\n    sampled = rand() < 0.05                            # verbose payload sampling\n    try:\n        for mw in MW:\n            s = tracer.start(\"mw.req\", name=mw.name)\n            request = mw.process_request(ctx, request)\n            s.end()\n            if request.short_circuit:\n                audit.emit(\"mw.short_circuit\", {by: mw.name, ts: now()})\n                return request.short_circuit_response\n\n        response = call(request)\n\n        for mw in reversed(MW):\n            response = mw.process_response(ctx, request, response)\n\n        if sampled:\n            audit.emit(\"mw.trace\", pii.scrub({\n                req: request.summary(), resp: response.summary(),\n            }), ttl_days=14)\n        dashboard.publish(\"mw.chain.latency_ms\", chain_span.elapsed_ms())\n        return response\n    finally:\n        chain_span.end()\n\n# Why this works: per-middleware spans expose where time is spent, while\n# sampling and PII scrub keep the audit affordable and safe.\n# Related: see `pii-redaction`, `decision-log`, `kill-switch`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: middleware chain wraps a policy-as-code-gate so every call is policy-checked uniformly without agent code knowing.",
+          "code": "class PolicyGateMW:                                   # related: policy-as-code-gate\n    name = \"policy_gate\"\n    function process_request(ctx, req):\n        decision = policy.evaluate({\n            actor: ctx.actor, action: req.action,\n            resource: req.resource, tier: ctx.tier,\n        })\n        audit.emit(\"policy.decision\", {\n            req_id: ctx.req_id, allowed: decision.allow,\n            rule: decision.rule_id, ts: now(),\n        })\n        if not decision.allow:\n            req.short_circuit = true\n            req.short_circuit_response = Denied(decision.reason)\n        return req\n\n    function process_response(ctx, req, resp): return resp\n    function process_error(ctx, req, err):     return null\n\nruntime.bind(MiddlewareChain([\n    PIIRedactionMW(), PolicyGateMW(), RateLimitMW(), DecisionLogMW(),\n]))\n\n# Why this works: routing policy through the chain means every model and\n# tool call is gated uniformly; agents cannot accidentally bypass it.\n# Related: see `policy-as-code-gate`, `decision-log`, `input-output-guardrails`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -132,6 +192,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-node artifact emission with retention tiers, PII scrub, sampled deep-eval, and per-node dashboard pass-rates.",
+          "code": "ARTIFACT_TTL = {plan: 90, tool_call_trace: 30,\n                guardrail_decision: 365, reflection: 30}\nDEEP_EVAL_RATE = 0.10\n\nfunction emit_and_score(node, artifact, expected=null):\n    safe = pii.scrub(artifact)\n    audit.emit(\"artifact.\" + node, safe, ttl_days=ARTIFACT_TTL[node])\n\n    if rand() < DEEP_EVAL_RATE:\n        v = ARTIFACT_RUBRICS[node].score(artifact, expected)\n        audit.emit(\"artifact.eval\", {\n            node: node, passed: v.passed, score: v.score, ts: now(),\n        })\n        dashboard.publish(\"artifact.pass_rate.\" + node, v.passed)\n        if not v.passed and v.severity >= HIGH:\n            alert.page(\"artifact regression\", node=node)\n        return v\n    return null\n\nfunction run_pipeline(task):\n    plan = planner.plan(task);       emit_and_score(\"plan\", plan)\n    trace = executor.run(plan);      emit_and_score(\"tool_call_trace\", trace)\n    g = guardrails.check(trace);     emit_and_score(\"guardrail_decision\", g)\n    r = critic.review(trace);        emit_and_score(\"reflection\", r)\n    return composer.finalise(plan, trace, g, r)\n\n# Why this works: per-node TTLs match the audit's value (guardrail decisions\n# live a year; verbose traces age out fast); sampling caps judge cost.\n# Related: see `eval-harness`, `pii-redaction`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: artifact evaluation feeds a verifier that gates downstream nodes on per-artifact pass.",
+          "code": "function gated_pipeline(task):                       # related: verifier\n    plan = planner.plan(task)\n    v_plan = ARTIFACT_RUBRICS.plan.score(plan, null)\n    verifier.record(\"plan\", v_plan)\n    if not v_plan.passed:\n        audit.emit(\"verifier.halt\", {node: \"plan\", reason: v_plan.reason})\n        return Reject(\"plan failed verifier\")\n\n    trace = executor.run(plan)\n    v_trace = ARTIFACT_RUBRICS.tool_call_trace.score(trace, null)\n    verifier.record(\"tool_call_trace\", v_trace)\n    if not v_trace.passed:\n        audit.emit(\"verifier.halt\", {node: \"tool_call_trace\",\n                                     reason: v_trace.reason})\n        return repair_path(plan, trace, v_trace)\n\n    out = composer.finalise(plan, trace)\n    audit.emit(\"verifier.summary\", {\n        task_id: task.id,\n        per_node: verifier.dump(task.id),\n        ts: now(),\n    })\n    return out\n\n# Why this works: scoring each artifact and letting the verifier halt or\n# repair on failure stops a bad plan from poisoning every downstream node.\n# Related: see `planner-executor-verifier`, `eval-as-contract`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -148,6 +228,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: attribution pass runs on flagged outputs only, chunked, with retention and dashboard surfacing.",
+          "code": "FLAG_RATE = 0.03                                     # ~3% of outputs\nCHUNK_SIZE = 8                                       # tokens per probe\nATTRIB_TTL_DAYS = 60\n\nfunction maybe_attribute(prompt, output, flagged):\n    if not (flagged or rand() < FLAG_RATE):\n        return null\n    chunks = group(prompt.tokens, CHUNK_SIZE)\n    base = model.logprob(prompt, output.token)\n    scores = []\n    for i, chunk in enumerate(chunks):\n        with model.patch_attention(suppress=chunk.indices):\n            patched = model.logprob(prompt, output.token)\n        scores.append({chunk: chunk.text, relevance: base - patched})\n\n    record = {\n        ts: now(),\n        output_token: output.token,\n        heatmap: normalize(scores),\n    }\n    audit.emit(\"attribution.run\", pii.scrub(record), ttl_days=ATTRIB_TTL_DAYS)\n    dashboard.publish(\"attribution.top_chunk\",\n                      argmax(scores).chunk)\n    return record\n\n# Why this works: chunked probes cut the per-call cost from O(tokens) to\n# O(tokens/chunk), and sampling keeps attribution affordable in production.\n# Related: see `confidence-reporting`, `pii-redaction`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: attribution map attached to the decision-log entry so reviewers see causal evidence next to the decision.",
+          "code": "function decide_with_attribution(prompt, decision_id):  # related: decision-log\n    output = model.generate(prompt)\n    attrib = attribution_map(model, prompt, output.first_token)\n\n    decision_log.append({\n        id: decision_id,\n        ts: now(),\n        prompt_hash: sha256(prompt.text),\n        output: output.text,\n        evidence: {\n            kind: \"attribution\",\n            top_k: top_k(attrib, k=5),\n            method: \"attention_suppression_v1\",\n        },\n    })\n    audit.emit(\"decision.with_attribution\", {\n        decision_id: decision_id,\n        top_relevant: [t.token for t in top_k(attrib, 5)],\n    })\n    return output, attrib\n\n# Why this works: attaching the per-token relevance map to the decision-log\n# entry means an auditor sees the causal evidence beside the recorded reason.\n# Related: see `decision-log`, `lineage-tracking`, `confidence-reporting`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -164,6 +264,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: bandit emits assignment and reward audit, dashboards posterior, alerts on stuck arms, retains records for a regret report.",
+          "code": "ASSIGN_TTL_DAYS = 180\n\nfunction prod_choose(request):\n    draws = {vid: sample_beta(a.alpha, a.beta) for vid, a in arms.items()}\n    chosen = argmax(draws)\n    audit.emit(\"bandit.assign\", {\n        ts: now(), req_id: request.id,\n        variant: chosen, draws: draws,\n        user_hash: hash(request.user_id),\n    }, ttl_days=ASSIGN_TTL_DAYS)\n    return chosen\n\nfunction prod_record_reward(req_id, variant, reward):\n    a = arms[variant]\n    a.alpha += reward; a.beta += (1 - reward); a.n += 1\n    audit.emit(\"bandit.reward\", {\n        ts: now(), req_id: req_id, variant: variant, reward: reward,\n    })\n    means = {vid: x.alpha / (x.alpha + x.beta) for vid, x in arms.items()}\n    dashboard.publish(\"bandit.posterior_mean\", means)\n    dashboard.publish(\"bandit.regret\", cumulative_regret(arms))\n    if min(x.n for x in arms.values()) < MIN_N_FLOOR and elapsed() > STUCK_AT:\n        alert.page(\"bandit: arm starvation\", arms=arms)\n\n# Why this works: emitting assign/reward records with TTLs gives a\n# defensible regret report later, and the starvation alarm catches arms\n# that the policy quietly stopped exploring.\n# Related: see `cost-observability`, `decision-log`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: bandit composed with prompt-variant-evaluation so each arm pins to a prompt-registry version with full lineage.",
+          "code": "# related: prompt-variant-evaluation\narms = {}\nfor v in prompt_registry.list(\"answer-prompt\"):\n    arms[v.version] = {alpha: 1.0, beta: 1.0, prompt_hash: v.hash}\n\nfunction choose_pinned():\n    draws = {vid: sample_beta(a.alpha, a.beta) for vid, a in arms.items()}\n    chosen = argmax(draws)\n    audit.emit(\"bandit.prompt_assign\", {\n        ts: now(), version: chosen, hash: arms[chosen].prompt_hash,\n    })\n    return chosen\n\nfunction reward_pinned(req_id, version, reward):\n    a = arms[version]\n    a.alpha += reward; a.beta += (1 - reward)\n    audit.emit(\"bandit.prompt_reward\", {\n        req_id: req_id, version: version,\n        hash: a.prompt_hash, reward: reward,\n    })\n    if posterior_separation(arms) > PROMOTE:\n        winner = argmax_arm(arms)\n        prompt_registry.tag(\"answer-prompt\", winner, \"current\")\n        audit.emit(\"bandit.promote\", {version: winner})\n\n# Why this works: pinning each arm to a registry version means the winning\n# arm is also a deployable artifact with audit-grade provenance.\n# Related: see `prompt-variant-evaluation`, `prompt-versioning`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -193,6 +313,16 @@
           "verified_date": "2026-05-21",
           "verified_notes": "Confirmed at source_url (one hop to /reference/tracking/ and /reference/application/): `from burr.tracking import LocalTrackingClient` with constructor LocalTrackingClient(project: str, storage_dir='~/.burr', serde_kwargs=None); `from burr.core import action, ApplicationBuilder, State`; @action decorator with reads= and writes= kwargs; State.update returning a new immutable State; ApplicationBuilder methods with_actions, with_transitions (tuples of (from, to)), with_entrypoint, with_state, build; with_tracker() accepts a tracker object directly (docs explicitly state LocalTrackingClient is used 'through/in conjunction with ApplicationBuilder.with_tracker()'); with_identifiers(app_id=...); Application.run with halt_after and inputs kwargs. Source: https://burr.dagworks.io (+ /reference/tracking/, /reference/application/)",
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: cost observability composed with lineage-tracking so a cost spike points at the exact prompt/model/index revision.",
+          "code": "function tagged_call(prompt, *, feature, route, user_id, model):\n    lin = lineage.current()                          # related: lineage-tracking\n    # {prompt_version, model_id, index_version, retriever_version}\n    start = now()\n    resp = llm.generate(prompt, model=model)\n    record = {\n        ts: start,\n        feature: feature, route: route,\n        user: hash(user_id),\n        model: model,\n        input_tokens: resp.usage.input,\n        output_tokens: resp.usage.output,\n        cost_usd: price(model, resp.usage),\n        lineage: lin,\n    }\n    telemetry.emit(\"agent.spend\", record, ttl_days=180)\n    dashboard.publish_grouped(\n        metric=\"cost_usd\",\n        by=[\"feature\", \"model\", \"lineage.prompt_version\"],\n    )\n    if anomaly.detect(\"agent.spend\", group=(feature, lin.prompt_version)):\n        alert.page(\"cost spike\", feature=feature, lineage=lin)\n    return resp\n\n# Why this works: pairing spend with lineage means a feature-level cost\n# jump is attributable to a specific prompt or model revision, not a\n# generic 'tokens went up'.\n# Related: see `lineage-tracking`, `prompt-versioning`, `cost-gating`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -209,6 +339,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: tier gate with audit trail, sampled dashboard, PII-safe action summaries, and automated demotion on harm.",
+          "code": "STATE_TTL_DAYS = 365\n\nfunction gate_action_prod(action):\n    current = promotion.read(action.class).tier\n    decision = policy.evaluate({\n        rule: \"tier_cap\",\n        current: current, requested: action.requested_tier,\n    })\n    audit.emit(\"autonomy.gate\", {\n        ts: now(),\n        action_class: action.class,\n        requested: action.requested_tier,\n        current: current,\n        allowed: decision.allow,\n        summary: pii.scrub(action.summary()),\n    }, ttl_days=STATE_TTL_DAYS)\n    dashboard.publish(\"autonomy.gate.rate\",\n                      {class: action.class, allowed: decision.allow})\n    if not decision.allow:\n        return reroute_to_lower(action, current)\n    return execute(action, tier=current)\n\nfunction harm_watcher(action_class, window):\n    m = dashboard.read(action_class, window)\n    if m.harm_rate > 0:\n        promotion.demote(action_class)\n        audit.emit(\"autonomy.demote\", {class: action_class,\n                                       reason: \"harm_observed\"})\n        alert.page(\"autonomy demote\", class=action_class)\n\n# Why this works: every gate decision is auditable, and a harm-rate watcher\n# closes the loop by demoting automatically rather than waiting for review.\n# Related: see `policy-as-code-gate`, `pii-redaction`, `kill-switch`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: tier gating composed with approval-queue so any Walk-tier action requires a routed human approval before execution.",
+          "code": "function tiered_with_approval(action):                # related: approval-queue\n    current = promotion.read(action.class).tier\n    if current == \"crawl\":\n        suggest_only(action)\n        audit.emit(\"autonomy.suggest\", {class: action.class})\n        return null\n\n    if current == \"walk\":\n        ticket = approval_queue.enqueue({\n            action_class: action.class,\n            payload: action.payload,\n            requester: \"agent\",\n            tier: current,\n            ts: now(),\n        })\n        decision = approval_queue.await(ticket, timeout=\"10m\")\n        audit.emit(\"autonomy.walk_approval\", {\n            ticket: ticket, approved: decision.approved,\n            approver: decision.approver,\n        })\n        if not decision.approved:\n            return Reject(decision.reason)\n        return execute(action, tier=\"walk\")\n\n    return execute(action, tier=\"run\")\n\n# Why this works: routing Walk-tier actions through the approval queue\n# gives staff veto power and creates a per-action human-signoff record.\n# Related: see `approval-queue`, `human-in-the-loop`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -267,6 +417,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: both tracks emit retained records with PII scrub, expose SLO dashboards, and raise the disagreement signal as an alert.",
+          "code": "OFFLINE_TTL_DAYS = 365\nONLINE_TTL_DAYS = 90\n\nfunction offline_gate_prod(version):\n    r = run_evals(version, BENCHMARK)\n    audit.emit(\"eval.offline\", {\n        ts: now(), version: version,\n        pass_rate: r.pass_rate, by_slice: r.by_slice,\n    }, ttl_days=OFFLINE_TTL_DAYS)\n    dashboard.publish(\"eval.offline.pass_rate\", r.pass_rate)\n    return Approve(version) if r.pass_rate >= OFFLINE_GATE else Reject(r)\n\nfunction online_tick_prod(window):\n    sample = traffic.sample(window, rate=0.05)\n    scrubbed = [pii.scrub(s) for s in sample]\n    verdicts = [judge.score(s.input, s.output) for s in scrubbed]\n    rate = pass_rate(verdicts)\n    audit.emit(\"eval.online\", {\n        ts: now(), window: window, pass_rate: rate,\n    }, ttl_days=ONLINE_TTL_DAYS)\n    dashboard.publish(\"eval.online.pass_rate\", rate)\n    if rate < ONLINE_FLOOR: alert.page(\"online eval regression\")\n\nfunction disagreement_prod():\n    off = audit.latest(\"eval.offline\")\n    on = audit.window(\"eval.online\", \"24h\")\n    if off.pass_rate >= OFFLINE_GATE and on.pass_rate < ONLINE_FLOOR:\n        dashboard.publish(\"eval.disagreement\", true)\n        alert.page(\"benchmark vs production gap\",\n                   off=off.pass_rate, on=on.pass_rate)\n\n# Why this works: both tracks retain at appropriate TTLs and the\n# disagreement detector turns the silent benchmark-drift failure into a page.\n# Related: see `pii-redaction`, `eval-harness`, `scorer-live-monitoring`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: dual eval composed with decision-log so every promote/reject decision cites the offline and online evidence that drove it.",
+          "code": "function promote_decision(version):                   # related: decision-log\n    off = run_evals(version, BENCHMARK)\n    on = audit.window(\"eval.online\", \"7d\")\n\n    decide = (off.pass_rate >= OFFLINE_GATE\n              and on.pass_rate >= ONLINE_FLOOR\n              and on.pass_rate >= prior_on.pass_rate - DRIFT)\n\n    decision_log.append({\n        id: \"promote.\" + version,\n        ts: now(),\n        decision: \"promote\" if decide else \"hold\",\n        evidence: {\n            offline_pass_rate: off.pass_rate,\n            offline_by_slice:  off.by_slice,\n            online_pass_rate:  on.pass_rate,\n            prior_online_rate: prior_on.pass_rate,\n        },\n        rule: \"both tracks must clear floor\",\n    })\n    audit.emit(\"promote.decision\", {version: version, decision: decide})\n    return decide\n\n# Why this works: writing the promotion to a decision-log with both\n# evidence sources means future audits can reconstruct why a version went\n# live without re-running the suite.\n# Related: see `decision-log`, `eval-as-contract`, `lineage-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -325,6 +495,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: CI gate emits per-eval verdicts, retains them, surfaces blocking/advisory split on a dashboard, and notifies CODEOWNERS on rubric edits.",
+          "code": "EVAL_TTL_DAYS = 365\n\nfunction ci_release_gate(version, evals):\n    blocking = [e for e in evals if e.tier == \"blocking\"]\n    advisory = [e for e in evals if e.tier == \"advisory\"]\n\n    b = run_evals(version, blocking)\n    a = run_evals(version, advisory)\n\n    for r in b + a:\n        audit.emit(\"eval.contract\", {\n            ts: now(), version: version,\n            eval_id: r.id, tier: r.tier,\n            passed: r.passed, score: r.score,\n        }, ttl_days=EVAL_TTL_DAYS)\n\n    dashboard.publish(\"eval.contract.blocking_pass\", b.pass_rate)\n    dashboard.publish(\"eval.contract.advisory_pass\", a.pass_rate)\n\n    failed = [r for r in b if not r.passed]\n    if failed:\n        alert.notify(\"eval-owners\", \"release blocked\", failed=failed)\n        return Reject(failed)                          # CI exits non-zero\n    return Approve(version)\n\nfunction on_rubric_edit(pr):\n    require_codeowners_review(pr, owners=[\"eval-owners\"])\n    audit.emit(\"rubric.edit\", {pr: pr.id, author: pr.author, ts: now()})\n\n# Why this works: writing each verdict to retained audit means a future\n# release can be traced back to which contract it satisfied, and CODEOWNERS\n# enforcement makes rubric drift a reviewed event.\n# Related: see `eval-harness`, `pii-redaction`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: eval-as-contract composed with prompt-versioning so a blocked release pins the exact prompt version that failed.",
+          "code": "function gate_pinned(version, evals):                 # related: prompt-versioning\n    prompts = prompt_registry.snapshot(version)\n    blocking = [e for e in evals if e.tier == \"blocking\"]\n    results = run_evals(version, blocking)\n\n    for r in results:\n        audit.emit(\"eval.contract.pinned\", {\n            ts: now(),\n            version: version,\n            prompt_versions: prompts,\n            eval_id: r.id,\n            passed: r.passed,\n            score: r.score,\n        })\n\n    failed = [r for r in results if not r.passed]\n    if failed:\n        report = {\n            blocked_release: version,\n            offending_prompts: prompts,\n            failed_evals: [r.id for r in failed],\n        }\n        decision_log.append({id: \"block.\" + version, evidence: report})\n        return Reject(report)\n    return Approve(version)\n\n# Why this works: pinning prompt versions in the verdict means the\n# blocking report names the exact artifact to revert, not just 'this PR'.\n# Related: see `prompt-versioning`, `own-your-prompts`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -341,6 +531,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: harness runs in CI on hashed datasets, emits per-scorer audit, retains deltas, and posts champion-vs-challenger to a dashboard.",
+          "code": "HARNESS_TTL_DAYS = 365\n\nfunction harness_run_prod(champion, challenger, dataset, scorers):\n    ds_hash = sha256(dataset.serialize())\n    span = tracer.start(\"harness.run\",\n                        champion=champion.id, challenger=challenger.id)\n    out = {champion: [], challenger: []}\n\n    for ex in dataset:\n        for v in [champion, challenger]:\n            o = v.run(ex.input)\n            scored = {s.name: s(o, ex.expected) for s in scorers}\n            out[v].append({input_hash: sha256(ex.input), scored: scored})\n\n    deltas = compare(out[champion], out[challenger])\n    audit.emit(\"harness.result\", {\n        ts: now(),\n        champion: champion.id, challenger: challenger.id,\n        dataset_hash: ds_hash,\n        deltas: deltas,\n    }, ttl_days=HARNESS_TTL_DAYS)\n    dashboard.publish(\"harness.delta\", deltas)\n    span.end()\n    if not all_lifts_non_negative(deltas):\n        alert.page(\"harness regression\", deltas=deltas)\n        return Block(deltas)\n    return Promote(challenger)\n\n# Why this works: hashing the dataset and storing per-scorer deltas means\n# every promotion is reproducible from audit alone, not from memory.\n# Related: see `eval-as-contract`, `lineage-tracking`, `prompt-versioning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: harness composed with llm-as-judge so open-ended scorers run through a calibrated judge with rubric provenance.",
+          "code": "function harness_with_judge(champion, challenger, dataset):\n    rubric = rubric_registry.get(\"answer-rubric\", \"v3\")  # related: llm-as-judge\n    out = {champion: [], challenger: []}\n\n    for ex in dataset:\n        for v in [champion, challenger]:\n            o = v.run(ex.input)\n            verdict = judge_model.score(\n                input=ex.input, output=o, rubric=rubric,\n            )\n            audit.emit(\"harness.judge\", {\n                version: v.id, ex_hash: sha256(ex.input),\n                rubric_version: \"v3\", score: verdict.score,\n            })\n            out[v].append(verdict)\n\n    decision = (mean(out[challenger]) > mean(out[champion])\n                and judge_calibration_ok())\n    audit.emit(\"harness.decision\", {\n        champion_mean: mean(out[champion]),\n        challenger_mean: mean(out[challenger]),\n        rubric: \"answer-rubric@v3\",\n        decision: decision,\n    })\n    return Promote(challenger) if decision else Hold()\n\n# Why this works: piping every harness scorer through a versioned rubric\n# means the comparison is judged consistently and the rubric is replayable.\n# Related: see `llm-as-judge`, `eval-as-contract`, `prompt-versioning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -357,6 +567,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: frozen rubric and dataset hashed in registry; pre-commit gate refuses changes that drop versus baseline with full audit.",
+          "code": "RUBRIC_VERSION = \"v1\"\nSET_VERSION = \"v1\"\nGATE_TTL_DAYS = 365\n\nfunction edd_pre_commit(change):\n    rubric = registry.get(\"rubric\", RUBRIC_VERSION)\n    eval_set = registry.get(\"eval_set\", SET_VERSION)\n    baseline = run_evals(prior_version, eval_set, rubric)\n    candidate = run_evals(change.version, eval_set, rubric)\n\n    audit.emit(\"edd.gate\", {\n        ts: now(),\n        change_id: change.id,\n        rubric: RUBRIC_VERSION,\n        eval_set: SET_VERSION,\n        prior: baseline.score,\n        new: candidate.score,\n        delta: candidate.score - baseline.score,\n    }, ttl_days=GATE_TTL_DAYS)\n    dashboard.publish(\"edd.score\", candidate.score)\n\n    if candidate.score < baseline.score - TOLERANCE:\n        alert.notify(change.author,\n                     \"edd regression: refused commit\",\n                     delta=candidate.score - baseline.score)\n        return Reject(\"regression vs frozen eval set\")\n    return Approve(change)\n\n# Why this works: the frozen rubric+set pair becomes the immutable target\n# every change is judged against, and the retained gate record gives a\n# defensible day-one quality story.\n# Related: see `eval-as-contract`, `frozen-rubric-reflection`, `lineage-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: EDD composed with lineage-tracking so every eval verdict pins prompt, model, and tool versions; regressions point at the exact upstream cause.",
+          "code": "function edd_with_lineage(change):                    # related: lineage-tracking\n    lin = lineage.capture(change.version)\n    # {prompt_hash, model_id, tool_versions, index_version}\n    rubric = registry.get(\"rubric\", \"v1\")\n    eval_set = registry.get(\"eval_set\", \"v1\")\n    candidate = run_evals(change.version, eval_set, rubric)\n\n    audit.emit(\"edd.lineage_gate\", {\n        ts: now(),\n        change_id: change.id,\n        lineage: lin,\n        score: candidate.score,\n    })\n\n    if candidate.score < BASELINE - TOLERANCE:\n        prior_lin = lineage.read(prior_version)\n        delta = lineage.diff(prior_lin, lin)\n        decision_log.append({\n            id: \"reject.\" + change.id,\n            evidence: {\n                regression_delta: candidate.score - BASELINE,\n                lineage_diff: delta.fields,\n            },\n        })\n        return Reject(\"regression; suspect changes: \" + str(delta.fields))\n    return Approve(change)\n\n# Why this works: binding the gate verdict to the lineage snapshot turns a\n# bare regression into a hypothesis: 'these specific fields changed'.\n# Related: see `lineage-tracking`, `decision-log`, `prompt-versioning`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -415,6 +645,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: judge runs on sampled traffic with PII scrub, retained verdicts, periodic calibration alarms, and dashboard for drift.",
+          "code": "JUDGE_RATE = 0.10\nVERDICT_TTL_DAYS = 90\nCALIB_TTL_DAYS = 365\n\nfunction judge_prod(input, output):\n    if rand() >= JUDGE_RATE: return null\n    safe_in = pii.scrub(input); safe_out = pii.scrub(output)\n    v = judge_model.generate(\n        render(JUDGE_TPL, input=safe_in, output=safe_out, rubric=RUBRIC),\n        response_format=schema_of(RUBRIC),\n    )\n    audit.emit(\"judge.verdict\", {\n        ts: now(), score: v.score, rubric_version: \"v3\",\n    }, ttl_days=VERDICT_TTL_DAYS)\n    dashboard.publish(\"judge.score\", v.score)\n    return v\n\nfunction calibration_check(samples):\n    judge_scores = [judge_prod(s.input, s.output).score for s in samples]\n    rho = correlation(judge_scores, [s.human_score for s in samples])\n    audit.emit(\"judge.calibration\", {\n        ts: now(), rho: rho, n: len(samples),\n    }, ttl_days=CALIB_TTL_DAYS)\n    dashboard.publish(\"judge.calibration\", rho)\n    if rho < 0.8:\n        alert.page(\"judge drift; retune rubric or swap model\", rho=rho)\n\n# Why this works: sampling and PII scrub keep production judging\n# affordable and safe; a retained calibration record catches drift.\n# Related: see `sampled-prompt-trace-eval`, `pii-redaction`, `scorer-live-monitoring`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: judge composed with decision-log so the rubric-by-rubric rationale becomes the decision's recorded justification.",
+          "code": "function judge_for_decision(input, output, decision_id):  # related: decision-log\n    v = judge_model.generate(\n        render(JUDGE_TPL, input=input, output=output, rubric=RUBRIC),\n        response_format=schema_of(RUBRIC + [\"rationale\"]),\n    )\n    decision_log.append({\n        id: decision_id,\n        ts: now(),\n        actor: \"llm_judge\",\n        action: \"score\",\n        target: hash(output),\n        justification: v.rationale,\n        evidence: {\n            per_criterion: v.per_criterion,\n            rubric: \"answer-rubric@v3\",\n            judge_model: judge_model.id,\n        },\n    })\n    audit.emit(\"judge.linked\", {\n        decision_id: decision_id, score: v.score,\n    })\n    return v\n\n# Why this works: writing the per-criterion rationale into the decision-log\n# means audits read the judge's reasons in-line with the recorded action.\n# Related: see `decision-log`, `provenance-ledger`, `eval-harness`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -431,6 +681,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: aggregation function records every decision with rule, weights, and per-principal utilities for review and dashboarding.",
+          "code": "WELFARE_TTL_DAYS = 365\n\nfunction aggregate_prod(per_principal_utilities, action_id):\n    cfg = welfare_config.read()                     # versioned\n    score = compute(cfg, per_principal_utilities)\n\n    audit.emit(\"welfare.decision\", {\n        ts: now(),\n        action_id: action_id,\n        rule: cfg.rule,\n        weights: cfg.weights,\n        principals: pii.scrub_keys(per_principal_utilities),\n        score: score,\n        config_version: cfg.version,\n    }, ttl_days=WELFARE_TTL_DAYS)\n\n    dashboard.publish_grouped(\"welfare.score\",\n                              by=[\"rule\", \"config_version\"])\n    if min(per_principal_utilities.values()) < HARM_FLOOR:\n        alert.page(\"welfare: principal below harm floor\",\n                   principal=argmin(per_principal_utilities))\n    return score\n\nfunction on_config_change(new_cfg):\n    require_review([\"welfare-owners\"])\n    welfare_config.commit(new_cfg)                  # bump version\n    audit.emit(\"welfare.config_change\", {\n        from: prior, to: new_cfg, ts: now(),\n    })\n\n# Why this works: rule, weights, and version are recorded with every\n# decision, so the question 'which principal does the agent serve' becomes\n# answerable from audit instead of guesswork.\n# Related: see `policy-as-code-gate`, `pii-redaction`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: aggregation composed with decision-log so each multi-principal trade-off cites the rule and per-principal utilities used.",
+          "code": "function decide_action(candidate_actions, request_id):  # related: decision-log\n    cfg = welfare_config.read()\n    scored = []\n    for a in candidate_actions:\n        utilities = estimate_per_principal_utility(a)\n        score = compute(cfg, utilities)\n        scored.append((a, score, utilities))\n\n    chosen, chosen_score, chosen_u = argmax_by_score(scored)\n    runner_up = second_by_score(scored)\n\n    decision_log.append({\n        id: \"welfare.\" + request_id,\n        ts: now(),\n        actor: \"welfare_aggregator\",\n        action: chosen.id,\n        justification: \"max under rule=\" + cfg.rule,\n        evidence: {\n            rule: cfg.rule,\n            weights: cfg.weights,\n            chosen_utilities: chosen_u,\n            runner_up_utilities: runner_up[2],\n            margin: chosen_score - runner_up[1],\n        },\n    })\n    return chosen\n\n# Why this works: logging chosen-vs-runner-up utilities makes the trade-off\n# auditable: an operator can ask 'why this and not that' and read the answer.\n# Related: see `decision-log`, `policy-as-code-gate`, `lineage-tracking`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -447,6 +717,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: every prompt load emits a load record with hash and version; framework-default usage triggers an alert and dashboard.",
+          "code": "LOAD_TTL_DAYS = 90\n\nfunction get_prompt_prod(name, version):\n    entry = PROMPT_REGISTRY[name][version]\n    actual_hash = sha256(entry.source)\n    if actual_hash != entry.hash:\n        alert.page(\"prompt tamper detected\",\n                   name=name, version=version)\n        raise TamperedPrompt(name)\n    audit.emit(\"prompt.load\", {\n        ts: now(), name: name, version: version,\n        hash: actual_hash, caller: caller_id(),\n    }, ttl_days=LOAD_TTL_DAYS)\n    dashboard.publish(\"prompt.load_count\",\n                      {name: name, version: version})\n    return entry.source\n\nruntime.on_framework_default_used = lambda where: (\n    audit.emit(\"prompt.framework_default_used\", {\n        where: where, ts: now(),\n    }),\n    alert.page(\"framework-default prompt used\", where=where),\n)\n\nfunction nightly_audit():\n    findings = static_scan(\"./\", pattern=\"use_framework_defaults=True\")\n    if findings:\n        dashboard.publish(\"prompt.framework_default_findings\",\n                          len(findings))\n        alert.notify(\"prompt-owners\", findings=findings)\n\n# Why this works: tamper-check on load plus a static-scan nightly job\n# means a sneaked-in framework default cannot stay in production silently.\n# Related: see `prompt-versioning`, `decision-log`, `kill-switch`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: ownership composed with lineage-tracking so every model call records the exact prompt-name and version that produced it.",
+          "code": "function call_with_lineage(prompt_name, version, vars):  # related: lineage-tracking\n    source = get_prompt(prompt_name, version)\n    lin = {\n        prompt_name: prompt_name,\n        prompt_version: version,\n        prompt_hash: sha256(source),\n        model: ACTIVE_MODEL,\n        ts: now(),\n    }\n    rendered = render(source, vars)\n    resp = llm.generate(rendered, model=ACTIVE_MODEL)\n    lineage.attach(resp.id, lin)\n    audit.emit(\"call.with_lineage\", {\n        response_id: resp.id, lineage: lin,\n    })\n    return resp\n\nfunction recall_call(response_id):\n    lin = lineage.read(response_id)\n    source = prompt_registry.get(lin.prompt_name,\n                                 lin.prompt_version).source\n    assert sha256(source) == lin.prompt_hash    # replayable\n    return {prompt: source, model: lin.model}\n\n# Why this works: storing prompt-name+version on every response makes any\n# past call replayable from the registry, not from memory.\n# Related: see `lineage-tracking`, `prompt-versioning`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -463,6 +753,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: registry writes are immutable+signed, reads emit audit, dashboard tracks active-version distribution, rollback is a versioned tag.",
+          "code": "REGISTRY_TTL_DAYS = 1825                              # 5y\n\nfunction register_prod(name, semver, source, author):\n    if registry.exists(name, semver):\n        raise Immutable(name, semver)\n    art = {\n        name: name, version: semver,\n        hash: sha256(source),\n        signed_by: sign(source, signing_key),\n        author: author, created_at: now(),\n    }\n    registry.put(name, semver, art)\n    audit.emit(\"prompt.register\", art, ttl_days=REGISTRY_TTL_DAYS)\n    dashboard.publish(\"prompt.versions\", registry.count(name))\n\nfunction get_prod(name, semver):\n    art = registry.get(name, semver)\n    assert verify_signature(art.source, art.signed_by, signing_key)\n    audit.emit(\"prompt.read\", {\n        ts: now(), name: name, version: semver, hash: art.hash,\n    })\n    return art\n\nfunction rollback_prod(name, target_semver, reason):\n    require_review([\"prompt-owners\"])\n    deployment.pin(name, target_semver)\n    audit.emit(\"prompt.rollback\", {\n        ts: now(), name: name, to: target_semver, reason: reason,\n    })\n    alert.notify(\"prompt-owners\", \"rollback\", name=name, to=target_semver)\n\n# Why this works: signing on write and verifying on read closes the gap\n# between 'registry says hash X' and 'process loaded hash X'; rollback is\n# a tracked event, not a silent deploy.\n# Related: see `own-your-prompts`, `provenance-ledger`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: prompt-versioning composed with lineage-tracking so eval results pin the prompt version that produced them.",
+          "code": "function eval_with_pinned_prompt(name, semver, dataset):  # related: lineage-tracking\n    art = prompt_registry.get(name, semver)\n    results = []\n    for ex in dataset:\n        rendered = render(art.source, ex.vars)\n        resp = llm.generate(rendered)\n        verdict = scorer.score(resp, ex.expected)\n        lineage.attach(verdict.id, {\n            prompt_name: name,\n            prompt_version: semver,\n            prompt_hash: art.hash,\n            ex_hash: sha256(ex.input),\n        })\n        results.append(verdict)\n\n    summary = aggregate(results)\n    audit.emit(\"prompt.eval\", {\n        ts: now(),\n        prompt: name + \"@\" + semver,\n        hash: art.hash,\n        score: summary.score,\n        n: len(dataset),\n    })\n    dashboard.publish_grouped(\"prompt.eval.score\",\n                              by=[\"prompt\", \"prompt_version\"])\n    return summary\n\n# Why this works: pinning prompt-name+version onto every verdict means a\n# regression dashboard can answer 'which version regressed' instantly.\n# Related: see `lineage-tracking`, `eval-harness`, `own-your-prompts`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -479,6 +789,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: append-only ledger with PII redaction at write, retention policy by event class, chained hashes, and tamper-detection.",
+          "code": "RETENTION = {\"safety\": 1825, \"action\": 365, \"thought\": 90}\n\nfunction append_prod(event):\n    for f in REQUIRED_FIELDS:\n        if f not in event: raise IncompleteEvent(missing=f)\n    event.ts = now()\n    event.id = monotonic_id()\n    event.actor = pii.scrub_actor(event.actor)\n    event.target = pii.scrub_target(event.target)\n\n    prev = ledger.tail_hash()\n    event.prev_hash = prev\n    event.self_hash = sha256(canonical(event))\n    ledger.append_immutable(event, ttl_days=RETENTION[event.class])\n\n    dashboard.publish(\"ledger.append_rate\", 1, tags={class: event.class})\n    return event.id\n\nfunction verify_chain(from_id, to_id):\n    expected = null\n    for e in ledger.range(from_id, to_id):\n        if expected and e.prev_hash != expected:\n            alert.page(\"ledger tamper\", at=e.id)\n            return false\n        if e.self_hash != sha256(canonical(e)):\n            alert.page(\"ledger event mutated\", at=e.id)\n            return false\n        expected = e.self_hash\n    return true\n\n# Why this works: hash-chaining each event to its predecessor makes silent\n# tampering detectable, and per-class TTLs keep retention defensible.\n# Related: see `pii-redaction`, `kill-switch`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: provenance-ledger composed with lineage-tracking so each event carries the prompt/model/index snapshot used to produce it.",
+          "code": "function append_with_lineage(event):                  # related: lineage-tracking\n    lin = lineage.current()\n    # {prompt_version, model_id, index_version, tool_versions}\n    enriched = merge(event, {lineage: lin})\n\n    for f in REQUIRED_FIELDS:\n        if f not in enriched: raise IncompleteEvent(missing=f)\n    enriched.id = monotonic_id()\n    enriched.ts = now()\n    enriched.lineage_hash = sha256(canonical(lin))\n    ledger.append_immutable(enriched)\n    audit.emit(\"ledger.linked\", {\n        event_id: enriched.id,\n        lineage_hash: enriched.lineage_hash,\n    })\n    return enriched.id\n\nfunction reconstruct(event_id):\n    e = ledger.get(event_id)\n    lin = e.lineage\n    return {\n        when:     e.ts,\n        what:     e.action,\n        why:      e.justification,\n        produced_by: {\n            prompt: lin.prompt_version,\n            model: lin.model_id,\n            index: lin.index_version,\n        },\n    }\n\n# Why this works: every ledger event carries enough lineage to replay or\n# explain it without re-collecting context from elsewhere.\n# Related: see `lineage-tracking`, `prompt-versioning`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -585,6 +915,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-23"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: full-trace capture with PII scrub and short TTL; weighted sampling for judge; budget guard and dashboard for monitoring spend.",
+          "code": "TRACE_TTL_DAYS = 30\nJUDGE_TTL_DAYS = 180\n\nfunction capture_and_maybe_judge(request, output):\n    trace = pii.scrub({\n        request_id: request.id,\n        prompt: output.prompt, response: output.text,\n        retrieved: output.retrieved, params: output.params,\n        slice: classify_slice(request),\n    })\n    trace_store.write(trace, ttl_days=TRACE_TTL_DAYS)\n\n    rate = sample_rate_for(request)\n    if rand() < rate and budget.under_cap(\"judge_monthly_usd\"):\n        async_queue.enqueue(\"judge\", request.id, weight=rate)\n        dashboard.publish(\"judge.queued\", 1, tags={slice: trace.slice})\n\nfunction judge_worker_prod():\n    for req_id in async_queue.consume(\"judge\"):\n        t = trace_store.read(req_id)\n        v = judge.score(t.prompt, t.response, rubric=RUBRIC)\n        audit.emit(\"sampled.judge\", {\n            ts: now(), req_id: req_id, slice: t.slice,\n            score: v.score, rubric_version: \"v3\",\n        }, ttl_days=JUDGE_TTL_DAYS)\n        dashboard.publish(\"sampled_eval.score\", v.score,\n                          tags={slice: t.slice})\n        if v.score < FLOOR:\n            alert.page(\"sampled judge: low score\", req_id=req_id)\n\n# Why this works: short trace TTL keeps storage bounded; sampling rate is\n# weighted by value (enterprise, new users) so the signal stays useful as\n# traffic grows.\n# Related: see `llm-as-judge`, `pii-redaction`, `cost-observability`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: sampled trace eval composed with decision-log so low-scoring sampled traces append a triage entry for review.",
+          "code": "function judge_worker_with_decision_log():            # related: decision-log\n    for req_id in async_queue.consume(\"judge\"):\n        t = trace_store.read(req_id)\n        v = judge.score(t.prompt, t.response, rubric=RUBRIC)\n\n        if v.score < TRIAGE_FLOOR:\n            decision_log.append({\n                id: \"triage.\" + req_id,\n                ts: now(),\n                actor: \"sampled_eval\",\n                action: \"flag_for_review\",\n                target: req_id,\n                justification: v.reason,\n                evidence: {\n                    score: v.score,\n                    rubric_version: \"v3\",\n                    sample_rate: t.sample_rate,\n                    slice: t.slice,\n                },\n            })\n            review_queue.enqueue(req_id, priority=v.score)\n\n        audit.emit(\"sampled.judge.linked\", {\n            req_id: req_id, score: v.score,\n            decision_id: \"triage.\" + req_id if v.score < TRIAGE_FLOOR else null,\n        })\n\n# Why this works: low-scoring samples become triage tickets with cited\n# evidence rather than orphan numbers in a dashboard.\n# Related: see `decision-log`, `llm-as-judge`, `provenance-ledger`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -601,6 +951,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: per-sandbox counters, severity-tiered alerts, retained breach records for forensics, dashboard for breach-rate by sandbox.",
+          "code": "BREACH_TTL_DAYS = 1825\n\nfunction on_event_prod(sandbox_id, kind, event):\n    severity = classify_severity(kind, event)\n    record = {\n        ts: now(),\n        sandbox: sandbox_id,\n        kind: kind,\n        event: pii.scrub(event),\n        severity: severity,\n    }\n    audit.emit(\"sandbox.escape\", record, ttl_days=BREACH_TTL_DAYS)\n    dashboard.publish(\"sandbox.breach_rate\",\n                      1, tags={sandbox: sandbox_id, severity: severity})\n\n    counters[sandbox_id].inc(severity)\n\n    if severity >= CRITICAL:\n        kill_switch.trigger(reason=\"critical sandbox breach\",\n                            sandbox=sandbox_id)\n    elif counters[sandbox_id].window(\"1m\") > WARN_THRESHOLD:\n        alert.page(\"sandbox breach burst\",\n                   sandbox=sandbox_id,\n                   in_window=counters[sandbox_id].window(\"1m\"))\n\n# Why this works: severity tiers route low-noise into the dashboard while\n# critical breaches go straight to the kill-switch with a full record.\n# Related: see `kill-switch`, `pii-redaction`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: escape monitoring composed with provenance-ledger so every breach is an immutable ledger event with chain-of-custody.",
+          "code": "function on_event_ledger(sandbox_id, kind, event):    # related: provenance-ledger\n    breach = {\n        ts: now(),\n        actor: \"sandbox:\" + sandbox_id,\n        action: \"boundary_violation\",\n        target: event.target_resource,\n        justification: \"detector=\" + kind,\n        diff_hash: sha256(canonical(event)),\n        evidence: {\n            kind: kind,\n            allowed_set: ALLOWED[kind],\n            observed: event.summary,\n            agent_run_id: ctx.run_id,\n        },\n    }\n    event_id = provenance_ledger.append(breach)\n    audit.emit(\"sandbox.ledger_breach\", {\n        event_id: event_id, sandbox: sandbox_id,\n    })\n\n    if kind in HARD_BREACH_KINDS:\n        kill_switch.trigger(reason=\"hard sandbox breach\",\n                            ledger_event: event_id)\n\n# Why this works: writing breaches to the provenance ledger gives auditors\n# a tamper-evident chain of custody, not just a dashboard panel.\n# Related: see `provenance-ledger`, `kill-switch`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -617,6 +987,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: async scoring stream with PII scrub on publish, retained scores, per-scorer dashboards, and low-score routing to review (not regen).",
+          "code": "SCORE_TTL_DAYS = 90\n\nfunction handle_request_prod(request):\n    output = agent.run(request.input)\n    respond(request, output)                          # user gets answer first\n    scoring_stream.publish(pii.scrub({\n        request_id: request.id,\n        input: request.input,\n        output: output,\n        context: request.context,\n    }))\n\nfunction scorer_worker_prod(scorers):\n    for msg in scoring_stream.consume():\n        for s in scorers:\n            sc = s.score(msg.input, msg.output, msg.context)\n            audit.emit(\"scorer.live\", {\n                ts: now(),\n                request_id: msg.request_id,\n                scorer: s.name,\n                score: sc.value,\n            }, ttl_days=SCORE_TTL_DAYS)\n            dashboard.publish(\"scorer.\" + s.name + \".score\", sc.value)\n            if sc.value < s.low_threshold:\n                review_queue.enqueue(msg.request_id,\n                                     priority=s.low_threshold - sc.value)\n                alert.notify(\"quality-team\", scorer=s.name,\n                             request_id=msg.request_id)\n\n# Why this works: scoring runs out-of-band so user latency is untouched;\n# low scores route to review, never to regen, keeping cost bounded.\n# Related: see `pii-redaction`, `scorer-live-monitoring`, `evaluator-optimizer`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: live scorers composed with lineage-tracking so every async score pins the prompt/model/index that produced the output.",
+          "code": "function handle_with_lineage(request):                # related: lineage-tracking\n    lin = lineage.current()\n    output = agent.run(request.input)\n    respond(request, output)\n    scoring_stream.publish({\n        request_id: request.id,\n        input: request.input,\n        output: output,\n        lineage: lin,\n    })\n\nfunction lineage_aware_scorer(scorers):\n    for msg in scoring_stream.consume():\n        for s in scorers:\n            sc = s.score(msg.input, msg.output)\n            audit.emit(\"scorer.lineage\", {\n                ts: now(),\n                request_id: msg.request_id,\n                scorer: s.name,\n                score: sc.value,\n                lineage: msg.lineage,\n            })\n            dashboard.publish_grouped(\n                \"scorer.score\",\n                sc.value,\n                by=[\"scorer\", \"lineage.prompt_version\", \"lineage.model_id\"],\n            )\n            if rolling.regression(s.name, msg.lineage):\n                alert.page(\"scorer regression\",\n                           lineage=msg.lineage, scorer=s.name)\n\n# Why this works: grouping scores by lineage dimensions surfaces which\n# specific prompt or model revision is responsible for any drift.\n# Related: see `lineage-tracking`, `prompt-versioning`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     },
@@ -633,6 +1023,26 @@
           "verified": false,
           "verified_date": null,
           "last_updated": "2026-05-21"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Production variant: shadow runs off critical path with PII scrub, retained diffs, dashboard for judge-lift and cost-delta, auto-promotion gate.",
+          "code": "DIFF_TTL_DAYS = 180\n\nfunction handle_with_shadow(request, champion, challenger, rate=0.05):\n    champ = champion.run(request.input)\n    respond(request, champ)                           # user sees champion only\n\n    if rand() < rate:\n        spawn(async () -> {\n            chall = challenger.run(request.input)\n            diff = pii.scrub({\n                request_id: request.id,\n                judge_score: llm_judge(request.input, chall, champ),\n                tool_match: champ.tool_calls == chall.tool_calls,\n                latency_d: chall.latency - champ.latency,\n                cost_d: chall.cost - champ.cost,\n            })\n            audit.emit(\"shadow.diff\", diff, ttl_days=DIFF_TTL_DAYS)\n            dashboard.publish(\"shadow.judge_lift\", diff.judge_score.lift)\n            dashboard.publish(\"shadow.cost_d\", diff.cost_d)\n        })\n\nfunction auto_promote_gate(window):\n    m = audit.aggregate(\"shadow.diff\", window)\n    if m.judge_lift > LIFT_FLOOR and m.cost_d <= 0 and m.n >= MIN_N:\n        promotion.promote(\"challenger\")\n        audit.emit(\"shadow.promote\", {window: window, metrics: m})\n        alert.notify(\"release\", \"shadow promoted\", metrics=m)\n\n# Why this works: keeping the challenger off the user path makes the diff\n# safe to retain and dashboard; an auto-gate avoids 'forever in shadow'.\n# Related: see `pii-redaction`, `cost-observability`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Composition variant: shadow-canary composed with prompt-versioning so each diff pins both champion's and challenger's prompt versions.",
+          "code": "function shadow_pinned(request, champ_pv, chall_pv, rate=0.05):  # related: prompt-versioning\n    champ_prompt = prompt_registry.get(\"answer\", champ_pv).source\n    chall_prompt = prompt_registry.get(\"answer\", chall_pv).source\n\n    champ_out = run_with_prompt(request.input, champ_prompt)\n    respond(request, champ_out)\n\n    if rand() < rate:\n        spawn(async () -> {\n            chall_out = run_with_prompt(request.input, chall_prompt)\n            v = llm_judge(request.input, chall_out, champ_out)\n            audit.emit(\"shadow.pinned_diff\", {\n                ts: now(),\n                champion: \"answer@\" + champ_pv,\n                challenger: \"answer@\" + chall_pv,\n                judge_score: v.score,\n                lift: v.lift,\n            })\n            dashboard.publish_grouped(\"shadow.lift\",\n                                      v.lift,\n                                      by=[\"champion\", \"challenger\"])\n            if v.lift > PROMOTE_LIFT:\n                decision_log.append({\n                    id: \"promote.\" + chall_pv,\n                    evidence: {lift: v.lift, n: rolling_n()},\n                })\n        })\n\n# Why this works: pinning prompts on both sides means a positive shadow\n# result names the exact registry entry to deploy, not 'the new prompt'.\n# Related: see `prompt-versioning`, `own-your-prompts`, `decision-log`.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-24"
         }
       ]
     }
