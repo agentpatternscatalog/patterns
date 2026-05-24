@@ -1,0 +1,287 @@
+{
+  "category": "fine-tuning",
+  "label": "Fine-tuning methodologies",
+  "methodologies": [
+    {
+      "id": "pretrain-then-adapt-methodology",
+      "name": "Pretrain Then Adapt",
+      "aliases": ["pretrain-and-fine-tune", "base-then-specialize"],
+      "category": "fine-tuning",
+      "summary": "Build a general-purpose base model first via next-token prediction on a broad unlabeled corpus, then specialize it via supervised fine-tuning on task-specific data. One pretrained base feeds many fine-tuned variants — a classifier, an instruction follower, a domain assistant — without paying the pretraining cost again. The methodology separates the expensive, knowledge-acquiring phase from the cheap, behaviour-shaping phase so that the specialization step can be iterated quickly and per use case.",
+      "intent": "Amortize the cost of acquiring general language knowledge across many downstream tasks by training one base and adapting it cheaply per task.",
+      "when_to_apply": "When you control the model weights and have a domain or task family where a generic instruction-tuned model is underperforming, and you have access to either an existing base checkpoint or sufficient unlabeled domain text. Don't apply when a hosted instruction-tuned API model meets your quality bar — the adaptation cost is not justified. Exceptions: regulated environments forcing on-prem weights, or research investigating base-model behaviour itself.",
+      "inputs": [
+        {"name": "Unlabeled pretraining corpus", "description": "Large body of domain or general text used to train (or continue-train) the base model with next-token prediction."},
+        {"name": "Base model checkpoint", "description": "Either a fresh architecture to train from scratch, or an existing open-weight base ready for continued pretraining."},
+        {"name": "Task-specific labeled data", "description": "Smaller, curated dataset for the downstream task — classification labels, instruction/response pairs, or domain Q&A."}
+      ],
+      "outputs": [
+        {"name": "Pretrained base model", "description": "General-purpose checkpoint capable of next-token prediction; reusable across downstream tasks."},
+        {"name": "Fine-tuned variant(s)", "description": "One or more task-specialized models — classifier head, instruction follower, domain chatbot — each branching off the same base."}
+      ],
+      "steps": [
+        {
+          "name": "Assemble and clean the pretraining corpus",
+          "description": "Gather unlabeled text representative of the target domain and general language. Deduplicate, filter low-quality and toxic content, and tokenize with a vocabulary appropriate to the architecture."
+        },
+        {
+          "name": "Pretrain the base with next-token prediction",
+          "description": "Train the model on the corpus using a causal language-modeling objective. Track validation perplexity, checkpoint regularly, and stop when held-out loss plateaus."
+        },
+        {
+          "name": "Branch to specialization tasks",
+          "description": "Freeze (or version) the base checkpoint. For each downstream task, swap in a task-appropriate head — classification head for label prediction, or keep the LM head for instruction following — and continue training on the task-specific data."
+        },
+        {
+          "name": "Validate each variant against a task-specific eval",
+          "description": "Each fine-tuned variant gets its own eval set with task-appropriate metrics (accuracy, F1, instruction-following score). The base model's perplexity does not generalize as a downstream quality signal."
+        },
+        {
+          "name": "Re-use the base for the next task",
+          "description": "When a new downstream task arrives, return to the frozen base rather than retraining from scratch. The reusability of the base is the entire economic argument for the methodology."
+        }
+      ],
+      "principles": [
+        "Separate knowledge acquisition (pretraining) from behaviour shaping (fine-tuning) so each can be optimized independently.",
+        "The base is a reusable asset, not a throwaway intermediate — version and preserve it.",
+        "Pretraining loss is not a downstream metric — every fine-tuned variant needs its own task eval.",
+        "Specialization is cheap only when the base is good — invest in the base, iterate fast on the heads."
+      ],
+      "applies_to": ["llm", "llm-app"],
+      "related_patterns": ["augmented-llm"],
+      "related_methodologies": ["instruction-finetune-then-judge-cycle", "sft-then-dpo-fine-tuning-workflow"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Fine-tuning so aggressively on a narrow task eval that the model loses general capability and games the metric."},
+        {"pattern": "demo-to-production-cliff", "note": "Shipping a fine-tune that beats the base on the eval set but degrades on real production traffic distributions."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Build a Large Language Model (From Scratch)",
+          "url": "https://www.manning.com/books/build-a-large-language-model-from-scratch",
+          "chapter": "Ch 5 → Ch 6 / Ch 7",
+          "quote": "code a base model, evolve it into a text classifier, and ultimately create a chatbot that can follow your conversational instructions"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["pretraining", "fine-tuning", "transfer-learning", "base-model"]
+    },
+    {
+      "id": "instruction-finetune-then-judge-cycle",
+      "name": "Instruction Fine-tune Then Judge Cycle",
+      "aliases": ["SFT-with-LLM-judge loop", "instruction-tune evaluate iterate"],
+      "category": "fine-tuning",
+      "summary": "A closed loop for instruction fine-tuning: curate a split instruction dataset (train/validation/test), run SFT while logging per-epoch loss on both train and val, generate responses on the test set, then have a local LLM-as-judge score those responses against the references. The cycle exposes overfitting (val loss diverging from train loss) and quality regressions (judge score dropping) on every iteration, so improvements ship and regressions revert. It is the smallest end-to-end fine-tuning workflow that closes its own quality loop without human grading at every step.",
+      "intent": "Iterate on instruction fine-tunes with a model-graded test-set score as the single objective signal, separating training fit from response quality.",
+      "when_to_apply": "When you are instruction-tuning a small or mid-size open-weight model and need fast iteration without paying for human grading at every cycle. The dataset is small enough (hundreds to low thousands of examples) that overfitting is a real risk and a held-out test set is essential. Don't apply when the judge model is weaker than the system-under-test (positive-bias collapse), or when the task is so safety-critical that LLM-judge scores cannot be the only quality gate — keep humans in the loop. Exceptions: production deploys still require a human-graded acceptance set before shipping.",
+      "inputs": [
+        {"name": "Instruction dataset", "description": "Pairs of (instruction, response) split into train/validation/test partitions."},
+        {"name": "Base or instruction-tuned checkpoint", "description": "The model to fine-tune — typically an open-weight base or an existing instruct variant."},
+        {"name": "Judge model", "description": "A locally runnable model at least as capable as the system-under-test on the target task."}
+      ],
+      "outputs": [
+        {"name": "Fine-tuned model checkpoints", "description": "Per-epoch checkpoints saved during SFT, each tagged with train/val loss."},
+        {"name": "Test-set responses", "description": "Generated responses on the held-out test set for the selected checkpoint."},
+        {"name": "Aggregate judge score", "description": "Mean and per-example scores from the LLM-as-judge over the test set, used as the primary iteration metric."}
+      ],
+      "steps": [
+        {
+          "name": "Curate and split the instruction dataset",
+          "description": "Collect (instruction, response) pairs. Reserve a fixed train/validation/test split — e.g. 935 / 55 / 110 — and version the test set so it never drifts across iterations."
+        },
+        {
+          "name": "Run SFT with per-epoch loss logging",
+          "description": "Fine-tune with a standard supervised loss. Log train and validation loss at frequent steps so divergence is visible early. Checkpoint per epoch."
+        },
+        {
+          "name": "Generate responses on the test set",
+          "description": "With the selected checkpoint, generate responses for every test-set instruction. Persist the (instruction, reference, response) triples for downstream scoring."
+        },
+        {
+          "name": "Score with a local LLM-as-judge",
+          "description": "Run the judge model over every triple with a frozen rubric prompt. Emit per-example scores plus an aggregate (e.g. mean over 100 = 51.75)."
+        },
+        {
+          "name": "Diagnose and iterate",
+          "description": "Use the loss curves to detect overfitting and the judge score to detect quality issues. Change one variable at a time — dataset, hyperparameters, base model — and re-run the cycle."
+        }
+      ],
+      "principles": [
+        "Train/val/test must be fixed before the first run — moving the test set invalidates score comparisons.",
+        "Loss curves diagnose fitting; judge scores diagnose quality — both are needed.",
+        "The judge model and judge prompt are frozen artefacts; changing either re-baselines history.",
+        "Iterate on one variable per cycle so the score change has a unique attribution."
+      ],
+      "applies_to": ["llm", "llm-app"],
+      "related_patterns": ["llm-as-judge", "frozen-rubric-reflection", "eval-harness"],
+      "related_methodologies": ["ai-as-judge-evaluation", "evaluation-driven-development"],
+      "known_failure_modes": [
+        {"pattern": "same-model-self-critique", "note": "Using the fine-tuned model itself as the judge produces inflated scores ceilinged at the model's own blind spots."},
+        {"pattern": "reward-hacking", "note": "Iterating against a stale or narrow judge prompt until responses look good to the judge but generalize poorly."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Build a Large Language Model (From Scratch)",
+          "url": "https://www.manning.com/books/build-a-large-language-model-from-scratch",
+          "chapter": "Ch 7 'Fine-tuning to follow instructions'",
+          "quote": "Training set length: 935, Validation set length: 55, Test set length: 110 ... Ep 1 (Step 000000): Train loss 2.611, Val loss 2.668 ... Average score: 51.75"
+        },
+        {
+          "type": "repo",
+          "url": "https://github.com/rasbt/LLMs-from-scratch/blob/main/ch07/01_main-chapter-code/README.md"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["sft", "instruction-tuning", "llm-as-judge", "iteration-loop"]
+    },
+    {
+      "id": "human-feedback-alignment-via-dpo",
+      "name": "Human-Feedback Alignment With DPO",
+      "aliases": ["direct preference optimization", "DPO alignment"],
+      "category": "fine-tuning",
+      "summary": "Align an instruction-tuned model to human preferences using Direct Preference Optimization on pairs of (chosen, rejected) responses. DPO replaces the full RLHF stack — reward model training plus PPO — with a single supervised-style objective derived directly from preference pairs. Cheaper to run, easier to debug, and works with the same training infrastructure as SFT. Used after SFT to shape style, helpfulness, and refusal behaviour rather than to teach new tasks.",
+      "intent": "Shape model behaviour to match human preferences using a single supervised objective on chosen/rejected pairs, without the operational complexity of full RLHF.",
+      "when_to_apply": "After SFT, when the model can perform the task but produces outputs that are stylistically off, overly verbose, unsafe, or otherwise misaligned with preferred behaviour. A preference dataset (chosen, rejected) is available or can be assembled from human raters or stronger-model comparisons. Don't apply when the model fundamentally cannot do the task yet — DPO shapes preferences, it does not teach capabilities; return to SFT first. Exceptions: when reward modelling is genuinely needed (e.g. exploratory RL research), DPO is not a drop-in replacement.",
+      "inputs": [
+        {"name": "SFT checkpoint", "description": "Instruction-tuned model that already performs the task — DPO refines its preferences, not its capability."},
+        {"name": "Preference dataset", "description": "Triples of (prompt, chosen_response, rejected_response) where chosen is preferred over rejected on the target dimension."},
+        {"name": "Reference model", "description": "Frozen copy of the SFT checkpoint used as the KL-anchor inside the DPO objective."}
+      ],
+      "outputs": [
+        {"name": "Aligned model checkpoint", "description": "DPO-trained model whose outputs are shifted toward the 'chosen' distribution while staying close to the reference."},
+        {"name": "Preference-win-rate evaluation", "description": "Score on a held-out preference set quantifying how often the aligned model is preferred over the SFT baseline."}
+      ],
+      "steps": [
+        {
+          "name": "Start from an SFT'd model",
+          "description": "Confirm the model can already perform the task. DPO shapes style and preference, not capability — applying it to an unfinetuned base wastes signal."
+        },
+        {
+          "name": "Assemble preference pairs",
+          "description": "For each prompt, obtain a (chosen, rejected) pair from human raters, stronger-model comparisons, or curated edits. The signal is the relative ranking, not absolute quality."
+        },
+        {
+          "name": "Freeze a reference model",
+          "description": "Snapshot the SFT checkpoint as the reference. DPO's objective is anchored to this reference via a KL term so the model doesn't drift arbitrarily."
+        },
+        {
+          "name": "Train with the DPO objective",
+          "description": "Run the DPO loss on the preference pairs against the reference. Single supervised-style training loop — same infrastructure as SFT, no separate reward model, no PPO."
+        },
+        {
+          "name": "Evaluate on a held-out preference set",
+          "description": "On unseen prompts, generate from both the aligned model and the reference; have a judge (human or strong LLM) pick the preferred response. Report win-rate as the headline metric."
+        }
+      ],
+      "principles": [
+        "DPO shapes preferences over an existing capability — it is not a substitute for SFT.",
+        "Preference signal is relative — the ranking matters, not the absolute quality of either response.",
+        "The reference model is part of the objective — without a KL anchor the model drifts off-distribution.",
+        "Evaluate with held-out preferences, not training loss — DPO loss going down does not imply users prefer the outputs."
+      ],
+      "applies_to": ["llm"],
+      "related_patterns": ["augmented-llm"],
+      "related_methodologies": ["sft-then-dpo-fine-tuning-workflow", "instruction-finetune-then-judge-cycle"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Optimising preference pairs too aggressively produces responses that game the rater's superficial cues without genuine improvement."},
+        {"pattern": "sycophancy", "note": "Preference pairs labelled by raters who reward agreement push the model toward agreeable but inaccurate responses."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Build a Large Language Model (From Scratch)",
+          "url": "https://www.manning.com/books/build-a-large-language-model-from-scratch",
+          "chapter": "Ch 7 bonus / Appendix (DPO implementation)",
+          "quote": "Use human feedback to ensure your LLM follows instructions ... Bonus: Direct Preference Optimization (DPO) implementation"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["dpo", "preference-alignment", "rlhf-alternative", "post-sft"]
+    },
+    {
+      "id": "sft-then-dpo-fine-tuning-workflow",
+      "name": "SFT Then DPO Fine-tuning Workflow",
+      "aliases": ["two-stage alignment", "instruct-then-align"],
+      "category": "fine-tuning",
+      "summary": "A two-stage open-weight fine-tuning workflow: first run supervised fine-tuning on an instruct dataset to teach task structure and instruction-following, then run Direct Preference Optimization on preference pairs to refine style, helpfulness, and safety. A single YAML configuration switches between the stages so the same training infrastructure serves both. Sequencing matters — SFT installs the capability, DPO shapes how that capability is expressed; skipping or reordering them produces a model that is either incapable or off-style.",
+      "intent": "Move an open-weight base to a production-ready aligned assistant in two well-defined stages, each with its own dataset and objective, sharing one training pipeline.",
+      "when_to_apply": "Building or customizing an open-weight assistant for a domain where both task capability and a specific tone, safety profile, or interaction style matter. You control the training stack and have, or can build, both an instruct dataset and a preference dataset. Don't apply when an API instruct model already meets your needs — the pipeline complexity is not justified. Exceptions: regulated deployments forcing on-prem weights, or research investigating alignment trade-offs across the SFT/DPO boundary.",
+      "inputs": [
+        {"name": "Open-weight base model", "description": "Pretrained base checkpoint suitable for instruction fine-tuning."},
+        {"name": "Instruction dataset", "description": "Curated (instruction, response) pairs used by the SFT stage to install task structure."},
+        {"name": "Preference dataset", "description": "Triples of (prompt, chosen, rejected) used by the DPO stage to align style and safety."},
+        {"name": "Pipeline configuration", "description": "YAML config selecting the stage (SFT vs DPO), hyperparameters, dataset paths, and output directory."}
+      ],
+      "outputs": [
+        {"name": "SFT checkpoint", "description": "Instruction-tuned model from stage one; reusable as the entry point for DPO and as a baseline for evaluation."},
+        {"name": "DPO-aligned checkpoint", "description": "Final aligned model from stage two; ready for production evaluation."},
+        {"name": "Stage-comparison eval report", "description": "Side-by-side scores on a held-out eval comparing base, SFT, and DPO checkpoints to attribute gains to each stage."}
+      ],
+      "steps": [
+        {
+          "name": "Specify the two stages in one config",
+          "description": "Author a single YAML that defines both stages with their datasets, hyperparameters, and outputs. The same training entry point reads the config and dispatches to SFT or DPO."
+        },
+        {
+          "name": "Run SFT on the instruct dataset",
+          "description": "Stage one: fine-tune the base on (instruction, response) pairs to install task structure and instruction-following. Track loss, save per-epoch checkpoints, pick the best by validation."
+        },
+        {
+          "name": "Evaluate the SFT checkpoint independently",
+          "description": "Before moving on, confirm SFT actually taught the task. If the SFT model can't perform the task, DPO will not rescue it — return to dataset or hyperparameter changes."
+        },
+        {
+          "name": "Run DPO from the SFT checkpoint",
+          "description": "Stage two: with the SFT checkpoint as both starting point and reference, train on preference pairs to refine style and safety. Keep the KL anchor strong enough that capability isn't lost."
+        },
+        {
+          "name": "Compare base, SFT, and DPO on a held-out eval",
+          "description": "Run all three checkpoints on the same eval set. Attribute capability gains to SFT and style/preference gains to DPO. If DPO is not adding measurable preference win-rate, investigate the preference data."
+        }
+      ],
+      "principles": [
+        "Sequence matters: SFT teaches capability, DPO shapes preference — never reverse them.",
+        "Each stage owns its own dataset and its own metric — capability eval for SFT, preference win-rate for DPO.",
+        "A shared YAML config is the contract — it makes the workflow reproducible and the stages comparable.",
+        "Evaluate every stage independently before composing — a bad SFT checkpoint guarantees a bad DPO outcome."
+      ],
+      "applies_to": ["llm", "llm-app"],
+      "related_patterns": ["augmented-llm"],
+      "related_methodologies": ["human-feedback-alignment-via-dpo", "pretrain-then-adapt-methodology", "instruction-finetune-then-judge-cycle"],
+      "known_failure_modes": [
+        {"pattern": "demo-to-production-cliff", "note": "Aligned model wins on the preference eval but degrades on production traffic distributions that the preference set under-represents."},
+        {"pattern": "reward-hacking", "note": "DPO with weak preference labels collapses the model toward responses that exploit superficial labeller cues."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079",
+          "chapter": "Ch 5 'Supervised Fine-tuning'; Ch 6 'Fine-tuning with Preference Alignment'",
+          "quote": "Chapter 5: Supervised Fine-tuning ... Chapter 6: Fine-tuning with Preference Alignment"
+        },
+        {
+          "type": "repo",
+          "title": "PacktPublishing/LLM-Engineers-Handbook",
+          "url": "https://github.com/PacktPublishing/LLM-Engineers-Handbook",
+          "quote": "The system supports both supervised fine-tuning and DPO (direct preference optimization) workflows configurable through YAML files"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["sft", "dpo", "two-stage", "alignment-workflow"]
+    }
+  ]
+}

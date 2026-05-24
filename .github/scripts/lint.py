@@ -177,6 +177,22 @@ def load_shards() -> tuple[list[dict], dict[str, str]]:
     return patterns, where
 
 
+def load_methodology_ids() -> set[str]:
+    """Methodologies share the catalog id namespace with patterns. Pattern
+    related[] and verification-todo entries may refer to ids that now live
+    in methodologies-src/ (e.g. evaluation-driven-development, migrated out
+    of patterns-src/ when the methodologies dimension was introduced)."""
+    src = ROOT / "methodologies-src"
+    if not src.exists():
+        return set()
+    ids: set[str] = set()
+    for shard_path in src.glob("*.json"):
+        shard = json.loads(shard_path.read_text())
+        for m in shard.get("methodologies", []):
+            ids.add(m["id"])
+    return ids
+
+
 def text_fields(p: dict) -> dict[str, str]:
     out = {}
     for slot in PROSE_SLOTS:
@@ -277,6 +293,7 @@ def rule_a2() -> list[Violation]:
         "patterns.compositions.schema.json",
         "compositions.schema.json",
         "examples.schema.json",
+        "methodologies.schema.json",
         "pattern-todo.json",
         "pattern-todo.schema.json",
     }
@@ -287,6 +304,7 @@ def rule_a2() -> list[Violation]:
         ".github",
         "compositions-src",
         "examples-src",
+        "methodologies-src",
         "pattern-todo-archive",
     }
     for f in root_files:
@@ -319,8 +337,11 @@ def rule_a3(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
 def rule_a4(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A4 Typed graph: edges resolve, no self-edges, symmetric/inverse correctness."""
     out: list[Violation] = []
-    ids = {p["id"] for p in patterns}
-    edges_by_src: dict[str, list[tuple[str, str]]] = {pid: [] for pid in ids}
+    pattern_ids = {p["id"] for p in patterns}
+    # related[] entries may target a pattern OR a methodology — the two
+    # dimensions share an id namespace. Resolution is against the union.
+    ids = pattern_ids | load_methodology_ids()
+    edges_by_src: dict[str, list[tuple[str, str]]] = {pid: [] for pid in pattern_ids}
 
     for p in patterns:
         loc = f"{where.get(p['id'], '?')}::{p['id']}"
@@ -338,8 +359,13 @@ def rule_a4(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
                 continue
             edges_by_src[p["id"]].append((tgt, rel))
 
+    # Symmetric / inverse back-edges only apply when both endpoints are
+    # patterns. Methodologies don't carry a related[] field of the same
+    # shape, so back-edges to them are not enforced.
     for src, edges in edges_by_src.items():
         for tgt, rel in edges:
+            if tgt not in pattern_ids:
+                continue
             if rel in SYMMETRIC_RELATIONS:
                 if not any(t == src and r == rel for t, r in edges_by_src.get(tgt, [])):
                     out.append(Violation(
@@ -746,7 +772,12 @@ def rule_a15(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
         out.append(Violation("A15.1", "verification-todo.json", f"invalid JSON: {e}"))
         return out
 
+    # A15.3 (lookup): accept entries pointing at a migrated id now living in
+    # methodologies-src/. A15.5 (inverse-drift) only complains about *patterns*
+    # without a TODO row — methodologies are not yet tracked in
+    # verification-todo.json's schema.
     pattern_ids = {p["id"] for p in patterns}
+    pattern_or_methodology_ids = pattern_ids | load_methodology_ids()
     cov_path = ROOT / "framework-coverage.json"
     framework_ids: set[str] = set()
     if cov_path.exists():
@@ -762,7 +793,7 @@ def rule_a15(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
         if pid in seen_p:
             out.append(Violation("A15.2", f"verification-todo.patterns::{pid}", "duplicate id"))
         seen_p.add(pid)
-        if pid not in pattern_ids:
+        if pid not in pattern_or_methodology_ids:
             out.append(Violation(
                 "A15.3", f"verification-todo.patterns::{pid}",
                 f"references unknown pattern id"))

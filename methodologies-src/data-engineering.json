@@ -1,0 +1,179 @@
+{
+  "category": "data-engineering",
+  "label": "Data-engineering methodologies",
+  "methodologies": [
+    {
+      "id": "dataset-curation-pipeline",
+      "name": "Dataset Curation Pipeline",
+      "aliases": ["three-pillar dataset curation", "QCQ dataset pipeline"],
+      "category": "data-engineering",
+      "summary": "Curate any ML or LLM training dataset along three pillars — quality, coverage, quantity — through an explicit inspect, deduplicate, clean, filter, format pipeline. The pipeline produces a versioned dataset artefact, preserves the original raw data unchanged, and writes every transformation as an auditable step. The slogan is that manual inspection of data has probably the highest value to prestige ratio of any activity in machine learning — the methodology forces that inspection to happen.",
+      "intent": "Turn raw data into a versioned training dataset through an inspect, deduplicate, clean, filter, and format pipeline that explicitly trades quality, coverage, and quantity.",
+      "when_to_apply": "Preparing any non-trivial training, fine-tuning, or evaluation dataset — pre-training corpus, SFT instruction set, DPO preference set, RAG evaluation set. Apply before training begins, not after. Don't apply for one-off prototypes where the dataset will be discarded; the auditability is wasted there. Exceptions: skip the formal pipeline when the dataset is small enough that one engineer reads every example end-to-end — but write down that the inspection happened.",
+      "inputs": [
+        {"name": "Raw data sources", "description": "Source documents, transcripts, prompts, examples — the unprocessed pre-curation material."},
+        {"name": "Target task definition", "description": "What the dataset will be used to train or evaluate — defines what 'quality' and 'coverage' mean."},
+        {"name": "Coverage map", "description": "Enumerated dimensions the dataset must span (formats, edge cases, demographics, languages, error types)."}
+      ],
+      "outputs": [
+        {"name": "Versioned dataset artefact", "description": "Curated dataset checked into a registry with a version tag, schema, statistics, and lineage back to the raw inputs."},
+        {"name": "Curation log", "description": "Audit trail of every transformation step — what was removed, what was kept, what was synthesised, on what rule."},
+        {"name": "Preserved raw", "description": "Raw inputs kept unchanged so the pipeline is reproducible and the curation rules can be re-litigated."}
+      ],
+      "steps": [
+        {
+          "name": "Inspect raw data manually",
+          "description": "Before any automation, an engineer reads a meaningful sample of the raw data. Most surprises about the corpus are visible at this stage — encoding issues, duplicates, bias, irrelevant material. The inspection is the methodology's prestige-poor highest-value step."
+        },
+        {
+          "name": "Deduplicate",
+          "description": "Exact-match dedupe first, then near-duplicate dedupe (n-gram overlap, semantic similarity). Duplicates inflate apparent quantity and bias the model toward whatever is repeated. Log dedupe ratios — high ratios are usually a sign that source selection was wrong."
+        },
+        {
+          "name": "Clean",
+          "description": "Strip control characters, fix encoding, repair structural damage, redact PII. Cleaning is mechanical and rule-based; quality and coverage problems are not yet addressed here."
+        },
+        {
+          "name": "Filter on quality",
+          "description": "Apply quality filters — heuristic (length, vocabulary, ratio of meaningful tokens) and model-based (a classifier or an LLM judge scoring each example). Keep only examples above the threshold. Document the threshold and the false-positive/false-negative rate from a hand-labelled sample.",
+          "uses_patterns": ["llm-as-judge", "frozen-rubric-reflection"]
+        },
+        {
+          "name": "Cover the dimensions",
+          "description": "Check the filtered set against the coverage map. Underrepresented dimensions get either augmentation (synthesise or upsample) or explicit acknowledgement that the model will be weak there. Coverage gaps that are not flagged become silent production failures.",
+          "uses_patterns": ["dimensional-synthetic-eval-set"]
+        },
+        {
+          "name": "Format and version",
+          "description": "Convert to the target training format (JSONL of messages, parquet, tokenised shards). Compute dataset statistics. Tag the version. Register in the dataset store with full lineage. Keep the raw and intermediate stages so the pipeline is reproducible."
+        }
+      ],
+      "principles": [
+        "Manual inspection beats prestige — every dataset starts with eyes on raw examples.",
+        "Three pillars, not two — quality and quantity are easy to remember, coverage is the one that gets forgotten.",
+        "Preserve raw — curation is reversible only if the original survives.",
+        "Document the curation log — a dataset whose curation rules are lost is unfixable."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system", "eval-harness"],
+      "related_patterns": [
+        "dimensional-synthetic-eval-set",
+        "streaming-feature-pipeline",
+        "llm-as-judge",
+        "frozen-rubric-reflection"
+      ],
+      "related_compositions": ["production-llm-platform", "eval-and-observability"],
+      "related_methodologies": ["instruct-dataset-generation-pipeline", "evaluation-driven-development"],
+      "known_failure_modes": [
+        {"pattern": "automating-broken-process", "note": "Inheriting a curation pipeline from a previous project and running it blind — the new corpus needs different filters, the old ones silently throw away the wrong examples."},
+        {"pattern": "errors-swept-under-the-rug", "note": "Filtering on quality without auditing the rejected examples — the filter throws away minority-class cases and the model learns the bias."},
+        {"pattern": "reward-hacking", "note": "Setting an LLM-judge quality filter that the data generator can game — high scores, low real quality."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {
+          "type": "book",
+          "title": "AI Engineering",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/",
+          "chapter": "Ch 8 'Dataset Engineering'",
+          "quote": "Manual inspection of data has probably the highest value to prestige ratio of any activity in machine learning"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["dataset", "curation", "quality", "coverage"]
+    },
+    {
+      "id": "instruct-dataset-generation-pipeline",
+      "name": "Instruct Dataset Generation Pipeline",
+      "aliases": ["seven-stage instruction dataset", "noisy-docs to instruct"],
+      "category": "data-engineering",
+      "summary": "Seven-stage pipeline for turning a noisy document corpus into a high-quality instruction-tuning dataset suited to supervised fine-tuning. Extract candidate content, deduplicate, decontaminate against evaluation sets, quality-filter, explore for coverage, augment under-represented regions, and package. The methodology rests on the empirical observation that 100 to 100,000 carefully prepared samples beat dramatically larger but dirty corpora for task-specific fine-tuning — quality, not quantity, is the lever.",
+      "intent": "Transform a raw document corpus into a clean, decontaminated, coverage-balanced instruction-tuning dataset through seven explicit stages.",
+      "when_to_apply": "Preparing the instruction-tuning dataset for a supervised fine-tune of an LLM — domain-specialised model, LLM twin, task-specific assistant. Especially when the starting material is noisy (scraped pages, exported chats, mixed-quality archives). Don't apply when the team already has a hand-curated instruction set of demonstrated quality. Exceptions: skip the augmentation stage when the corpus is large and uniformly distributed; skip decontamination only when the eval set is itself generated post hoc and has no public overlap (rare).",
+      "inputs": [
+        {"name": "Source document corpus", "description": "Raw documents the team owns or has licensed — articles, posts, transcripts, manuals, internal wikis."},
+        {"name": "Evaluation set", "description": "Held-out evaluation set used to score the fine-tuned model — needed for decontamination so the training set does not leak into it."},
+        {"name": "Coverage map", "description": "Dimensions the instruction set must span — task types, domain subareas, instruction styles, difficulty bands."},
+        {"name": "Quality filter (model or rubric)", "description": "LLM judge or classifier that scores candidate instructions on the rubric."}
+      ],
+      "outputs": [
+        {"name": "Instruct dataset artefact", "description": "Versioned instruction-response set (typically 100–100k samples) ready for SFT."},
+        {"name": "Curation log", "description": "Full audit of extraction rules, dedupe ratios, decontamination hits, filter thresholds, augmentation sources."},
+        {"name": "Coverage report", "description": "Per-dimension counts confirming the dataset covers the coverage map or flagging gaps."}
+      ],
+      "steps": [
+        {
+          "name": "Extract candidate instruction-response pairs",
+          "description": "Walk the source corpus and synthesise candidate pairs. For each document, prompt an LLM with templates to author instructions whose answers come from the document. The corpus is the source of truth; the LLM is the rewriter, not the inventor."
+        },
+        {
+          "name": "Deduplicate",
+          "description": "Remove exact duplicates first, then near-duplicates by n-gram or embedding similarity. Duplicate instructions teach the model to over-emit one style at the cost of generality."
+        },
+        {
+          "name": "Decontaminate against the evaluation set",
+          "description": "Compare candidates to the held-out evaluation set. Drop anything that overlaps. Without this step, evaluation scores measure leakage, not generalisation. Hash both sides on n-grams or embeddings; log every hit."
+        },
+        {
+          "name": "Quality-filter",
+          "description": "Score every remaining candidate with an LLM judge against a rubric (clarity of instruction, correctness of response, format adherence). Keep only candidates above the threshold. Hand-audit a sample of accepted and rejected candidates to confirm the filter is not throwing away the wrong cases.",
+          "uses_patterns": ["llm-as-judge", "frozen-rubric-reflection"]
+        },
+        {
+          "name": "Explore for coverage",
+          "description": "Slice the filtered set by the coverage map. Identify underrepresented dimensions. Coverage gaps are the next stage's input, not a final acceptance criterion.",
+          "uses_patterns": ["dimensional-synthetic-eval-set"]
+        },
+        {
+          "name": "Augment under-represented dimensions",
+          "description": "For each gap, generate additional samples — synthetic by prompted LLM, paraphrased from existing examples, or upsampled from the corpus with targeted templates. Re-run dedupe, decontamination, and quality filtering on the augmented samples; they go through the same gates."
+        },
+        {
+          "name": "Package and version",
+          "description": "Format as the SFT trainer expects (typically JSONL of message lists). Compute statistics (sample count, token distribution, per-dimension counts). Tag the version. Register in the dataset store with lineage back to the source corpus and the rejected-candidate logs.",
+          "uses_patterns": ["streaming-feature-pipeline"]
+        }
+      ],
+      "principles": [
+        "100 to 100k carefully prepared samples beat large dirty corpora — quality, not quantity, is the lever.",
+        "Decontaminate before quality-filtering — leaked eval examples can score well on quality and still ruin the evaluation.",
+        "Every augmented sample goes through the same gates as the originals — no special path for synthetic data.",
+        "Coverage is a stage, not an afterthought — the gaps that go unflagged become the model's blind spots."
+      ],
+      "applies_to": ["llm-app", "agent", "rag-system"],
+      "related_patterns": [
+        "dimensional-synthetic-eval-set",
+        "streaming-feature-pipeline",
+        "llm-as-judge",
+        "frozen-rubric-reflection"
+      ],
+      "related_compositions": ["production-llm-platform"],
+      "related_methodologies": ["dataset-curation-pipeline", "llm-twin-end-to-end-construction", "finetune-last-resort-escalation"],
+      "known_failure_modes": [
+        {"pattern": "automating-broken-process", "note": "Generating instructions with the model that will later be fine-tuned — the model learns to produce what it already produced, no real capability is added."},
+        {"pattern": "reward-hacking", "note": "The LLM judge filtering quality is gameable by the LLM generator authoring candidates; both ends collude on a score that doesn't reflect real quality."},
+        {"pattern": "errors-swept-under-the-rug", "note": "Skipping the rejected-sample audit — the filter throws away exactly the cases the production model will hit, and nobody notices until launch."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "LLM Engineer's Handbook",
+          "url": "https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079",
+          "chapter": "Ch 3 'Data Engineering'; Ch 5 'Supervised Fine-tuning'",
+          "quote": "Task-specific models can be fine-tuned with a much smaller dataset, typically ranging from 100 to 100,000 samples. ... The quality of your dataset is the most critical aspect"
+        },
+        {
+          "type": "blog",
+          "title": "Iusztin: Generate High-Quality Instruct Datasets",
+          "url": "https://www.decodingai.com/p/from-noisy-docs-to-fine-tuning-datasets"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["instruct-dataset", "sft", "fine-tuning", "augmentation"]
+    }
+  ]
+}

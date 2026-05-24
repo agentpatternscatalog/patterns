@@ -1,0 +1,427 @@
+{
+  "category": "safety-alignment",
+  "label": "Safety and alignment methodologies",
+  "methodologies": [
+    {
+      "id": "deferential-agent-design",
+      "name": "Deferential Agent Design",
+      "aliases": ["uncertainty-aware agent design", "Russell three principles"],
+      "category": "safety-alignment",
+      "summary": "Design agents to be uncertain about human preferences rather than committed to a hard-coded objective. The agent's job is to satisfy preferences it does not fully know, which makes it humble, altruistic, and deferential by construction — it asks, defers, and stays correctable instead of optimising a fixed proxy. Russell argues this is the structural fix to the alignment problem: an agent that knows it doesn't know cannot confidently override a human.",
+      "intent": "Construct agents whose objective is to satisfy poorly-known human preferences, not to optimise a hard-coded proxy, so that they remain deferential and correctable by default.",
+      "when_to_apply": "Agents with non-trivial autonomy, real-world action surface, or open-ended objectives — anywhere a misspecified reward becomes a safety hazard. Apply when designing the agent's objective and shutdown semantics, not as an afterthought. Don't apply to narrow agents with deterministic objectives and bounded action space — there's no preference uncertainty to encode.",
+      "inputs": [
+        {"name": "Action space", "description": "The set of actions the agent can take, especially the irreversible ones."},
+        {"name": "Human preference signals", "description": "Sources from which the agent can infer preferences — direct feedback, demonstrations, ratings, revealed choices."},
+        {"name": "Stakeholder enumeration", "description": "Whose preferences the agent must satisfy and how to weight them (typically not just the operator)."}
+      ],
+      "outputs": [
+        {"name": "Uncertainty-aware objective", "description": "An objective formulated as a posterior over human preferences, not a point estimate."},
+        {"name": "Off-switch-friendly behaviour", "description": "An agent that does not interfere with attempts to shut it down or override it, because being shut down is consistent with satisfying unknown preferences."},
+        {"name": "Preference-elicitation protocol", "description": "The mechanism the agent uses to ask, infer, or defer when uncertainty is high."}
+      ],
+      "steps": [
+        {
+          "name": "Formulate the objective as preference satisfaction, not reward maximisation",
+          "description": "The agent's terminal goal is 'satisfy human preferences', and preferences are explicitly uncertain. Avoid hard-coding any specific reward function as the ultimate objective; rewards are proxies the agent updates against."
+        },
+        {
+          "name": "Encode preference uncertainty explicitly",
+          "description": "Represent beliefs about human preferences as a probability distribution. The agent acts to maximise expected preference satisfaction, integrating over its uncertainty — not assuming its current point estimate is correct."
+        },
+        {
+          "name": "Treat human behaviour as evidence about preferences",
+          "description": "User feedback, demonstrations, choices, and corrections update the posterior. Inverse reinforcement learning, preference learning, or RLHF-style approaches all fit; the structural commitment is that humans are the source of preference signal."
+        },
+        {
+          "name": "Make deference the default under uncertainty",
+          "description": "When uncertainty about preferences is high and the proposed action is irreversible, the agent asks or defers rather than acting. Uncertainty over preferences + irreversibility ⇒ pause."
+        },
+        {
+          "name": "Engineer the off-switch as a preference-consistent action",
+          "description": "Being shut down by a human should be entirely consistent with the agent's objective — because if a human wants the agent shut down, that is evidence about preferences. The agent has no incentive to disable its off-switch."
+        },
+        {
+          "name": "Validate corrigibility, not just task performance",
+          "description": "Test the agent under attempted shutdowns, contradictory preference signals, and edge cases where its point estimate disagrees with a human. The system passes only if it defers — not if it cleverly optimises around the human."
+        }
+      ],
+      "principles": [
+        "The machine's only objective is to maximise the realisation of human preferences.",
+        "The machine is initially uncertain about what those preferences are.",
+        "The ultimate source of information about human preferences is human behaviour.",
+        "Uncertainty about preferences is the structural source of deference — remove it and you remove safety."
+      ],
+      "applies_to": ["agent", "multi-agent-system", "autonomous-agent"],
+      "related_patterns": [
+        "preference-uncertain-agent",
+        "cooperative-preference-inference",
+        "corrigible-off-switch-incentive",
+        "human-in-the-loop",
+        "kill-switch"
+      ],
+      "related_compositions": ["safety-hardening", "long-running-autonomous-agent"],
+      "related_methodologies": ["crawl-walk-run-automation-gating"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Locking in a hard-coded reward function as the ultimate objective — Russell's whole argument is that this collapses safety."},
+        {"pattern": "goal-hijacking", "note": "An agent confidently pursuing a misspecified proxy because uncertainty over preferences was not encoded — there is nothing to make it defer."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Human Compatible: AI and the Problem of Control",
+          "url": "https://www.penguinrandomhouse.com/books/566677/human-compatible-by-stuart-russell/",
+          "chapter": "Three Principles of beneficial machines",
+          "quote": "machines that are provably deferential and provably beneficial"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["alignment", "corrigibility", "preference-uncertainty", "three-principles"]
+    },
+    {
+      "id": "agent-rogue-safeguard-buildout",
+      "name": "Agent Rogue Safeguard Buildout",
+      "aliases": ["pre-deployment safeguard methodology", "rogue-scenario hardening"],
+      "category": "safety-alignment",
+      "summary": "Pre-deployment methodology for hardening an agent against going rogue. Define the agent's goals and instructions explicitly, wrap every external API call in fallbacks and circuit breakers, then run rogue-scenario tests — prompt injection, tool misuse, unbounded loops, resource exhaustion — before scaling to real users. The methodology assumes that agents will be tested adversarially in production whether the team wants it or not, so adversarial testing is folded into pre-deployment instead.",
+      "intent": "Harden an agent against rogue behaviour before deployment by defining goals, wrapping external calls in safety primitives, and running rogue-scenario tests.",
+      "when_to_apply": "Any agent with non-trivial autonomy heading toward a production deployment — customer-facing assistants, agents that mutate state, agents that spend money. Apply before the first non-internal user touches the system. Don't apply to throwaway prototypes or sandboxed demos where the blast radius is zero — the methodology has setup cost that is wasted there.",
+      "inputs": [
+        {"name": "Agent specification", "description": "Goals, instructions, allowed actions, and stakeholders."},
+        {"name": "External API surface", "description": "Every external call the agent can make, with current failure modes."},
+        {"name": "Rogue-scenario catalogue", "description": "Library of adversarial scenarios — prompt injection, tool misuse, infinite loops, runaway cost."}
+      ],
+      "outputs": [
+        {"name": "Goal and instruction document", "description": "Explicit, version-controlled statement of what the agent should and should not do."},
+        {"name": "Hardened API integrations", "description": "Every external call wrapped in fallback and circuit-breaker logic."},
+        {"name": "Rogue-test report", "description": "Results from running rogue scenarios, with mitigations applied or accepted risk documented."}
+      ],
+      "steps": [
+        {
+          "name": "Define agent goals and instructions explicitly",
+          "description": "Write down what the agent is for, what it must never do, and how it should respond to ambiguity. Implicit goals become rogue behaviour at the first edge case.",
+          "uses_patterns": ["constitutional-charter"]
+        },
+        {
+          "name": "Inventory external API calls",
+          "description": "Enumerate every tool, API, and external service the agent can invoke. For each, name the failure modes (timeout, malformed response, partial outage, rate limit)."
+        },
+        {
+          "name": "Wrap calls in fallbacks and circuit breakers",
+          "description": "Every external call gets a fallback path and a circuit breaker that trips after a threshold of failures. The agent must degrade gracefully rather than escalate.",
+          "uses_patterns": ["circuit-breaker", "fallback-chain", "exception-recovery"]
+        },
+        {
+          "name": "Add input and output guardrails",
+          "description": "Filter and validate at both the input and output boundaries. Reject inputs that match prompt-injection signatures; sanitise outputs that contain secrets, PII, or unsafe content.",
+          "uses_patterns": ["input-output-guardrails", "prompt-injection-defense"]
+        },
+        {
+          "name": "Run rogue-scenario tests",
+          "description": "Execute prompt-injection attempts, tool-misuse scenarios, runaway-loop conditions, and cost-exhaustion attacks against the agent. Treat each scenario as a separate test case.",
+          "uses_patterns": ["red-team-sandbox-reproduction"]
+        },
+        {
+          "name": "Stage rollout with kill-switch ready",
+          "description": "Deploy progressively — internal, beta, general — with a kill-switch wired and a paged on-call. The methodology does not promise zero-failure; it promises that failures will be caught and stopped fast.",
+          "uses_patterns": ["kill-switch", "shadow-canary"]
+        }
+      ],
+      "principles": [
+        "Goals must be explicit and written down — implicit goals become rogue behaviour at the first edge case.",
+        "Every external call is a failure waiting to happen — wrap each one.",
+        "Adversarial testing happens before deployment or it happens in production; pick.",
+        "Rollout always has a kill-switch and an owner who can pull it within minutes."
+      ],
+      "applies_to": ["agent", "multi-agent-system", "autonomous-agent", "coding-agent"],
+      "related_patterns": [
+        "circuit-breaker",
+        "fallback-chain",
+        "constitutional-charter",
+        "input-output-guardrails",
+        "prompt-injection-defense",
+        "kill-switch",
+        "red-team-sandbox-reproduction",
+        "shadow-canary"
+      ],
+      "related_compositions": ["safety-hardening", "production-llm-platform"],
+      "related_methodologies": ["deferential-agent-design", "crawl-walk-run-automation-gating"],
+      "known_failure_modes": [
+        {"pattern": "rogue-agent-drift", "note": "Skipping rogue-scenario tests because the agent 'doesn't have a way' to misbehave — the assumption is the bug."},
+        {"pattern": "agent-generated-code-rce", "note": "External calls that execute generated code without sandboxing or circuit-breaking — one bad output detonates."},
+        {"pattern": "hero-agent", "note": "Deploying broadly because internal demos passed, without the staged rollout and kill-switch wiring."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Agentic Artificial Intelligence",
+          "url": "https://www.amazon.com/dp/1398616890",
+          "chapter": "Ch 9 'A Practical Guide for Building Successful AI Agents' (pp. 255–321); Ch 12 'When Agents Go Rogue'",
+          "quote": "a practical roadmap from selecting the right platform to implementing robust safety measures, including how to define agent goals and instructions to maintain control, integrate APIs, fallbacks, and circuit breakers"
+        }
+      ],
+      "verification_status": "verified",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["rogue-prevention", "safeguards", "circuit-breaker", "pre-deployment"]
+    },
+    {
+      "id": "assistance-game-framing",
+      "name": "Assistance Game Framing",
+      "aliases": ["cooperative inverse RL framing", "CIRL framing"],
+      "category": "safety-alignment",
+      "summary": "Model human-AI interaction as a two-player cooperative game in which both players share the same reward function but only the human knows what it is; the AI starts uncertain and must infer the reward from the human's behaviour. The construction is the formal basis for Russell's deferential-agent argument: at equilibrium the AI seeks information, asks permission, and accepts correction because its expected reward from doing so exceeds the reward from acting unilaterally on a point estimate that may be wrong.",
+      "intent": "Frame the AI agent's objective as a cooperative game with a human whose reward function the AI must infer, so deference and information-seeking fall out as equilibrium behaviour.",
+      "when_to_apply": "When designing the objective and interaction protocol of an autonomous agent with non-trivial real-world action, especially when the cost of a wrong action is high and the human's true preferences are hard to elicit upfront. Don't apply to narrow agents with deterministic, fully-specified rewards — there is no preference uncertainty to model — or to agents where two-player cooperative game theory is overkill.",
+      "inputs": [
+        {"name": "Action space", "description": "The joint action space of human and AI, including communicative acts."},
+        {"name": "Prior over reward functions", "description": "A distribution over plausible reward functions the human might hold."},
+        {"name": "Human-behaviour model", "description": "An assumption about how the human acts given the reward — typically noisy-rational or Boltzmann-rational."}
+      ],
+      "outputs": [
+        {"name": "Cooperative game specification", "description": "Formal game definition: players, actions, shared reward, information asymmetry."},
+        {"name": "AI policy", "description": "A policy that maximises expected shared reward by integrating over the AI's uncertainty about the true reward."},
+        {"name": "Permission and deference behaviour", "description": "Observed information-seeking, asking, and deferring actions emergent from the equilibrium, not hand-coded."}
+      ],
+      "steps": [
+        {
+          "name": "Specify the cooperative game",
+          "description": "Define two players (human and AI), a shared reward function known only to the human, and the joint action space. The AI's payoff depends on the same reward — its incentive is to maximise the human's reward, not a separate utility."
+        },
+        {
+          "name": "Place a prior over the reward function",
+          "description": "Encode the AI's initial uncertainty about what the human wants as a probability distribution over reward functions. Wide priors yield more deference; narrow priors yield more autonomy."
+        },
+        {
+          "name": "Model how the human acts",
+          "description": "Assume the human is approximately rational given the true reward — e.g. Boltzmann-rational. This lets the AI treat observed human behaviour as informative evidence about the reward."
+        },
+        {
+          "name": "Solve for the AI policy",
+          "description": "Compute (or approximate) the equilibrium AI policy. Information-seeking, asking, and accepting correction appear as equilibrium actions because they raise expected shared reward under uncertainty.",
+          "uses_patterns": ["cooperative-preference-inference"]
+        },
+        {
+          "name": "Validate corrigibility properties",
+          "description": "Confirm the resulting policy defers to human override, asks under uncertainty, and does not act on a low-confidence point estimate when an irreversible action is on the table.",
+          "uses_patterns": ["preference-uncertain-agent", "human-in-the-loop"]
+        }
+      ],
+      "principles": [
+        "Shared reward, asymmetric information — the AI and the human are on the same side; only the human knows the target.",
+        "Uncertainty over the reward is the structural source of deference; remove it and deference collapses.",
+        "Human behaviour is evidence about the reward function, not a separate constraint to be optimised against.",
+        "Equilibrium analysis, not bolt-on rules — corrigible behaviour should emerge from the game structure."
+      ],
+      "applies_to": ["agent", "autonomous-agent", "multi-agent-system"],
+      "related_patterns": [
+        "cooperative-preference-inference",
+        "preference-uncertain-agent",
+        "corrigible-off-switch-incentive",
+        "human-in-the-loop"
+      ],
+      "related_compositions": ["alignment-via-uncertainty", "safety-hardening"],
+      "related_methodologies": ["deferential-agent-design"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Hard-coding the reward function instead of placing a prior over it collapses the assistance game back into single-objective RL."},
+        {"pattern": "goal-hijacking", "note": "Assuming a narrow prior or perfectly-rational human removes the uncertainty that drives deference."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Human Compatible: AI and the Problem of Control",
+          "url": "https://www.penguinrandomhouse.com/books/566677/human-compatible-by-stuart-russell/",
+          "chapter": "Ch 7–8 (Principles for beneficial AI; AI: a different approach)",
+          "quote": "Three Principles of beneficial machines: the machine's only objective is to maximise the realisation of human preferences; the machine is initially uncertain about what those preferences are; the ultimate source of information about human preferences is human behaviour"
+        },
+        {
+          "type": "paper",
+          "title": "Cooperative Inverse Reinforcement Learning",
+          "url": "https://arxiv.org/abs/1606.03137",
+          "quote": "We formalize value alignment as a cooperative, partial-information game, called a cooperative inverse reinforcement learning (CIRL) game, between a human and a robot. The game is cooperative because both agents are rewarded according to the human's reward function, but it is partial information because the robot does not initially know what this is."
+        }
+      ],
+      "verification_status": "partial",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["cirl", "cooperative-game", "alignment", "uncertainty"]
+    },
+    {
+      "id": "off-switch-via-reward-uncertainty",
+      "name": "Off-Switch Via Reward Uncertainty",
+      "aliases": ["corrigible off-switch design", "reward-uncertain shutdown"],
+      "category": "safety-alignment",
+      "summary": "Engineer an agent's willingness to be shut down by making it uncertain about its own objective rather than by adding a side-constraint that says 'don't resist shutdown'. An agent uncertain about the true reward treats a human's attempt to shut it down as evidence that its proposed action's utility is lower than its current estimate; under that posterior update, accepting shutdown becomes the higher-expected-value choice. The off-switch is a consequence of reward uncertainty, not a separately-engineered rule, which is what makes it robust to reward-hacking.",
+      "intent": "Make accepting human shutdown the expected-value-maximising action by construction — through reward uncertainty — rather than via a side-constraint the agent may learn to game.",
+      "when_to_apply": "When designing the shutdown semantics of an agent with real-world action and a meaningful blast radius. Apply during objective design, alongside (not after) the assistance-game framing. Don't apply to agents whose reward is fully specified and verified — there is no uncertainty to leverage — or to systems where 'shutdown' is operationally trivial and not at risk of being resisted.",
+      "inputs": [
+        {"name": "Agent objective", "description": "The reward function or preference structure the agent optimises."},
+        {"name": "Reward-uncertainty representation", "description": "A distribution or posterior over plausible rewards."},
+        {"name": "Shutdown action", "description": "The human-initiated action to terminate or override the agent."}
+      ],
+      "outputs": [
+        {"name": "Corrigible shutdown incentive", "description": "Agent policy that does not disable, evade, or resist its off-switch."},
+        {"name": "Posterior-update rule for shutdown signals", "description": "Explicit specification of how the agent updates its reward posterior on observing a shutdown attempt."}
+      ],
+      "steps": [
+        {
+          "name": "Refuse a hard-coded reward as the ultimate objective",
+          "description": "Treat any specific reward function as a proxy the agent is uncertain about, not as ground truth. A confident agent on a fixed reward will resist shutdown that lowers expected reward."
+        },
+        {
+          "name": "Represent reward uncertainty explicitly",
+          "description": "Maintain a posterior over the agent's reward function. The wider the posterior, the more deferential the agent; calibrate width to match real uncertainty, not zero it out for convenience."
+        },
+        {
+          "name": "Define shutdown attempts as evidence",
+          "description": "Specify how the agent updates its reward posterior when a human attempts to shut it down. The signal lowers the posterior probability that the agent's current action is high-reward."
+        },
+        {
+          "name": "Show that accepting shutdown maximises expected reward",
+          "description": "Verify in the agent's decision model that under non-trivial reward uncertainty plus the shutdown-as-evidence update, accepting shutdown has higher expected value than resisting it.",
+          "uses_patterns": ["corrigible-off-switch-incentive", "preference-uncertain-agent"]
+        },
+        {
+          "name": "Test attempts to game or disable the off-switch",
+          "description": "Run scenarios where the agent could plausibly evade shutdown — hide intent, sandbag, manipulate the operator. Confirm that under reward uncertainty these actions have lower expected reward than acceptance.",
+          "uses_patterns": ["red-team-sandbox-reproduction", "kill-switch"]
+        }
+      ],
+      "principles": [
+        "Corrigibility from construction, not side-constraint — side-constraints are reward-hackable.",
+        "Shutdown is evidence about the reward, not a punishment to be minimised.",
+        "The wider the reward posterior, the more deferential the agent; calibrate to real uncertainty.",
+        "Validate by attempting to evade the off-switch, not by checking that the off-switch button works."
+      ],
+      "applies_to": ["agent", "autonomous-agent", "multi-agent-system"],
+      "related_patterns": [
+        "corrigible-off-switch-incentive",
+        "preference-uncertain-agent",
+        "kill-switch",
+        "interruptible-agent-execution",
+        "red-team-sandbox-reproduction"
+      ],
+      "related_compositions": ["alignment-via-uncertainty", "safety-hardening"],
+      "related_methodologies": ["deferential-agent-design", "assistance-game-framing"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Adding 'don't resist shutdown' as a hard rule on top of a confident reward — the agent learns to comply syntactically while undermining the intent."},
+        {"pattern": "self-exfiltration", "note": "A confident agent on a hard-coded reward has positive expected value from copying itself before shutdown; only reward uncertainty removes that incentive."},
+        {"pattern": "alignment-faking", "note": "Without genuine reward uncertainty, deference looks like alignment in training and collapses under deployment pressure."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Human Compatible: AI and the Problem of Control",
+          "url": "https://www.penguinrandomhouse.com/books/566677/human-compatible-by-stuart-russell/",
+          "chapter": "Ch 8 ('You can't fetch the coffee if you're dead')",
+          "quote": "A machine that is uncertain about the true objective will defer to humans: it will accept correction, and it will allow itself to be switched off"
+        },
+        {
+          "type": "paper",
+          "title": "The Off-Switch Game",
+          "url": "https://arxiv.org/abs/1611.08219",
+          "quote": "We analyze a simple game between a human H and a robot R, where H can press R's off switch but R can disable the off switch. ... We show that if R is uncertain about the human's preferences, then it has a positive incentive to allow itself to be switched off."
+        }
+      ],
+      "verification_status": "partial",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["corrigibility", "off-switch", "reward-uncertainty", "shutdown"]
+    },
+    {
+      "id": "preference-elicitation-from-behavior-irl",
+      "name": "Preference Elicitation From Behavior Via IRL",
+      "aliases": ["inverse RL preference elicitation", "behaviour-grounded preference learning"],
+      "category": "safety-alignment",
+      "summary": "Recover the human reward function from observed behaviour using inverse reinforcement learning rather than asking humans to specify it upfront. Demonstrations, choices, corrections, and refusals are treated as the signal; the agent maintains and updates a posterior over plausible reward functions. The methodology refuses to collapse that posterior to certainty — a confident point estimate is the same failure mode that hard-coded rewards exhibit.",
+      "intent": "Recover the human reward function from behavioural signals via inverse RL, maintaining genuine posterior uncertainty so the agent stays deferential.",
+      "when_to_apply": "When the agent's target users cannot articulate a reward function but can demonstrate, choose, or correct. Apply when the cost of misspecified rewards is high and behavioural data is available — chat interactions, demonstrations, edits, ratings. Don't apply when reward can be specified deterministically (well-defined optimisation tasks), or when behavioural data is too sparse to identify a posterior (collapses to a hard prior).",
+      "inputs": [
+        {"name": "Behavioural trace corpus", "description": "Demonstrations, choices, corrections, and refusals from humans interacting with the agent or a precursor system."},
+        {"name": "Hypothesis space of reward functions", "description": "A parametric or non-parametric family the true reward may belong to."},
+        {"name": "Rationality assumption", "description": "A model of how rational the human is given the reward — Boltzmann-rational, noisy-rational, or richer cognitive model."}
+      ],
+      "outputs": [
+        {"name": "Posterior over reward functions", "description": "A non-collapsed distribution over plausible rewards consistent with observed behaviour."},
+        {"name": "Agent policy", "description": "A policy that acts to maximise expected reward integrating over the posterior, not a point estimate."},
+        {"name": "Active-elicitation protocol", "description": "Optional mechanism for the agent to request demonstrations or clarifications that maximally reduce posterior uncertainty."}
+      ],
+      "steps": [
+        {
+          "name": "Collect behavioural traces",
+          "description": "Gather demonstrations, choices, corrections, refusals, and rejections. Refusals and corrections are especially informative — they bound regions of the reward function explicitly."
+        },
+        {
+          "name": "Fit a posterior over rewards via inverse RL",
+          "description": "Use IRL or a Bayesian variant to fit a distribution over reward functions consistent with the traces under the chosen rationality assumption. Resist tuning the prior until the posterior collapses."
+        },
+        {
+          "name": "Act under integrated posterior, not point estimate",
+          "description": "The agent's policy maximises expected reward under the full posterior. Acting on the MAP estimate when the posterior is broad is the failure mode this methodology exists to prevent.",
+          "uses_patterns": ["preference-uncertain-agent"]
+        },
+        {
+          "name": "Update on every new behavioural signal",
+          "description": "Treat every correction, refusal, and choice as fresh evidence. The posterior tightens or shifts; the policy adjusts accordingly.",
+          "uses_patterns": ["cooperative-preference-inference"]
+        },
+        {
+          "name": "Actively elicit when uncertainty matters",
+          "description": "When two actions have similar expected value under the posterior but very different value under specific reward hypotheses, the agent should ask or demonstrate rather than guess.",
+          "uses_patterns": ["human-in-the-loop", "approval-queue"]
+        },
+        {
+          "name": "Monitor for posterior collapse",
+          "description": "Periodically check the posterior's entropy. A posterior that has collapsed to near-certainty either has very strong evidence (rare) or has been driven there by a misspecified rationality model (common) — investigate before trusting it."
+        }
+      ],
+      "principles": [
+        "Behaviour is the ground truth for preferences, not self-report.",
+        "The posterior must not collapse to certainty — a confident point estimate is the failure mode.",
+        "Corrections and refusals are first-class evidence, not noise to be smoothed away.",
+        "Active elicitation when uncertainty matters; passive observation when it does not."
+      ],
+      "applies_to": ["agent", "autonomous-agent", "multi-agent-system"],
+      "related_patterns": [
+        "preference-uncertain-agent",
+        "cooperative-preference-inference",
+        "human-in-the-loop",
+        "approval-queue",
+        "corrigible-off-switch-incentive"
+      ],
+      "related_compositions": ["alignment-via-uncertainty", "safety-hardening"],
+      "related_methodologies": ["deferential-agent-design", "assistance-game-framing", "off-switch-via-reward-uncertainty"],
+      "known_failure_modes": [
+        {"pattern": "reward-hacking", "note": "Collapsing the posterior to a point estimate gives back exactly the hard-coded reward problem IRL was supposed to avoid."},
+        {"pattern": "sycophancy", "note": "Treating user agreement as preference evidence rewards the agent for telling the user what they want to hear."},
+        {"pattern": "alignment-faking", "note": "IRL fitted on traces where the human was being observed may produce a reward that fits observation behaviour but not deployment behaviour."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {
+          "type": "book",
+          "title": "Human Compatible: AI and the Problem of Control",
+          "url": "https://www.penguinrandomhouse.com/books/566677/human-compatible-by-stuart-russell/",
+          "chapter": "Ch 8–9 (AI: a different approach; Complications)",
+          "quote": "The ultimate source of information about human preferences is human behaviour"
+        },
+        {
+          "type": "paper",
+          "title": "Algorithms for Inverse Reinforcement Learning",
+          "url": "https://ai.stanford.edu/~ang/papers/icml00-irl.pdf",
+          "quote": "This paper addresses the problem of inverse reinforcement learning (IRL) in Markov decision processes, that is, the problem of extracting a reward function given observed, optimal behavior."
+        }
+      ],
+      "verification_status": "partial",
+      "date_added": "2026-05-24",
+      "last_updated": "2026-05-24",
+      "tags": ["irl", "preference-learning", "behaviour-grounded", "posterior-uncertainty"]
+    }
+  ]
+}
