@@ -1,6 +1,6 @@
 # Pattern Index
 
-417 patterns across 14 categories.
+421 patterns across 14 categories.
 
 ## Reasoning
 
@@ -11,7 +11,9 @@
 - [Generate-and-Test Strategy](patterns/generate-and-test-strategy.md) *(a.k.a. Multi-Hypothesis with Constraint Verification, Hypothesize-then-Test)* — Generate multiple candidate solutions in parallel, then systematically test each against declared constraints rather than committing to the first plausible one — adapted from Langley & Simon's cognitive-science research on human expert problem-solving.
 - [Graph of Thoughts](patterns/graph-of-thoughts.md) *(a.k.a. GoT, DAG Reasoning)* — Model reasoning as an arbitrary DAG so thoughts can be merged, refined, and aggregated across branches.
 - [Large Reasoning Model (LRM) Paradigm](patterns/large-reasoning-model-paradigm.md) *(a.k.a. LRM, Reasoning-Tuned Model, Inference-Time Reasoning)* — Route reasoning-heavy tasks to a reasoning-tuned model that trades inference time for deliberation, rather than to a fast LLM that exhibits premature-closure.
+- [Latent-Space Reasoning](patterns/latent-space-reasoning.md) *(a.k.a. Continuous-Thought Reasoning, Coconut, Latent Chain-of-Thought)* — Let the model reason in continuous hidden-state space instead of decoding each step to text, feeding the last hidden state back as the next input embedding, so one latent step can hold several continuations.
 - [Least-to-Most Prompting](patterns/least-to-most.md) *(a.k.a. L2M, Easy-First Decomposition)* — Decompose a hard problem into an ordered list of easier subproblems, then solve them sequentially with each answer feeding the next.
+- [Recursive Language Model](patterns/recursive-language-model.md) *(a.k.a. RLM, Prompt-as-Environment Recursion, Recursive Inference)* — Treat an over-long prompt as an environment the model navigates by code, letting it partition and recursively call itself over snippets, so it answers over inputs far larger than its context window.
 - [ReST-EM](patterns/rest-em.md) *(a.k.a. Reinforced Self-Training, Self-Training Loop)* — Iterate generate → reward-filter → fine-tune to bootstrap reasoning capabilities without human-labelled data.
 - [Self-Ask](patterns/self-ask.md) *(a.k.a. Decompose-Ask, Sub-Question Prompting)* — Have the model emit explicit follow-up sub-questions, answer them (optionally via search), then compose the final answer.
 - [Socratic Questioning Agent](patterns/socratic-questioning-agent.md) *(a.k.a. Dialog-Driven Agent, Socratic/対話駆動 エージェント, SocraticAI)* — Drive the agent toward its goal by asking the user a sequence of strategic, open-ended questions that surface the user's own latent knowledge, goal, or context — rather than producing an answer directly.
@@ -155,6 +157,7 @@
 ## Multi-Agent
 
 - [Actor-Model Agents](patterns/actor-model-agents.md) *(a.k.a. Actor Agents, Mailbox Agents, Message-Passing Agents)* — Implement each agent as an independent actor with its own mailbox, processing asynchronous messages one at a time and never sharing mutable state with peers.
+- [Agent Capability Manifest](patterns/agent-capability-manifest.md) *(a.k.a. Agent Card, Agent Capability Descriptor, Well-Known Agent Manifest)* — Let each agent publish a standardized self-description — identity, skills, endpoint, and auth needs — at a well-known location, so others discover it and bind by capability at runtime instead of through hardcoded coupling.
 - [Agent-as-Tool Embedding](patterns/agent-as-tool-embedding.md) *(a.k.a. Sub-Agent as Function, Nested Agent, Agent Wrapped in a Tool Signature)* — Wrap a sub-agent (with its own loop, prompt, and tool palette) behind a single function-shaped tool signature, so the parent agent calls it like any other tool and never sees the sub-agent's internal turns.
 - [Blackboard](patterns/blackboard.md) *(a.k.a. Shared Workspace, Collaboration Whiteboard)* — Give multiple agents a shared, queryable workspace they can read from and write to as they collaborate.
 - [CAMEL Role-Playing](patterns/camel-role-playing.md) *(a.k.a. Inception Prompting, AI-User AI-Assistant)* — Have two agents role-play a user-assistant interaction to autonomously complete a task neither could solve alone.
@@ -306,6 +309,7 @@
 ## Governance & Observability
 
 - [Agent Evaluator](patterns/agent-evaluator.md) *(a.k.a. Agent-Performance Testing Harness, Dedicated Agent-Test Agent)* — A dedicated agent or harness whose sole job is running tests against another agent's outputs to evaluate performance; distinct from eval-harness (offline batch) and llm-as-judge (per-output).
+- [Agent Factory](patterns/agent-factory.md) *(a.k.a. Agent Template Factory, Fleet Agent Provisioning)* — Manufacture agent instances from a versioned template that renders model, tools, and prompt atomically, with registry-backed identities, so a fleet stays consistent and one template change propagates instead of drifting per instance.
 - [Agent Middleware Chain](patterns/agent-middleware-chain.md) *(a.k.a. Agent Interceptor Pipeline, Pre/Post Middleware)* — Wrap every model call, tool call, and memory access in a composable pre/execute/post interceptor pipeline so cross-cutting concerns attach without touching agent or orchestrator code.
 - [Agent Resumption](patterns/agent-resumption.md) *(a.k.a. Durable Execution, Pause-and-Resume, Long-Running Agent State)* — Persist agent execution state so a long-running run survives restarts, deploys, or user disconnects.
 - [Agent-as-a-Judge](patterns/agent-as-judge.md) *(a.k.a. Trajectory Evaluator, Judge Agent)* — Evaluate an agent's full trajectory (steps, tool calls, intermediate states) by another agent rather than scoring only the final output.
