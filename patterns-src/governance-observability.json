@@ -3589,6 +3589,11 @@
           "pattern": "policy-as-code-gate",
           "relation": "complements",
           "note": "Policy-as-code is the executable form of the standards the golden path checks against, run continuously rather than only at a gate."
+        },
+        {
+          "pattern": "agent-factory",
+          "relation": "complements",
+          "note": "The factory mass-produces correctly-configured instances; the golden path constrains the work each instance then produces."
         }
       ],
       "references": [
@@ -3677,6 +3682,158 @@
         "Standard-propagation lag — time from updating a standard to agents picking it up",
         "Off-road bypass rate — how often users route around the platform to avoid the golden path",
         "High-impact escalation rate — fraction of changes correctly routed to human review"
+      ],
+      "last_updated": "2026-05-26"
+    },
+    {
+      "id": "agent-factory",
+      "name": "Agent Factory",
+      "aliases": [
+        "Agent Template Factory",
+        "Fleet Agent Provisioning"
+      ],
+      "category": "governance-observability",
+      "intent": "Manufacture agent instances from a versioned template that renders model, tools, and prompt atomically, with registry-backed identities, so a fleet stays consistent and one template change propagates instead of drifting per instance.",
+      "context": "A team runs not one agent but many instances of one or more agent types — the same support agent deployed per customer, per product line, or per region, each needing its own configuration. Every instance binds a model, a tool set, a system prompt, and policy settings. The team has to decide how to stand up and maintain dozens or hundreds of these instances so they stay consistent as the underlying definition changes.",
+      "problem": "Hand-configuring each instance, or copying a starter config and editing it, lets every instance drift: one keeps an old prompt, another points at a deprecated model, a third has a tool the others lack, and no one can say which version is running where. Rendering the pieces separately — prompt here, tool wiring there, model choice elsewhere — means a half-applied change can leave an instance internally inconsistent. When a fix has to reach the whole fleet, there is no single place to change it and no identity scheme to target instances, so updates are manual, partial, and unauditable.",
+      "forces": [
+        "Many instances of an agent type must stay consistent as the definition evolves.",
+        "Rendering model, tools, and prompt separately allows half-applied, internally inconsistent instances.",
+        "A fleet-wide fix needs one place to change and a way to target every affected instance.",
+        "Each instance still needs its own identity and per-instance configuration.",
+        "Without versioning and a registry, no one can say which definition is running where."
+      ],
+      "therefore": "Therefore: render each agent instance in one atomic pass from a single versioned template, give it a registry-backed identity, and manage instances through a lifecycle, so one template change re-renders the fleet and per-instance drift cannot accumulate.",
+      "solution": "Define each agent type as a versioned template that names its model, tools, prompt, and policy as one unit. A factory renders an instance from the template in a single atomic pass — never piecemeal — and registers it under a stable id with its template version recorded. Instances are managed through a lifecycle (create, read, update, retire), and a change to the template re-renders or migrates every instance bound to it, so a fleet-wide fix propagates from one place. The registry answers which template version each running instance carries, making drift visible and the fleet auditable.",
+      "structure": "Versioned template (model + tools + prompt + policy) -> factory (atomic render) -> instance with registry id + template version; registry maps instance -> version; a template change re-renders or migrates every bound instance.",
+      "consequences": {
+        "benefits": [
+          "A fleet-wide change is made once in the template and propagated, not edited per instance.",
+          "Atomic rendering rules out half-applied, internally inconsistent instances.",
+          "The registry answers which template version each instance is running.",
+          "New instances are provisioned consistently rather than copied and tweaked."
+        ],
+        "liabilities": [
+          "A bad template change propagates to the whole fleet at once; blast radius is large.",
+          "The factory and registry are infrastructure to build and operate.",
+          "Over-rigid templates make legitimate per-instance variation awkward.",
+          "Re-rendering stateful instances must preserve their memory and in-flight work."
+        ]
+      },
+      "constrains": "An instance cannot be assembled piecemeal or edited in place out of band; it may only be rendered atomically from a versioned template and must carry a registry identity recording that version.",
+      "known_uses": [
+        {
+          "system": "Microsoft Azure AI Foundry Agent Service",
+          "note": "Provisions and manages agents from definitions at fleet scale; framed in the 'Agent Factory' design-pattern series.",
+          "status": "available",
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/agents/"
+        },
+        {
+          "system": "Salesforce Agentforce",
+          "note": "Agents instantiated from templated topics/actions and managed across an org.",
+          "status": "available",
+          "url": "https://www.salesforce.com/agentforce/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-persona-profile",
+          "relation": "complements",
+          "note": "The factory renders the per-instance persona/profile this pattern defines as part of one atomic template."
+        },
+        {
+          "pattern": "agentic-golden-path",
+          "relation": "complements",
+          "note": "The factory mass-produces correctly-configured instances; the golden path constrains the work each instance then produces."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Agent Factory: the new era of agentic AI — common use cases and design patterns",
+          "year": 2025,
+          "url": "https://azure.microsoft.com/en-us/blog/agent-factory-the-new-era-of-agentic-ai-common-use-cases-and-design-patterns/"
+        },
+        {
+          "type": "blog",
+          "title": "The Agent Factory: Building Consistent Agents at Scale",
+          "authors": "Chuck Meyer",
+          "year": 2025,
+          "url": "https://dev.to/chuckm/the-agent-factory-building-consistent-agents-at-scale-22an"
+        },
+        {
+          "type": "doc",
+          "title": "Azure AI Foundry Agent Service",
+          "year": 2025,
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/agents/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "governance",
+        "fleet",
+        "provisioning",
+        "templates",
+        "lifecycle"
+      ],
+      "applicability": {
+        "use_when": [
+          "Many instances of one or more agent types run, each with its own configuration.",
+          "Instances must stay consistent as the underlying definition evolves.",
+          "A fleet-wide change must reach every affected instance reliably.",
+          "Auditing which definition version each instance runs matters."
+        ],
+        "do_not_use_when": [
+          "Only one or a few agents run and hand-configuration is tractable.",
+          "Each agent is genuinely bespoke with little shared template to factor out.",
+          "Instances are short-lived and never need a coordinated fleet update.",
+          "The overhead of a template, factory, and registry exceeds the drift it prevents."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Template-render factory",
+          "summary": "An instance is rendered from a declarative template at create time and then runs as-is.",
+          "distinguishing_factor": "static render at creation",
+          "when_to_use": "Stable agent types that change rarely."
+        },
+        {
+          "name": "Registry-backed fleet lifecycle",
+          "summary": "Instances are tracked in a registry with full CRUD and version migration, so template changes propagate across the fleet.",
+          "distinguishing_factor": "managed lifecycle + migration",
+          "when_to_use": "Large, long-lived fleets needing coordinated updates."
+        },
+        {
+          "name": "Parameterised instance overlay",
+          "summary": "One template plus a thin per-instance parameter overlay (customer id, locale, branding).",
+          "distinguishing_factor": "shared template + thin overlay",
+          "when_to_use": "Many near-identical instances differing only in parameters."
+        }
+      ],
+      "example_scenario": "A company deploys the same support agent to forty customers, each with its own knowledge base and branding. Early on each was copied and hand-edited; six months later three run an old prompt and one points at a retired model, and nobody can tell which. They move to an agent factory: one versioned template renders every instance atomically, each gets a registry id recording its template version, and a prompt fix re-renders the whole fleet from one change. Drift stops accumulating and an audit can list exactly what every customer is running.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  T[Versioned template<br/>model + tools + prompt + policy] --> F[Factory: atomic render]\n  F --> I1[Instance A<br/>registry id + version]\n  F --> I2[Instance B<br/>registry id + version]\n  F --> I3[Instance C<br/>registry id + version]\n  T -. template change .-> F\n  I1 --> REG[(Registry: instance -> version)]\n  I2 --> REG\n  I3 --> REG",
+        "caption": "One versioned template renders every instance atomically; the registry records which version each runs, so a template change propagates instead of drifting per instance."
+      },
+      "components": [
+        "Versioned template — single artifact binding model, tools, prompt, and policy for an agent type",
+        "Factory — renders an instance from a template in one atomic pass",
+        "Instance registry — stores each instance's stable id and the template version it carries",
+        "Lifecycle manager — handles create, read, update, retire and fleet-wide migration",
+        "Drift detector — flags instances whose running version lags the current template"
+      ],
+      "tools": [
+        "Template engine — renders the atomic agent definition from the versioned template",
+        "Agent registry or catalogue — stores instance identities and their template versions",
+        "Configuration store — holds versioned templates and per-instance parameters"
+      ],
+      "evaluation_metrics": [
+        "Version skew across the fleet — share of instances not on the current template version",
+        "Propagation time — wall-clock from a template change to the fleet re-rendered",
+        "Partial-render rate — instances left internally inconsistent by a failed render",
+        "Provisioning time per instance — cost of standing up a new instance from the template",
+        "Audit coverage — fraction of running instances whose template version is known"
       ],
       "last_updated": "2026-05-26"
     }

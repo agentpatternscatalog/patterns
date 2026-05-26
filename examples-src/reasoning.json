@@ -607,6 +607,60 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "recursive-language-model",
+      "intent": "Hold the over-long input as data in a REPL; the model writes code to partition it and recursively calls itself over chosen snippets, bounded by depth.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: prompt-as-environment, model-chosen partition, depth-bounded recursive self-calls, then combine.",
+          "code": "# The long input lives as DATA in a code environment, not in the prompt.\nfunction rlm(query, env, depth=0, max_depth=3):\n    if depth >= max_depth or fits_in_window(env.size()):\n        return llm(prompt=query, context=env.read())         # base case\n\n    # Root model writes code to inspect + partition the input it can see.\n    plan     = llm_code(query, env.preview())                # e.g. grep / slice\n    snippets = env.run(plan.partition_code)                  # model-chosen split\n\n    partials = []\n    for s in snippets:                                       # recurse over chosen pieces\n        sub_env = env.view(s)\n        partials.append(rlm(plan.subquery(s), sub_env, depth + 1, max_depth))\n\n    return llm(prompt=plan.combine_prompt, context=partials) # combine results\n# Only the snippets the model selects ever enter any single call.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Wire the recursion as tools: the over-long input is stored as data, the agent loads only chosen slices, and recurses over snippets.",
+          "source_url": "https://openai.github.io/openai-agents-python/tools/",
+          "sdk_version": "openai-agents>=0.1.0",
+          "code": "from agents import Agent, Runner, function_tool\n\nENV = {}  # holds over-long inputs as data, keyed by id\n\n@function_tool\ndef load(blob_id: str, slice_spec: str) -> str:\n    \"\"\"Return only the requested slice of a stored over-long input.\"\"\"\n    return ENV[blob_id].slice(slice_spec)         # only the chosen snippet enters context\n\n@function_tool\ndef recurse(blob_id: str, slice_spec: str, subquestion: str) -> str:\n    \"\"\"Recursively answer a subquestion over one slice of the input.\"\"\"\n    snippet = ENV[blob_id].slice(slice_spec)\n    return Runner.run_sync(root, f\"{subquestion}\\n\\n{snippet}\").final_output\n\nroot = Agent(\n    name=\"rlm\",\n    instructions=(\"The input is too big for the context window. Use load() to peek and \"\n                  \"grep, partition it, recurse() over snippets, then combine.\"),\n    tools=[load, recurse],\n)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        }
+      ]
+    },
+    {
+      "pattern_id": "latent-space-reasoning",
+      "intent": "Feed the last hidden state back as the next input embedding for N latent steps, then decode only the final answer; train the model to use latent steps.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: the continuous-thought inference loop — feed the hidden state back instead of decoding to a token.",
+          "code": "# Reason in latent space: no intermediate decoding to tokens.\nfunction latent_reason(question, n_latent_steps):\n    h = encode(question)                  # hidden state after reading the question\n    for _ in range(n_latent_steps):\n        # 'continuous thought': the last hidden state IS the next input embedding,\n        # NOT decoded to a word token, so it can encode several next steps at once.\n        h = model.step(input_embedding=h) # feed the hidden state straight back\n    return decode(h)                      # only the final answer becomes text",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        },
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code (training)",
+          "language": "pseudo",
+          "intent": "Composition with training: a curriculum gradually replaces text reasoning steps with latent ones so the model learns to use continuous thoughts.",
+          "code": "# Curriculum (Coconut-style): stage k replaces the first k text reasoning steps\n# with latent steps; the rest stay as text supervision.\nfor stage in range(0, max_steps + 1):\n    for (question, cot_steps, answer) in dataset:\n        text_tail = cot_steps[stage:]              # remaining steps stay as text\n        target = render(question, latent_steps=stage, text=text_tail, answer=answer)\n        loss = train_step(target)                  # learn to reason with `stage` latent steps\n\n# At inference: run all reasoning as continuous thoughts, decode only the answer.\n# Trade-off: faster, searchier reasoning -- but no human-readable trace to audit.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        }
+      ]
     }
   ]
 }

@@ -212,6 +212,11 @@
         {
           "pattern": "star-bootstrapping",
           "relation": "used-by"
+        },
+        {
+          "pattern": "latent-space-reasoning",
+          "relation": "alternative-to",
+          "note": "Latent-space reasoning keeps the chain in continuous hidden states instead of decoding each step to text tokens."
         }
       ],
       "references": [
@@ -285,7 +290,7 @@
         "Faithfulness gap — divergence between the stated reasoning and the final answer, sample-audited",
         "p95 token cost per response — overhead the trace adds vs zero-shot"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-26"
     },
     {
       "id": "chain-of-verification",
@@ -1573,6 +1578,11 @@
         {
           "pattern": "multi-path-plan-generator",
           "relation": "complements"
+        },
+        {
+          "pattern": "latent-space-reasoning",
+          "relation": "complements",
+          "note": "A continuous thought can encode several next steps at once, a latent analogue of tree-of-thoughts breadth-first exploration."
         }
       ],
       "references": [
@@ -1645,7 +1655,7 @@
         "Backtrack frequency — share of solves that required at least one dead-end recovery",
         "Search-depth distribution — typical depth and branching factor at which leaves are returned"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-26"
     },
     {
       "id": "zero-shot-cot",
@@ -2021,6 +2031,310 @@
         "Per-class success rate",
         "LRM cost per query vs LLM-only baseline"
       ]
+    },
+    {
+      "id": "recursive-language-model",
+      "name": "Recursive Language Model",
+      "aliases": [
+        "RLM",
+        "Prompt-as-Environment Recursion",
+        "Recursive Inference"
+      ],
+      "category": "reasoning",
+      "intent": "Treat an over-long prompt as an environment the model navigates by code, letting it partition and recursively call itself over snippets, so it answers over inputs far larger than its context window.",
+      "context": "A team needs an agent to reason over an input far larger than the model's context window — a huge codebase, a long transcript corpus, thousands of retrieved chunks. Stuffing everything into one prompt either does not fit or degrades sharply as the input grows. The team has to decide how the model can work over the whole input without being limited by what fits in a single call.",
+      "problem": "Truncation and naive chunking drop information the answer may depend on, and even when a long input fits, model accuracy falls as the prompt grows. Fixed map-reduce scaffolds impose one decomposition the model cannot adapt: they split the input the same way regardless of the question and lose cross-chunk structure. Compaction and summarization throw away detail before the model has decided what matters. The team needs the model itself to decide how to break the input down and to look only at the parts each sub-question needs.",
+      "forces": [
+        "The input is larger than the context window, so not all of it can be in one call.",
+        "Model accuracy degrades as the prompt grows, even within the window.",
+        "A fixed decomposition (map-reduce, summarize) cannot adapt to the question.",
+        "The model should look only at the snippets a sub-question actually needs.",
+        "Recursion and sub-calls add latency and cost that must stay comparable to alternatives."
+      ],
+      "therefore": "Therefore: store the prompt as data in a programming environment and let the model write code to inspect, partition, and recursively call itself over the pieces it chooses, so decomposition is decided by the model per question rather than fixed in advance.",
+      "solution": "Place the long input in an environment the model can manipulate programmatically — for example a variable in a code interpreter — instead of pasting it into the prompt. The root model writes code to peek at, search, and partition the input, and spawns recursive calls to itself or a smaller sub-model over the snippets it selects, combining their results. Because the model decides at runtime how to grep, slice, and recurse, the decomposition adapts to the question, and only the relevant snippets ever enter any single call. Inputs orders of magnitude larger than the context window are handled at cost comparable to long-context scaffolds.",
+      "structure": "Long input stored as a variable in a code REPL; the root model writes code to inspect and partition it; it spawns recursive model or sub-model calls over chosen snippets; results are combined; recursion depth is bounded.",
+      "consequences": {
+        "benefits": [
+          "Processes inputs far beyond the context window without truncation.",
+          "Decomposition adapts to the question instead of being fixed in advance.",
+          "Only relevant snippets enter any single call, sidestepping prompt-length degradation.",
+          "Reported to outperform long-context scaffolds at comparable cost."
+        ],
+        "liabilities": [
+          "Recursive self-calls add latency and can blow up cost if depth is unbounded.",
+          "Running model-written code over the input needs a sandbox and carries execution risk.",
+          "A wrong partitioning decision can miss information spread across snippets.",
+          "Reasoning over the model's own decomposition is harder to trace and debug."
+        ]
+      },
+      "constrains": "The full input must not be forced into a single context window; the model may load only the snippets it selects from the prompt environment, and recursion depth must be bounded.",
+      "known_uses": [
+        {
+          "system": "Recursive Language Models (RLM), MIT",
+          "note": "GPT-5 / GPT-5-mini in a Python REPL holding the prompt; recursive self-calls process inputs roughly two orders of magnitude beyond the context window at comparable cost.",
+          "status": "available",
+          "url": "https://github.com/alexzhang13/rlm"
+        },
+        {
+          "system": "RLM-Qwen3-8B",
+          "note": "A natively recursive model post-trained from Qwen3-8B; reported +28.3% over the base on long-context tasks.",
+          "status": "available",
+          "url": "https://arxiv.org/abs/2512.24601"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "llm-map-reduce-isolation",
+          "relation": "alternative-to",
+          "note": "Both process inputs beyond the window; map-reduce isolation fixes the split in advance, while a recursive language model lets the model decompose adaptively at runtime."
+        },
+        {
+          "pattern": "code-execution",
+          "relation": "complements",
+          "note": "The recursive language model runs the root model in a code/REPL environment that holds the prompt as data."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Recursive Language Models",
+          "authors": "Alex L. Zhang, Tim Kraska, Omar Khattab (MIT)",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2512.24601"
+        },
+        {
+          "type": "blog",
+          "title": "Recursive Language Models",
+          "authors": "Alex L. Zhang",
+          "year": 2025,
+          "url": "https://alexzhang13.github.io/blog/2025/rlm/"
+        },
+        {
+          "type": "repo",
+          "title": "alexzhang13/rlm — inference library for Recursive Language Models",
+          "year": 2025,
+          "url": "https://github.com/alexzhang13/rlm"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "reasoning",
+        "long-context",
+        "recursion",
+        "inference",
+        "decomposition"
+      ],
+      "applicability": {
+        "use_when": [
+          "The input is larger than the context window or large enough to degrade accuracy.",
+          "The right decomposition depends on the question and cannot be fixed in advance.",
+          "A code or REPL environment is available to hold and manipulate the input.",
+          "Comparable-cost handling of huge inputs is worth added latency and complexity."
+        ],
+        "do_not_use_when": [
+          "The input comfortably fits the context window with good accuracy.",
+          "No sandbox is available to run model-written code over the input.",
+          "A fixed map-reduce or retrieval pipeline already answers the question well.",
+          "Latency budgets cannot absorb recursive sub-calls."
+        ]
+      },
+      "variants": [
+        {
+          "name": "REPL-hosted prompt",
+          "summary": "The input lives in a code-interpreter variable the root model queries with code.",
+          "distinguishing_factor": "prompt-as-data in a sandbox",
+          "when_to_use": "Default recursive-language-model instantiation."
+        },
+        {
+          "name": "Recursive sub-model calls",
+          "summary": "The root model calls a smaller, cheaper model on snippets to control cost.",
+          "distinguishing_factor": "heterogeneous recursion",
+          "when_to_use": "Cost-sensitive long-context work."
+        },
+        {
+          "name": "Natively recursive model",
+          "summary": "A model post-trained to recurse over its own input rather than relying on an external scaffold.",
+          "distinguishing_factor": "recursion learned, not scaffolded",
+          "when_to_use": "When a tuned recursive model is available."
+        }
+      ],
+      "example_scenario": "An agent must answer a question that depends on details scattered across a five-million-token log archive, far beyond its context window. Instead of truncating, it loads the archive into a code-interpreter variable, writes code to grep for the relevant sessions, partitions them, and recursively calls itself on each partition, then combines the findings. Only the snippets each sub-question needs ever enter a model call, and the agent answers over the whole archive at a cost comparable to a long-context scaffold.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  IN[Over-long input] --> ENV[Stored as a variable in a code REPL]\n  ENV --> ROOT[Root model writes code:<br/>peek / grep / partition]\n  ROOT --> Q{Snippet small enough?}\n  Q -->|no| REC[Recursive model call on snippet]\n  REC --> ROOT\n  Q -->|yes| ANS[Answer over snippet]\n  ANS --> COMB[Combine results]\n  COMB --> OUT[Final answer]",
+        "caption": "The prompt lives as data in a REPL; the model writes code to partition it and recursively calls itself over chosen snippets, bounded by a depth limit."
+      },
+      "components": [
+        "Prompt environment — holds the long input as data the model queries, not as prompt text",
+        "Root language model — writes code to inspect and partition the input and orchestrates recursion",
+        "Recursive call — an invocation of the model or a sub-model over a selected snippet",
+        "Combiner — merges results from recursive calls into the final answer",
+        "Depth bound — caps recursion so latency and cost stay finite"
+      ],
+      "tools": [
+        "Code interpreter or REPL — stores the input and runs the model's inspection and partitioning code",
+        "Language model inference API — serves the root and recursive calls",
+        "Sandbox — isolates execution of model-written code over the input"
+      ],
+      "evaluation_metrics": [
+        "Effective input size — largest input answered correctly relative to the context window",
+        "Accuracy versus long-context baseline — quality against stuffing the input into one call",
+        "Cost per query — total tokens and calls relative to map-reduce or compaction scaffolds",
+        "Recursion depth and fan-out — how deep and wide calls go per query",
+        "Snippet-selection precision — fraction of loaded snippets that were actually relevant"
+      ],
+      "last_updated": "2026-05-26"
+    },
+    {
+      "id": "latent-space-reasoning",
+      "name": "Latent-Space Reasoning",
+      "aliases": [
+        "Continuous-Thought Reasoning",
+        "Coconut",
+        "Latent Chain-of-Thought"
+      ],
+      "category": "reasoning",
+      "intent": "Let the model reason in continuous hidden-state space instead of decoding each step to text, feeding the last hidden state back as the next input embedding, so one latent step can hold several continuations.",
+      "context": "A team is building an agent that must do hard multi-step reasoning — planning that needs backtracking, logical deduction with dead ends. The standard approach is chain-of-thought: the model writes its reasoning out as text tokens, step by step. The team has to decide whether reasoning must happen in natural language at all, given that most of those tokens exist for fluent text rather than for the computation itself.",
+      "problem": "Forcing every reasoning step through natural-language tokens spends most of the compute on producing coherent words rather than on the few decisions that matter, and it makes the model commit to one continuation at each step — once a token is emitted, the path is chosen. Tasks that need to keep several options open and backtrack are penalised, because token-by-token decoding cannot represent 'either of these next steps' in a single state. The language channel becomes a bottleneck on reasoning that is shaped for human readers, not for search.",
+      "forces": [
+        "Most reasoning tokens ensure fluent text, not the computation the task needs.",
+        "Decoding to a token forces the model to commit to one continuation per step.",
+        "Tasks needing backtracking benefit from keeping several next steps open.",
+        "A hidden state can encode a distribution over continuations a single token cannot.",
+        "Reasoning that never becomes text is far harder to inspect and supervise."
+      ],
+      "therefore": "Therefore: keep the reasoning state in the model's continuous latent space — feed the last hidden state back as the next input embedding instead of decoding it to a word — so a step can carry several alternative continuations and the model searches rather than commits.",
+      "solution": "Instead of decoding each reasoning step into a word token and re-encoding it, take the model's last hidden state as the reasoning state — a 'continuous thought' — and feed it directly back as the next input embedding. The model reasons through a sequence of these latent states and only decodes to text when it produces the final answer. Because a continuous state is not collapsed onto one token, it can encode several alternative next steps at once, letting the model explore breadth-first and defer commitment, which helps on tasks that require backtracking. Training mixes latent steps into the reasoning trace so the model learns to use them.",
+      "structure": "Question tokens -> a sequence of continuous thoughts (each the last hidden state fed back as the next input embedding) -> decode only the final answer to text. No intermediate text decoding; a latent step can encode several next steps.",
+      "consequences": {
+        "benefits": [
+          "Spends compute on the reasoning state rather than on producing fluent words.",
+          "A latent step can encode several next steps, enabling breadth-first exploration.",
+          "Helps on planning and logic tasks that need backtracking.",
+          "Often reaches the answer with fewer thinking tokens than text chain-of-thought."
+        ],
+        "liabilities": [
+          "Latent reasoning is not human-readable, so it is hard to inspect, supervise, or audit.",
+          "It needs training support; a model cannot be prompted into it at inference alone.",
+          "Losing an explicit trace removes a safety and debugging surface.",
+          "Gains are task-dependent and do not always beat strong text chain-of-thought."
+        ]
+      },
+      "constrains": "Intermediate reasoning is not decoded to text; the model may emit tokens only for the final answer, and the continuous reasoning state cannot be read back as a natural-language trace.",
+      "known_uses": [
+        {
+          "system": "Coconut (Meta)",
+          "note": "Chain of Continuous Thought: the last hidden state is fed back as the next input embedding rather than decoded to a word token; presented at ICLR 2025.",
+          "status": "available",
+          "url": "https://github.com/facebookresearch/coconut"
+        },
+        {
+          "system": "Soft Thinking / soft-token reasoning",
+          "note": "Concurrent research line reasoning over a soft mixture of token embeddings rather than one discrete token.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "chain-of-thought",
+          "relation": "alternative-to",
+          "note": "Latent-space reasoning keeps the chain in continuous hidden states instead of decoding each step to text tokens."
+        },
+        {
+          "pattern": "tree-of-thoughts",
+          "relation": "complements",
+          "note": "A continuous thought can encode several next steps at once, giving a latent analogue of tree-of-thoughts breadth-first exploration."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Training Large Language Models to Reason in a Continuous Latent Space",
+          "authors": "Shibo Hao et al. (Meta)",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2412.06769"
+        },
+        {
+          "type": "blog",
+          "title": "Coconut: A Framework for Latent Reasoning in LLMs",
+          "year": 2025,
+          "url": "https://towardsdatascience.com/coconut-a-framework-for-latent-reasoning-in-llms/"
+        },
+        {
+          "type": "repo",
+          "title": "facebookresearch/coconut",
+          "year": 2025,
+          "url": "https://github.com/facebookresearch/coconut"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "reasoning",
+        "latent",
+        "continuous-thought",
+        "inference",
+        "planning"
+      ],
+      "applicability": {
+        "use_when": [
+          "The task needs multi-step reasoning with backtracking or search.",
+          "Token-by-token commitment is hurting reasoning quality.",
+          "Training or fine-tuning the model to use latent steps is feasible.",
+          "A human-readable reasoning trace is not a hard requirement."
+        ],
+        "do_not_use_when": [
+          "An auditable, human-readable reasoning trace is required (safety, compliance).",
+          "Only inference-time prompting is available and the model cannot be trained.",
+          "Text chain-of-thought already solves the task well.",
+          "The task is simple enough that latent search adds no value."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Continuous thought (Coconut)",
+          "summary": "The last hidden state is fed back directly as the next input embedding.",
+          "distinguishing_factor": "hidden-state feedback",
+          "when_to_use": "Default latent reasoning."
+        },
+        {
+          "name": "Curriculum-mixed latent steps",
+          "summary": "Training gradually replaces text reasoning steps with latent ones so the model learns to use them.",
+          "distinguishing_factor": "staged training curriculum",
+          "when_to_use": "Teaching a model to reason latently."
+        },
+        {
+          "name": "Soft-token reasoning",
+          "summary": "The model reasons over a soft mixture of token embeddings rather than one hidden state.",
+          "distinguishing_factor": "soft token mixtures",
+          "when_to_use": "Keeping multiple options explicit in the reasoning state."
+        }
+      ],
+      "example_scenario": "An agent solves a logic puzzle that requires trying a branch, hitting a contradiction, and backing up. With text chain-of-thought it commits to one branch per emitted token and struggles to backtrack. With latent-space reasoning it carries its reasoning as continuous hidden states, each of which can hold several candidate next moves at once, exploring breadth-first before decoding only the final solution to text — reaching the answer with fewer thinking tokens.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  Q[Question tokens] --> H0[Initial hidden state]\n  H0 --> CT1[Continuous thought 1<br/>fed back as next embedding]\n  CT1 --> CT2[Continuous thought 2]\n  CT2 --> CTN[Continuous thought N]\n  CTN --> DEC[Decode final answer to text]\n  N1[Each latent step can encode<br/>several alternative next steps] -.-> CT2",
+        "caption": "Reasoning runs as a chain of continuous hidden states fed back as input embeddings; only the final answer is decoded to text."
+      },
+      "components": [
+        "Continuous thought — the last hidden state used as the reasoning state and fed back as input",
+        "Latent reasoning loop — the sequence of hidden-state steps taken before any decoding",
+        "Decoder gate — switches from latent steps to emitting the final answer in text",
+        "Training curriculum — mixes latent steps into reasoning traces so the model learns to use them"
+      ],
+      "tools": [
+        "Model with hidden-state feedback — inference path that feeds the last hidden state back as the next embedding",
+        "Fine-tuning pipeline — trains the model to reason over latent steps"
+      ],
+      "evaluation_metrics": [
+        "Accuracy on backtracking-heavy tasks versus text chain-of-thought",
+        "Thinking tokens per solved problem — efficiency relative to text reasoning",
+        "Latent-step count — how many continuous thoughts are used before decoding",
+        "Answer accuracy versus trace inspectability — the supervision trade-off",
+        "Generalisation across reasoning task types — where latent reasoning helps or hurts"
+      ],
+      "last_updated": "2026-05-26"
     }
   ]
 }

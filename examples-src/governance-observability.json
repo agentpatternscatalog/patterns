@@ -1001,6 +1001,34 @@
           "last_updated": "2026-05-26"
         }
       ]
+    },
+    {
+      "pattern_id": "agent-factory",
+      "intent": "Render an agent instance atomically from a versioned template, register it with its version, and propagate a template change across the fleet.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: atomic render from a versioned template, registry-backed identity, and one-place fleet propagation.",
+          "code": "# Versioned template = one unit: model + tools + prompt + policy\nTEMPLATE = {\n    \"version\": \"v7\",\n    \"model\":   \"gpt-5\",\n    \"tools\":   [\"search\", \"ticket.create\"],\n    \"prompt\":  \"support_agent.md\",\n    \"policy\":  {\"max_refund\": 100},\n}\n\nfunction render_instance(template, params):            # ATOMIC: all-or-nothing\n    inst = build(model=template.model, tools=template.tools,\n                 prompt=fill(template.prompt, params), policy=template.policy)\n    inst.id = registry.new_id()\n    registry.put(inst.id, template_version=template.version, params=params)\n    return inst\n\nfunction provision(template, param_list):\n    return [render_instance(template, p) for p in param_list]\n\nfunction propagate(template):                          # fleet-wide update from ONE place\n    for inst in registry.instances_on_older_version(template.version):\n        new = render_instance(template, inst.params)   # re-render atomically\n        migrate_state(old=inst, new=new)               # preserve memory / in-flight work\n        registry.replace(inst.id, new, template_version=template.version)\n\n# Drift is queryable: the registry knows which version every instance runs.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        },
+        {
+          "framework": "crewai",
+          "framework_label": "CrewAI",
+          "language": "python",
+          "intent": "CrewAI agents are defined declaratively in agents.yaml; the same template instantiates many consistent per-customer agents, and editing the YAML re-renders them.",
+          "source_url": "https://docs.crewai.com/concepts/agents",
+          "sdk_version": "crewai>=0.70.0",
+          "code": "# config/agents.yaml — the versioned template (one unit per agent type):\n#   support_agent:\n#     role: \"Customer Support for {customer}\"\n#     goal: \"Resolve {customer} tickets within policy\"\n#     llm: gpt-5\n#     tools: [search_tool, ticket_tool]\n\nfrom crewai import Agent\nfrom crewai.project import CrewBase, agent\n\nclass SupportFactory(CrewBase):\n    agents_config = \"config/agents.yaml\"        # versioned template\n\n    @agent\n    def support_agent(self) -> Agent:\n        # One template renders every per-customer instance from the same definition.\n        return Agent(config=self.agents_config[\"support_agent\"])\n\n# Provision a fleet: same template, per-instance params.\nfleet = [SupportFactory().support_agent() for customer in customers]\n# Bumping agents.yaml re-renders every instance consistently, instead of editing each.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        }
+      ]
     }
   ]
 }
