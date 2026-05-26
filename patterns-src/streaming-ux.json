@@ -1019,6 +1019,11 @@
         {
           "pattern": "unified-voice-interface",
           "relation": "complements"
+        },
+        {
+          "pattern": "generative-ui",
+          "relation": "complements",
+          "note": "Generative UI rides this typed event stream, specialising it for declarative interface components."
         }
       ],
       "references": [
@@ -1083,7 +1088,7 @@
         "Out-of-order or duplicate event rate — ordering and idempotency violations on the client",
         "Backpressure drop rate — events discarded or queued when the client cannot keep up"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-26"
     },
     {
       "id": "unified-voice-interface",
@@ -1223,6 +1228,168 @@
         "Barge-in handling rate — fraction of mid-speech interruptions the pipeline detects and honours"
       ],
       "last_updated": "2026-05-21"
+    },
+    {
+      "id": "generative-ui",
+      "name": "Generative UI",
+      "aliases": [
+        "Agent-Generated Interface",
+        "生成UI",
+        "Dynamic Agent UI"
+      ],
+      "category": "streaming-ux",
+      "intent": "Let the agent decide which interface components to render at runtime and stream them to the frontend over a typed protocol, so the surface follows the agent's output instead of being hardcoded.",
+      "context": "A team is building a user-facing agent whose output is open-ended: it may answer in prose, show a chart, ask a clarifying question with buttons, render a form, or surface a confirmation step before acting. The frontend is a web or mobile client built ahead of time, with a fixed set of components wired to a fixed response shape. The team has to decide how an interface designed in advance can present whatever the agent decides to produce at runtime.",
+      "problem": "A hardcoded interface can only render the response shapes its developers anticipated, so every new agent capability — a new card type, a new interactive step — needs a coordinated frontend release before users can see it. Pushing the raw model output to a generic chat bubble avoids that coupling but throws away structure: the client receives text and cannot tell a chart from a form from a confirmation prompt, and cannot route an interactive step like a button click back into the agent. Embedding model-generated executable code in the page removes the limit but opens an injection surface the team cannot audit.",
+      "forces": [
+        "An interface built in advance cannot enumerate every output shape an open-ended agent will produce.",
+        "Coupling the frontend to a fixed response schema forces a coordinated release for every new agent capability.",
+        "Sending declarative interface data is auditable; sending executable code is flexible but an injection risk.",
+        "The frontend and the agent backend evolve on different schedules and are often owned by different teams.",
+        "Interactive steps (button clicks, form submits) must round-trip back into the agent's loop, not just render once."
+      ],
+      "therefore": "Therefore: define a typed event protocol over which the agent streams interface intent — declarative component descriptions, state updates, and tool or human-in-the-loop prompts — and let a thin generic renderer turn each event into a widget, so neither side hardcodes the other.",
+      "solution": "Specify an event vocabulary that carries declarative interface structure (component, props, layout), shared state, and interaction requests rather than raw markup or code. The agent emits these events on the same stream as its text; a generic client renderer maps each declared component to a real widget and routes user interactions (clicks, form submits) back to the agent as new events. Because the contract is the protocol, the same frontend works against any agent backend that speaks it, and the agent can introduce new interface shapes without a frontend release. Declarative payloads (for example JSON Lines describing the component tree) keep the surface auditable; executable payloads are avoided unless sandboxed.",
+      "structure": "Agent runtime --emits--> typed event stream (text + declarative components + state) --> generic renderer --maps--> widgets; user interactions --> interaction events --> back into the agent loop. The protocol is the only contract between the two ends.",
+      "consequences": {
+        "benefits": [
+          "A new agent capability can surface in the interface without a coordinated frontend release.",
+          "The same frontend renders against any backend that speaks the protocol; backends can be swapped.",
+          "Declarative payloads keep the rendered surface inspectable and reviewable.",
+          "Interactive steps and human-in-the-loop prompts round-trip through one channel."
+        ],
+        "liabilities": [
+          "A generic renderer can only draw components it already knows; truly novel widgets still need client work.",
+          "A shared protocol is another contract to version; drift between agent and renderer breaks rendering.",
+          "Declarative-only payloads limit interactivity; richer behaviour pushes teams toward riskier executable payloads.",
+          "Latency and reconnection semantics of the event stream become part of the user-perceived experience."
+        ]
+      },
+      "constrains": "The agent cannot ship raw markup or executable code to the client; it may emit only declarative components drawn from the protocol's typed vocabulary, and the renderer must reject events outside that vocabulary.",
+      "known_uses": [
+        {
+          "system": "AG-UI (CopilotKit)",
+          "note": "Agent-User Interaction Protocol: bidirectional event transport between agent backends and frontends, with shared state and frontend tool calls. Adopted by LangChain, Mastra, and PydanticAI among others.",
+          "status": "available",
+          "url": "https://github.com/ag-ui-protocol/ag-ui"
+        },
+        {
+          "system": "A2UI (Google)",
+          "note": "Declarative JSON Lines stream describing interface structure and data model; framework-independent because it ships data, not executable code.",
+          "status": "available"
+        },
+        {
+          "system": "MCP Apps (Anthropic + OpenAI)",
+          "note": "Model Context Protocol extension treating an interface as an interactive resource returned by a tool.",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "streaming-typed-events",
+          "relation": "complements",
+          "note": "Generative UI rides a typed event stream; streaming-typed-events is the transport vocabulary it specialises for interface declarations."
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "complements",
+          "note": "Confirmation and approval steps are rendered as generative-UI components and routed back to the agent."
+        }
+      ],
+      "references": [
+        {
+          "type": "spec",
+          "title": "AG-UI: the Agent-User Interaction Protocol",
+          "year": 2025,
+          "url": "https://docs.ag-ui.com/introduction"
+        },
+        {
+          "type": "repo",
+          "title": "ag-ui-protocol/ag-ui",
+          "year": 2025,
+          "url": "https://github.com/ag-ui-protocol/ag-ui"
+        },
+        {
+          "type": "doc",
+          "title": "Generative UI — Google Cloud",
+          "year": 2025,
+          "url": "https://cloud.google.com/discover/generative-ui"
+        },
+        {
+          "type": "blog",
+          "title": "Generative UI を支える3つのプロトコル — A2UI・AG-UI・MCP Apps の設計思想と使い分け",
+          "year": 2026,
+          "url": "https://zenn.dev/tsuboi/articles/a52773ee9c3dfb"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "streaming",
+        "ux",
+        "frontend",
+        "generative-ui",
+        "protocol"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent's output is open-ended and a fixed set of response shapes cannot capture it.",
+          "Frontend and agent backend are owned by different teams or released on different schedules.",
+          "Interactive steps (forms, confirmations, button choices) must flow back into the agent loop.",
+          "The interface should be swappable across multiple agent backends behind one protocol."
+        ],
+        "do_not_use_when": [
+          "The interface has a small, stable set of response shapes a fixed frontend already covers.",
+          "The product cannot accept the latency or reconnection complexity of a live event stream.",
+          "A single team owns both ends and a hardcoded contract is cheaper than a shared protocol.",
+          "Rendering needs truly novel widgets a generic renderer cannot draw without per-case client work."
+        ]
+      },
+      "variants": [
+        {
+          "name": "Declarative component stream",
+          "summary": "The agent emits a declarative component tree (for example JSON Lines) and the renderer maps it to widgets; no executable code crosses the wire.",
+          "distinguishing_factor": "declarative payload only",
+          "when_to_use": "Default when auditability and a small injection surface matter most."
+        },
+        {
+          "name": "Bidirectional state-sync protocol",
+          "summary": "Full-duplex agent-to-frontend channel with shared mutable state, frontend-executed tool calls, and human-in-the-loop steps.",
+          "distinguishing_factor": "shared state and frontend tools",
+          "when_to_use": "Complex interactive agents where the UI and agent must stay in sync."
+        },
+        {
+          "name": "Tool-returned interface resource",
+          "summary": "The interface is an interactive resource returned by a specific tool call rather than a standing channel.",
+          "distinguishing_factor": "interface scoped to a tool result",
+          "when_to_use": "When the rendered surface belongs to one capability rather than the whole session."
+        }
+      ],
+      "example_scenario": "A support agent normally answers in text, but for a refund it needs to show the order, a reason dropdown, and a confirm button. The frontend was not built with a refund widget. With Generative UI the agent emits a declarative form-and-confirm component over the event stream; the generic renderer draws it, the user picks a reason and clicks confirm, and the click returns to the agent as an event — all without a frontend release for the new flow.",
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant Agent\n  participant Proto as Agent-to-UI Protocol\n  participant R as Generic Renderer\n  participant User\n  Agent->>Proto: emit text_delta + component(form, props)\n  Proto->>R: typed UI events\n  R->>User: render widget from declaration\n  User->>R: click confirm\n  R->>Proto: interaction event\n  Proto->>Agent: resume loop with user input",
+        "caption": "The agent streams declarative interface components; a generic renderer draws them and routes user interactions back into the agent loop."
+      },
+      "components": [
+        "Agent runtime — decides which interface components to emit and produces interface events alongside text",
+        "Agent-to-UI protocol — typed event vocabulary carrying declarative components, shared state, and interaction requests",
+        "Generic renderer — thin frontend client that maps each declared component to a real widget",
+        "Interaction channel — routes user actions (clicks, form submits) back to the agent as events",
+        "Component registry — the renderer's allow-list of component types it can draw and will accept"
+      ],
+      "tools": [
+        "Server-Sent Events or WebSocket transport — carries the ordered typed interface event stream",
+        "Declarative interface schema — component, props, and layout vocabulary the agent emits and the renderer consumes",
+        "Frontend component library — concrete widgets the renderer instantiates from declarations"
+      ],
+      "evaluation_metrics": [
+        "Time-to-first-component — latency from request to the first rendered interface element",
+        "Unknown-component rate — share of emitted components the renderer cannot draw",
+        "Backend-swap success — whether the same frontend renders correctly against a different agent backend",
+        "Interaction round-trip rate — fraction of user actions that successfully re-enter the agent loop",
+        "Rejected-event rate — events dropped for falling outside the declared vocabulary, tracking injection-guard health"
+      ],
+      "last_updated": "2026-05-26"
     }
   ]
 }
