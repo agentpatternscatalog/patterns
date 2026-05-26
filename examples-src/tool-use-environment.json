@@ -1315,6 +1315,34 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "agent-initiated-payment",
+      "intent": "Show an agent answering an HTTP 402 payment-required challenge from a capped wallet, then recording the settlement to a ledger.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: retry a 402 with a signed payment proof, bounded by per-transaction and per-run caps and an allow-list, and ledger every settlement.",
+          "code": "# Capped wallet, enforced OUTSIDE the model:\nwallet = Wallet(balance=5.00, per_tx_cap=0.50, run_budget=5.00,\n                allow=[\"data.example/*\"])\n\nfunction fetch_paid(url, wallet, ledger, run_id):\n    resp = http_get(url)\n    if resp.status != 402:\n        return resp\n    price = parse_money(resp.headers[\"Price\"])\n    payto = resp.headers[\"Pay-To\"]\n\n    # caps + allow-list checked BEFORE any money moves\n    require(price <= wallet.per_tx_cap,                \"exceeds per-tx cap\")\n    require(wallet.spent + price <= wallet.run_budget, \"exceeds run budget\")\n    require(allow_match(wallet.allow, payto),          \"counterparty not allow-listed\")\n\n    proof = wallet.sign_payment(to=payto, amount=price)   # e.g. stablecoin transfer\n    resp  = http_get(url, headers={\"X-PAYMENT\": proof})    # retry with the proof\n    wallet.spent += price\n    ledger.record(run_id=run_id, counterparty=payto, amount=price,\n                  url=url, action=\"fetch\")               # attributable settlement\n    return resp",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        },
+        {
+          "framework": "openai-agents-sdk",
+          "framework_label": "OpenAI Agents SDK",
+          "language": "python",
+          "intent": "Wire an x402-style payment handler as a function tool so the agent can unlock paid resources within enforced spend caps.",
+          "source_url": "https://openai.github.io/openai-agents-python/tools/",
+          "sdk_version": "openai-agents>=0.1.0",
+          "code": "from agents import Agent, function_tool\n\nWALLET = Wallet(per_tx_cap=0.50, run_budget=5.00, allow=[\"data.example/*\"])\n\n@function_tool\ndef fetch_paid_resource(url: str) -> str:\n    \"\"\"Fetch a resource, settling an HTTP 402 challenge from a capped wallet.\"\"\"\n    resp = http_get(url)\n    if resp.status_code == 402:\n        price = parse_money(resp.headers[\"Price\"])\n        payto = resp.headers[\"Pay-To\"]\n        WALLET.assert_within_caps(price, payto)            # enforced outside the model\n        proof = WALLET.sign_payment(payto, price)\n        resp = http_get(url, headers={\"X-PAYMENT\": proof})\n        LEDGER.record(counterparty=payto, amount=price, url=url)\n    return resp.text\n\nagent = Agent(\n    name=\"research-agent\",\n    instructions=\"Use fetch_paid_resource for paywalled data; stay within budget.\",\n    tools=[fetch_paid_resource],\n)",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        }
+      ]
     }
   ]
 }

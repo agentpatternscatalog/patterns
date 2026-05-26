@@ -1804,6 +1804,34 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "delegated-agent-authorization",
+      "intent": "Show an agent exchanging a user's consent for a scoped, short-lived token before a downstream call, never holding the user's primary credentials, with sub-agents getting strictly narrower scope.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Framework-agnostic skeleton: RFC 8693 token exchange yields a task-scoped short-lived token; a sub-agent gets a strictly narrower one; both carry the user as subject.",
+          "code": "# The agent NEVER holds the user's primary credentials.\n\nfunction act_for_user(user_consent_token, task_scope):\n    # RFC 8693 token exchange: trade the subject token for a scoped one\n    token = authz.token_exchange(\n        subject_token = user_consent_token,\n        audience      = \"calendar-api\",\n        scope         = task_scope,          # e.g. \"calendar.events.write\"\n        lifetime      = \"15m\")\n    require(token.scope <= task_scope, \"no wider than the task\")\n    return call_api(\"calendar-api\", token)   # token.sub == user\n\nfunction delegate_to_subagent(parent_token, narrower_scope):\n    require(narrower_scope < parent_token.scope, \"sub-agent scope may only narrow\")\n    return authz.token_exchange(subject_token=parent_token,\n                                scope=narrower_scope, lifetime=\"5m\")\n    # carries the same user as subject; authority only shrinks down the chain\n\n# Every issued token and the action it authorised is logged, so the full\n# user -> agent -> sub-agent principal chain is reconstructable, and any token\n# is revocable centrally without touching the user's own credentials.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        },
+        {
+          "framework": "langgraph",
+          "framework_label": "LangGraph",
+          "language": "python",
+          "intent": "A LangGraph tool fetches a scoped on-behalf-of token via token exchange before each downstream call, so the agent only ever holds a short-lived, task-scoped credential.",
+          "source_url": "https://langchain-ai.github.io/langgraph/",
+          "sdk_version": "langgraph>=0.2.0",
+          "code": "from langchain_core.tools import tool\nfrom langgraph.prebuilt import create_react_agent\n\ndef obo_token(user_token: str, scope: str, ttl=\"15m\") -> str:\n    # RFC 8693 token exchange against the authorization server.\n    return authz.exchange(subject_token=user_token, scope=scope,\n                          lifetime=ttl).access_token\n\n@tool\ndef send_calendar_invite(title: str, *, config) -> str:\n    \"\"\"Create a calendar invite on behalf of the requesting user.\"\"\"\n    user_token = config[\"configurable\"][\"user_consent_token\"]   # never the password\n    token = obo_token(user_token, scope=\"calendar.events.write\")  # task-scoped, 15m\n    return calendar_api.create_event(title, auth=token)\n\nagent = create_react_agent(model=\"openai:gpt-4o\", tools=[send_calendar_invite])\n# Invoke with the per-request user consent token in config; the agent only sees\n# a short-lived, task-scoped token, revocable without touching the account.",
+          "verified": false,
+          "verified_date": null,
+          "last_updated": "2026-05-26"
+        }
+      ]
     }
   ]
 }
