@@ -43,7 +43,13 @@ def build(out_dir: Path) -> None:
     (out_dir / "patterns.json").write_text(
         json.dumps(out, indent=2, ensure_ascii=False) + "\n"
     )
-    shutil.copy(SCHEMA, out_dir / "schema.json")
+
+    def _copy(src: Path, dst: Path) -> None:
+        # No-op when building in place (out_dir == ROOT) to avoid SameFileError.
+        if src.resolve() != dst.resolve():
+            shutil.copy(src, dst)
+
+    _copy(SCHEMA, out_dir / "schema.json")
 
     for extra in (
         "framework-coverage.json",
@@ -57,7 +63,7 @@ def build(out_dir: Path) -> None:
     ):
         src = ROOT / extra
         if src.exists():
-            shutil.copy(src, out_dir / extra)
+            _copy(src, out_dir / extra)
 
     print(f"built {out_dir/'patterns.json'} with {len(patterns)} patterns")
 
