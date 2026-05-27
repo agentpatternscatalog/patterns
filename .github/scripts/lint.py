@@ -280,6 +280,7 @@ def rule_a2() -> list[Violation]:
         "LICENSE",
         ".gitignore",
         "Makefile",
+        "AGENTS.md",
         "schema.json",
         "INDEX.md",
         "framework-coverage.json",
