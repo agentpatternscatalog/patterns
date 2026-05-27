@@ -16,7 +16,7 @@
         "mermaid": "stateDiagram-v2\n  [*] --> Crawl: every action type starts here\n  Crawl --> Walk: clears acceptance-rate bar for hold duration\n  Walk --> Run: clears customer-outcome bar for hold duration\n  Walk --> Crawl: regression below Crawl-Walk bar (with hysteresis)\n  Run --> Walk: regression below Walk-Run customer-outcome bar\n  Run --> Crawl: severe regression / incident-driven demote\n  note right of Crawl\n    Agent emits suggestions only\n    Human accepts / rejects / edits\n  end note\n  note right of Walk\n    Agent acts on internal staff\n    Internal staff can correct\n  end note\n  note right of Run\n    Agent acts on external customers\n    Customer-outcome metric monitored\n  end note"
       },
       "example_scenario": "A mid-size retailer's customer-support team is deploying an AI agent that can answer questions, look up orders, and issue refunds. They enumerate four action types up front: 'reply to FAQ-style ticket', 'lookup order status' (read-only), 'issue refund up to $50', 'issue refund above $50'. They publish per-tier bars: Crawl-Walk requires 90% human acceptance over 200 actions in a two-week window; Walk-Run requires a customer-outcome metric (re-open rate within 7 days < 4%) over 500 actions in three weeks.\n\nOn day one every action type sits at Crawl. The agent drafts; humans accept, edit, or reject. After two weeks, FAQ replies hit 94% acceptance and lookup hits 99% — both promote to Walk. Lookup also clears the customer-outcome bar within a further three weeks (re-open rate flat) and promotes to Run. FAQ replies sit at Walk longer because the re-open rate creeps up to 5% on edge cases involving order modifications; the action type stays at Walk pending fixes.\n\nThe refund actions move separately. Refund-up-to-$50 reaches Walk after a month. Refund-above-$50 stays at Crawl indefinitely by team policy, regardless of acceptance, because the blast radius justifies a permanent human-in-the-loop. Six weeks in, a prompt change inadvertently regressed FAQ acceptance to 81%; the system auto-demoted FAQ back to Crawl, the team rolled back the prompt, and a week later FAQ returned to Walk. Nobody framed the demotion as a failure — it was the gate doing exactly what it was designed to do.",
-      "deep_dive": "The three tiers are **Crawl** (agent emits suggestions only; a human accepts, rejects, or edits each one), **Walk** (agent acts directly on internal staff, who can catch and correct mistakes), and **Run** (agent acts directly on external customers, monitored by a customer-outcome metric).\n\n- **Tier is per-action-type, not per-agent.** Enumerate discrete action types (e.g. `reply_to_ticket`, `issue_refund_le_50`, `issue_refund_gt_50`, `escalate`) and assign each its own current tier. A single deployed agent can simultaneously be at Run for read-only lookups and Crawl for high-value refunds.\n- **Promotion gates carry both a metric bar and a hold duration.** Crawl→Walk is typically gated on a human-acceptance rate over N actions within a window. Walk→Run requires a *different*, customer-facing outcome metric (re-open rate, refund-reversal rate, message-flag rate) — internal acceptance does not imply external success.\n- **Regression is automatic and hysteretic.** If a tier's live metric falls below its bar, the action type auto-demotes one rung. A hysteresis margin (demote below the bar, re-promote only above bar + ε, held for the duration) prevents flapping around the threshold.\n- **Policy can pin a tier.** High-blast-radius action types may be held at Crawl indefinitely by explicit policy regardless of metrics, keeping a permanent human-in-the-loop where no reliable undo exists.\n\nThe core move is decoupling *capability* (the agent can plausibly perform the action) from *autonomy* (the agent is permitted to perform it unsupervised). Capability is necessary but never sufficient; the data clearing the gate is what grants autonomy.",
+      "deep_dive": "The three tiers are **Crawl** (agent emits suggestions only; a human accepts, rejects, or edits each one), **Walk** (agent acts directly on internal staff, who can catch and correct mistakes), and **Run** (agent acts directly on external customers, monitored by a customer-outcome metric).\n\n- **Tier is per-action-type, not per-agent.** Enumerate discrete action types (e.g. `reply_to_ticket`, `issue_refund_le_50`, `issue_refund_gt_50`, `escalate`) and assign each its own current tier. A single deployed agent can simultaneously be at Run for read-only lookups and Crawl for high-value refunds.\n- **Promotion gates carry both a metric bar and a hold duration.** Crawl→Walk is typically gated on a human-acceptance rate over N actions within a window. Walk→Run requires a *different*, customer-facing outcome metric (re-open rate, refund-reversal rate, message-flag rate) — internal acceptance does not imply external success.\n- **Regression is automatic and hysteretic.** If a tier's live metric falls below its bar, the action type auto-demotes one step. A hysteresis margin (demote below the bar, re-promote only above bar + ε, held for the duration) prevents flapping around the threshold.\n- **Policy can pin a tier.** High-blast-radius action types may be held at Crawl indefinitely by explicit policy regardless of metrics, keeping a permanent human-in-the-loop where no reliable undo exists.\n\nThe core move is decoupling *capability* (the agent can plausibly perform the action) from *autonomy* (the agent is permitted to perform it unsupervised). Capability is necessary but never sufficient; the data clearing the gate is what grants autonomy.",
       "intent": "Separate what an agent can do from what it is allowed to do on its own. A system that could plausibly act gets to act only after the data earns it, one action type at a time.",
       "when_to_apply": "Use this for any agent that could plausibly act on its own in ways customers feel. Examples are replying to tickets, refunding orders, sending outbound messages, or changing production resources. The right fit is when one bad action does real harm and there is no reliable way to undo it. Don't apply it for read-only or sandboxed agents, where a bad action causes no harm.",
       "inputs": [
@@ -300,14 +300,14 @@
         "Bornet five levels"
       ],
       "category": "iteration-management",
-      "summary": "A six-rung ladder for how capable an AI agent is. The rungs run from Level 0, fully manual, up to Level 5, fully autonomous, with rule-based, automated, and workflow stages in between. A team picks a target rung based on how risky the task is and how much value it brings. To climb a rung, the lower rung's safety checks must be in place and the agent must pass its tests. This rates the agent as a whole, not one action at a time. Teams use it to agree on what 'done' means before they start building.",
+      "summary": "A six-step ladder for how capable an AI agent is. The steps run from Level 0, fully manual, up to Level 5, fully autonomous, with rule-based, automated, and workflow stages in between. A team picks a target step based on how risky the task is and how much value it brings. To climb a step, the lower step's safety checks must be in place and the agent must pass its tests. This rates the agent as a whole, not one action at a time. Teams use it to agree on what 'done' means before they start building.",
       "diagram": {
         "type": "state",
-        "mermaid": "stateDiagram-v2\n  [*] --> L0: Manual baseline\n  L0 --> L1: rules + automation in place\n  L1 --> L2: ML triggers added (IPA)\n  L2 --> L3: agentic workflow with planning\n  L3 --> L4: semi-autonomous with HITL gates\n  L4 --> L5: fully autonomous, evals + guardrails proven over months\n  L5 --> L4: regression demotes one rung pending fix\n  L4 --> L3: regression demotes one rung pending fix\n  L3 --> L2: regression demotes one rung pending fix\n  note right of L3\n    Each promotion requires:\n    - prior-level guardrails in place\n    - eval set passing at threshold\n    - documented evidence\n  end note\n  note right of L4\n    Skipping rungs (e.g. L1->L4)\n    ships demos that break\n    on production drift\n  end note"
+        "mermaid": "stateDiagram-v2\n  [*] --> L0: Manual baseline\n  L0 --> L1: rules + automation in place\n  L1 --> L2: ML triggers added (IPA)\n  L2 --> L3: agentic workflow with planning\n  L3 --> L4: semi-autonomous with HITL gates\n  L4 --> L5: fully autonomous, evals + guardrails proven over months\n  L5 --> L4: regression demotes one step pending fix\n  L4 --> L3: regression demotes one step pending fix\n  L3 --> L2: regression demotes one step pending fix\n  note right of L3\n    Each promotion requires:\n    - prior-level guardrails in place\n    - eval set passing at threshold\n    - documented evidence\n  end note\n  note right of L4\n    Skipping steps (e.g. L1->L4)\n    ships demos that break\n    on production drift\n  end note"
       },
       "example_scenario": "An insurance carrier is scoping an agent for claims processing across three task families: first-notice-of-loss intake (high volume, low risk per call), document-completeness checks (medium volume, medium risk — wrong call delays payouts), and settlement-amount calculation (low volume, high risk — wrong call costs real money or under-pays customers). The CTO wants L5 'fully autonomous claims agent'. The chief actuary wants L1 'rule-based with human review on everything'. The framework is used to align them.\n\nThey map each task family to a candidate level: FNOL intake at L3 (agentic workflow, since multimodal documents and unstructured speech require reasoning), document-completeness at L2 (IPA — ML triggers on existing OCR pipeline), settlement calculation at L1 (rule-based — actuarial tables don't need an agent, and regulators won't accept opaque reasoning). The CTO and actuary both sign off; the target is explicitly mixed across tasks rather than one number for the whole agent.\n\nFor FNOL intake — the most ambitious — they list the L2 preconditions: OCR pipeline at 98% field-extraction accuracy on the existing form set, exception-routing rules in place, observability into every call. The L3 advancement criteria are: planner-eval passing at the threshold the agent-platform team published, and 60 days of L2 operating with the published exception rate. Construction proceeds one level at a time. Six months in, the team reviews and confirms FNOL has reached L3 with the named evidence; the actuary asks whether settlement could move to L2 given new explainability tools, and they re-open that question. The ladder is a planning instrument, revisited as portfolio risk shifts, not a static org chart.",
-      "deep_dive": "The ladder has six rungs:\n\n- **Level 0 — Manual:** no automation; a human does the task.\n- **Level 1 — Rule-Based:** fixed-rule automation with no learning.\n- **Level 2 — Intelligent Process Automation (IPA):** machine-learning triggers bolted onto an existing automated pipeline (e.g. ML classification on an OCR feed).\n- **Level 3 — Agentic Workflows:** an agent that plans and reasons over multi-step, often multimodal or unstructured input.\n- **Level 4 — Semi-Autonomous:** the agent acts, but with human-in-the-loop gates on consequential decisions.\n- **Level 5 — Fully Autonomous:** the agent operates unsupervised, justified only after evals and guardrails have held over months.\n\n**Selection and gating.** The target rung is chosen by task risk and business value, not by technical ambition. Targets are typically *mixed across a task portfolio* — one agent can be L4 for FAQ and L2 for refunds. Advancement is gated: each promotion requires the prior level's guardrails already in place, the eval set passing at a published threshold, and documented evidence (e.g. L4→L5 requires months of logged human-in-the-loop acceptance at threshold).\n\n**Build discipline.** Advance one rung at a time. Skipping rungs (L1→L4) ships demos that collapse on first production drift, because the eval at the destination level was never built.\n\nThis is a planning and stakeholder-alignment instrument used *before* construction and revisited as portfolio risk shifts — distinct from a per-action-type runtime promotion gate (crawl-walk-run), which it should be paired with at runtime.",
-      "intent": "Place an agent on a six-rung capability ladder. This makes the target level of independence, and the safety checks needed to reach it, clear before anyone builds.",
+      "deep_dive": "The ladder has six steps:\n\n- **Level 0 — Manual:** no automation; a human does the task.\n- **Level 1 — Rule-Based:** fixed-rule automation with no learning.\n- **Level 2 — Intelligent Process Automation (IPA):** machine-learning triggers bolted onto an existing automated pipeline (e.g. ML classification on an OCR feed).\n- **Level 3 — Agentic Workflows:** an agent that plans and reasons over multi-step, often multimodal or unstructured input.\n- **Level 4 — Semi-Autonomous:** the agent acts, but with human-in-the-loop gates on consequential decisions.\n- **Level 5 — Fully Autonomous:** the agent operates unsupervised, justified only after evals and guardrails have held over months.\n\n**Selection and gating.** The target step is chosen by task risk and business value, not by technical ambition. Targets are typically *mixed across a task portfolio* — one agent can be L4 for FAQ and L2 for refunds. Advancement is gated: each promotion requires the prior level's guardrails already in place, the eval set passing at a published threshold, and documented evidence (e.g. L4→L5 requires months of logged human-in-the-loop acceptance at threshold).\n\n**Build discipline.** Advance one step at a time. Skipping steps (L1→L4) ships demos that collapse on first production drift, because the eval at the destination level was never built.\n\nThis is a planning and stakeholder-alignment instrument used *before* construction and revisited as portfolio risk shifts — distinct from a per-action-type runtime promotion gate (crawl-walk-run), which it should be paired with at runtime.",
+      "intent": "Place an agent on a six-step capability ladder. This makes the target level of independence, and the safety checks needed to reach it, clear before anyone builds.",
       "when_to_apply": "Use this early, when you are scoping an agent project. It helps most when people disagree on how independent the system should be, or when you are planning a roadmap that spans several quarters. It also works as a look-back tool: 'we said L4, we shipped L2.5'. Don't apply it once building is underway and the per-action gate (crawl-walk-run) is the right tool. The ladder is for planning, not for runtime control.",
       "inputs": [
         {
@@ -326,21 +326,21 @@
       "outputs": [
         {
           "name": "Target level declaration",
-          "description": "The target rung on the L0 to L5 ladder, set per task or per system, with the reason for it."
+          "description": "The target step on the L0 to L5 ladder, set per task or per system, with the reason for it."
         },
         {
           "name": "Advancement criteria",
-          "description": "The named safety checks, tests, and live signals required to climb one rung."
+          "description": "The named safety checks, tests, and live signals required to climb one step."
         },
         {
           "name": "Capability roadmap",
-          "description": "A step-by-step plan to move from the current rung to the target rung."
+          "description": "A step-by-step plan to move from the current step to the target step."
         }
       ],
       "steps": [
         {
           "name": "Map tasks to candidate levels",
-          "description": "For each task, find its natural rung. The rungs are manual (L0), rule-based (L1), ML triggers on existing automation (L2), an agent that plans (L3), semi-autonomous with human gates (L4), and fully autonomous (L5). Let the task's risk and value drive the choice, not technical excitement."
+          "description": "For each task, find its natural step. The steps are manual (L0), rule-based (L1), ML triggers on existing automation (L2), an agent that plans (L3), semi-autonomous with human gates (L4), and fully autonomous (L5). Let the task's risk and value drive the choice, not technical excitement."
         },
         {
           "name": "Declare a target level per task or system",
@@ -348,7 +348,7 @@
         },
         {
           "name": "Define prior-level guardrails as preconditions",
-          "description": "For each rung, list the safety checks and tests that must already pass at the rung below before you consider climbing. Moving from L4 to L5 usually requires months of logged human acceptance at the published bar.",
+          "description": "For each step, list the safety checks and tests that must already pass at the step below before you consider climbing. Moving from L4 to L5 usually requires months of logged human acceptance at the published bar.",
           "uses_patterns": [
             "human-in-the-loop",
             "approval-queue"
@@ -356,24 +356,24 @@
         },
         {
           "name": "Build to one level above current",
-          "description": "Climb one rung at a time. Skipping rungs, such as jumping from L1 to L4, tends to ship demos that break once real traffic shifts."
+          "description": "Climb one step at a time. Skipping steps, such as jumping from L1 to L4, tends to ship demos that break once real traffic shifts."
         },
         {
           "name": "Gate advancement on evidence",
-          "description": "Climb only when the named safety checks are in place and the test set passes the bar. Write down the evidence. If the numbers drop at a higher rung, the system moves down one rung until it is fixed.",
+          "description": "Climb only when the named safety checks are in place and the test set passes the bar. Write down the evidence. If the numbers drop at a higher step, the system moves down one step until it is fixed.",
           "uses_patterns": [
             "shadow-canary"
           ]
         },
         {
           "name": "Revisit target level on portfolio shifts",
-          "description": "When a task's risk or value changes, such as a new regulation or a new product line, set the target rung again. The ladder is for planning, not a permanent label."
+          "description": "When a task's risk or value changes, such as a new regulation or a new product line, set the target step again. The ladder is for planning, not a permanent label."
         }
       ],
       "principles": [
         "The autonomy level is a planning choice. It is driven by task risk and value, not by technical capability alone.",
-        "Climb one rung at a time. Skipping rungs ships demos that production breaks.",
-        "Higher rungs need the lower rungs' safety checks already in place.",
+        "Climb one step at a time. Skipping steps ships demos that production breaks.",
+        "Higher steps need the lower steps' safety checks already in place.",
         "The ladder is for aligning stakeholders, not for runtime control. Pair it with per-action gating at runtime."
       ],
       "applies_to": [
@@ -403,7 +403,7 @@
         },
         {
           "pattern": "demo-to-production-cliff",
-          "note": "Skipping rungs collapses on first production drift; the eval at the destination level never existed."
+          "note": "Skipping steps collapses on first production drift; the eval at the destination level never existed."
         },
         {
           "pattern": "perma-beta",
