@@ -296,6 +296,11 @@ def rule_a2() -> list[Violation]:
         "methodologies.schema.json",
         "pattern-todo.json",
         "pattern-todo.schema.json",
+        "training.json",
+        "training.schema.json",
+        "training-todo.json",
+        "training-todo.schema.json",
+        "TRENDS.md",
     }
     allowed_dirs = {
         "patterns-src",
@@ -306,6 +311,8 @@ def rule_a2() -> list[Violation]:
         "examples-src",
         "methodologies-src",
         "pattern-todo-archive",
+        "training-src",
+        "training-todo-src",
     }
     for f in root_files:
         if f not in allowed_top:
