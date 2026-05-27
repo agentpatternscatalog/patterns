@@ -5,68 +5,103 @@
     {
       "id": "tools-first-then-rag",
       "name": "Tools-First, Then RAG",
-      "aliases": ["check-the-knowledge-shape", "anti-naive-RAG-first"],
+      "aliases": [
+        "check-the-knowledge-shape",
+        "anti-naive-RAG-first"
+      ],
       "category": "rag-construction",
-      "summary": "Before reaching for retrieval-augmented generation, check whether the knowledge actually needs retrieval. Structured stores want SQL or API calls; small scoped corpora want inlined documents; only genuinely unstructured large corpora want semantic retrieval over embeddings. Naive RAG-first burns engineering effort and produces approximate answers where a typed tool call would have been exact.",
-      "intent": "Force a knowledge-shape check before adopting embedding retrieval — pick the cheapest access mechanism that fits the knowledge.",
-      "when_to_apply": "Starting any knowledge-grounded agent or LLM app — customer-support bot, internal Q&A, docs helper, policy assistant. Apply before the team commits to a vector store. Don't apply once the knowledge has already been shown to be unstructured and high-volume — then RAG is correct from the start.",
+      "summary": "Before you build RAG (retrieval-augmented generation), check whether the knowledge really needs search at all. Data that lives in a database or behind an API is best reached with a direct query or API call. A small, stable set of text can just be pasted into the prompt. Only large piles of unstructured text actually need search over embeddings. Reaching for RAG by default wastes effort and gives fuzzy answers in cases where a direct query would have been exact.",
+      "intent": "Check what shape your knowledge is in before you choose search, then pick the simplest way to reach each source.",
+      "when_to_apply": "Use this when you start any agent or app that answers from a body of knowledge: a support bot, an internal Q&A tool, a docs helper, a policy assistant. Run it before you commit to a vector store. Don't apply it if you already know the knowledge is large and unstructured, because then RAG is the right choice from the start.",
       "inputs": [
-        {"name": "Knowledge inventory", "description": "An enumeration of the knowledge sources the agent must reach — databases, APIs, document repositories, internal wikis, web pages."},
-        {"name": "Per-source schema or sample", "description": "For each source: structure (tables / endpoints / fields), size, change rate, and a handful of representative records."},
-        {"name": "User query distribution", "description": "Sample queries from the target user population — what they actually ask, not what the team imagines they ask."}
+        {
+          "name": "Knowledge inventory",
+          "description": "A list of every knowledge source the agent has to reach: databases, APIs, document stores, internal wikis, web pages."
+        },
+        {
+          "name": "Per-source schema or sample",
+          "description": "For each source: how it is structured (tables, endpoints, fields), how big it is, how often it changes, and a few sample records."
+        },
+        {
+          "name": "User query distribution",
+          "description": "A sample of the questions real users ask, not the ones the team imagines they ask."
+        }
       ],
       "outputs": [
-        {"name": "Access-mechanism assignment per source", "description": "Per knowledge source: chosen access mechanism (tool call / inlined doc / RAG / hybrid) and the rationale."},
-        {"name": "Tool catalogue", "description": "The set of typed tool calls (SQL, API, search) the agent will use to reach structured sources."},
-        {"name": "RAG corpus boundary", "description": "Only the genuinely unstructured remainder, scoped tightly."}
+        {
+          "name": "Access-mechanism assignment per source",
+          "description": "For each source: how the agent will reach it (direct call, pasted-in text, search, or a mix) and why."
+        },
+        {
+          "name": "Tool catalogue",
+          "description": "The set of direct calls (SQL, API, search) the agent uses to reach structured sources."
+        },
+        {
+          "name": "RAG corpus boundary",
+          "description": "The leftover unstructured text, kept as small as possible, that will go through search."
+        }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  inv[Knowledge inventory] --> classify{Per source: shape?}\n  classify -- structured store/API --> tool[Author typed tool: SQL / API / search]\n  classify -- small stable corpus --> inline[Inline in system prompt or scoped doc]\n  classify -- large unstructured --> rag[Build RAG on residual only]\n  classify -- mixed --> split[Split the source]\n  split --> classify\n  tool --> eval[Measure end-to-end correctness on eval set]\n  inline --> eval\n  rag --> eval\n  eval -- retriever beats tool? --> fixtool[Fix the tool, not the retriever]\n  fixtool --> tool\n  eval -- correct --> out[Per-source access-mechanism assignment]"
       },
-      "example_scenario": "A two-person team at a SaaS HR-tech vendor is building an internal 'people-ops copilot' for HR partners. The reflex of the day was 'load every HR document into a vector store and use RAG.' They paused and ran the methodology.\n\nKnowledge inventory listed: an HRIS database (employees, roles, managers, comp bands), a benefits-vendor API (current elections, claim status), a Confluence space of about 4,000 pages of HR policies, a 12-page employee handbook, and a Slack-archive of partner Q&A. Classification: HRIS → SQL tool; benefits-vendor → typed API tool; the 12-page handbook → inlined into the system prompt (under 5k tokens); the Confluence policies → genuinely unstructured, large, candidate for RAG; the Slack archive → split, with structured tags pulled into a tool and free-text retained for RAG. They built three typed tools first — get_employee, get_benefits_elections, search_handbook_tags — and only then built a small RAG store over the Confluence subset and the Slack free-text.\n\nMeasuring on the eval set, the team found a query class — 'what's my PTO balance' — where RAG was winning over the get_employee tool. The retriever was returning a policy page with an example calculation, and the model was using the example numbers. They fixed the tool (added a PTO field), not the retriever. End-to-end correctness for that query class jumped from 71% to 99%. Total vector-store footprint ended up about one-tenth of the naive 'everything in embeddings' design; latency on the structured 80% of queries was a single round-trip rather than a retrieve-rerank-generate chain.",
+      "example_scenario": "A two-person team at an HR-tech company is building an internal 'people-ops copilot' for HR staff. The popular move at the time was 'load every HR document into a vector store and use RAG.' They stopped and ran this methodology instead.\n\nTheir knowledge inventory listed: an HR database (employees, roles, managers, pay bands), a benefits-vendor API (current choices, claim status), a Confluence space of about 4,000 pages of HR policy, a 12-page employee handbook, and a Slack archive of staff Q&A. They sorted each one. The HR database became a SQL tool. The benefits vendor became an API tool. The 12-page handbook was pasted into the prompt (under 5k tokens). The Confluence policies were large and unstructured, so they became the candidate for RAG. The Slack archive was split: the structured tags went into a tool, and the free text stayed for RAG. They built three direct tools first (get_employee, get_benefits_elections, search_handbook_tags), and only then built a small RAG store over the Confluence subset and the Slack free text.\n\nWhen they ran their test set, one kind of question ('what's my PTO balance') was being answered better by RAG than by the get_employee tool. The search was pulling up a policy page with an example calculation, and the model was copying the example numbers. So they fixed the tool by adding a PTO field, rather than tuning the search. Correctness for that kind of question jumped from 71% to 99%. The vector store ended up about one-tenth the size of the 'everything in embeddings' design, and the 80% of questions handled by direct tools took a single round-trip instead of a retrieve-rerank-generate chain.",
+      "deep_dive": "The decision rule is a knowledge-shape classification. For each source, work out its access shape and route it accordingly.\n\n- **Structured stores** (relational databases, typed REST/GraphQL APIs, key-value stores): expose them through typed tool calls — parameterised SQL, an API client, or a search endpoint. Tool calls return exact, schema-conformant results and avoid the precision/recall losses inherent in embedding retrieval.\n- **Small, stable corpora** (under ~5k tokens): inline them into the system prompt or load them on demand. No retrieval round-trip, full fidelity, and no chunking artefacts.\n- **Large, unstructured corpora**: route through retrieval-augmented generation. Chunk, embed, and index the text in a vector store; at query time run a retrieve-rerank-generate pipeline (dense or hybrid BM25+dense retrieval, an optional cross-encoder rerank, then generation grounded on the retrieved passages).\n- **Mixed sources**: decompose them. Lift the structured fields into a tool and keep only the free-text remainder for RAG.\n\nEnd-to-end evaluation is the arbiter. When a retriever beats a tool call on a query class that has a structured source behind it, the correct fix is to repair the tool (add the missing field, widen the query) rather than tune the retriever: the retriever is usually winning by accident on a leaked example value, and that win will not generalise. Keeping RAG as the residual mechanism holds the vector-store footprint down and bounds the retrieval-quality surface you have to evaluate.",
       "steps": [
         {
           "name": "Inventory the knowledge",
-          "description": "For each knowledge source the agent must reach, record structure, size, and update cadence. Don't proceed until every source is named."
+          "description": "List every knowledge source the agent has to reach. For each one, note how it is structured, how big it is, and how often it changes. Don't move on until every source is on the list."
         },
         {
-          "name": "Classify each source by access shape",
-          "description": "Structured store (database, typed API) → tool call. Small scoped corpus (under ~5k tokens of stable text) → inline in the system prompt or load on demand. Large unstructured corpus → candidate for retrieval. Mixed → split the source."
+          "name": "Sort each source by how you reach it",
+          "description": "A database or typed API becomes a direct call. A small, stable set of text (under about 5k tokens) gets pasted into the prompt or loaded on demand. A large, unstructured pile of text is a candidate for search. A mixed source gets split apart."
         },
         {
           "name": "Build the tools first",
-          "description": "For every structured source, author a typed tool: SQL helper, API client, search endpoint. The agent calls these directly; no embeddings involved.",
-          "uses_patterns": ["tool-use"]
+          "description": "For every structured source, write a direct call: a SQL helper, an API client, or a search endpoint. The agent calls these straight away, with no embeddings involved.",
+          "uses_patterns": [
+            "tool-use"
+          ]
         },
         {
-          "name": "Inline the small corpora",
-          "description": "For small stable corpora, inline them — system prompt, loaded document, scoped context. No retrieval round-trip; full fidelity."
+          "name": "Paste in the small sets of text",
+          "description": "Put small, stable sets of text straight into the prompt or a loaded document. There is no search round-trip and nothing gets lost."
         },
         {
-          "name": "Build RAG only for the residual",
-          "description": "Anything that didn't fit step 3 or 4 — large unstructured text, multi-tenant variable corpora — goes through retrieval. The corpus is now bounded and the retrieval evaluation is scoped."
+          "name": "Build RAG only for what's left",
+          "description": "Whatever didn't fit the earlier steps — large, unstructured text — goes through search. By now the body of text is small and well-defined, so testing the search is easy to scope."
         },
         {
-          "name": "Measure end-to-end correctness",
-          "description": "On the eval set, compare correctness of tool-call answers against retrieval answers for overlapping queries. If retrieval is winning for a query class that has a structured source, fix the tool, don't tune the retriever."
+          "name": "Measure correctness end to end",
+          "description": "On your test set, compare the answers from direct calls against the answers from search for the same questions. If search wins for a question that has a structured source behind it, fix the tool rather than tuning the search."
         }
       ],
       "principles": [
-        "Knowledge shape determines access shape — pick the mechanism that fits.",
-        "Typed tool calls return exact answers; retrieval returns approximate passages — prefer exact when the shape supports it.",
-        "RAG is the residual mechanism, not the default.",
-        "If a retriever is winning over a tool call, the tool is wrong, not the principle."
+        "The shape of the knowledge decides how you reach it. Pick the method that fits.",
+        "Direct calls return exact answers; search returns rough passages. Prefer exact answers when the source allows it.",
+        "RAG is the leftover option, not the default.",
+        "If search beats a direct call, the tool is wrong, not the rule."
       ],
-      "applies_to": ["agent", "rag-system", "llm-app"],
+      "applies_to": [
+        "agent",
+        "rag-system",
+        "llm-app"
+      ],
       "related_patterns": [
         "tool-use",
         "naive-rag-first"
       ],
-      "related_compositions": ["production-rag"],
-      "related_methodologies": ["evaluation-driven-development"],
+      "related_compositions": [
+        "production-rag"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development"
+      ],
       "known_failure_modes": [
-        {"pattern": "naive-rag-first", "note": "Reaching for RAG as the default mechanism without checking whether the knowledge is structured."}
+        {
+          "pattern": "naive-rag-first",
+          "note": "Reaching for RAG as the default mechanism without checking whether the knowledge is structured."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -92,8 +127,12 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["rag-decision", "knowledge-shape", "anti-naive-rag"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "rag-decision",
+        "knowledge-shape",
+        "anti-naive-rag"
+      ]
     }
   ]
 }

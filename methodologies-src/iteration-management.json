@@ -10,69 +10,70 @@
         "autonomy tiers"
       ],
       "category": "iteration-management",
-      "summary": "Roll an agent out in three explicit autonomy tiers with explicit gates between them. Crawl emits only suggestions, a human acts. Walk acts on internal staff who can correct it. Run acts directly on external customers. Tier is per-action-type, not per-agent — the same agent can be in Run for low-risk read actions and Crawl for refunds. Promotion requires clearing a published metric bar; regression demotes automatically.",
+      "summary": "Roll an agent out in three stages, with a clear gate between each one. In the first stage the agent only suggests, and a person acts. In the second stage the agent acts on internal staff, who can fix mistakes. In the third stage the agent acts directly on outside customers. Each stage is set per action type, not for the whole agent. The same agent can be in the last stage for safe read-only actions and the first stage for refunds. To move up a stage, an action type must clear a published metric bar. If its numbers drop, it moves back down on its own.",
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Crawl: every action type starts here\n  Crawl --> Walk: clears acceptance-rate bar for hold duration\n  Walk --> Run: clears customer-outcome bar for hold duration\n  Walk --> Crawl: regression below Crawl-Walk bar (with hysteresis)\n  Run --> Walk: regression below Walk-Run customer-outcome bar\n  Run --> Crawl: severe regression / incident-driven demote\n  note right of Crawl\n    Agent emits suggestions only\n    Human accepts / rejects / edits\n  end note\n  note right of Walk\n    Agent acts on internal staff\n    Internal staff can correct\n  end note\n  note right of Run\n    Agent acts on external customers\n    Customer-outcome metric monitored\n  end note"
       },
       "example_scenario": "A mid-size retailer's customer-support team is deploying an AI agent that can answer questions, look up orders, and issue refunds. They enumerate four action types up front: 'reply to FAQ-style ticket', 'lookup order status' (read-only), 'issue refund up to $50', 'issue refund above $50'. They publish per-tier bars: Crawl-Walk requires 90% human acceptance over 200 actions in a two-week window; Walk-Run requires a customer-outcome metric (re-open rate within 7 days < 4%) over 500 actions in three weeks.\n\nOn day one every action type sits at Crawl. The agent drafts; humans accept, edit, or reject. After two weeks, FAQ replies hit 94% acceptance and lookup hits 99% — both promote to Walk. Lookup also clears the customer-outcome bar within a further three weeks (re-open rate flat) and promotes to Run. FAQ replies sit at Walk longer because the re-open rate creeps up to 5% on edge cases involving order modifications; the action type stays at Walk pending fixes.\n\nThe refund actions move separately. Refund-up-to-$50 reaches Walk after a month. Refund-above-$50 stays at Crawl indefinitely by team policy, regardless of acceptance, because the blast radius justifies a permanent human-in-the-loop. Six weeks in, a prompt change inadvertently regressed FAQ acceptance to 81%; the system auto-demoted FAQ back to Crawl, the team rolled back the prompt, and a week later FAQ returned to Walk. Nobody framed the demotion as a failure — it was the gate doing exactly what it was designed to do.",
-      "intent": "Decouple capability from autonomy so a system that can plausibly act gets to act only after the data justifies it, per action type.",
-      "when_to_apply": "Any agent that could plausibly act autonomously on customer-facing actions — reply to tickets, refund orders, send outbound messages, modify production resources. The blast radius of a single bad action is non-trivial and there is no reliable undo. Don't apply to read-only or sandboxed agents where the blast radius is zero.",
+      "deep_dive": "The three tiers are **Crawl** (agent emits suggestions only; a human accepts, rejects, or edits each one), **Walk** (agent acts directly on internal staff, who can catch and correct mistakes), and **Run** (agent acts directly on external customers, monitored by a customer-outcome metric).\n\n- **Tier is per-action-type, not per-agent.** Enumerate discrete action types (e.g. `reply_to_ticket`, `issue_refund_le_50`, `issue_refund_gt_50`, `escalate`) and assign each its own current tier. A single deployed agent can simultaneously be at Run for read-only lookups and Crawl for high-value refunds.\n- **Promotion gates carry both a metric bar and a hold duration.** Crawl→Walk is typically gated on a human-acceptance rate over N actions within a window. Walk→Run requires a *different*, customer-facing outcome metric (re-open rate, refund-reversal rate, message-flag rate) — internal acceptance does not imply external success.\n- **Regression is automatic and hysteretic.** If a tier's live metric falls below its bar, the action type auto-demotes one rung. A hysteresis margin (demote below the bar, re-promote only above bar + ε, held for the duration) prevents flapping around the threshold.\n- **Policy can pin a tier.** High-blast-radius action types may be held at Crawl indefinitely by explicit policy regardless of metrics, keeping a permanent human-in-the-loop where no reliable undo exists.\n\nThe core move is decoupling *capability* (the agent can plausibly perform the action) from *autonomy* (the agent is permitted to perform it unsupervised). Capability is necessary but never sufficient; the data clearing the gate is what grants autonomy.",
+      "intent": "Separate what an agent can do from what it is allowed to do on its own. A system that could plausibly act gets to act only after the data earns it, one action type at a time.",
+      "when_to_apply": "Use this for any agent that could plausibly act on its own in ways customers feel. Examples are replying to tickets, refunding orders, sending outbound messages, or changing production resources. The right fit is when one bad action does real harm and there is no reliable way to undo it. Don't apply it for read-only or sandboxed agents, where a bad action causes no harm.",
       "inputs": [
         {
           "name": "Catalog of action types",
-          "description": "An enumerated list of distinct action types the agent can emit, each with its own blast radius."
+          "description": "A list of every distinct action the agent can take. Each one has its own level of risk if it goes wrong."
         },
         {
           "name": "Promotion bar per tier",
-          "description": "Published thresholds (acceptance rate, internal completion, customer-outcome) that an action type must clear to advance to the next tier."
+          "description": "Published targets an action type must hit to move up a stage. These cover human acceptance, internal completion, and customer outcomes."
         },
         {
           "name": "Per-action-type metric pipeline",
-          "description": "Telemetry that records, for every action, which tier it ran at and what happened next."
+          "description": "Logging that records, for every action, which stage it ran at and what happened next."
         }
       ],
       "outputs": [
         {
           "name": "Per-action-type tier assignment",
-          "description": "Live mapping from action type to current tier (Crawl / Walk / Run)."
+          "description": "A live map from each action type to its current stage (Crawl, Walk, or Run)."
         },
         {
           "name": "Promotion log",
-          "description": "An auditable record of which action types advanced/regressed, when, and on what evidence."
+          "description": "A record you can audit. It shows which action types moved up or down, when, and on what evidence."
         }
       ],
       "steps": [
         {
           "name": "Enumerate action types",
-          "description": "List the discrete action types the agent can take. 'Reply to ticket', 'issue refund up to $50', 'issue refund above $50', 'escalate to human' are four distinct types, not one."
+          "description": "List every distinct action the agent can take. 'Reply to ticket', 'issue refund up to $50', 'issue refund above $50', and 'escalate to human' are four separate types, not one."
         },
         {
           "name": "Publish the metric bar per tier",
-          "description": "For each tier, write down the metric (acceptance rate, completion rate, customer outcome) and the threshold that must be cleared to advance. Pin the duration each tier must hold before promotion is considered."
+          "description": "For each stage, write down the metric and the target an action type must hit to move up. Use acceptance rate, completion rate, or customer outcome. Also set how long each stage must hold before you consider promotion."
         },
         {
           "name": "Start every action type at Crawl",
-          "description": "On day one, no action type is in Walk or Run regardless of how the system was developed. Crawl emits suggestions; a human accepts/rejects/edits."
+          "description": "On day one, no action type starts in Walk or Run, no matter how it was built. In Crawl the agent only suggests. A human accepts, rejects, or edits each suggestion."
         },
         {
           "name": "Promote one action type at a time",
-          "description": "When an action type clears the Crawl→Walk bar, promote that one type. The agent now acts on internal staff for that action; everything else stays at Crawl."
+          "description": "When an action type clears the Crawl-to-Walk bar, move up that one type only. The agent now acts on internal staff for that action. Everything else stays in Crawl."
         },
         {
           "name": "Watch for regression and auto-demote",
-          "description": "If a tier's metric falls below its bar (with a hysteresis margin to avoid flapping), demote that action type back. The demotion is not a failure event — it's the system working."
+          "description": "If a stage's metric drops below its bar, move that action type back down. Use a small margin so it does not bounce up and down. A demotion is not a failure. It is the system working as designed."
         },
         {
           "name": "Advance to Run with the customer-outcome metric",
-          "description": "Walk→Run requires not just internal acceptance but a customer-facing outcome metric (resolved ticket without re-open, refund not reversed, message not flagged). Internal acceptance ≠ external success."
+          "description": "Moving from Walk to Run needs more than internal acceptance. It needs a real customer outcome, such as a ticket that stays resolved, a refund that is not reversed, or a message that is not flagged. Internal acceptance is not the same as customer success."
         }
       ],
       "principles": [
-        "Autonomy is a property of action types, not of the agent.",
-        "Every tier publishes both a metric bar and a duration — duration prevents one good week from advancing a risky action.",
-        "Promotion is one-action-at-a-time; regression is automatic.",
-        "Internal acceptance is not customer success — the Walk→Run gate uses a different metric than Crawl→Walk."
+        "Autonomy belongs to action types, not to the agent as a whole.",
+        "Every stage publishes both a metric bar and a hold time. The hold time stops one good week from promoting a risky action.",
+        "Promote one action at a time. Demote automatically.",
+        "Internal acceptance is not customer success. The Walk-to-Run gate uses a different metric from the Crawl-to-Walk gate."
       ],
       "applies_to": [
         "agent",
@@ -128,7 +129,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "autonomy-tiers",
         "progressive-rollout",
@@ -143,57 +144,58 @@
         "shadow-to-bandit promotion"
       ],
       "category": "iteration-management",
-      "summary": "Promote an agent change through escalating exposure stages: shadow (runs alongside production with no user impact and is compared offline), canary (a small slice of real traffic at full risk), then Bayesian bandits or A/B that allocate traffic by observed reward. Each stage is a gate — regression at any stage halts the rollout and triggers regression-trace collection. Distinct from a tier-based autonomy ladder because the unit of promotion here is an individual change (prompt, model, retrieval tweak), not an action type.",
+      "summary": "Roll out a change to an agent in stages that expose more users as confidence grows. First, run the new version next to the live one and compare them offline, so no user is affected (a shadow run). Next, send a small slice of real traffic to the new version at full risk (a canary). Last, let the system send more traffic to whichever version gets better results from real users. Each stage is a gate. If the numbers get worse at any stage, the rollout stops and the failing cases are saved for study. This works on one change at a time, such as a new prompt, model, or retrieval tweak, rather than on a whole action type.",
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Shadow: candidate change submitted\n  Shadow --> Canary: shadow diff acceptable, no latency/error regression\n  Shadow --> Halted: gross output drift or crash\n  Canary --> Bandit: clears canary exit criteria on 1-5% slice\n  Canary --> Halted: any exit criterion violated\n  Bandit --> Promoted: posterior reward sustained above incumbent\n  Bandit --> Halted: posterior reward falls below incumbent with confidence\n  Halted --> Shadow: fixed build resubmitted\n  Halted --> [*]: change abandoned\n  Promoted --> [*]\n  note right of Halted\n    Regression traces captured\n    Folded into eval set\n  end note"
       },
       "example_scenario": "A team running a high-volume customer-support chatbot has a new prompt that they believe handles refund-policy questions better. They submit it as a candidate change. Shadow stage: production traffic is mirrored to the new prompt for 48 hours; outputs are diffed offline against the incumbent. Latency comes in 6ms lower, no crashes, output drift modest and concentrated exactly on refund-policy queries (the targeted improvement). Shadow passes.\n\nCanary stage: 2% of live traffic routes to the new prompt with the frozen exit criteria — minimum 4,000 conversations, no >0.5% absolute error-rate regression, no >5% latency p95 regression, guardrail-trip count not increasing. After 36 hours the criteria are met on every axis, including a 3-point lift on the refund-question subset. Canary passes. Allocation is handed to a Bayesian bandit with the new prompt and the incumbent as the two arms; reward is binary thumbs-up from the user. Within five days the bandit has shifted to 78% allocation to the new prompt because its posterior reward is sustained 4 points above the incumbent.\n\nA week later, an unrelated retrieval change is canary-tested and fails — the canary error rate spiked because the retriever returned empty results on a class of queries the shadow comparison hadn't surfaced. The build is halted, the failing traces are bundled and added to the regression eval set, and the change goes back for rework. The team didn't roll back quietly — the trace bundle is exactly what's needed to write the next round of tests, so the failure produces a permanent improvement to the harness rather than just an embarrassed Slack thread.",
-      "intent": "Promote agent changes through staged exposure (shadow then canary then bandit/A-B) so production exposure scales with observed reward, with regression auto-halting promotion.",
-      "when_to_apply": "Any production agent or LLM application where changes ship continuously and bad changes can degrade user experience or cost. Especially when traffic is high enough to learn from (canary needs enough volume to detect regressions). Don't apply to low-volume systems where Bayesian bandits cannot accumulate enough signal — fall back to plain shadow plus manual cutover.",
+      "deep_dive": "The rollout has three escalating exposure stages, each with a frozen exit criterion set before the stage opens.\n\n- **Shadow.** Production traffic is mirrored to the candidate build, which runs in parallel but its outputs never reach users. Outputs and metrics are diffed offline against the incumbent. This catches crashes, latency regressions, and gross output drift at zero user risk.\n- **Canary.** A small live slice (typically 1-5%) is routed to the candidate at full risk. Exit criteria are concrete and frozen: minimum sample size, maximum allowed absolute error-rate regression, maximum p95 latency regression, and a non-increasing guardrail-trip count, all over a fixed window.\n- **Bandit / A-B.** Once the canary clears, traffic allocation is handed to a multi-armed bandit — usually a Bayesian (Thompson-sampling) bandit — with the candidate and incumbent as arms. A per-request reward signal (binary thumbs-up, task completion, downstream metric) updates each arm's posterior reward distribution, and allocation grows toward the arm with the higher sustained posterior. Below the traffic volume a bandit needs to accumulate signal, fall back to a fixed A/B split or canary-with-manual-cutover.\n\n**Auto-halt and regression capture.** Any exit-criterion violation halts promotion. The bandit also self-corrects: if the candidate's posterior reward falls below the incumbent's with confidence, allocation naturally drains away from it; pair this with an explicit rollback threshold to fully demote the build. Crucially, regressions are first-class outputs — the failing traces are bundled and folded into the regression eval set, so each failure permanently hardens the test harness.\n\nThe unit of promotion is an individual change (a prompt, a model swap, a retrieval tweak), which is what distinguishes this from a per-action-type autonomy ladder.",
+      "intent": "Move an agent change through stages that widen exposure as results hold up. Run it in shadow, then on a small canary slice, then let traffic shift toward the better version. A drop in the numbers stops the rollout on its own.",
+      "when_to_apply": "Use this for any live agent or LLM app where changes ship often and a bad change can hurt the user experience or cost. It works best when traffic is high, because the small canary slice needs enough volume to catch problems. Don't apply the traffic-shifting stage on low-volume systems, where the learning method (a multi-armed bandit) cannot gather enough signal. There, fall back to a plain shadow run plus a manual switch.",
       "inputs": [
         {
           "name": "Production traffic stream",
-          "description": "Live requests that can be mirrored to a shadow build and split for canary."
+          "description": "Live requests you can copy to the new version for a shadow run and split for the canary slice."
         },
         {
           "name": "Reward signal",
-          "description": "A measurable outcome per request — user thumbs-up, task completion, downstream metric — that the bandit can allocate against."
+          "description": "A result you can measure on each request, such as a user thumbs-up, a completed task, or a downstream metric. The traffic-shifting stage uses this to decide which version to favor."
         },
         {
           "name": "Regression detector",
-          "description": "Automated checks that flag when a new build's reward or error rate falls below the incumbent's."
+          "description": "Automatic checks that flag when a new version's reward or error rate falls below the current one."
         }
       ],
       "outputs": [
         {
           "name": "Promotion log",
-          "description": "Auditable record of which change passed which stage on what evidence."
+          "description": "A record you can audit. It shows which change passed which stage and on what evidence."
         },
         {
           "name": "Regression trace bundle",
-          "description": "Captured traces from any failed stage, ready for offline debugging."
+          "description": "The failing cases saved from any stage that did not pass, ready for offline debugging."
         },
         {
           "name": "Traffic allocation policy",
-          "description": "Current bandit posterior or A/B split deciding how much traffic each variant gets."
+          "description": "The current rule for how much traffic each version gets. This is the bandit's belief or the A/B split."
         }
       ],
       "steps": [
         {
           "name": "Shadow the new build",
-          "description": "Mirror production traffic to the new build. Compare outputs and metrics offline. No user impact. Catches obvious crashes, latency regressions, and gross output drift before any user sees the change.",
+          "description": "Copy production traffic to the new version. Compare its outputs and metrics offline. No user is affected. This catches obvious crashes, slower responses, and large output drift before any user sees the change.",
           "uses_patterns": [
             "shadow-canary"
           ]
         },
         {
           "name": "Define the canary slice and exit criteria",
-          "description": "Pick a small live slice (1–5%) and write down what 'pass' looks like: minimum sample size, allowed regression on each metric, time window. The criteria are frozen before the canary opens."
+          "description": "Pick a small live slice, usually 1 to 5 percent. Write down what 'pass' means before you open it: the minimum sample size, the regression allowed on each metric, and the time window. Freeze these rules first."
         },
         {
           "name": "Open the canary",
-          "description": "Route the slice to the new build at full risk. Watch error rate, latency, reward signal, and any guardrail-trip count.",
+          "description": "Send the small slice to the new version at full risk. Watch the error rate, the latency, the reward signal, and how often guardrails trip.",
           "uses_patterns": [
             "shadow-canary",
             "scorer-live-monitoring"
@@ -201,7 +203,7 @@
         },
         {
           "name": "Collect regression traces on any failure",
-          "description": "If the canary fails any exit criterion, halt promotion and capture the failing traces in a regression bundle. The bundle becomes a new eval-set entry for the next iteration.",
+          "description": "If the canary misses any of its pass rules, stop the rollout and save the failing cases in a bundle. That bundle becomes a new test for the next round.",
           "uses_patterns": [
             "decision-log",
             "lineage-tracking"
@@ -209,21 +211,21 @@
         },
         {
           "name": "Promote to bandit or A/B",
-          "description": "When the canary clears its bar, hand allocation to a Bayesian bandit (or fixed A/B if simpler). The bandit grows the new build's traffic share in proportion to its observed reward advantage.",
+          "description": "When the canary clears its bar, hand traffic control to a learning method that shifts traffic toward the better version (a Bayesian bandit), or a simple fixed A/B split. It gives the new version more traffic as its results pull ahead.",
           "uses_patterns": [
             "bayesian-bandit-experimentation"
           ]
         },
         {
-          "name": "Watch posteriors and auto-rollback on regression",
-          "description": "Monitor the bandit posterior. If the new build's posterior reward falls below the incumbent with confidence, the bandit naturally allocates traffic away; couple this with an explicit rollback threshold to fully demote the build."
+          "name": "Watch the results and auto-rollback on regression",
+          "description": "Keep watching the bandit's view of each version. If the new version's reward clearly drops below the current one, the bandit moves traffic away from it on its own. Add a firm rollback threshold to fully retire the build."
         }
       ],
       "principles": [
-        "Exposure escalates only on evidence — every stage gates the next.",
-        "Regressions are first-class outputs — captured as traces and folded into the eval set, not just rolled back.",
-        "Bandits replace fixed A/B once traffic is high enough; below that volume, A/B or canary-with-manual-cutover is the honest choice.",
-        "Every stage has a published exit criterion frozen before the stage opens."
+        "Exposure widens only on evidence. Every stage gates the next.",
+        "A regression is a useful output. Save it as traces and fold it into the test set. Do not just roll back.",
+        "A learning method (bandit) replaces a fixed A/B split once traffic is high enough. Below that, A/B or a canary with a manual switch is the honest choice.",
+        "Every stage has a pass rule. Freeze it before the stage opens."
       ],
       "applies_to": [
         "agent",
@@ -280,7 +282,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "shadow",
         "canary",
@@ -298,54 +300,55 @@
         "Bornet five levels"
       ],
       "category": "iteration-management",
-      "summary": "Six-rung maturity ladder for AI agent capability — Level 0 Manual, Level 1 Rule-Based, Level 2 Intelligent Process Automation, Level 3 Agentic Workflows, Level 4 Semi-Autonomous, Level 5 Fully Autonomous. Teams pick a target level by task risk and business value, then gate advancement on prior-level guardrails and evaluation passing. Distinct from a per-action-type promotion gate: this is a capability ladder for the agent as a whole, used to align stakeholders on what 'done' means before construction starts.",
+      "summary": "A six-rung ladder for how capable an AI agent is. The rungs run from Level 0, fully manual, up to Level 5, fully autonomous, with rule-based, automated, and workflow stages in between. A team picks a target rung based on how risky the task is and how much value it brings. To climb a rung, the lower rung's safety checks must be in place and the agent must pass its tests. This rates the agent as a whole, not one action at a time. Teams use it to agree on what 'done' means before they start building.",
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> L0: Manual baseline\n  L0 --> L1: rules + automation in place\n  L1 --> L2: ML triggers added (IPA)\n  L2 --> L3: agentic workflow with planning\n  L3 --> L4: semi-autonomous with HITL gates\n  L4 --> L5: fully autonomous, evals + guardrails proven over months\n  L5 --> L4: regression demotes one rung pending fix\n  L4 --> L3: regression demotes one rung pending fix\n  L3 --> L2: regression demotes one rung pending fix\n  note right of L3\n    Each promotion requires:\n    - prior-level guardrails in place\n    - eval set passing at threshold\n    - documented evidence\n  end note\n  note right of L4\n    Skipping rungs (e.g. L1->L4)\n    ships demos that break\n    on production drift\n  end note"
       },
       "example_scenario": "An insurance carrier is scoping an agent for claims processing across three task families: first-notice-of-loss intake (high volume, low risk per call), document-completeness checks (medium volume, medium risk — wrong call delays payouts), and settlement-amount calculation (low volume, high risk — wrong call costs real money or under-pays customers). The CTO wants L5 'fully autonomous claims agent'. The chief actuary wants L1 'rule-based with human review on everything'. The framework is used to align them.\n\nThey map each task family to a candidate level: FNOL intake at L3 (agentic workflow, since multimodal documents and unstructured speech require reasoning), document-completeness at L2 (IPA — ML triggers on existing OCR pipeline), settlement calculation at L1 (rule-based — actuarial tables don't need an agent, and regulators won't accept opaque reasoning). The CTO and actuary both sign off; the target is explicitly mixed across tasks rather than one number for the whole agent.\n\nFor FNOL intake — the most ambitious — they list the L2 preconditions: OCR pipeline at 98% field-extraction accuracy on the existing form set, exception-routing rules in place, observability into every call. The L3 advancement criteria are: planner-eval passing at the threshold the agent-platform team published, and 60 days of L2 operating with the published exception rate. Construction proceeds one level at a time. Six months in, the team reviews and confirms FNOL has reached L3 with the named evidence; the actuary asks whether settlement could move to L2 given new explainability tools, and they re-open that question. The ladder is a planning instrument, revisited as portfolio risk shifts, not a static org chart.",
-      "intent": "Place an agent on a six-rung capability ladder so target autonomy and the guardrails required to reach it are explicit before construction.",
-      "when_to_apply": "Early-stage scoping of an agent project, when stakeholders disagree on how autonomous the system should be, or when planning a multi-quarter capability roadmap. Also useful as a retrospective lens — 'we said L4, we shipped L2.5'. Don't apply once construction is underway and the action-type gate (crawl-walk-run) is the right tool; the level ladder is a planning instrument, not a runtime control.",
+      "deep_dive": "The ladder has six rungs:\n\n- **Level 0 — Manual:** no automation; a human does the task.\n- **Level 1 — Rule-Based:** fixed-rule automation with no learning.\n- **Level 2 — Intelligent Process Automation (IPA):** machine-learning triggers bolted onto an existing automated pipeline (e.g. ML classification on an OCR feed).\n- **Level 3 — Agentic Workflows:** an agent that plans and reasons over multi-step, often multimodal or unstructured input.\n- **Level 4 — Semi-Autonomous:** the agent acts, but with human-in-the-loop gates on consequential decisions.\n- **Level 5 — Fully Autonomous:** the agent operates unsupervised, justified only after evals and guardrails have held over months.\n\n**Selection and gating.** The target rung is chosen by task risk and business value, not by technical ambition. Targets are typically *mixed across a task portfolio* — one agent can be L4 for FAQ and L2 for refunds. Advancement is gated: each promotion requires the prior level's guardrails already in place, the eval set passing at a published threshold, and documented evidence (e.g. L4→L5 requires months of logged human-in-the-loop acceptance at threshold).\n\n**Build discipline.** Advance one rung at a time. Skipping rungs (L1→L4) ships demos that collapse on first production drift, because the eval at the destination level was never built.\n\nThis is a planning and stakeholder-alignment instrument used *before* construction and revisited as portfolio risk shifts — distinct from a per-action-type runtime promotion gate (crawl-walk-run), which it should be paired with at runtime.",
+      "intent": "Place an agent on a six-rung capability ladder. This makes the target level of independence, and the safety checks needed to reach it, clear before anyone builds.",
+      "when_to_apply": "Use this early, when you are scoping an agent project. It helps most when people disagree on how independent the system should be, or when you are planning a roadmap that spans several quarters. It also works as a look-back tool: 'we said L4, we shipped L2.5'. Don't apply it once building is underway and the per-action gate (crawl-walk-run) is the right tool. The ladder is for planning, not for runtime control.",
       "inputs": [
         {
           "name": "Task portfolio",
-          "description": "The set of tasks the agent will handle, with risk and value annotations per task."
+          "description": "The set of tasks the agent will handle. Each task is marked with its risk and its value."
         },
         {
           "name": "Stakeholder constraints",
-          "description": "Regulatory, organisational, and risk-tolerance constraints on autonomy."
+          "description": "Limits on how independent the agent can be. These come from regulators, the organisation, and how much risk people will accept."
         },
         {
           "name": "Prior-level evidence",
-          "description": "Evals and incident history from the level the system currently operates at."
+          "description": "Test results and past incidents from the level the system runs at today."
         }
       ],
       "outputs": [
         {
           "name": "Target level declaration",
-          "description": "Per-task or per-system target on the L0–L5 ladder, with rationale."
+          "description": "The target rung on the L0 to L5 ladder, set per task or per system, with the reason for it."
         },
         {
           "name": "Advancement criteria",
-          "description": "Named guardrails, evals, and operational signals required to advance one level."
+          "description": "The named safety checks, tests, and live signals required to climb one rung."
         },
         {
           "name": "Capability roadmap",
-          "description": "Sequenced plan to move from current level to target level."
+          "description": "A step-by-step plan to move from the current rung to the target rung."
         }
       ],
       "steps": [
         {
           "name": "Map tasks to candidate levels",
-          "description": "For each task in the portfolio, identify the natural level: pure manual (L0), rule-based automation (L1), IPA with ML triggers (L2), agentic workflow with planning (L3), semi-autonomous with HITL gates (L4), fully autonomous (L5). Task risk and value drive the choice, not technical excitement."
+          "description": "For each task, find its natural rung. The rungs are manual (L0), rule-based (L1), ML triggers on existing automation (L2), an agent that plans (L3), semi-autonomous with human gates (L4), and fully autonomous (L5). Let the task's risk and value drive the choice, not technical excitement."
         },
         {
           "name": "Declare a target level per task or system",
-          "description": "Write down the target. Stakeholders sign off explicitly. Mixed targets across tasks are normal — a customer-support agent may be L4 for FAQ and L2 for refunds."
+          "description": "Write down the target. Get explicit sign-off from stakeholders. Mixed targets are normal. A support agent may be L4 for FAQ and L2 for refunds."
         },
         {
           "name": "Define prior-level guardrails as preconditions",
-          "description": "For each level, list the guardrails and evals that must already pass at the lower level before advancement is on the table. L4 → L5 typically requires that L4 has logged months of HITL acceptance at the published threshold.",
+          "description": "For each rung, list the safety checks and tests that must already pass at the rung below before you consider climbing. Moving from L4 to L5 usually requires months of logged human acceptance at the published bar.",
           "uses_patterns": [
             "human-in-the-loop",
             "approval-queue"
@@ -353,25 +356,25 @@
         },
         {
           "name": "Build to one level above current",
-          "description": "Advance one rung at a time. Skipping levels (L1 → L4 directly) tends to ship demos that fail under production drift."
+          "description": "Climb one rung at a time. Skipping rungs, such as jumping from L1 to L4, tends to ship demos that break once real traffic shifts."
         },
         {
           "name": "Gate advancement on evidence",
-          "description": "Promote only when the named guardrails are in place and the eval set passes at the threshold. Document the evidence. Regression at a higher level demotes the system one rung pending fix.",
+          "description": "Climb only when the named safety checks are in place and the test set passes the bar. Write down the evidence. If the numbers drop at a higher rung, the system moves down one rung until it is fixed.",
           "uses_patterns": [
             "shadow-canary"
           ]
         },
         {
           "name": "Revisit target level on portfolio shifts",
-          "description": "When task risk or business value changes (new regulation, new product line), re-evaluate the target level. The ladder is a planning instrument, not a permanent label."
+          "description": "When a task's risk or value changes, such as a new regulation or a new product line, set the target rung again. The ladder is for planning, not a permanent label."
         }
       ],
       "principles": [
-        "Autonomy level is a planning choice driven by task risk and value, not technical capability alone.",
-        "Advance one level at a time — skipping rungs ships demos that production breaks.",
-        "Higher levels require lower-level guardrails to already be in place.",
-        "The ladder is a stakeholder-alignment artefact, not a runtime control — pair it with action-type gating at runtime."
+        "The autonomy level is a planning choice. It is driven by task risk and value, not by technical capability alone.",
+        "Climb one rung at a time. Skipping rungs ships demos that production breaks.",
+        "Higher rungs need the lower rungs' safety checks already in place.",
+        "The ladder is for aligning stakeholders, not for runtime control. Pair it with per-action gating at runtime."
       ],
       "applies_to": [
         "agent",
@@ -427,7 +430,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "maturity-ladder",
         "autonomy-levels",

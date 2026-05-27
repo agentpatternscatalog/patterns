@@ -5,64 +5,103 @@
     {
       "id": "feedback-to-refinement-loop",
       "name": "Feedback to Refinement Loop",
-      "aliases": ["improvement loop", "production-driven refinement"],
+      "aliases": [
+        "improvement loop",
+        "production-driven refinement"
+      ],
       "category": "deployment-operations",
-      "summary": "Close the loop from production telemetry back to prompt and tool changes. Pipe traces, user signals, and outcome metrics into automated issue detection plus a human-in-the-loop review queue; route confirmed issues into prompt and tool refinement; re-validate the change through experimentation before it ships. The loop is the operating posture of a deployed LLM application — not a one-off improvement project — and it explicitly aggregates and prioritizes improvements so that engineering effort tracks user pain rather than developer intuition.",
+      "summary": "Turn what you learn in production into prompt and tool changes, on a loop. Feed traces, user signals, and outcome metrics into an automatic detector that flags problems, then a review queue where a person checks them. Confirmed problems become prompt and tool fixes. Test each fix before it ships. This is how you run a live LLM app every day, not a one-time cleanup project. It ranks the fixes by user pain, so the team works on what hurts users, not on hunches.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  prod[Production LLM app] --> tel[Telemetry: traces, user feedback, outcomes]\n  tel --> s1[Build feedback pipeline]\n  s1 --> store[(Queryable telemetry store)]\n  store --> s2[Automated issue detection]\n  s2 --> flagged[Flagged trace clusters with proposed root causes]\n  flagged --> s3[Human-in-the-loop review]\n  s3 --> decide{Confirm root cause?}\n  decide -->|no| store\n  decide -->|yes| backlog[Confirmed issue]\n  backlog --> s5[Aggregate and prioritize]\n  s5 --> ranked[Prioritized backlog by user impact]\n  ranked --> s4[Refine prompts and tools]\n  s4 --> change[Versioned candidate change]\n  change --> s6[Re-validate via experimentation]\n  s6 --> pass{Targeted metric up, no regressions?}\n  pass -->|no| s4\n  pass -->|yes| ship[Ship to production]\n  ship --> prod"
       },
       "example_scenario": "A legal-research SaaS has had its case-summarisation agent in production for six months. Telemetry flows into a Snowflake store: every trace, every thumbs-down with optional comment, every 'edited summary' that the lawyer-user kept after correcting. An automated detector runs nightly, clustering low-rated traces and proposing root-cause hypotheses against a fixed taxonomy (citation error, jurisdiction confusion, missing key holding, tone too informal).\n\nLast week the detector flagged a cluster of 47 thumbs-downs with the proposed cause 'jurisdiction confusion — agent conflates federal and state authority on similar topics'. A domain reviewer (a junior associate the team contracts for triage two hours a day) confirmed 38 of the 47 as legitimate, ruled out 6 as user-side complaints unrelated to the agent, and marked 3 as uncertain pending more data. The 38 confirmed went into the backlog with a severity score derived from user-tier (paying enterprise vs free trial) and frequency.\n\nThis week the prompt team picked the jurisdiction issue as the highest-ranked item, drafted a prompt revision that explicitly asks the model to state jurisdiction before citing, and added a new tool that returns the canonical state-vs-federal classification for any case citation. They ran the candidate against a holdout of 200 historical traces and against a 5% live canary; the jurisdiction-error rate dropped from 8.2% to 1.7%, and no other metric regressed. Then it shipped. Crucially, the loop is the operating posture — nobody framed this as a 'project', it's just what the team does every week.",
-      "intent": "Convert production signals into prioritized prompt and tool changes that have been re-validated before they reach users.",
-      "when_to_apply": "An LLM application or agent is in production with real users, telemetry is being captured, and the team is responsible for sustained quality rather than initial launch. Don't apply pre-launch — there is no production signal yet, and the methodology degrades to a hypothetical pipeline. Exceptions: a closed beta with representative users and active telemetry can be treated as production for the purposes of this loop.",
+      "deep_dive": "The loop has six stages wired into a continuous cycle:\n\n- **Feedback pipeline.** Route production telemetry — execution traces, latencies, tool-call records, completion outcomes, and structured user feedback (thumbs, comments, kept-after-edit signals) — into a queryable store.\n- **Automated issue detection and root-cause analysis.** Run heuristics or model-based detectors over the store: cluster low-rated or anomalous traces and propose root-cause hypotheses, often against a fixed failure taxonomy. Detection is automated; resolution is not.\n- **Human-in-the-loop review.** Domain reviewers triage flagged clusters, confirm or reject each proposed root cause, and decide which warrant a change. This review is the gate between raw signal and code change.\n- **Aggregate and prioritize.** Score confirmed issues (e.g. frequency × user-tier severity) and roll related fixes into release candidates. Prioritization is *global* across the team's findings, not per-engineer, so engineering effort tracks the backlog ranking rather than developer intuition.\n- **Prompt and tool refinement.** For confirmed issues, author prompt edits, new tool definitions, or guardrail changes. Each change references its issue and is versioned alongside the rest of the application for diffing and rollback.\n- **Re-validate via experimentation.** Run the candidate against a historical holdout and/or a small live canary slice. Confirm the targeted metric moves in the right direction and no other metric regresses, then ship.\n\nThe defining property is that this is a standing operating posture for a deployed app, not a one-off improvement project. The cycle never closes for good — telemetry continuously feeds the next iteration.",
+      "intent": "Turn production signals into ranked prompt and tool changes, each tested before users ever see it.",
+      "when_to_apply": "Use this when an LLM app or agent is live with real users, you are capturing telemetry, and your job is to keep quality high over time, not just to launch. Don't apply it before launch. There is no production signal yet, so the loop becomes a hypothetical pipeline. One exception: a closed beta with representative users and live telemetry counts as production for this loop.",
       "inputs": [
-        {"name": "Production telemetry", "description": "Traces, latencies, tool-call records, completion outcomes, and structured user feedback from the live system."},
-        {"name": "Versioned prompts and tools", "description": "The current set of prompts, tool definitions, and configurations, each addressable by version for diffing and rollback."},
-        {"name": "Experimentation harness", "description": "Mechanism for running a candidate change against a holdout or a sample of live traffic before full rollout."}
+        {
+          "name": "Production telemetry",
+          "description": "Traces, latencies, tool-call records, completion outcomes, and structured user feedback from the live system."
+        },
+        {
+          "name": "Versioned prompts and tools",
+          "description": "The current prompts, tool definitions, and settings. Each one has a version, so you can compare and roll back."
+        },
+        {
+          "name": "Experimentation harness",
+          "description": "A way to run a candidate change against a holdout set or a sample of live traffic before the full rollout."
+        }
       ],
       "outputs": [
-        {"name": "Prioritized issue backlog", "description": "Aggregated and ranked list of recurring failure modes drawn from telemetry and reviewer flags."},
-        {"name": "Refined prompts and tools", "description": "New versions of prompts, tool definitions, or guardrails motivated by specific issues in the backlog."},
-        {"name": "Validation report per change", "description": "Experiment result demonstrating the candidate change moves the relevant metric in the right direction without regressing others."}
+        {
+          "name": "Prioritized issue backlog",
+          "description": "A ranked list of recurring problems, pulled from telemetry and from what reviewers flagged."
+        },
+        {
+          "name": "Refined prompts and tools",
+          "description": "New versions of prompts, tool definitions, or guardrails, each driven by a specific problem in the backlog."
+        },
+        {
+          "name": "Validation report per change",
+          "description": "Test results showing the change moves the target metric the right way without making other metrics worse."
+        }
       ],
       "steps": [
         {
           "name": "Build the feedback pipeline",
-          "description": "Wire production telemetry — traces, user feedback, outcome signals — into a queryable store. Without a pipeline, the rest of the loop has no input."
+          "description": "Feed production telemetry into a store you can query. That means traces, user feedback, and outcome signals. Without this pipeline, the rest of the loop has no input."
         },
         {
           "name": "Automate issue detection and root-cause analysis",
-          "description": "Run heuristics or model-based detectors over telemetry to surface recurring failure modes, cluster similar traces, and propose root causes. Detection is automated; resolution is not."
+          "description": "Run automatic detectors over the telemetry to surface recurring problems, group similar traces, and propose likely causes. The detector can use simple rules or a model. It finds problems; it does not fix them."
         },
         {
           "name": "Human-in-the-loop review",
-          "description": "Domain reviewers triage flagged issues, confirm or reject root causes, and decide which warrant prompt or tool changes. Reviewer judgement is the gate between signal and action."
+          "description": "Domain reviewers go through the flagged problems, confirm or reject each proposed cause, and decide which ones deserve a prompt or tool change. Their judgement is the gate between a signal and an action."
         },
         {
           "name": "Refine prompts and tools",
-          "description": "For confirmed issues, author prompt edits, new tool definitions, or guardrail changes. Each change references the issue and is versioned alongside the rest of the application."
+          "description": "For each confirmed problem, write a prompt edit, a new tool, or a guardrail change. Link each change to its problem and version it alongside the rest of the app."
         },
         {
           "name": "Aggregate and prioritize improvements",
-          "description": "Roll multiple related fixes into release candidates ordered by user impact, not by who proposed them. Engineering effort tracks the backlog ranking."
+          "description": "Group related fixes into release candidates, ordered by user impact, not by who proposed them. The team works the backlog from the top."
         },
         {
           "name": "Re-validate via experimentation",
-          "description": "Before full rollout, run the candidate change against a holdout or sample of live traffic. Confirm the targeted metric improves and no others regress. Then ship."
+          "description": "Before the full rollout, run the change against a holdout set or a sample of live traffic. Check that the target metric improves and no others get worse. Then ship."
         }
       ],
       "principles": [
-        "Production telemetry is the only honest source of improvement priorities — developer intuition is downstream of it.",
-        "Detection automates; resolution does not — human judgement is the gate between signal and code change.",
-        "Every refinement is re-validated before users see it — shipping the fix is the last step, not the first.",
-        "Prioritization is global, not per-engineer — the backlog ranks user impact across the whole team's findings."
+        "Production telemetry is the only honest source of priorities. Developer hunches come after it.",
+        "Detection is automatic; fixing is not. Human judgement is the gate between a signal and a code change.",
+        "Every fix is tested before users see it. Shipping the fix is the last step, not the first.",
+        "Ranking is done for the whole team, not per engineer. The backlog ranks user impact across everyone's findings."
       ],
-      "applies_to": ["agent", "llm-app"],
-      "related_patterns": ["human-in-the-loop", "shadow-canary", "dual-evaluation-offline-online", "prompt-versioning"],
-      "related_methodologies": ["evaluation-driven-development", "crawl-walk-run-automation-gating"],
+      "applies_to": [
+        "agent",
+        "llm-app"
+      ],
+      "related_patterns": [
+        "human-in-the-loop",
+        "shadow-canary",
+        "dual-evaluation-offline-online",
+        "prompt-versioning"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development",
+        "crawl-walk-run-automation-gating"
+      ],
       "known_failure_modes": [
-        {"pattern": "errors-swept-under-the-rug", "note": "Telemetry is captured but never triaged — the pipeline exists, the loop does not close."},
-        {"pattern": "perma-beta", "note": "Every issue routes to human review with no decision criteria; refinements never ship because they're forever 'pending validation'."}
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "note": "Telemetry is captured but never triaged — the pipeline exists, the loop does not close."
+        },
+        {
+          "pattern": "perma-beta",
+          "note": "Every issue routes to human review with no decision criteria; refinements never ship because they're forever 'pending validation'."
+        }
       ],
       "maturity": "proven",
       "sources": [
@@ -83,66 +122,104 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["improvement-loop", "telemetry", "prompt-refinement", "production-ops"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "improvement-loop",
+        "telemetry",
+        "prompt-refinement",
+        "production-ops"
+      ]
     },
     {
       "id": "automation-experience-uplift",
       "name": "Automation Experience Uplift",
-      "aliases": ["Level-2 to Level-3 uplift", "agentic retrofit of automation"],
+      "aliases": [
+        "Level-2 to Level-3 uplift",
+        "agentic retrofit of automation"
+      ],
       "category": "deployment-operations",
-      "summary": "Scale agentic AI in the enterprise by retrofitting agentic reasoning onto processes that are already automated rather than greenfielding new agent deployments. Mature 'Level 2' automation — RPA, BPM, deterministic pipelines — already carries the institutional knowledge, exception handling, and integration surface that agents need; layering agent reasoning on top converts them into 'Level 3' agentic systems faster and more safely than building agentic processes from scratch. The methodology treats the existing automation estate as the prior, not as legacy to be replaced.",
+      "summary": "Grow AI agents across a company by adding agent reasoning to work that is already automated, instead of building brand-new agents from scratch. Mature automation already holds the company's know-how, its exception handling, and its links to other systems. That kind of fixed-rule automation, which always does the same thing for the same input, is called Level 2. Adding agent reasoning on top turns it into a Level 3 system. Doing it this way is faster and safer than starting fresh. The idea is to treat the automation you already run as a strong starting point, not as old code to throw away.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  estate[Level-2 automation estate] --> s1[Inventory L2 automated processes]\n  s1 --> inv[Inventory: owners, scale, exception rate, human-touch points]\n  inv --> s2[Identify high-agentic-leverage candidates]\n  s2 --> shortlist[Candidates: high exception or judgement load]\n  governance[Transformation portfolio governance] --> s5\n  shortlist --> broken{Underlying process sound?}\n  broken -->|no| fix[Fix L2 first - do not uplift broken process]\n  broken -->|yes| s3[Layer agentic reasoning on existing spine]\n  s3 --> uplifted[L3 agentic process - deterministic core retained]\n  uplifted --> s4[Validate against process-level metrics]\n  s4 --> moved{Metrics moved vs pre-uplift baseline?}\n  moved -->|no| rollback[Roll back agentic addition]\n  moved -->|yes| s5[Scale across portfolio]\n  s5 --> portfolio[Portfolio-level uplift roadmap]\n  portfolio --> shortlist"
       },
       "example_scenario": "A European bank already runs roughly 240 RPA bots across back-office operations — onboarding KYC checks, payment-exception handling, customer-correspondence routing, regulatory-report compilation. The Chief Automation Officer is now under pressure to 'do agentic AI' and the first instinct from the AI lab is to greenfield a new flagship 'agentic banking assistant'. The methodology pushes back: the bank's prior is 240 mature, integrated, governed automations, and that is where the agentic uplift will scale.\n\nThey inventory the estate. For each bot they note ownership, transaction volume, current exception rate, and where humans currently intervene. Payment-exception handling jumps out: the RPA bot processes 92% of incoming payments deterministically, but the remaining 8% — flagged for mismatched beneficiary names, unusual amounts, or routing-rule conflicts — go to a queue that takes humans an average of 14 minutes per case to resolve. That 14-minute judgement step is the agentic uplift opportunity.\n\nThey layer an agent on top: the deterministic RPA spine stays exactly as is, but exceptions are now routed first to an agent that has access to historical resolution logs and the bank's payment-rules knowledge base. The agent proposes a resolution with rationale; a human reviews. After three months, average exception-resolution time drops to 4 minutes, human-touch reduces 71%, and the deterministic 92% has not been touched. They roll the same pattern across KYC document-completeness (next highest leverage) and then correspondence routing. One candidate — regulatory-report compilation — was excluded after the inventory revealed the underlying process itself was broken (manual data hand-offs to the bot that the bot couldn't validate). The team explicitly chose to fix the L2 process first rather than ship an agentic broken process.",
-      "intent": "Scale agentic deployments across an enterprise by elevating existing automated processes to agentic operation, rather than building new agent systems from zero.",
-      "when_to_apply": "An organization already runs meaningful Level-2 automation (RPA bots, BPM workflows, scripted pipelines) and is now investing in agentic AI. The aim is breadth of agentic coverage across the enterprise, not the depth of a single flagship agent. Don't apply when the existing automation is poorly understood, undocumented, or itself a source of broken processes — uplifting a broken process produces an agentic broken process. Exceptions: a single high-value greenfield agent (e.g. a novel customer experience) can justify its own bottom-up build.",
+      "deep_dive": "**The Level-2 / Level-3 distinction.** A Level-2 automation is deterministic: RPA bots, BPM workflows, and scripted pipelines that map the same input to the same output every time. They already carry institutional knowledge, exception-handling rules, and an integration surface (system connections, credentials, audit trails) that an agent would otherwise have to rebuild. A Level-3 system layers agent reasoning on top of that spine to handle judgement, exceptions, and non-routine inputs.\n\n**The uplift mechanics.**\n- **Inventory the estate.** For each automated process record ownership, transaction volume, current exception rate, and the human-touch points. The points where humans currently intervene on exceptions are the uplift opportunity.\n- **Select by leverage.** Prioritise processes where the deterministic core handles the bulk volume but a residual slice (the exceptions) still costs human judgement time. That slice is where an agent adds the most value per unit of integration effort.\n- **Layer, do not rewrite.** Keep the deterministic spine untouched and authoritative. Route only the exception slice to an agent that has access to historical resolution logs and the relevant knowledge base; the agent proposes a resolution with rationale, and a human reviews. The predictable, auditable core is preserved.\n- **Validate against process-level baselines.** Measure exception-resolution time, human-touch reduction, and cycle time against the pre-uplift baseline. Roll back any agentic addition that does not move them.\n\n**The broken-process guard.** If the inventory reveals the underlying Level-2 process is itself flawed (e.g. unvalidated manual data hand-offs), fix the Level-2 process first. Uplifting a broken process only produces an agentic broken process that amplifies the dysfunction faster. Run the whole effort as a governed transformation portfolio so individual uplifts compose into enterprise impact rather than scattering into disconnected pilots.",
+      "intent": "Grow agents across a company by lifting existing automated work up to agent-level operation, instead of building new agent systems from zero.",
+      "when_to_apply": "Use this when a company already runs real Level-2 automation, such as RPA bots, BPM workflows, or scripted pipelines, and is now investing in agents. The goal is broad agent coverage across the company, not one deep flagship agent. Don't apply it when the existing automation is poorly understood, undocumented, or itself broken. Lifting a broken process up only gives you a broken process with an agent on top. One exception: a single high-value new agent, such as a fresh customer experience, can justify its own ground-up build.",
       "inputs": [
-        {"name": "Inventory of Level-2 automated processes", "description": "Map of existing RPA, BPM, and scripted automation, with owners, integrations, and current performance."},
-        {"name": "Agentic capability targets", "description": "Statement of which kinds of reasoning, judgement, or exception handling agentic AI should add to each candidate process."},
-        {"name": "Transformation portfolio governance", "description": "Programme-level prioritization across the candidates, so uplifts compose into an enterprise transformation rather than a scatter of pilots."}
+        {
+          "name": "Inventory of Level-2 automated processes",
+          "description": "A map of the existing RPA, BPM, and scripted automation, with owners, system links, and how each one performs today."
+        },
+        {
+          "name": "Agentic capability targets",
+          "description": "A clear statement of which reasoning, judgement, or exception handling the agent should add to each candidate process."
+        },
+        {
+          "name": "Transformation portfolio governance",
+          "description": "Program-level ranking across the candidates, so the uplifts add up to one enterprise transformation rather than a scatter of pilots."
+        }
       ],
       "outputs": [
-        {"name": "Prioritized uplift roadmap", "description": "Ordered list of Level-2 processes targeted for Level-3 uplift, with expected impact and dependencies."},
-        {"name": "Level-3 agentic processes", "description": "Each completed uplift: the original automation retained as the deterministic core, agent reasoning layered on for judgement and exception handling."},
-        {"name": "Portfolio-level uplift metrics", "description": "Cross-process metrics — exception-resolution rate, human-touch reduction, cycle-time — used to manage the transformation portfolio."}
+        {
+          "name": "Prioritized uplift roadmap",
+          "description": "An ordered list of Level-2 processes picked for the Level-3 uplift, with the expected impact and what each one depends on."
+        },
+        {
+          "name": "Level-3 agentic processes",
+          "description": "Each finished uplift. The original automation stays as the fixed-rule core, with agent reasoning added on top for judgement and exceptions."
+        },
+        {
+          "name": "Portfolio-level uplift metrics",
+          "description": "Metrics across processes, such as exception-resolution rate, human-touch reduction, and cycle time, used to manage the whole transformation."
+        }
       ],
       "steps": [
         {
           "name": "Inventory existing Level-2 automation",
-          "description": "Catalogue the automated processes already in production. Note ownership, scale, exception rate, and where humans currently intervene — these intervention points are the agentic uplift opportunity."
+          "description": "List the automated processes already in production. For each one, note the owner, the scale, the exception rate, and where humans step in today. Those step-in points are where an agent can add value."
         },
         {
           "name": "Identify candidates with high agentic leverage",
-          "description": "Prioritize processes where deterministic automation handles the bulk volume but exceptions, judgement calls, or non-routine inputs still require humans. Those are the highest-leverage uplift candidates."
+          "description": "Favor processes where fixed-rule automation handles the bulk of the volume but exceptions, judgement calls, or unusual inputs still need a human. Those give the most value for the effort."
         },
         {
           "name": "Layer agentic reasoning onto the existing process",
-          "description": "Keep the existing deterministic automation as the spine. Add an agent that handles exceptions, makes judgement calls, or extends the automation to non-routine cases. Do not rewrite the spine."
+          "description": "Keep the existing fixed-rule automation as the backbone. Add an agent that handles the exceptions, makes the judgement calls, or extends the work to unusual cases. Do not rewrite the backbone."
         },
         {
           "name": "Validate uplift against process-level metrics",
-          "description": "Measure exception-resolution rate, cycle time, and human-touch reduction against the pre-uplift baseline. Roll back agentic additions that don't move these metrics."
+          "description": "Measure the exception-resolution rate, the cycle time, and the drop in human involvement against the numbers from before the uplift. Roll back any agent addition that does not move them."
         },
         {
           "name": "Scale across the portfolio",
-          "description": "Apply the same uplift pattern across the inventory. Treat the work as a holistic AI corporate transformation, not a sequence of disconnected agent pilots."
+          "description": "Apply the same uplift to the rest of the inventory. Treat the work as one company-wide AI transformation, not a string of disconnected agent pilots."
         }
       ],
       "principles": [
-        "Mature automation is a prior, not legacy — agentic AI adds reasoning to it, it does not replace it.",
-        "Uplift the highest-leverage processes first — exception-handling and judgement calls, not the deterministic core.",
-        "Don't uplift broken processes — fix the Level-2 automation first or you ship an agentic broken process.",
-        "Manage the work as a transformation portfolio — individual uplifts compose into enterprise impact only with cross-process governance."
+        "Mature automation is a starting point, not old code to scrap. An agent adds reasoning to it; it does not replace it.",
+        "Uplift the highest-value processes first. Target the exceptions and judgement calls, not the fixed-rule core.",
+        "Do not uplift broken processes. Fix the Level-2 automation first, or you ship a broken process with an agent on top.",
+        "Run the work as one portfolio. Single uplifts add up to company impact only with governance across processes."
       ],
-      "applies_to": ["agent", "enterprise"],
-      "related_patterns": ["augmented-llm"],
+      "applies_to": [
+        "agent",
+        "enterprise"
+      ],
+      "related_patterns": [
+        "augmented-llm"
+      ],
       "related_methodologies": [],
       "known_failure_modes": [
-        {"pattern": "automating-broken-process", "note": "Retrofitting agentic reasoning onto an automation that itself encodes a flawed process — the agent amplifies the dysfunction faster."},
-        {"pattern": "hero-agent", "note": "Replacing the deterministic Level-2 spine with the agent rather than layering on top — losing the predictable, auditable core."}
+        {
+          "pattern": "automating-broken-process",
+          "note": "Retrofitting agentic reasoning onto an automation that itself encodes a flawed process — the agent amplifies the dysfunction faster."
+        },
+        {
+          "pattern": "hero-agent",
+          "note": "Replacing the deterministic Level-2 spine with the agent rather than layering on top — losing the predictable, auditable core."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -163,70 +240,111 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["enterprise-scale", "agentic-transformation", "rpa-uplift", "level-3"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "enterprise-scale",
+        "agentic-transformation",
+        "rpa-uplift",
+        "level-3"
+      ]
     },
     {
       "id": "production-failure-mode-optimization",
       "name": "Production Failure-Mode Optimization",
-      "aliases": ["failure-mode checklist", "multi-agent optimization checklist"],
+      "aliases": [
+        "failure-mode checklist",
+        "multi-agent optimization checklist"
+      ],
       "category": "deployment-operations",
-      "summary": "Optimize a deployed multi-agent system by walking a named checklist of recurring failure modes — vague instructions, wrong model size, prompt-model mismatch, weak tools, no stop criterion, wrong pattern, no memory, no metacognition, no evals, no human-delegation — and remediating each one with a targeted change. The methodology treats failure modes as optimization opportunities rather than incidents, and turns a fuzzy 'the system is underperforming' into a sequence of falsifiable interventions. It is checklist-driven and intentionally not exhaustive — covering the modes that empirically explain most production underperformance.",
+      "summary": "Tune a live multi-agent system by going down a named checklist of common failure modes and fixing each one with a targeted change. The checklist covers things like vague instructions, a model that is too small, a prompt that does not suit the model, weak tools, no rule for when to stop, the wrong design, no memory, no self-checking, no tests, and no path to hand off to a human. This turns a vague 'the system is underperforming' into a list of specific changes you can test and prove or disprove. It treats each failure mode as a chance to improve, not as an incident to firefight. The checklist is short on purpose. It covers the failures that explain most poor performance, and does not try to list every possible one.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  mas[Deployed multi-agent system] --> s1[Snapshot baseline performance]\n  s1 --> base[Per-agent / per-task metric baseline]\n  checklist[Failure-mode checklist] --> s2[Walk the checklist against traces]\n  traces[Traces, tool calls, outputs] --> s2\n  s2 --> labeled[Each mode: confirmed / ruled-out / uncertain]\n  labeled --> uncertain{Uncertain modes?}\n  uncertain -->|yes| more_tel[Collect more telemetry]\n  more_tel --> s2\n  uncertain -->|no| s3[Rank confirmed modes by leverage]\n  s3 --> ranked[Ranked intervention list]\n  ranked --> s4[Apply ONE intervention per cycle]\n  s4 --> intervention[Single targeted change]\n  intervention --> s5[Measure delta vs baseline]\n  s5 --> accept{Targeted metric up, no regression?}\n  accept -->|yes| s6[Re-baseline]\n  accept -->|no| revert[Revert change]\n  revert --> s4\n  s6 --> done{More modes to address?}\n  done -->|yes| s4\n  done -->|no| stable[System optimized for this round]"
       },
       "example_scenario": "A retail-ops team owns a four-agent product-content multi-agent system: a research agent gathers product specs from supplier feeds, a copy agent drafts marketing descriptions, a compliance agent checks claims against regulator-allowed language, and a coordinator agent assembles the final SKU page. Quality has been quietly drifting — internal reviewers report 'the descriptions feel off' and the compliance agent flags more than it should. Nobody can point to a specific bug. The team applies the checklist.\n\nBaseline snapshot: per-agent success rates and per-SKU end-to-end pass rate over the last 30 days. Then the walk. Vague instructions — research agent prompt confirmed (it says 'gather useful spec info' with no schema); copy agent ruled out; coordinator uncertain. Wrong model size — copy agent confirmed (running on the smallest model; tone failures cluster there). Prompt-model mismatch — ruled out. Weak tools — research agent has only one supplier-feed tool; for products from EU suppliers a second tool is needed; confirmed. No stop criterion — coordinator confirmed (loops on compliance disagreements indefinitely). No metacognition — confirmed across the board. No evals — partially confirmed (only end-to-end pass rate; no per-agent evals).\n\nThe team ranks: vague-instructions and missing-stop-criterion typically explain the largest gaps and are cheap. Cycle 1: rewrite research-agent prompt with a strict schema; baseline-per-cycle metric (research-agent success rate) lifts from 71% to 89%; accept. Cycle 2: add a 5-turn stop criterion plus escalate-to-human on the coordinator; end-to-end pass rate lifts from 64% to 78%; accept. Cycle 3: upgrade copy agent to a stronger model; tone-failure rate drops; accept. Cycle 4: add the EU supplier tool; partial improvement but introduces a new latency regression on non-EU SKUs; revert and shelve for a follow-up cycle. Five cycles in, end-to-end pass rate is 87% with attribution per change. The team didn't add more tools to chase 'weak tools', conscious that tool-explosion is its own checklist failure mode.",
-      "intent": "Diagnose and remediate a deployed multi-agent system by walking a named failure-mode checklist and applying one targeted intervention per mode.",
-      "when_to_apply": "A multi-agent system has shipped, performance is below expectation, and the team needs a structured way to find what is broken rather than guessing. The system is observable enough that traces can be inspected per mode. Don't apply pre-deployment as a design checklist — the modes are diagnostic, not constructive; build with the relevant patterns first and use this methodology to triage problems in the running system. Exceptions: post-mortem of a closed beta with representative traffic.",
+      "deep_dive": "**The named checklist (10 failure modes).** Each is diagnosed from traces and remediated with one targeted change:\n- *Vague instructions* — under-specified agent prompts; fix with a strict schema or precise task spec.\n- *Wrong model size* — too small for the task; fix by swapping to a stronger model where failures cluster.\n- *Prompt-model mismatch* — prompt style doesn't suit the chosen LLM; fix by realigning prompt to model.\n- *Weak tools* — missing or low-quality tools for the inputs encountered; fix by adding the specific missing tool.\n- *No stop criterion* — the agent loops without termination; fix with a turn budget plus an escalate/return path.\n- *Wrong pattern* — the multi-agent topology itself is mis-chosen; fix by changing the orchestration pattern.\n- *No memory* — agents don't retain or learn across runs; fix by adding the appropriate memory.\n- *No metacognition* — no self-evaluation of intermediate work; fix with a reflexive/self-check loop.\n- *No evals* — only coarse end-to-end metrics, no per-agent evals; fix by adding task-level evals.\n- *No human-delegation* — no path to hand off when the agent is out of depth; fix with a human-delegation gate.\n\n**The disciplined loop.**\n- **Baseline first.** Snapshot per-agent and per-task metrics over a fixed window; without it, no intervention can be attributed.\n- **Diagnose from traces.** Mark each mode confirmed, ruled-out, or uncertain. Uncertain modes require more telemetry before any action — assumptions about which mode applies are usually wrong.\n- **Rank by leverage.** Vague instructions, missing stop criterion, and wrong pattern typically explain the largest gaps; sequence them first.\n- **One intervention per cycle.** Change a single variable so the metric delta has a unique attribution. Multi-variable changes produce uninterpretable deltas.\n- **Measure, accept, or revert.** Re-run the eval or production sample; accept only if the targeted metric improved without regressing others, otherwise revert and move on.\n- **Re-baseline and continue.** After each accepted change, snapshot the new baseline. The checklist is not one-shot; modes can re-emerge as the system grows.\n\n**The checklist is deliberately finite.** It covers the modes that empirically explain most production underperformance and accepts it is not exhaustive. A known trap is over-responding to a *weak tools* diagnosis by piling on more tools until the agent drowns in tool choice (tool-explosion is itself a failure mode).",
+      "intent": "Find and fix what is wrong in a live multi-agent system by going down a named failure-mode checklist and making one targeted change per mode.",
+      "when_to_apply": "Use this when a multi-agent system is live, performing below expectation, and the team needs a structured way to find what is broken instead of guessing. The system must be observable enough to inspect traces for each mode. Don't apply it before launch as a design checklist. The modes are for diagnosis, not for building. Build with the right patterns first, then use this to triage problems in the running system. One exception: a post-mortem of a closed beta with representative traffic.",
       "inputs": [
-        {"name": "Deployed multi-agent system with traces", "description": "Running system whose agent traces, tool calls, and outputs are inspectable per session."},
-        {"name": "Failure-mode checklist", "description": "The named list — vague instructions, wrong model size, prompt-model mismatch, weak tools, no stop criterion, wrong pattern, no memory, no metacognition, no evals, no human-delegation."},
-        {"name": "Performance baseline", "description": "Pre-intervention metric snapshot per agent and per system task, used to attribute remediations."}
+        {
+          "name": "Deployed multi-agent system with traces",
+          "description": "A running system where you can inspect each agent's traces, tool calls, and outputs per session."
+        },
+        {
+          "name": "Failure-mode checklist",
+          "description": "The named list: vague instructions, wrong model size, prompt-model mismatch, weak tools, no stop criterion, wrong pattern, no memory, no metacognition, no evals, no human-delegation."
+        },
+        {
+          "name": "Performance baseline",
+          "description": "A snapshot of the metrics before you change anything, taken per agent and per task, so you can credit each fix to its change."
+        }
       ],
       "outputs": [
-        {"name": "Mode-by-mode diagnosis", "description": "For each checklist mode, evidence from traces of whether it applies and how strongly."},
-        {"name": "Targeted interventions", "description": "One remediation per confirmed mode — clarified instructions, model swap, additional tool, added stop criterion, pattern change, memory addition, metacognitive loop, eval, human-delegation gate."},
-        {"name": "Post-intervention metric report", "description": "Performance delta per intervention, used to confirm or revert each change."}
+        {
+          "name": "Mode-by-mode diagnosis",
+          "description": "For each checklist mode, evidence from the traces of whether it applies and how strongly."
+        },
+        {
+          "name": "Targeted interventions",
+          "description": "One fix per confirmed mode: clearer instructions, a model swap, an extra tool, a stop rule, a design change, added memory, a self-check loop, a test, or a human handoff gate."
+        },
+        {
+          "name": "Post-intervention metric report",
+          "description": "The change in performance from each fix, used to keep or undo it."
+        }
       ],
       "steps": [
         {
           "name": "Snapshot baseline performance",
-          "description": "Capture current metrics per agent and per system task. Without a baseline, no intervention can be attributed."
+          "description": "Capture the current metrics per agent and per task. Without a baseline, you cannot credit a fix to its change."
         },
         {
           "name": "Walk the checklist",
-          "description": "For each named mode, inspect traces and outputs to determine whether the mode applies. Mark each as confirmed, ruled-out, or uncertain — uncertain modes require more telemetry before action."
+          "description": "For each named mode, inspect the traces and outputs to decide whether it applies. Mark each one confirmed, ruled-out, or uncertain. Uncertain modes need more telemetry before you act."
         },
         {
           "name": "Rank confirmed modes by expected leverage",
-          "description": "Some modes — vague instructions, missing stop criterion, wrong pattern — typically explain the largest performance gaps. Rank confirmed modes accordingly so the first intervention has the highest expected payoff."
+          "description": "Some modes usually explain the biggest gaps, such as vague instructions, a missing stop rule, and the wrong design. Rank the confirmed modes so the first fix has the highest expected payoff."
         },
         {
           "name": "Apply one intervention per cycle",
-          "description": "Make a single targeted change per cycle — clarify instructions, swap model size, add a tool, install a stop criterion, change the pattern, add memory, add a metacognitive loop, add evals, add a human-delegation gate. One variable per cycle so the metric delta has a unique attribution."
+          "description": "Make a single targeted change per cycle, such as clearer instructions, a bigger model, an extra tool, a stop rule, a design change, added memory, a self-check loop, tests, or a human handoff gate. Change one thing at a time, so the metric shift has a single clear cause."
         },
         {
           "name": "Measure, accept, or revert",
-          "description": "Re-run the eval or production sample. If the targeted metric improved without regressing others, accept the change. If not, revert and move to the next ranked mode."
+          "description": "Re-run the test or a production sample. If the target metric improved and nothing else got worse, keep the change. If not, undo it and move to the next ranked mode."
         },
         {
           "name": "Re-baseline and continue",
-          "description": "After an accepted intervention, snapshot the new baseline before the next cycle. The checklist is not one-shot — modes can re-emerge as the system grows."
+          "description": "After you keep a fix, snapshot the new baseline before the next cycle. The checklist is not one-shot. Modes can come back as the system grows."
         }
       ],
       "principles": [
-        "Failure modes are optimization opportunities, not incidents — name them to act on them.",
-        "Diagnose from traces before changing code — assumptions about which mode applies are usually wrong.",
-        "One intervention per cycle — multi-variable changes produce uninterpretable metric deltas.",
-        "The checklist is intentionally finite — cover the modes that empirically explain most underperformance, accept that it isn't exhaustive."
+        "Failure modes are chances to improve, not incidents. Name them so you can act on them.",
+        "Diagnose from the traces before you change code. Guesses about which mode applies are usually wrong.",
+        "One change per cycle. Changing several things at once makes the metric shift impossible to read.",
+        "The checklist is finite on purpose. It covers the modes that explain most poor performance, and accepts it is not exhaustive."
       ],
-      "applies_to": ["multi-agent-system", "agent"],
-      "related_patterns": ["eval-harness", "human-in-the-loop", "step-budget", "reflexive-metacognitive-agent"],
+      "applies_to": [
+        "multi-agent-system",
+        "agent"
+      ],
+      "related_patterns": [
+        "eval-harness",
+        "human-in-the-loop",
+        "step-budget",
+        "reflexive-metacognitive-agent"
+      ],
       "related_methodologies": [],
       "known_failure_modes": [
-        {"pattern": "errors-swept-under-the-rug", "note": "Walking the checklist superficially — declaring modes ruled-out without trace evidence — produces no real diagnosis."},
-        {"pattern": "tool-explosion", "note": "Responding to every 'weak tools' diagnosis by adding more tools, until the agent drowns in tool choice."}
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "note": "Walking the checklist superficially — declaring modes ruled-out without trace evidence — produces no real diagnosis."
+        },
+        {
+          "pattern": "tool-explosion",
+          "note": "Responding to every 'weak tools' diagnosis by adding more tools, until the agent drowns in tool choice."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -257,8 +375,13 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["failure-modes", "multi-agent-optimization", "checklist", "post-deployment"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "failure-modes",
+        "multi-agent-optimization",
+        "checklist",
+        "post-deployment"
+      ]
     }
   ]
 }

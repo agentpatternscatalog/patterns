@@ -5,69 +5,107 @@
     {
       "id": "evaluation-driven-development",
       "name": "Evaluation-Driven Development",
-      "aliases": ["eval-first development", "EDD"],
+      "aliases": [
+        "eval-first development",
+        "EDD"
+      ],
       "category": "evaluation",
-      "summary": "Build the evaluation harness before the LLM application. Freeze a rubric and an eval set as versioned artefacts, then let those metrics drive model selection, prompt iteration, and every subsequent change. Eval-after-build collapses because the rubric written later is shaped by what the prompt already does well; freezing the eval first prevents that drift.",
+      "summary": "Build the test harness before you build the large language model (LLM) app. Write down a grading rubric and a set of test cases first, then save both with a version tag. From then on, those scores decide which model you pick, how you change the prompt, and whether any change ships. If you write the rubric after the prompt, the rubric just rewards what the prompt already does well. Freezing the test first stops that.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  task[Task definition] --> s1[Articulate rubric]\n  expert[Domain experts] --> s1\n  s1 --> s2[Curate eval set]\n  traffic[Real or synthetic inputs] --> s2\n  s2 --> s3[Freeze and version]\n  s3 --> rubric[(Versioned eval set + rubric)]\n  rubric --> s4[Measure baseline]\n  s4 --> floor[Baseline score floor]\n  floor --> s5[Iterate against eval]\n  change[Prompt / model / tool change] --> s5\n  s5 --> ship{Beats floor?}\n  ship -->|yes| s5b[Ship change, raise floor]\n  ship -->|no| s5c[Revert]\n  s5b --> s6[Refresh eval on drift]\n  s5c --> s6\n  prod[Production drift / new failure mode] --> s6\n  s6 --> rubric"
       },
-      "example_scenario": "A two-person team at a contracts SaaS is building a clause-extractor that reads uploaded NDAs and surfaces the governing-law clause, the term length, and the exclusivity scope. Before writing a single prompt, they sat down with the in-house counsel for an afternoon and articulated what a correct extraction looks like as a checklist: exact string for governing-law jurisdiction, ISO-formatted term in months, and a structured enum for exclusivity (none/one-way/mutual). They scraped 180 representative NDAs from public filings and from their own anonymised corpus, including 30 deliberately weird ones (handwritten signatures embedded as images, mixed-jurisdiction clauses, missing fields).\n\nThey froze the eval set as evals/v1/ in the repo, with a deterministic checker for the structured fields and an LLM-judge prompt against a fixed rubric for the free-text jurisdiction string. They ran zero-shot Claude Haiku as the baseline — 61% exact-field match, 78% judge-passing on jurisdiction. Every subsequent change (prompt edit, retrieval over case-law glossary, swap to Sonnet, addition of a citation-extraction tool) ran the same eval. The Sonnet swap moved the score to 84% / 91% and shipped; a 'helpful' rewording of the prompt regressed exclusivity from 88% to 71% and got reverted within the hour.\n\nWhat they learned: the rubric written before the prompt resisted contamination — when the counsel asked them late in the project whether they could 'just relax the exclusivity scoring', the request was rejected because it would have invalidated three weeks of comparable scores. They did add a v2 block of 40 new edge cases when production traffic surfaced a Spanish-language NDA, but kept v1 visible in the dashboard so the historical baseline never moved.",
-      "intent": "Force every prompt change, model swap, retrieval tweak, and tool addition to be judged against a pre-committed eval, not by feel.",
-      "when_to_apply": "Starting any LLM application beyond a single-shot demo — RAG over policy docs, an agent that fills CRM fields, a chatbot for a narrow workflow, a coding-task evaluator. Reach for this methodology before the first prompt is authored. Don't apply when truly exploring a research question with no shippable target — the rubric isn't knowable yet.",
+      "example_scenario": "A two-person team at a contracts SaaS is building a clause-extractor. It reads uploaded NDAs and pulls out the governing-law clause, the term length, and the exclusivity scope. Before writing a single prompt, they spent an afternoon with the in-house lawyer. Together they wrote a checklist for a correct extraction: the exact text of the governing-law jurisdiction, the term as an ISO-formatted number of months, and a set choice for exclusivity (none/one-way/mutual). They gathered 180 sample NDAs from public filings and their own anonymised set. Thirty of those were deliberately tricky: handwritten signatures embedded as images, mixed-jurisdiction clauses, and missing fields.\n\nThey froze the test set as evals/v1/ in the repo. A fixed checker handled the structured fields. A model-judge prompt with a fixed rubric handled the free-text jurisdiction string. They ran zero-shot Claude Haiku as the baseline. It scored 61% exact-field match and 78% judge-passing on jurisdiction. Every later change ran the same test: a prompt edit, search over a case-law glossary, a swap to Sonnet, and a new citation-extraction tool. The Sonnet swap moved the score to 84% / 91% and shipped. A 'helpful' rewording of the prompt dropped exclusivity from 88% to 71% and got reverted within the hour.\n\nWhat they learned: the rubric written before the prompt held up. Late in the project the lawyer asked if they could 'just relax the exclusivity scoring'. They said no, because it would have invalidated three weeks of comparable scores. They did add a v2 block of 40 new edge cases when a Spanish-language NDA showed up in production traffic. They kept v1 visible in the dashboard so the historical baseline never moved.",
+      "deep_dive": "The methodology inverts the usual order: the eval harness is authored before the system-under-test, and the rubric plus eval set are committed as version-pinned artefacts (e.g. `evals/v1/`) that act as a regression gate on every subsequent change.\n\n- **Grading strategy by task shape.** Structured-output tasks get a deterministic checker (exact-match or schema/enum validation). Open-ended free-text tasks get an LLM-as-judge prompt scored against a frozen rubric. Tasks with ground truth use expected-output comparison. Mixed harnesses are normal.\n- **Baseline as floor.** The cheapest plausible configuration (zero-shot on a small model) establishes a score floor. Every candidate change must beat the floor on the same eval to ship; regressions are reverted.\n- **Contamination resistance.** A rubric authored after the first prompt is shaped by what that prompt already does well. Freezing the rubric before any prompt exists prevents the metric from drifting to fit the implementation.\n- **Eval evolution discipline.** New edge cases enter as a separately-versioned block (v2, v3, …). The historical baseline (v1) stays visible so cross-version comparisons remain valid. Two known failure modes bound the practice: judging by demo feel (errors swept under the rug) and iterating against a stale eval until the system games the metric without generalising (reward hacking).",
+      "intent": "Judge every prompt change, model swap, search tweak, and new tool against a test you committed to up front, not by feel.",
+      "when_to_apply": "Use this when you start any LLM app beyond a one-off demo. Examples: search over policy docs, an agent that fills CRM fields, a chatbot for one narrow workflow, or a grader for coding tasks. Reach for it before you write the first prompt. Don't apply it when you are still exploring an open research question with no product to ship, because you cannot know the rubric yet.",
       "inputs": [
-        {"name": "Task definition", "description": "A clear statement of what the system must do, including domain and user persona."},
-        {"name": "Real or synthetic input distribution", "description": "Sample user inputs that span the named dimensions of the task — formats, edge cases, adversarial shapes."},
-        {"name": "Notion of 'good'", "description": "Domain expert(s) who can articulate, even informally, what a correct or acceptable output looks like."}
+        {
+          "name": "Task definition",
+          "description": "A clear statement of what the system must do. Include the subject area and who the user is."
+        },
+        {
+          "name": "Real or synthetic input distribution",
+          "description": "Sample user inputs that cover the parts of the task that matter: different formats, edge cases, and tricky inputs meant to break things."
+        },
+        {
+          "name": "Notion of 'good'",
+          "description": "An expert in the field who can say, even roughly, what a correct or acceptable output looks like."
+        }
       ],
       "outputs": [
-        {"name": "Versioned eval set", "description": "A frozen set of inputs (and optionally reference outputs) checked into the repo with a version tag."},
-        {"name": "Rubric or checker", "description": "An automated way to grade outputs — deterministic checker, LLM-as-judge prompt against a frozen rubric, expected-output exact match, or a mix."},
-        {"name": "Metrics dashboard", "description": "A reproducible run that produces score(s) for any candidate prompt/model/system configuration."}
+        {
+          "name": "Versioned eval set",
+          "description": "A frozen set of inputs, and sometimes the matching correct outputs, checked into the repo with a version tag."
+        },
+        {
+          "name": "Rubric or checker",
+          "description": "An automatic way to grade outputs. It can be a fixed checker, a model-judge prompt against a frozen rubric, an exact match to expected output, or a mix."
+        },
+        {
+          "name": "Metrics dashboard",
+          "description": "A repeatable run that produces a score for any candidate prompt, model, or setup."
+        }
       ],
       "steps": [
         {
           "name": "Articulate 'good' as a checkable rubric",
-          "description": "Before any prompt exists, write down what a correct response looks like. Deterministic checker for structured tasks; LLM-as-judge against a frozen rubric for open-ended tasks; expected-output comparison for tasks with ground truth."
+          "description": "Before any prompt exists, write down what a correct answer looks like. Use a fixed checker for structured tasks. Use a model-judge against a frozen rubric for open-ended tasks. Compare against expected output when you have known-correct answers."
         },
         {
           "name": "Curate the eval set",
-          "description": "Collect 50–500 inputs from real user traffic or synthesise inputs that cover the dimensions of the task. Include adversarial and edge cases deliberately, not as an afterthought.",
-          "produces": ["Versioned eval set"]
+          "description": "Collect 50 to 500 inputs from real user traffic, or make up inputs that cover the parts of the task that matter. Add tricky inputs and edge cases on purpose, not as an afterthought.",
+          "produces": [
+            "Versioned eval set"
+          ]
         },
         {
           "name": "Freeze and version",
-          "description": "Commit the eval set and rubric as a versioned artefact. Treat changes to either as code changes — reviewed, dated, and rationale-documented."
+          "description": "Commit the eval set and rubric with a version tag. Treat any change to either like a code change. That means reviewed, dated, and explained."
         },
         {
           "name": "Measure baseline",
-          "description": "Run the cheapest plausible configuration (zero-shot on a small model, or a baseline retrieval+prompt) against the eval. Record the score. This becomes the floor every subsequent change must beat."
+          "description": "Run the cheapest setup that might work against the test. That could be zero-shot on a small model, or a basic search-plus-prompt. Record the score. This is the floor every later change has to beat."
         },
         {
           "name": "Iterate with eval as the only ground truth",
-          "description": "Every prompt edit, model swap, retrieval change, or tool addition runs the eval. Improvements ship; regressions reverse. Avoid the temptation to add a 'feels-better' demo on the side."
+          "description": "Run the test for every prompt edit, model swap, search change, or new tool. Ship the changes that improve the score. Revert the ones that drop it. Resist the urge to bless a change because a side demo 'feels better'."
         },
         {
           "name": "Refresh the eval on shifts",
-          "description": "When production traffic drifts or a new failure mode appears, add cases to the eval set in a separately-versioned block. Never silently overwrite the historical baseline — keep the diff visible."
+          "description": "When production traffic changes or a new failure shows up, add cases in a new versioned block. Never quietly overwrite the old baseline. Keep the change visible so you can still compare against history."
         }
       ],
       "principles": [
-        "The eval is the spec — if it doesn't measure the property, the property doesn't ship.",
-        "Freeze before you build: a rubric written after the first prompt is contaminated by it.",
-        "Cover the dimensions, not just the happy path — adversarial and edge cases are first-class inputs.",
-        "Every change runs the eval, every change. No exceptions for 'small' tweaks."
+        "The test is the spec. If it does not measure something, that something does not ship.",
+        "Freeze before you build. A rubric written after the first prompt is shaped by that prompt.",
+        "Cover the parts that matter, not just the happy path. Tricky inputs and edge cases count as real inputs.",
+        "Every change runs the test, every time. No exceptions for 'small' tweaks."
       ],
-      "applies_to": ["agent", "rag-system", "llm-app", "coding-agent"],
+      "applies_to": [
+        "agent",
+        "rag-system",
+        "llm-app",
+        "coding-agent"
+      ],
       "related_patterns": [
         "llm-as-judge",
         "frozen-rubric-reflection",
         "sampled-prompt-trace-eval"
       ],
-      "related_compositions": ["eval-and-observability", "production-llm-platform"],
+      "related_compositions": [
+        "eval-and-observability",
+        "production-llm-platform"
+      ],
       "known_failure_modes": [
-        {"pattern": "errors-swept-under-the-rug", "note": "Skipping the rubric and judging by demo feel — errors silently absorbed into 'feels fine'."},
-        {"pattern": "reward-hacking", "note": "Iterating prompts against a stale eval until the system games the metric without generalising."}
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "note": "Skipping the rubric and judging by demo feel — errors silently absorbed into 'feels fine'."
+        },
+        {
+          "pattern": "reward-hacking",
+          "note": "Iterating prompts against a stale eval until the system games the metric without generalising."
+        }
       ],
       "maturity": "proven",
       "sources": [
@@ -90,67 +128,111 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["eval-first", "rubric", "regression-gate"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "eval-first",
+        "rubric",
+        "regression-gate"
+      ]
     },
     {
       "id": "ai-as-judge-evaluation",
       "name": "AI-as-Judge Evaluation",
-      "aliases": ["LLM-as-judge", "model-graded eval"],
+      "aliases": [
+        "LLM-as-judge",
+        "model-graded eval"
+      ],
       "category": "evaluation",
-      "summary": "Use a strong reference model to grade the outputs of a system-under-test against a frozen rubric. Faster and cheaper than human grading at scale, and works for open-ended generation tasks where exact-match checkers don't apply. Reliability hinges on rubric design, judge calibration, and explicit awareness of the judge's own biases.",
+      "summary": "Use a strong model as a judge. It grades the outputs of the system you are testing against a fixed rubric. This is faster and cheaper than having people grade at scale. It also works for open-ended tasks where an exact-match checker cannot help. How well it works depends on three things: a clear rubric, a judge you have checked against people, and knowing the judge's own biases.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  eval[Eval set] --> s3[Run on the eval set]\n  judge[Judge model] --> s1[Author rubric prompt]\n  s1 --> rubric[(Frozen rubric prompt)]\n  rubric --> s2[Calibrate vs humans]\n  humans[Domain experts] --> s2\n  s2 --> kappa{Kappa >= 0.6?}\n  kappa -->|no| s1\n  kappa -->|yes| s3\n  s3 --> scores[Per-example scores]\n  scores --> s4[Aggregate and version]\n  s4 --> agg[Aggregate metrics pinned to judge+rubric version]\n  agg --> s5[Periodic re-calibration]\n  s5 --> drift{Judge drift?}\n  drift -->|yes| s1\n  drift -->|no| agg"
       },
-      "intent": "Produce a reproducible numerical score for open-ended generations by delegating grading to a calibrated model rather than humans.",
-      "when_to_apply": "Open-ended generation tasks — summaries, explanations, conversational responses, code rationales — where deterministic checkers don't fit and human grading is too slow to run on every change. Don't apply when the judge model is weaker than the system-under-test (positive-bias collapse), or when the rubric can't be articulated tightly enough for a model to follow.",
+      "intent": "Get a repeatable number score for open-ended outputs by handing the grading to a checked model instead of people.",
+      "when_to_apply": "Use this for open-ended tasks such as summaries, explanations, chat replies, and code explanations. These are cases where an exact-match checker does not fit and human grading is too slow to run on every change. Don't apply it when the judge model is weaker than the system you are testing, because then the scores just ceiling out at the judge's blind spots. Skip it too when the rubric cannot be written tightly enough for a model to follow.",
       "inputs": [
-        {"name": "Eval set", "description": "Inputs to be graded, ideally with reference outputs or constraints."},
-        {"name": "Rubric prompt", "description": "Frozen judge instructions naming the dimensions to score and the rating scale."},
-        {"name": "Judge model", "description": "A model at least as strong as the system-under-test on the target domain."}
+        {
+          "name": "Eval set",
+          "description": "The inputs to be graded. Ideally each comes with a correct output or a set of rules to check against."
+        },
+        {
+          "name": "Rubric prompt",
+          "description": "Fixed instructions for the judge. They name what to score and the rating scale to use."
+        },
+        {
+          "name": "Judge model",
+          "description": "A model at least as strong as the system you are testing, in the subject area that matters."
+        }
       ],
       "outputs": [
-        {"name": "Per-example scores", "description": "Numerical scores per dimension per input."},
-        {"name": "Aggregate metrics", "description": "Mean / variance / pass-rate across the eval set."},
-        {"name": "Judge calibration log", "description": "Periodic human spot-checks confirming the judge agrees with experts."}
+        {
+          "name": "Per-example scores",
+          "description": "A number score for each input, broken out by each thing you are scoring."
+        },
+        {
+          "name": "Aggregate metrics",
+          "description": "The roll-up across the whole test set: average score, how much it varies, and pass rate."
+        },
+        {
+          "name": "Judge calibration log",
+          "description": "A record of regular human spot-checks that confirm the judge still agrees with the experts."
+        }
       ],
       "steps": [
         {
           "name": "Author the rubric prompt",
-          "description": "Spell out the dimensions to grade (faithfulness, relevance, conciseness, etc.), the rating scale (1–5, pass/fail, comparative), and what each level means. Force the judge to emit a structured score, not free prose."
+          "description": "Spell out what to grade, such as faithfulness, relevance, and brevity. Set the rating scale, such as 1 to 5, pass/fail, or A-vs-B. Say what each level means. Make the judge return a structured score, not free prose."
         },
         {
           "name": "Calibrate against human ratings",
-          "description": "Have domain experts grade a sample of 50–100 outputs using the same rubric. Compare to the judge's scores. Adjust the rubric until inter-rater agreement (judge vs human) clears your threshold — typically Cohen's kappa ≥ 0.6."
+          "description": "Have experts grade a sample of 50 to 100 outputs using the same rubric. Compare their scores to the judge's. Tweak the rubric until the judge and the people agree closely enough. A common bar is a Cohen's kappa agreement score of 0.6 or higher."
         },
         {
           "name": "Run on the eval set",
-          "description": "Score every output. Use the same judge model and rubric version for every run so scores are comparable across iterations."
+          "description": "Score every output. Use the same judge model and the same rubric version for every run. That keeps scores comparable across rounds."
         },
         {
           "name": "Aggregate and version",
-          "description": "Compute aggregates and pin them to the judge-model and rubric versions. Changing either is a re-baseline event."
+          "description": "Roll up the scores and tie them to the judge-model version and the rubric version. Changing either one means you have to set a fresh baseline."
         },
         {
           "name": "Periodically re-calibrate",
-          "description": "Re-sample human ratings every few months or whenever the judge model is upgraded. Models drift; calibration is a maintenance activity, not a one-shot setup."
+          "description": "Collect fresh human ratings every few months, or whenever the judge model is upgraded. Models drift over time. Checking the judge against people is ongoing upkeep, not a one-time setup."
         }
       ],
       "principles": [
-        "The judge must be stronger than the system it grades — otherwise scores ceiling out at the judge's blind spots.",
-        "Comparative grading (A vs B) is more reliable than absolute scoring.",
-        "A judge prompt is a frozen artefact; changing it invalidates historical scores.",
-        "Human spot-checks are not optional — they are how you detect judge drift."
+        "The judge must be stronger than the system it grades. Otherwise scores stop at the judge's blind spots.",
+        "Asking the judge to pick A over B is more reliable than asking for an absolute score.",
+        "A judge prompt is frozen. Changing it makes your old scores no longer comparable.",
+        "Human spot-checks are not optional. They are how you catch the judge drifting."
       ],
-      "applies_to": ["agent", "llm-app", "rag-system", "coding-agent"],
-      "example_scenario": "A team building a customer-support summariser needs to grade 4,000 daily summaries for faithfulness, tone, and length adherence — far too many for human review. They picked Claude Opus as the judge (the system-under-test runs on Sonnet, so the judge is materially stronger on the support-conversation domain). The rubric prompt names three dimensions, each on a 1-5 scale, with explicit anchors: faithfulness 5 = 'every factual claim grounded in the source ticket', faithfulness 1 = 'fabricated entities or numbers'.\n\nBefore trusting the judge, they had two domain experts grade 80 sampled summaries blind to the judge's output. Cohen's kappa on the first pass was 0.48 — too low. The disagreement clustered on tone, where the rubric anchors were too vague. They rewrote the tone descriptions with concrete examples ('5 = empathetic without becoming saccharine, e.g. acknowledges frustration once and moves to action'), re-ran calibration, and hit 0.71. The rubric got pinned to v3.\n\nFrom then on, every nightly run scores every summary on the v3 rubric against Opus-2026-04 as judge. Three months in, Anthropic released a newer judge model; the team treated the swap as a re-baseline event, re-calibrated against fresh human ratings (kappa 0.74), and only then promoted scores under the new judge version. They also caught one quiet regression: a prompt change had nudged the system toward 'cheerful' tone-fives that the judge happily rewarded but humans found grating, found in the quarterly spot-check.",
-      "related_patterns": ["llm-as-judge", "frozen-rubric-reflection"],
-      "related_compositions": ["eval-and-observability"],
-      "related_methodologies": ["evaluation-driven-development"],
+      "applies_to": [
+        "agent",
+        "llm-app",
+        "rag-system",
+        "coding-agent"
+      ],
+      "example_scenario": "A team building a customer-support summariser needs to grade 4,000 daily summaries for faithfulness, tone, and length. That is far too many for people to review by hand. They picked Claude Opus as the judge. The system under test runs on Sonnet, so the judge is clearly stronger on support conversations. The rubric prompt names three things to score, each on a 1-5 scale, with clear anchors. Faithfulness 5 means 'every factual claim is grounded in the source ticket'. Faithfulness 1 means 'made-up entities or numbers'.\n\nBefore trusting the judge, they had two experts grade 80 sampled summaries without seeing the judge's output. The first pass scored a Cohen's kappa agreement of 0.48, which was too low. Most of the disagreement was about tone, where the rubric anchors were too vague. They rewrote the tone descriptions with concrete examples. For instance, '5 = warm without being syrupy, e.g. acknowledges frustration once and moves to action'. They re-ran the check and hit 0.71. The rubric got pinned to v3.\n\nFrom then on, every nightly run scored every summary on the v3 rubric, using Opus-2026-04 as the judge. Three months in, Anthropic released a newer judge model. The team treated the swap as a fresh baseline. They re-checked against new human ratings, hit a kappa of 0.74, and only then trusted scores under the new judge version. They also caught one quiet regression. A prompt change had nudged the system toward 'cheerful' tone-fives that the judge happily rewarded but humans found grating. They found it in the quarterly spot-check.",
+      "deep_dive": "LLM-as-judge replaces human grading with a stronger reference model scoring against a frozen rubric prompt. Its validity rests on inter-rater agreement, judge selection, and bias control.\n\n- **Three grading modes.** Pointwise absolute scoring (1-5 or pass/fail per output), reference-based scoring (output vs a gold answer), and comparative/pairwise scoring (A vs B). Comparative grading is more reliable because it sidesteps the judge's poorly-calibrated absolute scale; it underpins model-ranking and Elo-style leaderboards.\n- **Calibration metric.** Agreement between judge and human raters is quantified with Cohen's kappa, which corrects for chance agreement. A working threshold is kappa >= 0.6; below that the rubric anchors are usually too vague and must be sharpened with concrete level descriptions before the judge is trusted.\n- **Versioning as re-baseline.** The judge model version and the rubric version jointly pin a score series. Changing either invalidates historical comparability and forces re-calibration against fresh human samples — calibration is maintenance, not one-shot setup, because models drift.\n- **Bias failure modes.** Self-preference / same-model-self-critique (a judge weaker than or identical to the system-under-test ceilings out at shared blind spots) and sycophancy (rubrics that reward agreement with the system's tone inflate scores untethered from correctness). Periodic blind human spot-checks are the only reliable detector of both.",
+      "related_patterns": [
+        "llm-as-judge",
+        "frozen-rubric-reflection"
+      ],
+      "related_compositions": [
+        "eval-and-observability"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development"
+      ],
       "known_failure_modes": [
-        {"pattern": "same-model-self-critique", "note": "Using the system-under-test as its own judge — scores ceiling out at the judge's blind spots."},
-        {"pattern": "sycophancy", "note": "Judge prompts that reward agreement with the system's tone produce inflated scores untethered from correctness."}
+        {
+          "pattern": "same-model-self-critique",
+          "note": "Using the system-under-test as its own judge — scores ceiling out at the judge's blind spots."
+        },
+        {
+          "pattern": "sycophancy",
+          "note": "Judge prompts that reward agreement with the system's tone produce inflated scores untethered from correctness."
+        }
       ],
       "maturity": "proven",
       "sources": [
@@ -171,79 +253,127 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["judge-model", "calibration", "open-ended-grading"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "judge-model",
+        "calibration",
+        "open-ended-grading"
+      ]
     },
     {
       "id": "rubric-and-grounding-profile-evaluation",
       "name": "Rubric and Grounding Profile Evaluation",
-      "aliases": ["profile rubric eval", "profile-grading harness"],
+      "aliases": [
+        "profile rubric eval",
+        "profile-grading harness"
+      ],
       "category": "evaluation",
-      "summary": "Systematically compare candidate agent profiles or personas by batch-running each through an LLM-graded rubric for output quality, paired with a grounding check that verifies generated answers stay anchored to source text. Both signals are computed in a Prompt Flow style batch harness, then aggregated per-profile so the winning prompt/persona is chosen on numbers rather than vibes. Distinct from generic AI-as-judge evaluation because the comparison unit is the profile (system prompt, persona, instructions), and grounding-to-source is a first-class second axis alongside the rubric.",
+      "summary": "Compare candidate agent profiles, the personas an agent can adopt, in a fair head-to-head. Run each profile over the same test set in one batch. Grade output quality with a model-judged rubric. Separately check grounding, that is, whether the answers stay tied to the source text. Both scores are computed in a batch harness, in the style of Azure Prompt Flow, then rolled up per profile. The winning prompt or persona is chosen on numbers, not vibes. This differs from plain model-as-judge grading in two ways. The thing you compare is the whole profile, meaning the system prompt, persona, and instructions. And grounding to the source is a full second axis next to the quality rubric.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  rubric_in[Rubric judge prompt] --> s1[Author rubric and grounding checks]\n  ground_in[Grounding checker] --> s1\n  s1 --> checks[(Frozen rubric + grounding checker)]\n  profiles[Candidate profiles] --> s2[Enumerate profiles]\n  s2 --> locked[Version-pinned profile slate]\n  eval[Eval set with sources] --> s3[Batch-run per profile]\n  locked --> s3\n  s3 --> outputs[(profile, input, output, source) tuples]\n  outputs --> s4a[Score rubric]\n  outputs --> s4b[Score grounding]\n  checks --> s4a\n  checks --> s4b\n  s4a --> s5[Aggregate per profile]\n  s4b --> s5\n  s5 --> winner{Wins rubric AND grounding?}\n  winner -->|no| reject[Reject - fluent-but-unfaithful]\n  winner -->|yes| s6[Human spot-check]\n  s6 --> promote[Promote winning profile]"
       },
-      "intent": "Pick the best agent profile from a slate of candidates by scoring each on a frozen rubric and a source-grounding check, batched at scale.",
-      "when_to_apply": "When a team has multiple candidate system prompts, personas, or profile templates for the same agent role and needs to choose one — e.g. comparing tone variants for a customer-support agent, or comparing instruction styles for a domain assistant grounded in policy docs. Don't apply when there is only one candidate profile, or when the task has no source text for grounding to be meaningful (pure creative generation).",
+      "intent": "Pick the best agent profile from a set of candidates by scoring each one on a frozen quality rubric and a source-grounding check, run in batch.",
+      "when_to_apply": "Use this when a team has several candidate system prompts, personas, or profile templates for the same agent role and must pick one. Examples: comparing tone variants for a support agent, or comparing instruction styles for an assistant grounded in policy docs. Don't apply it when there is only one candidate profile. Skip it too when the task has no source text, so grounding has nothing to check, as in pure creative writing.",
       "inputs": [
-        {"name": "Candidate profiles", "description": "Two or more system-prompt / persona definitions to compare."},
-        {"name": "Eval set", "description": "Inputs the agent must respond to; ideally with source documents the answer should be grounded in."},
-        {"name": "Rubric prompt", "description": "Frozen judge instructions covering the quality dimensions to score per output."},
-        {"name": "Grounding checker", "description": "A prompt or routine that flags answer spans not supported by the supplied source text."}
+        {
+          "name": "Candidate profiles",
+          "description": "Two or more system-prompt or persona definitions to compare."
+        },
+        {
+          "name": "Eval set",
+          "description": "The inputs the agent must respond to. Ideally each comes with the source documents the answer should be based on."
+        },
+        {
+          "name": "Rubric prompt",
+          "description": "Fixed instructions for the judge. They cover the quality points to score on each output."
+        },
+        {
+          "name": "Grounding checker",
+          "description": "A prompt or routine that flags any part of an answer the source text does not back up."
+        }
       ],
       "outputs": [
-        {"name": "Per-profile rubric scores", "description": "Aggregated rubric metrics for each candidate profile."},
-        {"name": "Per-profile grounding scores", "description": "Fraction of generated claims traceable to source text, per profile."},
-        {"name": "Profile comparison report", "description": "Side-by-side leaderboard of rubric vs grounding by candidate, with the winning profile selected."}
+        {
+          "name": "Per-profile rubric scores",
+          "description": "The rolled-up quality scores for each candidate profile."
+        },
+        {
+          "name": "Per-profile grounding scores",
+          "description": "The share of an answer's claims that can be traced back to the source text, per profile."
+        },
+        {
+          "name": "Profile comparison report",
+          "description": "A side-by-side leaderboard of quality versus grounding for each candidate, with the winner picked."
+        }
       ],
       "steps": [
         {
           "name": "Author the rubric and grounding checks",
-          "description": "Write a frozen LLM-judge rubric covering the quality dimensions (helpfulness, tone, conciseness, format adherence). Independently write a grounding checker that takes (answer, source) and returns supported/unsupported per claim."
+          "description": "Write a frozen model-judge rubric for the quality points: helpfulness, tone, brevity, and following the format. Separately, write a grounding checker. It takes an answer and its source, then marks each claim as supported or not."
         },
         {
           "name": "Enumerate candidate profiles",
-          "description": "Collect the system prompts / persona variants to be compared, version-pinned. Treat each as an opaque unit; do not edit mid-eval.",
-          "uses_patterns": ["agent-persona-profile"]
+          "description": "List the system prompts and persona variants to compare, each pinned to a version. Treat each profile as one sealed unit. Do not edit any of them mid-test.",
+          "uses_patterns": [
+            "agent-persona-profile"
+          ]
         },
         {
           "name": "Batch-run the eval set per profile",
-          "description": "For each profile, run the agent across all eval inputs in a batch harness (Prompt Flow or equivalent). Capture every (profile, input, output, source) tuple."
+          "description": "For each profile, run the agent over every test input in a batch harness, such as Azure Prompt Flow or similar. Save every row: the profile, the input, the output, and the source."
         },
         {
           "name": "Score rubric and grounding independently",
-          "description": "Run the rubric judge on every output. Run the grounding checker on the same outputs against their source text. Persist both scores per row.",
-          "uses_patterns": ["llm-as-judge"]
+          "description": "Run the rubric judge on every output. Run the grounding checker on those same outputs against their source text. Save both scores on each row.",
+          "uses_patterns": [
+            "llm-as-judge"
+          ]
         },
         {
           "name": "Aggregate per profile and pick the winner",
-          "description": "Compute means / pass-rates per profile on both axes. Reject profiles that win rubric but lose grounding — a fluent-but-unfaithful profile is a failure mode, not a winner."
+          "description": "Work out the average score and pass rate per profile on both axes. Reject any profile that wins on quality but loses on grounding. A smooth-sounding but unfaithful profile is a failure, not a winner."
         },
         {
           "name": "Spot-check the leader with humans",
-          "description": "Have a domain expert read a sample from the winning profile's outputs to confirm the rubric and grounding scores match human judgement before promoting the profile."
+          "description": "Have an expert read a sample of the winning profile's outputs. Confirm the quality and grounding scores match what a person would say before you promote the profile."
         }
       ],
       "principles": [
-        "Rubric and grounding are independent axes — never average them into one number.",
-        "The profile is the comparison unit, not individual prompt tweaks within a profile.",
-        "Grounding failure beats rubric success — a fluent unfaithful answer is worse than a clumsy faithful one.",
-        "Profile selection is a frozen-eval event; once chosen, the profile is locked until the next re-evaluation."
+        "Quality and grounding are separate axes. Never average them into one number.",
+        "The whole profile is what you compare, not single prompt tweaks inside a profile.",
+        "A grounding failure outweighs a quality win. A smooth but unfaithful answer is worse than a clumsy but faithful one.",
+        "Picking a profile is a frozen-test event. Once chosen, the profile is locked until the next re-test."
       ],
-      "applies_to": ["agent", "llm-app", "rag-system"],
-      "example_scenario": "A team building an HR-policy assistant for a 12,000-person company has four candidate system prompts on the table: a terse 'just answer the question' profile, a verbose 'cite chapter and verse' profile, a friendly conversational profile, and a strict legal-counsel-style profile. All four have to answer the same 220-question eval drawn from real employee submissions, grounded in the company's 380-page policy handbook.\n\nThey ran the slate in Azure Prompt Flow batch mode: each profile answered every question, with the relevant retrieved policy passages logged per row. A frozen rubric (helpfulness, tone fit for an internal HR context, conciseness, format) was scored by Claude Opus. Independently, a grounding checker took each (answer, retrieved-passages) pair and flagged unsupported claims. After 880 graded rows per axis they had a clean leaderboard.\n\nThe verbose profile won the rubric (mean 4.3/5) but came third on grounding (74% of claims supported) because it filled gaps with plausible-sounding policy that was not actually in the handbook. The terse profile won grounding (94%) but bored reviewers. The legal-counsel profile balanced both at 4.0/93% and was promoted after a domain HR lead spot-read 20 answers from it and confirmed the scores tracked their judgement. The verbose profile was explicitly rejected with a note in the comparison report — fluent unfaithfulness recognised as a failure mode, not a winner.",
+      "applies_to": [
+        "agent",
+        "llm-app",
+        "rag-system"
+      ],
+      "example_scenario": "A team is building an HR-policy assistant for a 12,000-person company. They have four candidate system prompts. One is a terse 'just answer the question' profile. One is a verbose 'cite chapter and verse' profile. One is a friendly conversational profile. One is a strict legal-counsel-style profile. All four have to answer the same 220-question test, drawn from real employee submissions and grounded in the company's 380-page policy handbook.\n\nThey ran the set in Azure Prompt Flow batch mode. Each profile answered every question, and the policy passages it pulled were logged on each row. A frozen rubric covered helpfulness, tone fit for an internal HR setting, brevity, and format. Claude Opus scored it. Separately, a grounding checker took each answer and its retrieved passages, then flagged claims the passages did not support. After 880 graded rows per axis, they had a clean leaderboard.\n\nThe verbose profile won the rubric with a mean of 4.3/5. But it came third on grounding, at 74% of claims supported. It filled gaps with plausible-sounding policy that was not actually in the handbook. The terse profile won grounding at 94% but bored reviewers. The legal-counsel profile balanced both at 4.0/93% and was promoted. An HR lead spot-read 20 of its answers first and confirmed the scores matched their own judgement. The verbose profile was rejected outright, with a note in the comparison report. Smooth-sounding unfaithfulness is a failure, not a winner.",
+      "deep_dive": "This is a two-axis, profile-as-unit specialisation of LLM-as-judge evaluation, computed in a batch harness (Azure Prompt Flow or equivalent). The comparison unit is the full profile — system prompt, persona, and instructions — held opaque and version-pinned for the duration of the run.\n\n- **Axis 1 — rubric quality.** A frozen LLM-judge rubric scores each output on dimensions such as helpfulness, tone fit, conciseness, and format adherence. Aggregated as per-profile means / pass-rates.\n- **Axis 2 — grounding / faithfulness.** A separate checker takes (answer, retrieved-source) pairs and labels each claim supported or unsupported; the per-profile grounding score is the fraction of claims traceable to source. This is the faithfulness leg of the RAG-triad and must never be folded into the rubric average.\n- **Selection rule.** A profile must win on BOTH axes. A profile that maxes the rubric but loses grounding is the fluent-but-unfaithful failure mode (hallucinated citations / fabricated policy) and is explicitly rejected, not ranked. Because rubric and grounding can trade off, the decision is a Pareto-style choice rather than a single scalar.\n- **Process discipline.** Profile selection is a frozen-eval event: the slate is version-pinned, no profile is edited mid-run, and the winner is locked until the next re-evaluation. A human spot-check on the leader guards against the judge being a same-model self-critique whose biases happen to favour one profile.",
       "related_patterns": [
         "agent-persona-profile",
         "llm-as-judge",
         "frozen-rubric-reflection",
         "personality-variant-overlay"
       ],
-      "related_compositions": ["eval-and-observability"],
-      "related_methodologies": ["evaluation-driven-development", "ai-as-judge-evaluation"],
+      "related_compositions": [
+        "eval-and-observability"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development",
+        "ai-as-judge-evaluation"
+      ],
       "known_failure_modes": [
-        {"pattern": "hallucinated-citations", "note": "Profiles that score high on rubric but fabricate source attributions — caught only if grounding is scored as a separate axis."},
-        {"pattern": "same-model-self-critique", "note": "Using the candidate profile's own model as the judge — the favoured profile is whichever one matches the judge's biases."}
+        {
+          "pattern": "hallucinated-citations",
+          "note": "Profiles that score high on rubric but fabricate source attributions — caught only if grounding is scored as a separate axis."
+        },
+        {
+          "pattern": "same-model-self-critique",
+          "note": "Using the candidate profile's own model as the judge — the favoured profile is whichever one matches the judge's biases."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -264,77 +394,123 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["profile-selection", "rubric", "grounding", "prompt-flow"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "profile-selection",
+        "rubric",
+        "grounding",
+        "prompt-flow"
+      ]
     },
     {
       "id": "evaluation-planning-framework",
       "name": "Evaluation Planning Framework",
-      "aliases": ["trajectory-grounded MAS eval planning", "MAS evaluation plan"],
+      "aliases": [
+        "trajectory-grounded MAS eval planning",
+        "MAS evaluation plan"
+      ],
       "category": "evaluation",
-      "summary": "Plan multi-agent system evaluation from execution trajectories rather than single outputs. Translate domain expertise into eval criteria, decide per criterion whether to score with a numeric metric, a programmatic check, or an LLM judge, and assemble the choices into a runnable harness. The output is an evaluation plan that names what is being measured at each step of the agent's trajectory and how it will be measured, before any code is written.",
+      "summary": "Plan how to test a multi-agent system from its whole run, not just its final answer. The whole run, step by step, is called the trajectory. Turn expert know-how into a list of things to check. For each one, decide how to score it: a plain number, a code check, or a model judge. Then assemble those choices into a harness you can run. The result is an evaluation plan. It names what you measure at each step of the run and how you measure it, before you write any code.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  mas[MAS definition] --> s1[Inventory what to measure]\n  experts[Domain experts] --> s1\n  s1 --> criteria[Named criteria]\n  criteria --> s2[Anchor to trajectory points]\n  traces[Sample trajectories] --> s2\n  s2 --> anchored[Criteria with trajectory anchors]\n  anchored --> s3[Choose scoring method per criterion]\n  s3 --> numeric[Numeric: latency, cost]\n  s3 --> prog[Programmatic: schema, regex]\n  s3 --> judge[LLM judge: open-ended]\n  numeric --> s4[Assemble harness]\n  prog --> s4\n  judge --> s4\n  s4 --> harness[(Versioned eval plan + runnable harness)]\n  harness --> s5[Calibrate on curated trajectories]\n  s5 --> good{Good runs score high?}\n  good -->|no| s1\n  good -->|yes| s6[Freeze plan as artefact]"
       },
-      "intent": "Produce a runnable MAS evaluation harness whose criteria, scoring methods, and trajectory anchors are explicitly chosen before implementation.",
-      "when_to_apply": "Designing evaluation for a multi-agent system or any agent whose value is in the trajectory of its actions, not just the final answer — research agents, coding agents, browser agents, planner-executor systems. Don't apply to single-turn classification or generation tasks where a one-shot output captures the full behaviour.",
+      "intent": "Produce a runnable test harness for a multi-agent system whose checks, scoring methods, and step anchors are all chosen on purpose before you build it.",
+      "when_to_apply": "Use this when you are designing a test for a multi-agent system, or any agent whose value is in how it acts step by step, not just its final answer. Examples: research agents, coding agents, browser agents, and planner-executor systems. Don't apply it for single-turn tasks such as classification or one-shot generation, where one output already shows the whole behaviour.",
       "inputs": [
-        {"name": "Multi-agent system definition", "description": "The roles, interaction protocol, and tool surface of the MAS to be evaluated."},
-        {"name": "Domain experts", "description": "People who can articulate what a correct trajectory and a correct final outcome look like in this domain."},
-        {"name": "Sample trajectories", "description": "Recorded runs (good and bad) that anchor what is being scored."}
+        {
+          "name": "Multi-agent system definition",
+          "description": "The roles, the way the agents talk to each other, and the tools the system can use."
+        },
+        {
+          "name": "Domain experts",
+          "description": "People who can say what a correct run and a correct final result look like in this field."
+        },
+        {
+          "name": "Sample trajectories",
+          "description": "Recorded runs, both good and bad, that show what each check is scoring."
+        }
       ],
       "outputs": [
-        {"name": "Evaluation plan document", "description": "Named criteria, scoring method per criterion, anchor points in the trajectory, success thresholds."},
-        {"name": "Executable evaluation harness", "description": "Code that runs the plan against new trajectories and emits scores."}
+        {
+          "name": "Evaluation plan document",
+          "description": "The named checks, the scoring method for each one, the step in the run where each is measured, and the pass marks."
+        },
+        {
+          "name": "Executable evaluation harness",
+          "description": "Code that runs the plan against new runs and returns scores."
+        }
       ],
       "steps": [
         {
           "name": "Inventory what is worth measuring",
-          "description": "Interview domain experts to enumerate the criteria that distinguish a successful run from a failure — coordination, tool selection, final answer quality, cost, latency. Resist collapsing everything to 'task success'."
+          "description": "Talk to the experts and list the checks that tell a good run from a bad one. These include teamwork between agents, tool choice, final answer quality, cost, and speed. Do not squash everything down to one 'did the task succeed' score."
         },
         {
           "name": "Anchor criteria to trajectory points",
-          "description": "For each criterion, identify whether it is scored on an intermediate step (tool call, sub-agent handoff, plan revision) or the final output. Trajectory-level criteria need step-level instrumentation."
+          "description": "For each check, decide where it is scored. It might be on a middle step, such as a tool call, a handoff between agents, or a plan revision. Or it might be on the final output. Checks that look at middle steps need the system to record those steps."
         },
         {
           "name": "Choose a scoring method per criterion",
-          "description": "Pick numeric (latency, cost, tool-call count), programmatic (schema validity, regex match), or LLM judge (open-ended quality) per criterion. Mixed harnesses are the norm, not the exception.",
-          "uses_patterns": ["llm-as-judge", "sampled-prompt-trace-eval"]
+          "description": "For each check, pick how to score it. Use a plain number for things like speed, cost, or how many tool calls were made. Use a code check for things like valid format or a pattern match. Use a model judge for open-ended quality. Most harnesses mix all three.",
+          "uses_patterns": [
+            "llm-as-judge",
+            "sampled-prompt-trace-eval"
+          ]
         },
         {
           "name": "Assemble the harness",
-          "description": "Compose the chosen scorers into one runnable pipeline that takes a trajectory and returns the full vector of scores. Version the plan and harness together.",
-          "uses_patterns": ["eval-harness"]
+          "description": "Wire the chosen scorers into one pipeline you can run. It takes a run and returns the full set of scores. Version the plan and the harness together.",
+          "uses_patterns": [
+            "eval-harness"
+          ]
         },
         {
           "name": "Calibrate against curated trajectories",
-          "description": "Run the harness on the sample trajectories. Confirm that good runs score high and bad runs score low. If not, the plan is wrong, not the system — fix the plan before measuring anything new."
+          "description": "Run the harness on the sample runs. Check that good runs score high and bad runs score low. If they do not, the plan is wrong, not the system. Fix the plan before you measure anything new."
         },
         {
           "name": "Treat the plan as a frozen artefact",
-          "description": "Once calibrated, version the plan. Changes to the plan invalidate historical scores and trigger a re-baseline event, same as changing a rubric."
+          "description": "Once it is calibrated, version the plan. Changing the plan makes your old scores no longer comparable and forces a fresh baseline, just like changing a rubric."
         }
       ],
       "principles": [
-        "Plan the eval before building it — implementation reveals what is easy to measure, not what matters to measure.",
-        "Trajectories are the unit of analysis for multi-agent systems, not single outputs.",
-        "Mix scoring methods deliberately — numeric, programmatic, and judge each have failure modes.",
-        "Calibrate on known-good and known-bad runs before trusting the harness."
+        "Plan the test before you build it. Building it shows you what is easy to measure, not what matters to measure.",
+        "For a multi-agent system, the unit you study is the whole run, not a single output.",
+        "Mix scoring methods on purpose. Numbers, code checks, and judges each have their own weak spots.",
+        "Check the harness on known-good and known-bad runs before you trust it."
       ],
-      "applies_to": ["multi-agent-system", "agent", "coding-agent", "browser-agent"],
-      "example_scenario": "A research-engineering team is shipping a multi-agent literature-review system: a planner agent decomposes a research question, three search-specialist agents query arXiv/PubMed/Semantic Scholar in parallel, a synthesiser agent merges findings, and a verifier agent flags unsupported claims. A single-output eval would only score the final synthesis — but most of the team's debugging time was being spent on bad sub-agent handoffs and redundant searches.\n\nThey ran a planning workshop with two domain researchers. The criteria that came out: (1) plan completeness (did the planner cover all sub-questions?), (2) search efficiency (number of redundant queries across specialists), (3) coverage breadth (did the merged result cite enough distinct sources?), (4) verifier precision (false-positive rate on flagged claims), (5) final-synthesis quality, plus latency and cost. They anchored each to a trajectory point: 1 on planner output, 2 across all specialist calls, 3 on synthesiser pre-output, 4 on verifier output, 5 on final answer. Scoring methods: 1 LLM-judge against the question, 2 programmatic dedup over query strings, 3 programmatic citation count, 4 LLM-judge against retrieved passages, 5 LLM-judge.\n\nThey assembled it as a single harness keyed on trajectory id, ran it on 12 known-good and 8 known-bad recorded runs from staging. The first version scored a known-bad run too high because the search-efficiency programmatic check used exact-string match — the bad run had paraphrased queries that were semantically redundant. They tightened the check, re-calibrated, and only then froze the plan as v1 for measuring new builds.",
+      "applies_to": [
+        "multi-agent-system",
+        "agent",
+        "coding-agent",
+        "browser-agent"
+      ],
+      "example_scenario": "A research-engineering team is shipping a multi-agent literature-review system. A planner agent breaks down a research question. Three search-specialist agents query arXiv, PubMed, and Semantic Scholar at the same time. A synthesiser agent merges what they find. A verifier agent flags claims that are not supported. A test that scored only the final summary would miss the real problem. Most of the team's debugging time was going into bad handoffs between agents and repeated searches.\n\nThey ran a planning workshop with two researchers. Out came the checks: (1) plan completeness, meaning did the planner cover all the sub-questions; (2) search efficiency, meaning how many duplicate queries ran across the specialists; (3) coverage breadth, meaning did the merged result cite enough distinct sources; (4) verifier precision, meaning the false-positive rate on flagged claims; (5) final-summary quality; plus speed and cost. They tied each check to a point in the run. Check 1 sits on the planner output. Check 2 spans all the specialist calls. Check 3 sits on the synthesiser before its output. Check 4 sits on the verifier output. Check 5 sits on the final answer. Scoring methods: 1 a model judge against the question, 2 a code check that removes duplicate query strings, 3 a code count of citations, 4 a model judge against the retrieved passages, 5 a model judge.\n\nThey built it as a single harness keyed on the run id. They ran it on 12 known-good and 8 known-bad recorded runs from staging. The first version scored a known-bad run too high. The search-efficiency code check used exact-string matching, and the bad run had reworded queries that meant the same thing. They tightened the check, re-calibrated, and only then froze the plan as v1 for measuring new builds.",
+      "deep_dive": "The unit of analysis is the execution trajectory — the ordered sequence of planner outputs, sub-agent handoffs, tool calls, plan revisions, and the final output — not a single terminal response. Planning the harness precedes implementation precisely because implementation biases you toward what is cheap to instrument rather than what is decision-relevant.\n\n- **Criteria elicitation.** Domain experts enumerate the criteria that separate a good run from a bad one (plan completeness, search efficiency, coverage breadth, verifier precision, final-synthesis quality, latency, cost). Collapsing all of these into a single 'task success' scalar is the failure to avoid.\n- **Trajectory anchoring.** Each criterion is bound to a specific point in the trajectory: an intermediate step (a specific tool call, sub-agent handoff, or plan revision) or the terminal output. Step-level criteria require step-level instrumentation/tracing to be scorable at all.\n- **Per-criterion scorer selection.** Numeric metrics (latency, cost, tool-call count), programmatic checks (schema validity, regex/dedup, citation count), and LLM-as-judge (open-ended quality). Mixed harnesses are the norm; each scorer class has distinct failure modes — e.g. exact-string dedup misses semantically-redundant paraphrases.\n- **Calibration and freezing.** The harness is validated on curated known-good and known-bad trajectories: good runs must score high, bad runs low, before the plan is trusted. Once calibrated, the plan+harness is version-pinned; any change is a re-baseline event. Two failure modes bound the work: scoring only the final output and missing trajectory-level defects (errors swept under the rug), and aggregating per-step scores into one number so a regression cannot be localised to the offending step (compound-error degradation).",
       "related_patterns": [
         "eval-harness",
         "llm-as-judge",
         "sampled-prompt-trace-eval",
         "reasoning-trace-carry-forward"
       ],
-      "related_compositions": ["eval-and-observability", "multi-agent-coordination"],
-      "related_methodologies": ["evaluation-driven-development", "ai-as-judge-evaluation"],
+      "related_compositions": [
+        "eval-and-observability",
+        "multi-agent-coordination"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development",
+        "ai-as-judge-evaluation"
+      ],
       "known_failure_modes": [
-        {"pattern": "errors-swept-under-the-rug", "note": "Scoring only the final output and missing trajectory-level failures (wrong sub-agent used, redundant tool calls) that the system would repeat at scale."},
-        {"pattern": "compound-error-degradation", "note": "Eval that aggregates per-step scores into one number hides which step in a long trajectory caused the regression."}
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "note": "Scoring only the final output and missing trajectory-level failures (wrong sub-agent used, redundant tool calls) that the system would repeat at scale."
+        },
+        {
+          "pattern": "compound-error-degradation",
+          "note": "Eval that aggregates per-step scores into one number hides which step in a long trajectory caused the regression."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -357,72 +533,112 @@
       ],
       "verification_status": "needs-verification",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["mas", "trajectory-eval", "planning", "harness"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "mas",
+        "trajectory-eval",
+        "planning",
+        "harness"
+      ]
     },
     {
       "id": "component-then-holistic-evaluation",
       "name": "Component Then Holistic Evaluation",
-      "aliases": ["bottom-up agent eval", "capability-then-system eval"],
+      "aliases": [
+        "bottom-up agent eval",
+        "capability-then-system eval"
+      ],
       "category": "evaluation",
-      "summary": "Evaluate an agent bottom-up: score each capability (tools, planning, memory, learning) in isolation first, then run integrated end-to-end scenarios to check consistency, coherence, and hallucination at the whole-system level. Component evals catch defects close to their source; the holistic pass surfaces emergent failures where individually-passing capabilities interact badly. Skipping either layer is a known anti-pattern — component-only misses integration bugs, holistic-only cannot localise them.",
+      "summary": "Test an agent from the bottom up. First score each ability on its own: tools, planning, memory, and learning. Then run full end-to-end scenarios to check the whole system. At that level you look for consistency, coherence, and made-up content. The per-ability tests catch problems close to where they start. The whole-system pass catches new problems that appear only when abilities that each pass on their own interact badly. Skipping either layer is a known mistake. Per-ability tests alone miss integration bugs. Whole-system tests alone cannot tell you which ability caused a bug.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  agent[Agent under test] --> s1[Decompose into capabilities]\n  s1 --> tools_c[Tool selection / invocation]\n  s1 --> plan_c[Planning]\n  s1 --> mem_c[Memory]\n  s1 --> learn_c[Learning]\n  tools_c --> s2[Evaluate tools - mock reasoning]\n  plan_c --> s3[Evaluate planning - stub tools and memory]\n  mem_c --> s4[Evaluate memory - controlled traces]\n  learn_c --> s5[Evaluate learning loop]\n  s2 --> comp[Per-capability scorecards]\n  s3 --> comp\n  s4 --> comp\n  s5 --> comp\n  scen[End-to-end scenarios] --> s6[Run holistic scenarios]\n  agent --> s6\n  s6 --> hol[Holistic scorecard - consistency, coherence, hallucination]\n  comp --> s7[Diff component vs holistic]\n  hol --> s7\n  s7 --> int{Component pass + holistic fail?}\n  int -->|yes| bug[Integration bug]\n  int -->|no| s7b{Component fail + holistic pass?}\n  s7b -->|yes| weak[Holistic eval too easy]\n  s7b -->|no| ok[Both layers green]"
       },
-      "intent": "Validate an agent at two layers — per-capability and end-to-end — so defects are caught where they originate and emergent failures are still surfaced.",
-      "when_to_apply": "Any agent with multiple distinguishable capabilities (tool use, planning, memory, optional online learning). The cost of debugging integrated runs is high, and individual capabilities can be exercised in isolation. Don't apply to single-capability agents (pure summariser, pure classifier) where there is nothing to decompose; one holistic eval is enough there.",
+      "intent": "Test an agent at two layers, per ability and end-to-end, so you catch bugs where they start and still surface the ones that only appear when abilities interact.",
+      "when_to_apply": "Use this for any agent with several distinct abilities, such as tool use, planning, memory, and maybe online learning. It pays off when debugging full runs is expensive and you can exercise each ability on its own. Don't apply it for single-ability agents, such as a pure summariser or a pure classifier, where there is nothing to break apart. One whole-system test is enough there.",
       "inputs": [
-        {"name": "Capability inventory", "description": "An enumerated list of the agent's distinct capabilities (tools, planning module, memory store, learning loop)."},
-        {"name": "Per-capability eval sets", "description": "Inputs designed to exercise each capability in isolation, with mocks or stubs for the others."},
-        {"name": "End-to-end scenarios", "description": "Realistic multi-step tasks that require multiple capabilities to interact."}
+        {
+          "name": "Capability inventory",
+          "description": "A list of the agent's distinct abilities: its tools, its planning module, its memory store, and its learning loop."
+        },
+        {
+          "name": "Per-capability eval sets",
+          "description": "Inputs built to exercise one ability on its own, with the other abilities faked out by mocks or stubs."
+        },
+        {
+          "name": "End-to-end scenarios",
+          "description": "Realistic multi-step tasks that make several abilities work together."
+        }
       ],
       "outputs": [
-        {"name": "Per-capability scorecards", "description": "Pass/fail or numeric scores for tools, planning, memory, learning evaluated in isolation."},
-        {"name": "Holistic scorecard", "description": "End-to-end metrics on consistency, coherence, and hallucination across realistic scenarios."}
+        {
+          "name": "Per-capability scorecards",
+          "description": "Pass/fail or number scores for tools, planning, memory, and learning, each tested on its own."
+        },
+        {
+          "name": "Holistic scorecard",
+          "description": "End-to-end scores for consistency, coherence, and made-up content across realistic scenarios."
+        }
       ],
       "steps": [
         {
           "name": "Decompose the agent into testable capabilities",
-          "description": "Identify tool selection and invocation, planning quality, memory read/write correctness, and any learning loop as separately evaluable units."
+          "description": "Split the agent into parts you can test on their own: picking and calling tools, planning quality, reading and writing memory correctly, and any learning loop."
         },
         {
           "name": "Evaluate tools in isolation",
-          "description": "Test each tool integration with controlled inputs: correct schema, error handling, idempotency, latency. Mock the agent's reasoning so failures localise to the tool.",
-          "uses_patterns": ["tool-use", "dry-run-harness"]
+          "description": "Test each tool on its own with set inputs. Check the format is right, errors are handled, repeats are safe, and speed is fine. Fake the agent's reasoning so any failure points straight at the tool.",
+          "uses_patterns": [
+            "tool-use",
+            "dry-run-harness"
+          ]
         },
         {
           "name": "Evaluate planning in isolation",
-          "description": "Score the planner on plan quality (completeness, ordering, dependency correctness) with tools and memory stubbed. A bad plan with good tools still produces bad runs.",
-          "uses_patterns": ["plan-and-execute", "planner-executor-verifier"]
+          "description": "Score the planner on plan quality: completeness, the right order, and correct dependencies. Stub out tools and memory while you do it. A bad plan still gives bad runs even with good tools.",
+          "uses_patterns": [
+            "plan-and-execute",
+            "planner-executor-verifier"
+          ]
         },
         {
           "name": "Evaluate memory in isolation",
-          "description": "Test memory writes, reads, retention, and retrieval relevance. Confirm the agent stores what it should and recalls it under the queries it should.",
-          "uses_patterns": ["agentic-memory", "short-term-memory"]
+          "description": "Test that memory writes, reads, keeps things, and pulls back the right items. Confirm the agent stores what it should and recalls it for the right queries.",
+          "uses_patterns": [
+            "agentic-memory",
+            "short-term-memory"
+          ]
         },
         {
           "name": "Evaluate learning (if present) in isolation",
-          "description": "If the agent updates from feedback, exercise the learning loop with controlled traces. Confirm improvement on intended cases and absence of regression on others."
+          "description": "If the agent learns from feedback, run the learning loop with set traces. Confirm it improves on the cases you meant to fix and does not get worse on the others."
         },
         {
           "name": "Run end-to-end holistic scenarios",
-          "description": "Execute realistic multi-step tasks that exercise tools, planning, and memory together. Score consistency (same input → similar output), coherence (intra-run logical flow), and hallucination rate.",
-          "uses_patterns": ["eval-harness"]
+          "description": "Run realistic multi-step tasks that use tools, planning, and memory together. Score three things: consistency, meaning the same input gives a similar output; coherence, meaning the steps within a run hang together logically; and the rate of made-up content.",
+          "uses_patterns": [
+            "eval-harness"
+          ]
         },
         {
           "name": "Diff component vs holistic results",
-          "description": "Capabilities that pass in isolation but produce holistic failures are integration bugs. Capabilities that fail in isolation but pass holistically usually mean the holistic eval is too easy. Both deltas drive the next iteration."
+          "description": "Compare the two layers. An ability that passes on its own but fails in the full run points to an integration bug. An ability that fails on its own but passes in the full run usually means the whole-system test is too easy. Both gaps tell you what to fix next."
         }
       ],
       "principles": [
-        "Component evals localise defects; holistic evals catch emergent ones — both are required.",
-        "Isolate by mocking neighbours, not by hoping the integration test exercises the unit.",
-        "Consistency, coherence, and hallucination are properties of the whole, not of any one capability.",
-        "A holistic-only eval is fast to build and slow to debug; a component-only eval is the reverse."
+        "Per-ability tests pin down where a bug is. Whole-system tests catch the ones that only appear together. You need both.",
+        "Isolate an ability by faking its neighbours, not by hoping the full-run test happens to exercise it.",
+        "Consistency, coherence, and made-up content are traits of the whole system, not of any one ability.",
+        "A whole-system-only test is quick to build but slow to debug. A per-ability-only test is the opposite."
       ],
-      "applies_to": ["agent", "multi-agent-system", "coding-agent", "browser-agent"],
-      "example_scenario": "A travel-booking agent has four named capabilities: flight/hotel search tools (eight functions total), a planner that sequences search-compare-book steps, a memory store holding the user's seat and meal preferences from prior trips, and a learning loop that updates preference weights from user thumbs-up/down on suggestions. The team had been running only end-to-end scenarios — book a trip from A to B — and was drowning in 'the agent picked a weird hotel' tickets they couldn't attribute.\n\nThey introduced a component layer. Tools-in-isolation: each search tool was hit with 40 input cases including bad city codes, empty result sets, and rate-limit responses; two tools failed idempotency under retry and got fixed. Planning-in-isolation: the planner ran on 25 scripted user requests with tool calls and memory reads stubbed to canned responses; the plan-quality judge flagged that for multi-leg trips the planner skipped the layover-feasibility check 30% of the time. Memory-in-isolation: 50 read/write/recall scenarios confirmed the store handled preferences correctly, but the relevance ranking for 'similar past trip' retrieval was poor on city pairs the user had only visited once.\n\nThe holistic eval over 80 end-to-end scenarios then scored consistency (same user, same request, twice — 87% agreement), coherence (planner-tool-output flow — judge-graded), and hallucination rate (claims about hotel amenities not in source — 4.2%). Crucially, two scenarios that passed every component eval failed holistically: the planner correctly invoked the memory tool and the memory tool returned correct preferences, but the planner phrased the memory query in a way that triggered the weak relevance ranking — an integration bug invisible to either layer alone. The diff drove a one-week fix that improved holistic consistency to 94%.",
+      "applies_to": [
+        "agent",
+        "multi-agent-system",
+        "coding-agent",
+        "browser-agent"
+      ],
+      "example_scenario": "A travel-booking agent has four named abilities. It has flight and hotel search tools, eight functions in total. It has a planner that orders the search-compare-book steps. It has a memory store that holds the user's seat and meal preferences from past trips. And it has a learning loop that adjusts preference weights from user thumbs-up or thumbs-down on suggestions. The team had been running only end-to-end scenarios, such as book a trip from A to B. They were drowning in 'the agent picked a weird hotel' tickets they could not pin on any one part.\n\nSo they added a per-ability layer. For tools on their own, each search tool was hit with 40 input cases, including bad city codes, empty result sets, and rate-limit responses. Two tools were unsafe to retry and got fixed. For planning on its own, the planner ran on 25 scripted user requests with tool calls and memory reads stubbed to canned responses. The plan-quality judge found that on multi-leg trips the planner skipped the layover-feasibility check 30% of the time. For memory on its own, 50 read, write, and recall scenarios confirmed the store handled preferences correctly. But its ranking for 'similar past trip' was poor on city pairs the user had visited only once.\n\nThe whole-system test then ran 80 end-to-end scenarios. It scored consistency, meaning the same user and the same request run twice, at 87% agreement. It scored coherence, meaning the planner-to-tool-to-output flow, graded by a judge. And it scored made-up content, meaning claims about hotel amenities not in the source, at 4.2%. The key finding: two scenarios passed every per-ability test but failed in the full run. The planner correctly called the memory tool, and the memory tool returned correct preferences. But the planner worded the memory query in a way that triggered the weak ranking. That integration bug was invisible to either layer on its own. The gap drove a one-week fix that raised whole-system consistency to 94%.",
+      "deep_dive": "A bottom-up, two-layer evaluation strategy mirroring unit-then-integration testing for agentic systems.\n\n- **Component layer (capability evaluation).** Each capability is exercised in isolation with its neighbours mocked/stubbed so failures localise:\n  - **Tools:** schema conformance, error handling, idempotency under retry, latency. Agent reasoning is mocked so a failure attributes to the tool.\n  - **Planning:** plan completeness, step ordering, and dependency correctness, with tools and memory stubbed to canned responses.\n  - **Memory:** write/read correctness, retention, and retrieval relevance (does the store recall the right items under the right queries).\n  - **Learning (if present):** controlled feedback traces verifying improvement on target cases without regression elsewhere.\n- **Holistic layer (end-to-end).** Integrated multi-step scenarios scored on emergent, whole-system properties: consistency (same input → similar output, measured as agreement rate across repeats), coherence (intra-run logical flow, judge-graded), and hallucination rate (fraction of claims unsupported by source).\n- **The diff is the payload.** Component-pass + holistic-fail = an integration bug (e.g. a correctly-invoked memory tool fed a query phrased to trigger weak relevance ranking) invisible to either layer alone. Component-fail + holistic-pass = the holistic eval is too easy / under-covering. The two anti-patterns this guards against are compound-error degradation (end-to-end-only evaluation cannot attribute a failed run to a capability) and errors swept under the rug (component-pass masking an integration defect).",
       "related_patterns": [
         "eval-harness",
         "plan-and-execute",
@@ -430,11 +646,22 @@
         "agentic-memory",
         "dry-run-harness"
       ],
-      "related_compositions": ["eval-and-observability"],
-      "related_methodologies": ["evaluation-driven-development", "evaluation-planning-framework"],
+      "related_compositions": [
+        "eval-and-observability"
+      ],
+      "related_methodologies": [
+        "evaluation-driven-development",
+        "evaluation-planning-framework"
+      ],
       "known_failure_modes": [
-        {"pattern": "compound-error-degradation", "note": "End-to-end-only evaluation makes it impossible to attribute a failed run to a specific capability."},
-        {"pattern": "errors-swept-under-the-rug", "note": "Component evals that pass while holistic runs fail signal an integration defect that pure capability tests cannot see."}
+        {
+          "pattern": "compound-error-degradation",
+          "note": "End-to-end-only evaluation makes it impossible to attribute a failed run to a specific capability."
+        },
+        {
+          "pattern": "errors-swept-under-the-rug",
+          "note": "Component evals that pass while holistic runs fail signal an integration defect that pure capability tests cannot see."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -455,73 +682,120 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["component-eval", "holistic-eval", "bottom-up", "integration"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "component-eval",
+        "holistic-eval",
+        "bottom-up",
+        "integration"
+      ]
     },
     {
       "id": "real-world-agent-trial",
       "name": "Real-World Agent Trial",
-      "aliases": ["agent field trial", "live capability probe"],
+      "aliases": [
+        "agent field trial",
+        "live capability probe"
+      ],
       "category": "evaluation",
-      "summary": "Probe a candidate agent against realistic, open-ended tasks — office work, strategic games, mixed-modality reasoning — before deploying it to production users. The trial is observational: humans watch how the agent handles end-to-end tasks under realistic constraints, log where it succeeds and where it fails, and extract capability and constraint claims grounded in observed behaviour rather than benchmark numbers. Complements (does not replace) component and holistic evaluation by surfacing failures that synthetic eval sets miss.",
+      "summary": "Try a candidate agent on real, open-ended tasks before you give it to production users. The tasks are realistic, such as office work, strategic games, and problems that mix text, images, and other inputs. The trial is about watching. People observe how the agent handles full tasks under real conditions. They log where it works and where it fails. From that, they write down what the agent can and cannot do, backed by what was actually seen, not by benchmark numbers. This adds to per-ability and whole-system tests. It does not replace them. It surfaces failures that made-up test sets miss.",
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  agent[Candidate agent build] --> s2[Instrument for observation]\n  domain[Use domain] --> s1[Curate realistic tasks]\n  s1 --> tasks[Task catalogue - heterogeneous, open-ended]\n  s2 --> instr[Trajectory capture - tools, reasoning, retries]\n  tasks --> s3[Run trials with human observers]\n  instr --> s3\n  observers[Domain-aware observers] --> s3\n  s3 --> obs[Observed runs with annotations]\n  obs --> s4[Extract claims with run anchors]\n  s4 --> caps[Capability claims]\n  s4 --> cons[Constraint claims]\n  s4 --> unanchor{Claim has logged run?}\n  unanchor -->|no| drop[Reject claim]\n  unanchor -->|yes| caps\n  caps --> s5[Feed back to evals and gating]\n  cons --> s5\n  s5 --> regress[New regression eval cases]\n  s5 --> rollout[Scoped autonomy tier]"
       },
-      "intent": "Surface real capability and constraint claims about an agent by observing it perform realistic open-ended tasks under field conditions.",
-      "when_to_apply": "Before committing to wider rollout of a non-trivial agent, especially when synthetic eval coverage feels suspect or when stakeholders disagree about the agent's actual capabilities. Don't apply to narrow agents whose behaviour is fully characterised by an existing eval set, or to single-shot generation systems where there is no trajectory to observe.",
+      "intent": "Find out what an agent really can and cannot do by watching it work through real, open-ended tasks under field conditions.",
+      "when_to_apply": "Use this before you commit to a wider rollout of a non-trivial agent. It helps most when the made-up tests feel untrustworthy, or when people disagree about what the agent can actually do. Don't apply it for narrow agents whose behaviour an existing test set already covers fully. Skip it too for one-shot generation systems, where there is no run to watch.",
       "inputs": [
-        {"name": "Candidate agent", "description": "The agent build to be trialled, instrumented for observation."},
-        {"name": "Realistic task catalogue", "description": "Open-ended tasks drawn from the intended use domain — office workflows, strategic games, mixed-modality problems."},
-        {"name": "Human observers", "description": "Domain-aware reviewers who watch live runs and annotate behaviour."}
+        {
+          "name": "Candidate agent",
+          "description": "The agent build to be tried, set up so its actions can be observed."
+        },
+        {
+          "name": "Realistic task catalogue",
+          "description": "Open-ended tasks from the intended use area: office workflows, strategic games, and problems that mix text, images, and other inputs."
+        },
+        {
+          "name": "Human observers",
+          "description": "Reviewers who know the field, watch live runs, and write notes on what the agent does."
+        }
       ],
       "outputs": [
-        {"name": "Capability claims", "description": "Statements about what the agent reliably does, each grounded in observed runs."},
-        {"name": "Constraint claims", "description": "Statements about what the agent cannot do or does unreliably, with run references."},
-        {"name": "Trial report", "description": "Observed-behaviour record that informs go/no-go and rollout shape."}
+        {
+          "name": "Capability claims",
+          "description": "Statements about what the agent reliably does, each backed by a run that was watched."
+        },
+        {
+          "name": "Constraint claims",
+          "description": "Statements about what the agent cannot do, or does unreliably, each with a reference to a run."
+        },
+        {
+          "name": "Trial report",
+          "description": "A record of what was observed. It informs the go or no-go call and the shape of the rollout."
+        }
       ],
       "steps": [
         {
           "name": "Curate realistic tasks",
-          "description": "Pick a small, heterogeneous task set that mirrors actual use: drafting documents, scheduling, summarising meetings, navigating a strategic game, solving a multi-step research question. Avoid tasks the eval set already covers."
+          "description": "Pick a small, varied task set that looks like real use: drafting documents, scheduling, summarising meetings, playing through a strategic game, and answering a multi-step research question. Avoid tasks the test set already covers."
         },
         {
           "name": "Instrument the agent for observation",
-          "description": "Capture full trajectories — tool calls, intermediate reasoning, retries, latencies. Observers cannot grade what they cannot see.",
-          "uses_patterns": ["decision-log", "lineage-tracking"]
+          "description": "Record the full run: tool calls, the reasoning in between, retries, and timings. Observers cannot grade what they cannot see.",
+          "uses_patterns": [
+            "decision-log",
+            "lineage-tracking"
+          ]
         },
         {
           "name": "Run trials with human observation",
-          "description": "Have domain-aware humans watch the agent execute each task end-to-end. Note where it hesitates, loops, fabricates, succeeds, or surprises."
+          "description": "Have people who know the field watch the agent work through each task end-to-end. Note where it stalls, loops, makes things up, succeeds, or surprises them."
         },
         {
           "name": "Extract grounded capability and constraint claims",
-          "description": "Convert observations into specific claims with run references — 'agent reliably drafts X under condition Y' or 'agent fails when input contains Z'. Reject claims unanchored to a logged run."
+          "description": "Turn what you saw into specific claims, each with a run reference. For example, 'the agent reliably drafts X when given Y', or 'the agent fails when the input contains Z'. Reject any claim that no logged run backs up."
         },
         {
           "name": "Feed findings back into evals and rollout gating",
-          "description": "Add newly-discovered failure modes to the regression eval set. Use confirmed capabilities and constraints to scope the next autonomy tier in the rollout."
+          "description": "Add the newly found failures to the regression test set. Use the confirmed capabilities and limits to set how much freedom the agent gets in the next rollout step."
         }
       ],
       "principles": [
-        "Trials produce claims about behaviour, not benchmark deltas — accept that the unit of evidence is the observed run.",
-        "Realistic open-ended tasks reveal failure modes synthetic evals miss by construction.",
-        "Every claim must be anchored to a specific logged run, or it doesn't ship.",
-        "Findings feed both the eval set and the rollout gate — a trial that doesn't update either was wasted."
+        "A trial produces claims about behaviour, not benchmark deltas. The unit of evidence is the watched run.",
+        "Real, open-ended tasks reveal failures that made-up tests miss by design.",
+        "Every claim must be tied to a specific logged run, or it does not ship.",
+        "Findings feed both the test set and the rollout gate. A trial that updates neither was wasted."
       ],
-      "applies_to": ["agent", "multi-agent-system", "coding-agent", "browser-agent"],
-      "example_scenario": "A bank is evaluating a general-purpose office-assistant agent for internal back-office work before any rollout decision. Synthetic evals show 92% on their curated task set, but the executive sponsor and the head of operations disagree on whether the agent is actually ready — the sponsor saw a clean demo; ops has heard from a pilot user that the agent 'kind of melts down on real emails'. A trial is run to settle it on evidence.\n\nThey assembled a heterogeneous task catalogue: draft a reply to a regulator's information request, schedule a six-person meeting across two time zones, summarise an hour-long compliance training video, navigate a strategic-game scenario testing multi-step reasoning, and triage a backlog of 30 misrouted customer emails. The agent was instrumented to capture full trajectories — every tool call, every retry, every intermediate reasoning step. Four domain-aware reviewers (a compliance officer, an EA, a training-content owner, a customer-ops lead) sat with the agent for half a day each and annotated as they watched.\n\nThe trial produced 11 capability claims (e.g. 'reliably drafts regulator replies under 400 words when given the source filing as input, anchored to runs 04, 09, 11') and 7 constraint claims (e.g. 'fails to detect implicit deadlines in customer emails; 6 of 30 misrouted cases mis-prioritised, runs 21-26'). The constraints fed directly into the eval set as new regression cases, and the rollout decision shifted from 'broad pilot' to 'narrow pilot on regulator-reply tasks only', with the email-triage task held back until the deadline-detection failure mode could be addressed. The exec sponsor and ops head agreed on the next step because every claim had a run id behind it.",
+      "applies_to": [
+        "agent",
+        "multi-agent-system",
+        "coding-agent",
+        "browser-agent"
+      ],
+      "example_scenario": "A bank is sizing up a general-purpose office-assistant agent for internal back-office work before any rollout decision. Made-up tests show 92% on their curated task set. But the executive sponsor and the head of operations disagree on whether the agent is really ready. The sponsor saw a clean demo. Ops heard from a pilot user that the agent 'kind of melts down on real emails'. They ran a trial to settle it on evidence.\n\nThey put together a varied task catalogue. Draft a reply to a regulator's information request. Schedule a six-person meeting across two time zones. Summarise an hour-long compliance training video. Play through a strategic-game scenario that tests multi-step reasoning. Triage a backlog of 30 misrouted customer emails. The agent was set up to record full runs: every tool call, every retry, every reasoning step in between. Four reviewers who knew the field sat with the agent for half a day each and took notes as they watched. They were a compliance officer, an executive assistant, a training-content owner, and a customer-ops lead.\n\nThe trial produced 11 capability claims. One example: 'reliably drafts regulator replies under 400 words when given the source filing as input, see runs 04, 09, 11'. It also produced 7 constraint claims. One example: 'fails to spot implied deadlines in customer emails; 6 of 30 misrouted cases mis-prioritised, runs 21-26'. The constraints went straight into the test set as new regression cases. The rollout decision shifted from 'broad pilot' to 'narrow pilot on regulator-reply tasks only', with email triage held back until the missed-deadline failure could be fixed. The exec sponsor and the ops head agreed on the next step, because every claim had a run id behind it.",
+      "deep_dive": "This is an observational, qualitative field trial that complements (never replaces) component and holistic evaluation. The unit of evidence is the observed run, not a benchmark delta — it trades statistical power for ecological validity against realistic, heterogeneous, open-ended tasks (office workflows, strategic games, mixed-modality problems).\n\n- **Instrumentation is a precondition.** Full trajectory capture — tool calls, intermediate reasoning, retries, latencies — is mandatory; observers cannot grade what is not logged.\n- **Claims, anchored.** Outputs are explicit capability claims ('reliably does X under condition Y') and constraint claims ('fails when input contains Z'), each anchored to a specific logged run id. An unanchored claim is rejected; this run-id discipline is what lets disagreeing stakeholders converge on evidence.\n- **Feedback loops.** Confirmed constraints become new regression cases in the eval set; confirmed capabilities scope the next autonomy tier in a crawl-walk-run rollout gate. A trial that updates neither was wasted.\n- **Failure modes.** demo-to-production-cliff (treating a successful trial as proof of production reliability — trials probe capability, not reliability at scale) and hero-agent (cherry-picking wins while ignoring observed constraints to justify a broader rollout). Both are countered by mandatory run-anchoring of every claim, capability and constraint alike.",
       "related_patterns": [
         "decision-log",
         "lineage-tracking",
         "sampled-prompt-trace-eval",
         "red-team-sandbox-reproduction"
       ],
-      "related_compositions": ["eval-and-observability", "long-running-autonomous-agent"],
-      "related_methodologies": ["component-then-holistic-evaluation", "crawl-walk-run-automation-gating"],
+      "related_compositions": [
+        "eval-and-observability",
+        "long-running-autonomous-agent"
+      ],
+      "related_methodologies": [
+        "component-then-holistic-evaluation",
+        "crawl-walk-run-automation-gating"
+      ],
       "known_failure_modes": [
-        {"pattern": "demo-to-production-cliff", "note": "Treating a successful trial as evidence of production readiness — trials probe capability, they do not establish reliability at scale."},
-        {"pattern": "hero-agent", "note": "Cherry-picking trial wins while ignoring observed constraints to justify a wider rollout."}
+        {
+          "pattern": "demo-to-production-cliff",
+          "note": "Treating a successful trial as evidence of production readiness — trials probe capability, they do not establish reliability at scale."
+        },
+        {
+          "pattern": "hero-agent",
+          "note": "Cherry-picking trial wins while ignoring observed constraints to justify a wider rollout."
+        }
       ],
       "maturity": "emerging",
       "sources": [
@@ -542,8 +816,12 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
-      "tags": ["field-trial", "observation", "capability-probe"]
+      "last_updated": "2026-05-27",
+      "tags": [
+        "field-trial",
+        "observation",
+        "capability-probe"
+      ]
     }
   ]
 }
