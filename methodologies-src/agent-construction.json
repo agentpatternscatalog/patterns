@@ -9,54 +9,55 @@
         "four-component agent build"
       ],
       "category": "agent-construction",
-      "summary": "Construct an agent as four explicit components — model, tools, data stores, agent-loop prompt — and pick an interaction paradigm (passive, explicit, or autonomous) before writing the loop. Each component is named, owned, and independently swappable. The interaction paradigm sets how much latitude the model has at each turn, which determines how much guardrailing the loop must do.",
-      "intent": "Force agent authors to name the four components and the interaction paradigm before coding, so failures localise to a component rather than smearing across an undifferentiated agent.",
-      "when_to_apply": "Building a new agent from scratch — coding agent, customer-service agent, browser agent, internal-tools agent. Apply on day one before the loop is written. Don't apply when wiring up a thin LLM call with no tools or memory — that's not an agent, that's a prompt.",
+      "summary": "Build an agent out of four named parts before you write any loop. The four parts are the model, the tools, the data stores, and the loop prompt that ties them together. Also pick how much freedom the model gets each turn. That choice is the interaction paradigm: passive, explicit, or autonomous. Keep every part separate so you can swap one without touching the rest. The more freedom you give the model, the more safety checks the loop needs.",
+      "intent": "Make agent authors name the four parts and the freedom level before they code, so a failure points to one part instead of smearing across a vague agent.",
+      "when_to_apply": "Use this when you build a new agent from scratch. It fits a coding agent, a customer-service agent, a browser agent, or an internal-tools agent. Do it on day one, before you write the loop. Don't apply it when you are just wiring up a single model call with no tools or memory. That is a prompt, not an agent.",
       "inputs": [
         {
           "name": "Task specification",
-          "description": "What the agent must accomplish, framed as a user-facing capability."
+          "description": "What the agent has to do, written as something a user can ask for."
         },
         {
           "name": "Available model(s)",
-          "description": "Foundation model(s) accessible to the agent, with their cost / latency / capability profile."
+          "description": "The models the agent can call. Note each one's cost, speed, and what it is good at."
         },
         {
           "name": "Tool inventory",
-          "description": "External APIs, databases, search endpoints, browsers, sandboxes the agent may use."
+          "description": "The outside services the agent may use: APIs, databases, search, browsers, sandboxes."
         },
         {
           "name": "Data store(s)",
-          "description": "Memory stores, vector indices, KV caches, scratchpads the agent reads and writes."
+          "description": "The places the agent reads and writes: memory stores, vector indexes, caches, scratchpads."
         }
       ],
       "outputs": [
         {
           "name": "Named four-component agent",
-          "description": "An agent whose model, tools, data stores, and loop prompt are each separately authored and swappable."
+          "description": "An agent whose model, tools, data stores, and loop prompt are each built on their own and easy to swap."
         },
         {
           "name": "Declared interaction paradigm",
-          "description": "One of: passive (model only generates), explicit (model uses tools when instructed), autonomous (model chooses tools and continues until done)."
+          "description": "The chosen freedom level. Passive means the model only writes text. Explicit means the model uses tools when told to. Autonomous means the model picks its own tools and keeps going until the job is done."
         },
         {
           "name": "Agent loop",
-          "description": "The control flow that orchestrates the four components under the chosen paradigm."
+          "description": "The control flow that runs the four parts under the freedom level you picked."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  spec[Task specification] --> s1[Pick interaction paradigm]\n  models[Available models] --> s2[Author model component]\n  s1 --> s2\n  tools[Tool inventory] --> s3[Author tool component]\n  s2 --> s3\n  stores[Data stores] --> s4[Author data-store component]\n  s3 --> s4\n  s4 --> s5[Author agent-loop prompt]\n  s5 --> s6[Add guardrails and verifiers]\n  s6 --> s7[Bind to orchestration framework if needed]\n  s7 --> out1[Named four-component agent]\n  s7 --> out2[Declared interaction paradigm]\n  s7 --> out3[Agent loop]"
       },
-      "example_scenario": "A four-person team at a healthtech startup is building an intake-triage agent that reads incoming clinical-message threads and either drafts a reply, escalates to a clinician, or files the thread. Inputs they had: a task spec from the clinical-ops lead, GPT-4.1 and Claude Sonnet as candidate models, a tool inventory consisting of an EHR lookup, a triage-rubric API, and an internal escalation endpoint, plus a Postgres scratchpad and a vector index over previous threads.\n\nThey followed the methodology in order. Paradigm: they chose explicit (not autonomous) because every escalation has regulatory implications. Model component: Claude Sonnet with a structured-output schema for the triage decision. Tools: three typed functions with JSON schemas, each validated on return. Data stores: scratchpad for the current thread, vector index for similar past cases. Loop prompt: a 40-line prompt naming the tools, the stop condition, and the schema. Guardrails: a PHI-redaction step on input and an allowlist on the escalation endpoint.\n\nWhat they learned: they almost reached for LangGraph on day one, but the hand-rolled loop fit on one screen and made debugging the first three failures trivial. They lifted to LangGraph only in week three when retries and observability became real needs. The named-component discipline meant a tool-schema bug was found and fixed in 20 minutes rather than smeared into a 'the agent is weird' ticket.",
+      "example_scenario": "A four-person team at a healthtech startup is building an intake-triage agent. It reads incoming clinical-message threads and either drafts a reply, escalates to a clinician, or files the thread. Inputs they had: a task spec from the clinical-ops lead, GPT-4.1 and Claude Sonnet as candidate models, a tool inventory consisting of an EHR lookup, a triage-rubric API, and an internal escalation endpoint, plus a Postgres scratchpad and a vector index over previous threads.\n\nThey followed the methodology in order. For the freedom level they chose explicit, not autonomous, because every escalation has regulatory implications. For the model they picked Claude Sonnet with a structured-output schema for the triage decision. For tools they wrote three typed functions with JSON schemas, each checked on return. For data stores they used a scratchpad for the current thread and a vector index for similar past cases. The loop prompt was 40 lines naming the tools, the stop condition, and the schema. For guardrails they added a PHI-redaction step on input and an allowlist on the escalation endpoint.\n\nWhat they learned: they almost reached for LangGraph on day one. But the hand-rolled loop fit on one screen and made debugging the first three failures easy. They moved to LangGraph only in week three, when retries and observability became real needs. Because each part had a name, a tool-schema bug was found and fixed in 20 minutes. It did not turn into a vague 'the agent is weird' ticket.",
+      "deep_dive": "The four components map to a clean separation of concerns. **Model**: the foundation model plus system-prompt skeleton and any structured-output schema — this is where capability lives. **Tools**: typed function signatures with model-facing descriptions; returns are validated against their JSON schema before re-entering the loop. **Data stores**: the memory shape (scratchpad, KV store, vector index, episodic log) with explicit read-on-step and write-after-step policies. **Agent-loop prompt**: the control flow binding the three together, with the tool list, stop condition, and success state made explicit.\n\nThe interaction paradigm is a latitude dial. **Passive** = pure generation, tools and memory invisible to the model. **Explicit** = the loop invokes tools at fixed points, the model only decides content. **Autonomous** = the model selects actions each step and continues until a stop condition fires. Guardrailing scales monotonically with the paradigm: passive needs almost none; autonomous needs input/output guardrails, tool-call validators, and a hard stop condition. Defer orchestration frameworks (LangGraph, CrewAI, AutoGen, Pydantic AI) until the loop genuinely needs fan-out, retries, observability, or a state-machine shape — a hand-rolled loop is correct for the first cycle.",
       "steps": [
         {
           "name": "Pick the interaction paradigm",
-          "description": "Passive: the model only generates text; tools/memory are invisible to it. Explicit: the loop calls tools at fixed points; the model decides content. Autonomous: the model decides what to do at each step. Pick the weakest paradigm that solves the task — autonomy is expensive and unsafe to ramp prematurely."
+          "description": "Pick how much freedom the model gets. Passive: it only writes text and cannot see tools or memory. Explicit: the loop calls tools at set points and the model just decides the content. Autonomous: the model decides what to do at each step. Pick the lowest level that solves the task. More freedom costs more and is risky to turn on too early."
         },
         {
           "name": "Author the model component",
-          "description": "Choose the model, the system prompt skeleton, and the structured output format (if any). This is where capability lives; everything else is plumbing.",
+          "description": "Choose the model, the rough shape of the system prompt, and the output format if you need one. This is where the smarts live. Everything else is plumbing.",
           "uses_patterns": [
             "augmented-llm",
             "structured-output"
@@ -64,14 +65,14 @@
         },
         {
           "name": "Author the tool component",
-          "description": "Enumerate tools as typed function signatures with descriptions the model will see. Each tool returns structured data, not free prose. Validate tool returns against schemas before they re-enter the loop.",
+          "description": "List the tools as typed function signatures with the descriptions the model will see. Each tool returns structured data, not loose prose. Check every tool return against its schema before it goes back into the loop.",
           "uses_patterns": [
             "tool-use"
           ]
         },
         {
           "name": "Author the data-store component",
-          "description": "Pick the memory shape: scratchpad, KV store, vector index, episodic log. Decide what the model reads at each step and what the loop writes after each step.",
+          "description": "Pick the memory shape: scratchpad, key-value store, vector index, or event log. Decide what the model reads at each step. Decide what the loop writes after each step.",
           "uses_patterns": [
             "scratchpad",
             "episodic-memory"
@@ -79,25 +80,25 @@
         },
         {
           "name": "Author the agent-loop prompt",
-          "description": "Write the loop prompt that ties model, tools, and data stores together. The prompt must be explicit about which tools exist, when the loop ends, and what the success state looks like."
+          "description": "Write the loop prompt that ties the model, tools, and data stores together. Say clearly which tools exist, when the loop ends, and what success looks like."
         },
         {
           "name": "Add guardrails and verifiers",
-          "description": "For autonomous paradigms, add input/output guardrails, tool-call validators, and a stop condition. The looser the paradigm, the more guardrailing the loop must do.",
+          "description": "For autonomous agents, add input and output guardrails, tool-call checks, and a stop condition. The more freedom the model has, the more checks the loop needs.",
           "uses_patterns": [
             "input-output-guardrails"
           ]
         },
         {
           "name": "Bind to an orchestration framework only when needed",
-          "description": "If the loop has fan-out, retries, observability, or state-machine shape, lift it into a framework (LangGraph, CrewAI, AutoGen, Pydantic AI, etc.). Don't reach for orchestration on day one — a hand-rolled loop is fine for the first cycle."
+          "description": "If the loop needs fan-out, retries, observability, or a state-machine shape, move it into a framework such as LangGraph, CrewAI, AutoGen, or Pydantic AI. Do not reach for one on day one. A hand-rolled loop is fine for the first cycle."
         }
       ],
       "principles": [
-        "Name all four components explicitly — debugging an unnamed component is debugging fog.",
-        "Pick the weakest interaction paradigm that solves the task.",
-        "Tool returns are structured data, never free prose.",
-        "Guardrails grow with autonomy — passive needs almost none, autonomous needs many."
+        "Name all four parts. Debugging an unnamed part is debugging fog.",
+        "Pick the lowest freedom level that solves the task.",
+        "Tool returns are structured data, never loose prose.",
+        "Safety checks grow with freedom. Passive needs almost none. Autonomous needs many."
       ],
       "applies_to": [
         "agent",
@@ -155,7 +156,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "agent-anatomy",
         "four-component",
@@ -170,42 +171,43 @@
         "SPAR framework"
       ],
       "category": "agent-construction",
-      "summary": "Design the agent's operational core as a four-phase loop — Sense, Plan, Act, Reflect — making each phase an explicit, named station in the runtime. Sense ingests environment signals and task input; Plan synthesises an intended trajectory; Act executes tool calls and side-effects; Reflect compares outcome to intent and updates beliefs. The methodology insists each phase be addressable in code and observable in traces, so practitioners can diagnose where an agent is failing rather than treating it as a black box.",
-      "intent": "Give every agent a named four-phase anatomy — Sense, Plan, Act, Reflect — so behaviour, traces, and failures map cleanly onto phases instead of being smeared across an opaque loop.",
-      "when_to_apply": "Apply when designing the operational loop of any non-trivial agent — coding agents, research agents, browser agents, ops agents. Especially useful when teams are reaching for ReAct or autonomous loops without a clear control structure. Don't apply when building a single-shot prompt or a deterministic pipeline with no perception or reflection — there is no loop to design.",
+      "summary": "Build the agent's core as a loop with four named phases: Sense, Plan, Act, Reflect. Sense takes in signals from the environment and the task input. Plan works out what the agent intends to do next. Act runs the tool calls and makes the changes. Reflect checks the outcome against the plan and updates what the agent believes. Make each phase a real, named step you can point to in code and see in traces. Then you can tell which phase is failing instead of staring at a black box.",
+      "intent": "Give every agent the same four named phases, Sense, Plan, Act, and Reflect, so behaviour, traces, and failures line up with a phase instead of hiding in one murky loop.",
+      "when_to_apply": "Use this when you design the main loop of any real agent: a coding agent, a research agent, a browser agent, or an ops agent. It helps most when a team is reaching for ReAct or a free-running loop with no clear control structure. Don't apply it for a single-shot prompt or a fixed pipeline with no perception and no reflection. There is no loop to design.",
       "inputs": [
         {
           "name": "Environment interface",
-          "description": "The sensors and observation channels the agent reads from (APIs, user turns, file system, observers)."
+          "description": "The channels the agent reads from: APIs, user turns, the file system, and other observers."
         },
         {
           "name": "Task goal",
-          "description": "The objective the agent is pursuing, in a form the planner can decompose."
+          "description": "The goal the agent is chasing, written so the Plan phase can break it into steps."
         },
         {
           "name": "Action repertoire",
-          "description": "The set of tools, effectors, or sub-agents available for the Act phase."
+          "description": "The tools, effectors, or sub-agents the Act phase can use."
         }
       ],
       "outputs": [
         {
           "name": "Four-phase agent loop",
-          "description": "Explicit Sense, Plan, Act, Reflect stations connected by typed transitions, each independently testable and observable."
+          "description": "Clear Sense, Plan, Act, and Reflect steps joined by typed transitions. You can test and watch each step on its own."
         },
         {
           "name": "Phase trace schema",
-          "description": "Structured trace events emitted by each phase that downstream tooling can group, search, and replay."
+          "description": "Structured trace events from each phase that your tooling can group, search, and replay."
         }
       ],
       "diagram": {
         "type": "state",
         "mermaid": "stateDiagram-v2\n  [*] --> Sense\n  Sense --> Plan: observation ready\n  Plan --> Act: plan emitted\n  Act --> Reflect: outcome observed\n  Reflect --> Sense: continue\n  Reflect --> [*]: stop condition met\n  Reflect --> Plan: replan needed\n  note right of Act: only side-effects here"
       },
-      "example_scenario": "An infra team at a B2B SaaS company is rebuilding their on-call triage agent. The old version was a monolithic ReAct prompt that 'worked' but was untraceable when it misrouted an incident. They adopted SPAR. Inputs: PagerDuty webhook stream as environment, the goal 'route incident to the right responder with context', and an action repertoire of runbook lookup, log query, Slack post, and PagerDuty re-assign.\n\nBuild order: Sense phase pulls the alert payload, the last 15 minutes of related logs, and any open incidents that share the affected service. Plan phase produces a typed trajectory ('lookup runbook X, then post summary, then re-assign to team Y') using chain-of-thought. Act phase is the only one that can post or re-assign — Sense and Plan stay read-only. Reflect phase compares the route to a heuristic (was the responder on-call, did they ack within 5 min?) and updates a belief about runbook accuracy.\n\nResults: traces now group cleanly by phase, so when the agent misroutes, the team sees immediately which station failed. Two weeks in, they discovered Reflect was rubber-stamping bad routes because it shared the Plan prompt — they swapped to a different model for Reflect and false-route rate dropped from 14% to 4%. The bounded step budget caught a Plan→Reflect oscillation that would have looped indefinitely in the old monolithic agent.",
+      "example_scenario": "An infra team at a B2B SaaS company is rebuilding their on-call triage agent. The old version was one big ReAct prompt. It 'worked' but was impossible to trace when it misrouted an incident. They adopted SPAR. Inputs: a PagerDuty webhook stream as the environment, the goal 'route incident to the right responder with context', and an action set of runbook lookup, log query, Slack post, and PagerDuty re-assign.\n\nBuild order: the Sense phase pulls the alert payload, the last 15 minutes of related logs, and any open incidents on the affected service. The Plan phase produces a typed plan ('lookup runbook X, then post summary, then re-assign to team Y') using chain-of-thought. The Act phase is the only one that can post or re-assign. Sense and Plan stay read-only. The Reflect phase checks the route against a rule of thumb: was the responder on-call, did they ack within 5 minutes? It then updates a belief about runbook accuracy.\n\nResults: traces now group cleanly by phase. When the agent misroutes, the team sees right away which phase failed. Two weeks in, they found Reflect was rubber-stamping bad routes because it shared the Plan prompt. They swapped in a different model for Reflect and the false-route rate dropped from 14% to 4%. The step budget caught a Plan-to-Reflect oscillation that would have looped forever in the old design.",
+      "deep_dive": "SPAR (Sense-Plan-Act-Reflect) reifies the agent control loop as four addressable runtime stations joined by typed transitions, with a read/write contract: only **Act** may cause side-effects; **Sense**, **Plan**, and **Reflect** stay read-only. This isolation is what makes failures localise.\n\n- **Sense** assembles the situation (user input, tool outputs, memory recall, environment state) without interpreting it; surface ambiguity rather than collapse it prematurely.\n- **Plan** turns the sensed state into an intended trajectory — chain-of-thought, tree-of-thoughts, or explicit plan-and-execute, emitting a plan artefact rather than a free monologue.\n- **Act** executes via tool calls, sub-agent dispatch, or effectors.\n- **Reflect** compares outcome to plan intent and updates beliefs, decides loop/replan/escalate/stop.\n\n**Termination** is enforced with a step budget and composable stop conditions, bounding Plan↔Reflect oscillation. Two recurring failure modes: *same-model self-critique* (Reflect sharing Plan's model and prompt rubber-stamps decisions — fix by using a distinct model/prompt for Reflect) and *hidden-state coupling* (phases sharing mutable state outside their typed transitions, which destroys the localisation guarantee). Each phase emits phase-tagged trace events so observability tooling can group, filter, and replay by station.",
       "steps": [
         {
           "name": "Build the Sense phase",
-          "description": "Define what the agent observes each tick — user input, tool outputs, memory recall, environment state. Sense is responsible for assembling the situation, not interpreting it. Surface ambiguity rather than collapse it.",
+          "description": "Decide what the agent observes each tick: user input, tool outputs, memory recall, and environment state. Sense gathers the situation, it does not judge it. Surface anything unclear instead of papering over it.",
           "uses_patterns": [
             "augmented-llm",
             "scratchpad"
@@ -213,7 +215,7 @@
         },
         {
           "name": "Build the Plan phase",
-          "description": "Convert the sensed situation into an intended next move or trajectory. Use chain-of-thought, tree-of-thoughts, or explicit plan-and-execute when the task warrants it. Output is a plan artefact, not a free monologue.",
+          "description": "Turn the sensed situation into an intended next move or plan. Use chain-of-thought, tree-of-thoughts, or plan-and-execute when the task calls for it. The output is a plan, not a free monologue.",
           "uses_patterns": [
             "chain-of-thought",
             "plan-and-execute",
@@ -222,7 +224,7 @@
         },
         {
           "name": "Build the Act phase",
-          "description": "Execute the plan via tool calls, sub-agent dispatches, or external effectors. Act is the only phase allowed to cause side-effects; Sense, Plan, and Reflect remain read-only.",
+          "description": "Run the plan through tool calls, sub-agents, or outside effectors. Act is the only phase that may change anything. Sense, Plan, and Reflect stay read-only.",
           "uses_patterns": [
             "tool-use",
             "react"
@@ -230,7 +232,7 @@
         },
         {
           "name": "Build the Reflect phase",
-          "description": "Compare the outcome of Act against the plan's intent. Update beliefs, log lessons, decide whether to loop, replan, escalate, or stop. Reflect is where the agent earns its 'agentic' label.",
+          "description": "Check the outcome of Act against what the plan intended. Update beliefs, note lessons, and decide whether to loop, replan, escalate, or stop. Reflect is what makes the agent more than a script.",
           "uses_patterns": [
             "reflection",
             "self-refine"
@@ -238,7 +240,7 @@
         },
         {
           "name": "Wire phase transitions and termination",
-          "description": "Define typed transitions (Sense→Plan→Act→Reflect→Sense or →stop). Add a step budget and explicit stop conditions so the loop is bounded.",
+          "description": "Define the typed moves between phases: Sense to Plan to Act to Reflect, then back to Sense or stop. Add a step budget and clear stop conditions so the loop always ends.",
           "uses_patterns": [
             "step-budget",
             "composable-termination-conditions"
@@ -246,14 +248,14 @@
         },
         {
           "name": "Instrument each phase as a first-class trace event",
-          "description": "Emit structured trace events tagged with the phase. Downstream observability tools group, filter, and replay by phase so failures localise."
+          "description": "Emit a structured trace event tagged with its phase. Your observability tools can then group, filter, and replay by phase, so failures stay easy to find."
         }
       ],
       "principles": [
-        "Every agent has the same four-phase anatomy — make it visible, don't hide it.",
-        "Only the Act phase causes side-effects; the other three are observation, deliberation, and learning.",
-        "Reflect is non-optional — an agent that doesn't reflect is a scripted pipeline.",
-        "Phase boundaries are testable contracts, not narrative flourishes."
+        "Every agent has the same four phases. Make them visible, do not hide them.",
+        "Only Act changes things. The other three observe, decide, and learn.",
+        "Reflect is required. An agent that never reflects is just a script.",
+        "Phase boundaries are contracts you can test, not nice-sounding labels."
       ],
       "applies_to": [
         "agent",
@@ -311,7 +313,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "agent-loop",
         "spar",
@@ -327,50 +329,51 @@
         "Jason/JaCaMo construction"
       ],
       "category": "agent-construction",
-      "summary": "Construct an agent as a triple of belief base, desire (goal) set, and intention stack, driven by a deliberation cycle that selects plans from a plan library to achieve desires. The methodology operationalises agent-oriented programming as understood in the Jason/JaCaMo lineage: beliefs are first-class data, plans are first-class code, and the runtime cycle is a publicly visible artefact. Especially valuable when LLM-only agents lack the introspectability and goal-tracking that BDI provides natively.",
-      "intent": "Produce agents whose internal state — beliefs, desires, intentions — is explicitly represented and inspectable, so behaviour is explainable and verifiable rather than emergent.",
-      "when_to_apply": "Reach for BDI when an agent must reason explicitly about goals, commit to long-running intentions, coordinate with other agents under social rules, or be auditable to a regulator. Particularly suited to multi-agent organisations on platforms like Jason, JaCaMo, or Jadex. Don't apply when the task is one-shot generation, a thin tool-using chatbot, or when no goal persists beyond a single turn — BDI's machinery is overhead for stateless work. Skip when the team has no appetite for symbolic agent programming.",
+      "summary": "Build an agent from three parts that map to how people act on purpose. The beliefs are what the agent holds true. The desires are the goals it may take on. The intentions are the goals it has committed to and is acting on. A reasoning cycle drives it: each round it picks a plan from a plan library to meet a goal. This is the belief-desire-intention (BDI) approach from the Jason and JaCaMo line of tools. Beliefs are first-class data. Plans are first-class code. The cycle is out in the open. It shines when an LLM-only agent cannot show its goals or explain its reasoning, which BDI does by default.",
+      "intent": "Make agents whose inner state, the beliefs, desires, and intentions, is written down and easy to inspect, so the behaviour can be explained and checked instead of just emerging.",
+      "when_to_apply": "Reach for BDI when an agent must reason openly about goals, stick with long-running commitments, coordinate with other agents under shared rules, or stand up to an audit by a regulator. It fits multi-agent setups on tools such as Jason, JaCaMo, or Jadex. Don't apply it for one-shot generation, a light tool-using chatbot, or any task where no goal lives past a single turn. The BDI machinery is overhead for stateless work. Skip it too when the team has no appetite for symbolic agent programming.",
       "inputs": [
         {
           "name": "Domain ontology",
-          "description": "Vocabulary of predicates the agent will believe — facts about the world, other agents, and itself."
+          "description": "The set of facts the agent can believe: facts about the world, about other agents, and about itself."
         },
         {
           "name": "Goal catalogue",
-          "description": "The desires the agent may adopt, with priorities and adoption conditions."
+          "description": "The goals the agent may take on, each with a priority and the conditions that trigger it."
         },
         {
           "name": "Plan library",
-          "description": "Plans indexed by triggering event and context — the agent's procedural knowledge."
+          "description": "The agent's how-to knowledge: plans filed by the event and context that triggers them."
         }
       ],
       "outputs": [
         {
           "name": "BDI agent program",
-          "description": "An agent definition (e.g. in AgentSpeak/Jason) with belief base, goals, and plan library."
+          "description": "An agent definition, for example in AgentSpeak or Jason, with its beliefs, goals, and plan library."
         },
         {
           "name": "Deliberation cycle configuration",
-          "description": "Selection functions for event, plan, and intention selection, plus the reasoning-cycle parameters."
+          "description": "The rules for picking which event, plan, and intention to act on, plus the settings for the reasoning cycle."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  ont[Domain ontology] --> s1[Model belief base]\n  goals[Goal catalogue] --> s2[Enumerate desires and adoption conditions]\n  plib[Plan library input] --> s3[Author plan library]\n  s1 --> s2\n  s2 --> s3\n  s3 --> s4[Define selection functions]\n  s4 --> s5[Wire deliberation cycle]\n  s5 --> s6[Integrate with environment and organisation]\n  s6 --> out1[BDI agent program]\n  s6 --> out2[Deliberation cycle config]\n  s5 -.-> cycle[Perceive -> Update beliefs -> Select event -> Choose plan -> Execute intention]"
       },
-      "example_scenario": "A research group at a logistics firm is prototyping a multi-agent yard-management system on JaCaMo. Each truck-dispatch agent must reason about goals (unload before dock close, prioritise refrigerated cargo, avoid blocking lanes), commit to intentions over minutes-to-hours, and coordinate with other agents under a shared organisation. A pure LLM agent was tried first and abandoned because regulators required an auditable goal-trace.\n\nInputs: a domain ontology of yard predicates (dock_open, cargo_type, lane_blocked), a goal catalogue with priorities, and a plan library mined from dispatcher SOPs. The team modelled the belief base with perceptual predicates refreshed every two seconds and persistent predicates updated on event. Desires were split into achievement goals (unload truck T) and maintenance goals (keep aisle 3 clear). The plan library was authored as small triggering-event + context + body units; selection functions were overridden so refrigerated cargo always wins ties. The deliberation cycle ran at 0.5 Hz. Finally agents were attached to CArtAgO artefacts representing docks and lanes, and a MOISE organisation defined the dispatcher/mover roles.\n\nWhat they learned: BDI's commitment semantics meant agents didn't drop an unload mid-task when a higher-priority desire arrived — they queued it as a new intention instead. The auditors accepted the BDI trace as evidence of decision rationale, which an LLM ReAct trace had failed.",
+      "example_scenario": "A research group at a logistics firm is prototyping a multi-agent yard-management system on JaCaMo. Each truck-dispatch agent must reason about goals such as unload before dock close, prioritise refrigerated cargo, and avoid blocking lanes. It must commit to those goals over minutes to hours and coordinate with other agents under a shared organisation. They tried a pure LLM agent first and dropped it, because regulators required an auditable goal-trace.\n\nInputs: a domain ontology of yard facts (dock_open, cargo_type, lane_blocked), a goal catalogue with priorities, and a plan library drawn from dispatcher SOPs. The team modelled the beliefs with perceptual facts refreshed every two seconds and persistent facts updated on each event. They split the goals into achievement goals (unload truck T) and maintenance goals (keep aisle 3 clear). They wrote the plan library as small triggering-event plus context plus body units. They overrode the selection rules so refrigerated cargo always wins ties. The reasoning cycle ran at 0.5 Hz. Finally they attached the agents to CArtAgO artefacts for docks and lanes, and a MOISE organisation defined the dispatcher and mover roles.\n\nWhat they learned: because BDI agents commit to a goal, they did not drop an unload mid-task when a higher-priority goal arrived. They queued the new goal as a fresh intention instead. The auditors accepted the BDI trace as proof of why each decision was made. An LLM ReAct trace had failed that test.",
+      "deep_dive": "This operationalises the Jason/JaCaMo lineage of agent-oriented programming (AgentSpeak). The architecture:\n\n- **Belief base**: predicates over the world, other agents, and the self, partitioned into *perceptual* beliefs (refreshed each reasoning cycle from percepts) and *persistent* beliefs (updated on events).\n- **Desires/goals**: distinguished as *achievement goals* (bring about a state, e.g. `unload(T)`) versus *maintenance goals* (keep a condition true, e.g. `aisle_clear(3)`), each with triggering conditions and priorities.\n- **Plan library**: plans of the form *triggering-event : context <- body*, where the body sequences belief updates, sub-goals, and external actions. Keep plans small and composable.\n- **Selection functions**: the event-, plan-, and intention-selection functions (S_E, S_O, S_I) that resolve ties; Jason/JaCaMo ship defaults but non-trivial domains should override them.\n- **Deliberation cycle**: perceive → update beliefs → select event → choose applicable plan → execute intention, run at a domain-appropriate rate.\n\nThe defining property is **commitment semantics**: an adopted intention persists until it is achieved, dropped, or shown impossible, rather than being abandoned the moment a higher-priority desire appears. On JaCaMo, the environment is programmed as CArtAgO artefacts and the social layer as a MOISE organisation (roles, groups, schemes). Watch for *infinite-debate* (plan selection oscillating between two equally applicable plans without committing) and *hidden-state coupling* (plans mutating shared beliefs as side-effects, which breaks the explicit BDI contract).",
       "steps": [
         {
           "name": "Model the belief base",
-          "description": "Define the predicates the agent will hold about the world, including beliefs about its own internal state and about other agents. Decide which beliefs are perceptual (refreshed each cycle) and which are persistent."
+          "description": "Decide the facts the agent holds about the world, about itself, and about other agents. Split them into perceptual facts, refreshed each cycle, and persistent facts that stay until something changes them."
         },
         {
           "name": "Enumerate desires and adoption conditions",
-          "description": "List the goals the agent may pursue. Each desire has a triggering condition and a priority. Distinguish achievement goals from maintenance goals."
+          "description": "List the goals the agent may pursue. Give each one a trigger and a priority. Tell achievement goals (reach a state) apart from maintenance goals (keep a state true)."
         },
         {
           "name": "Author the plan library",
-          "description": "Write plans as triggering-event + context + body. The body is a sequence of belief updates, sub-goals, and external actions. Plans are the unit of procedural knowledge — keep them small and composable.",
+          "description": "Write each plan as a trigger, a context, and a body. The body is a list of belief updates, sub-goals, and outside actions. Plans are the unit of how-to knowledge. Keep them small and easy to combine.",
           "uses_patterns": [
             "bdi-agent",
             "skill-library"
@@ -378,18 +381,18 @@
         },
         {
           "name": "Define selection functions",
-          "description": "Specify how the agent selects events, plans, and intentions when multiple are applicable. Defaults exist in Jason/JaCaMo but should be overridden for non-trivial domains."
+          "description": "Say how the agent picks among events, plans, and intentions when more than one applies. Jason and JaCaMo give you defaults, but override them for any real domain."
         },
         {
           "name": "Wire the deliberation cycle",
-          "description": "Configure the perceive-deliberate-act cycle: perceive environment, update beliefs, select events, choose plans, execute intentions. Tune cycle rate for the domain.",
+          "description": "Set up the perceive-decide-act cycle: read the environment, update beliefs, pick an event, choose a plan, run the intention. Tune the cycle rate to fit the domain.",
           "uses_patterns": [
             "bdi-agent"
           ]
         },
         {
           "name": "Integrate with environment and organisation",
-          "description": "On JaCaMo, attach the agent to an environment (CArtAgO artefacts) and a social organisation (MOISE roles, groups, schemes). This is where multi-agent coordination is grounded.",
+          "description": "On JaCaMo, attach the agent to an environment (CArtAgO artefacts) and a social organisation (MOISE roles, groups, and schemes). This is where multi-agent coordination is grounded.",
           "uses_patterns": [
             "role-assignment",
             "inter-agent-communication"
@@ -397,10 +400,10 @@
         }
       ],
       "principles": [
-        "Beliefs, desires, and intentions are first-class artefacts — readable, inspectable, debuggable.",
-        "Plans are libraries, not improvisations — composition over emergence.",
-        "Commitment matters — an intention persists until it is achieved, dropped, or impossible.",
-        "Environment and organisation are programmed alongside the agent, not assumed."
+        "Beliefs, desires, and intentions are real artefacts you can read, inspect, and debug.",
+        "Plans come from a library, not from improvising. Combine plans instead of hoping for emergence.",
+        "Commitment matters. An intention stays until it is met, dropped, or proven impossible.",
+        "Program the environment and the organisation alongside the agent. Do not assume them."
       ],
       "applies_to": [
         "agent",
@@ -451,7 +454,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "bdi",
         "belief-desire-intention",
@@ -468,42 +471,43 @@
         "back-chained agentic behavior tree construction"
       ],
       "category": "agent-construction",
-      "summary": "Construct an agentic behavior tree by starting from the goal and recursively adding actions whose post-conditions satisfy the parent node's preconditions, until every leaf is directly executable. Behavior trees provide structured, modular control flow; back-chaining ensures the tree is constructed by purpose, not by ad-hoc authoring. Leaves combine LLM calls and tool invocations, and the tree itself becomes the audit trail of how the agent's behaviour is composed.",
-      "intent": "Produce an agentic behavior tree whose every node exists because it contributes to satisfying the parent's preconditions, eliminating dead branches and ad-hoc structure.",
-      "when_to_apply": "Apply when designing structured agent control flow with mixed LLM and tool nodes — game-like environments, multi-step task agents, complex workflows. Especially useful when prompt-only agents have become unmanageable spaghetti. Don't apply to simple linear pipelines or single-shot prompts — a behavior tree is overhead. Skip when the task is genuinely open-ended exploration with no goal decomposition possible.",
+      "summary": "Build an agentic behavior tree by working backwards from the goal. Start at the goal. Add an action whose result meets the goal. That action has its own needs, so add actions that meet those needs. Keep going until every leaf is something you can run directly. Behavior trees give you tidy, modular control flow. Working backwards (back-chaining) means every node is there for a reason, not bolted on by hand. Leaves mix LLM calls and tool calls. The tree itself becomes the record of how the agent's behaviour was put together.",
+      "intent": "Build a behavior tree where every node exists only because it helps meet its parent's needs, so there are no dead branches and no hand-bolted structure.",
+      "when_to_apply": "Use this when you need structured agent control flow that mixes LLM nodes and tool nodes: game-like worlds, multi-step task agents, or involved workflows. It helps most when a prompt-only agent has turned into spaghetti. Don't apply it for a simple straight-line pipeline or a single-shot prompt, where a tree is just overhead. Skip it too when the task is truly open-ended exploration that you cannot break into goals.",
       "inputs": [
         {
           "name": "Goal specification",
-          "description": "The terminal condition the agent must achieve, expressed as a checkable predicate."
+          "description": "The end state the agent must reach, written as a condition you can check true or false."
         },
         {
           "name": "Action inventory",
-          "description": "Candidate actions (LLM prompts, tool calls, sub-agents) annotated with preconditions and post-conditions."
+          "description": "The candidate actions: LLM prompts, tool calls, and sub-agents. Each one lists what it needs before it runs and what it makes true after."
         }
       ],
       "outputs": [
         {
           "name": "Agentic behavior tree",
-          "description": "An executable tree whose root is the goal and whose leaves are concrete LLM-or-tool actions, every node justified by back-chaining."
+          "description": "A runnable tree. The root is the goal. The leaves are real LLM or tool actions. Every node is there because back-chaining put it there."
         },
         {
           "name": "Pre/post-condition map",
-          "description": "For each node, the conditions under which it runs and what it asserts after running — the contract the tree was built against."
+          "description": "For each node, what must be true before it runs and what it makes true after. This is the contract the tree was built against."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  goal[Goal specification] --> s1[State goal as root precondition]\n  inv[Action inventory] --> s2[Find actions whose post-conditions satisfy parent]\n  s1 --> s2\n  s2 --> s3[Recurse on each child precondition]\n  s3 --> dec{Leaf reached?}\n  dec -- no --> s2\n  dec -- yes --> s4[Choose composite node type]\n  s4 --> s5[Wire leaves to LLM and tool calls]\n  s5 --> s6[Validate tree end-to-end]\n  s6 --> out1[Agentic behavior tree]\n  s6 --> out2[Pre/post-condition map]"
       },
-      "example_scenario": "A games-studio R&D team is building a quest-companion NPC agent. The previous prompt-only version drifted off-quest because the LLM had no structural way to track what was still required. They moved to an Agentic Behavior Tree authored by back-chaining. Inputs: the goal 'player completes the rescue quest' as a checkable predicate, and an action inventory of LLM dialogue prompts, world-state tool calls (open_door, give_item, teleport_npc), and a sub-agent that handles combat.\n\nStarting from the goal, they searched the inventory for actions whose post-conditions implied 'rescue_complete' — only the give_item(prisoner, freedom_token) action did. Its precondition required the prisoner to be reachable and the token in inventory, so each became a sub-goal. Recursing, reachability decomposed into open_door + path_clear, and inventory decomposed into find_token + pickup. They picked sequence composition for the conjunctive sub-goals and fallback for two alternative routes to the prisoner. Leaves were wired to ReAct prompts for dialogue and to engine tool calls for world mutations.\n\nValidation walked the tree leaves-up. They found one branch where 'door_open' was assumed but never asserted by any child and added a missing unlock-door action. Result: the companion no longer wandered; every node existed because the tree explicitly needed it. The pre/post-condition map became the audit trail the QA team used for quest regression.",
+      "example_scenario": "A games-studio R&D team is building a quest-companion NPC agent. The old prompt-only version drifted off-quest because the LLM had no built-in way to track what was still needed. They moved to an Agentic Behavior Tree built by back-chaining. Inputs: the goal 'player completes the rescue quest' as a checkable condition, and an action inventory of LLM dialogue prompts, world-state tool calls (open_door, give_item, teleport_npc), and a sub-agent that handles combat.\n\nStarting from the goal, they looked for actions whose result made 'rescue_complete' true. Only give_item(prisoner, freedom_token) did. That action needs the prisoner to be reachable and the token in inventory, so each became a sub-goal. Going deeper, reachability broke into open_door plus path_clear, and inventory broke into find_token plus pickup. They used sequence nodes for sub-goals that all have to happen, and a fallback node for two alternative routes to the prisoner. They wired the leaves to ReAct prompts for dialogue and to engine tool calls for changing the world.\n\nTo check the tree they walked it from the leaves up. They found one branch that assumed 'door_open' but no child ever made it true, so they added a missing unlock-door action. Result: the companion stopped wandering. Every node was there because the tree needed it. The pre/post-condition map became the audit trail the QA team used for quest regression.",
+      "deep_dive": "Back-chaining is goal-regression planning realised as a behavior tree. Begin with the goal as the root precondition, then for each unmet precondition search the action inventory for an action whose **post-conditions** entail it; that action becomes a child, and its own preconditions become new sub-goals. Recursion terminates when a precondition is satisfied by the initial state or is directly observable.\n\n- **Composite node selection is semantic, not stylistic**: use a *sequence* when children's effects are conjunctive (all must hold), a *fallback/selector* when they are alternative routes, and *parallel* when they are independent. Leaves return success/failure/running so the standard BT tick semantics compose correctly.\n- **Leaves are heterogeneous**: ReAct-style LLM calls, deterministic tool invocations, or sub-agent dispatches — agentic behavior trees are explicitly not LLM-only.\n- **Validation is leaves-up**: verify that the combined post-conditions of a node's children entail that node's precondition; trim dead branches and repair gaps (the classic gap is an assumed condition no child actually asserts, e.g. `door_open`).\n\nKnown failure modes: *premature closure* (treating a partially-true post-condition as fully satisfied and skipping a needed branch) and *tool-explosion* (each leaf bolting on a new tool without consolidation, so the leaf layer degrades even while the tree above stays clean). The pre/post-condition map doubles as the audit artefact.",
       "steps": [
         {
           "name": "State the goal as a root precondition",
-          "description": "Express the agent's terminal goal as a predicate to be satisfied. This becomes the precondition of the root node."
+          "description": "Write the agent's end goal as a condition to satisfy. That condition becomes the precondition of the root node."
         },
         {
           "name": "Find actions whose post-conditions satisfy the parent",
-          "description": "Search the action inventory for actions whose post-conditions imply the parent's precondition. Each candidate becomes a child node.",
+          "description": "Search the action inventory for actions whose result makes the parent's condition true. Each one you find becomes a child node.",
           "uses_patterns": [
             "agentic-behavior-tree",
             "behavior-tree-back-chaining"
@@ -511,15 +515,15 @@
         },
         {
           "name": "Recurse on each child's preconditions",
-          "description": "Treat each child's preconditions as new sub-goals and repeat. Terminate recursion when an action's preconditions are trivially satisfied (initial state) or directly observable."
+          "description": "Treat each child's needs as new sub-goals and repeat. Stop when an action's needs are already true at the start or are easy to observe."
         },
         {
           "name": "Choose composite node types",
-          "description": "For each non-leaf, choose sequence, fallback (selector), or parallel composition based on whether children's effects are conjunctive, alternative, or independent."
+          "description": "For each non-leaf node, pick how its children combine. Use a sequence when all must happen, a fallback when they are alternatives, and parallel when they are independent."
         },
         {
           "name": "Wire leaves to LLM calls and tool invocations",
-          "description": "Implement leaf nodes as ReAct-style LLM calls, tool invocations, or sub-agents. Each leaf returns success/failure/running so the tree composes correctly.",
+          "description": "Build each leaf as a ReAct-style LLM call, a tool call, or a sub-agent. Each leaf returns success, failure, or running, so the tree behaves correctly.",
           "uses_patterns": [
             "react",
             "tool-use"
@@ -527,14 +531,14 @@
         },
         {
           "name": "Validate the tree end-to-end",
-          "description": "Walk the tree from leaves upward checking that every node's children's combined post-conditions satisfy its precondition. Trim or repair branches that don't."
+          "description": "Walk the tree from the leaves up. Check that each node's children together make its condition true. Trim or fix any branch that does not."
         }
       ],
       "principles": [
-        "Every node exists because it satisfies its parent's precondition — no ad-hoc nodes.",
-        "Pre- and post-conditions are first-class contracts, not comments.",
-        "Composite node choice is deliberate: sequence for conjunction, fallback for alternative, parallel for independence.",
-        "Leaves combine LLM and tool calls — behavior trees are not LLM-only."
+        "Every node exists because it meets its parent's need. No bolt-on nodes.",
+        "Before and after conditions are real contracts, not comments.",
+        "Pick the composite node on purpose: sequence for all-of, fallback for one-of, parallel for independent.",
+        "Leaves mix LLM and tool calls. Behavior trees are not LLM-only."
       ],
       "applies_to": [
         "agent",
@@ -584,7 +588,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "behavior-tree",
         "back-chaining",
@@ -600,38 +604,39 @@
         "CSEP memory stack"
       ],
       "category": "agent-construction",
-      "summary": "Build agent memory as four cooperating tiers — conversational (turn-window context), semantic (facts and embeddings), episodic (past interaction traces), and procedural (learned skills and routines). Each tier has its own write policy, retrieval mechanism, and compression strategy. The methodology rejects the single-vector-store-as-memory shortcut and forces the team to decide, per tier, what is stored, how it is retrieved, and how it is compressed when capacity is exceeded.",
-      "intent": "Replace 'agent memory = one vector store' with an explicit four-tier architecture that distinguishes conversational, semantic, episodic, and procedural memory, each with its own policies.",
-      "when_to_apply": "Apply when designing memory for any agent that must retain context beyond a single conversation — assistants, coding agents, long-running ops agents. Especially valuable when teams have hit recall problems with a naive single-vector store. Don't apply to single-turn agents or stateless tools. Skip when the agent's memory needs are fully covered by the model's context window and there is no need for retrieval at all.",
+      "summary": "Build agent memory as four parts that work together. Conversational memory holds the recent turns. Semantic memory holds facts and their embeddings. Episodic memory holds traces of past interactions. Procedural memory holds learned skills and routines. Each part has its own rules for what to write, how to look things up, and how to shrink it when it gets too big. This rejects the shortcut of using one vector store for everything. It makes the team decide, for each part, what is stored, how it is retrieved, and how it is compressed when it fills up.",
+      "intent": "Replace 'agent memory is one vector store' with four clear parts, conversational, semantic, episodic, and procedural, each with its own rules.",
+      "when_to_apply": "Use this when you design memory for any agent that must remember things beyond a single conversation: assistants, coding agents, and long-running ops agents. It helps most when a team has hit recall problems with one plain vector store. Don't apply it for single-turn agents and stateless tools. Skip it too when the model's context window already covers the memory needs and you do not need lookup at all.",
       "inputs": [
         {
           "name": "Memory budget",
-          "description": "Token, storage, and latency budgets for each tier."
+          "description": "The limits for each part: how many tokens, how much storage, and how much delay you can afford."
         },
         {
           "name": "Recall scenarios",
-          "description": "The questions or situations where the agent must remember something — what tier each one should be served from."
+          "description": "The questions or moments where the agent must remember something, and which part should answer each one."
         }
       ],
       "outputs": [
         {
           "name": "Four-tier memory architecture",
-          "description": "Conversational, semantic, episodic, and procedural stores with explicit interfaces."
+          "description": "Conversational, semantic, episodic, and procedural stores, each with a clear interface."
         },
         {
           "name": "Per-tier policies",
-          "description": "Write, retrieval, and compression policies for each tier, documented and tuneable."
+          "description": "Write, lookup, and compression rules for each part, written down and easy to tune."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  budget[Memory budget] --> s1[Build conversational tier]\n  recall[Recall scenarios] --> s1\n  s1 --> s2[Build semantic tier]\n  s2 --> s3[Build episodic tier]\n  s3 --> s4[Build procedural tier]\n  s4 --> s5[Define retrieval orchestration across tiers]\n  s5 --> s6[Define compression and forgetting policies]\n  s6 --> out1[Four-tier memory architecture]\n  s6 --> out2[Per-tier policies]\n  s1 -.-> conv[(Conversational)]\n  s2 -.-> sem[(Semantic)]\n  s3 -.-> epi[(Episodic)]\n  s4 -.-> proc[(Procedural)]"
       },
-      "example_scenario": "A team building a long-running personal-finance assistant noticed users complaining that the assistant 'forgot' simple facts after a few weeks while also dragging in irrelevant context. They had used a single pgvector index for everything. They re-architected memory along the four tiers. Inputs: a memory budget of 8k tokens per turn and ~1GB persistent storage per user; recall scenarios collected from real user logs (e.g. 'what's my emergency-fund target?', 'how did we handle my Q2 bonus last year?', 'do my usual end-of-month sweep').\n\nConversational tier: sliding window with summary-augmented truncation; the last six turns plus a rolling summary. Semantic tier: extracted facts like target_emergency_fund=$15000, vector-indexed for similarity. Episodic tier: per-interaction transcripts timestamped and tagged, queryable by date and topic. Procedural tier: stored 'end-of-month sweep' as a procedure with steps the agent could replay. Retrieval orchestration: factual questions hit semantic first, 'last time' questions hit episodic, recurring-task questions hit procedural. Compression: episodic decayed to summaries after 90 days, procedural promoted only on three successful executions.\n\nThe forgetting policy was the surprise win — they deliberately evicted stale facts (the user's old job's payroll cadence) instead of letting them poison retrieval. Recall-precision on the eval set went from 0.62 to 0.89, and the 'agent dragged in random old context' complaints stopped.",
+      "example_scenario": "A team building a long-running personal-finance assistant saw users complain that it 'forgot' simple facts after a few weeks. At the same time it kept dragging in context that did not matter. They had used a single pgvector index for everything. They rebuilt memory as the four parts. Inputs: a memory budget of 8k tokens per turn and about 1GB of storage per user, plus recall scenarios pulled from real user logs (such as 'what's my emergency-fund target?', 'how did we handle my Q2 bonus last year?', and 'do my usual end-of-month sweep').\n\nConversational part: a sliding window that keeps the last six turns plus a rolling summary. Semantic part: extracted facts such as target_emergency_fund=$15000, stored in a vector index for similarity lookup. Episodic part: per-interaction transcripts, timestamped and tagged, searchable by date and topic. Procedural part: 'end-of-month sweep' stored as a routine with steps the agent could replay. Lookup routing: fact questions hit semantic first, 'last time' questions hit episodic, recurring-task questions hit procedural. Compression: episodic memories shrank to summaries after 90 days, and a routine was promoted only after three successful runs.\n\nThe forgetting rule was the surprise win. They chose to drop stale facts, such as the payroll cadence from the user's old job, instead of letting them spoil lookups. Recall-precision on the eval set went from 0.62 to 0.89. The 'agent dragged in random old context' complaints stopped.",
+      "deep_dive": "Each tier is a distinct subsystem with its own write policy, retrieval mechanism, and compression strategy — the methodology explicitly rejects the single-vector-store collapse.\n\n- **Conversational** (short-term): the live turn window. Truncation policy is a design choice — sliding window, summary-augmented truncation, or hierarchical summarisation — plus a promotion rule for what graduates to longer-lived tiers.\n- **Semantic**: extracted facts stored as embeddings, keyed for similarity (dense) retrieval. Requires an extraction policy deciding what is fact-shaped versus what stays episodic.\n- **Episodic**: timestamped, identified interaction transcripts — the agent's autobiography — queryable by recency and topic for 'what happened last time' recall.\n- **Procedural**: replayable skills/routines/successful plans, typically promotion-gated (e.g. only after N successful executions).\n\n**Retrieval orchestration** routes a recall request to the right tier(s) and merges/prioritises results, rather than delegating to one index. **Compression and forgetting** is per-tier: summarisation, clustering, recency-weighted decay, or forced eviction; deliberate forgetting is a precision lever, not just a capacity control. Crisp tier boundaries also defend against three failures: *memory-poisoning* (unauthenticated promotion from conversational into semantic/procedural), *context-fragmentation* (disconnected fragments recombining incoherently when orchestration is missing), and *memo-as-source-confusion* (the agent's own notes later retrieved as if they were source evidence).",
       "steps": [
         {
           "name": "Build the conversational tier",
-          "description": "Window the live conversation context. Decide truncation policy (sliding, summary-augmented, hierarchical) and what gets promoted to longer-lived tiers.",
+          "description": "Keep a window on the live conversation. Pick how you trim it (sliding window, summary plus window, or layered summaries) and decide what gets promoted to the longer-lived parts.",
           "uses_patterns": [
             "short-term-memory",
             "episodic-summaries"
@@ -639,7 +644,7 @@
         },
         {
           "name": "Build the semantic tier",
-          "description": "Store extracted facts and embeddings keyed for similarity retrieval. Decide what is extractable as a fact and what stays in episodic.",
+          "description": "Store extracted facts and their embeddings so you can look them up by similarity. Decide what counts as a fact and what stays as an episode.",
           "uses_patterns": [
             "semantic-memory",
             "vector-memory"
@@ -647,14 +652,14 @@
         },
         {
           "name": "Build the episodic tier",
-          "description": "Persist concrete past interactions or events with timestamps and identifiers. Episodes are the agent's autobiography — used for recall of 'what happened last time'.",
+          "description": "Save real past interactions and events with timestamps and IDs. Episodes are the agent's diary. You use them to recall what happened last time.",
           "uses_patterns": [
             "episodic-memory"
           ]
         },
         {
           "name": "Build the procedural tier",
-          "description": "Store skills, routines, and successful plans the agent can replay. This is how an agent learns to be faster or better at a recurring task.",
+          "description": "Store skills, routines, and plans that worked, so the agent can replay them. This is how the agent gets faster and better at a recurring task.",
           "uses_patterns": [
             "procedural-memory",
             "skill-library"
@@ -662,11 +667,11 @@
         },
         {
           "name": "Define retrieval orchestration across tiers",
-          "description": "Decide which tier is queried for which kind of recall request, and how their results are merged or prioritised."
+          "description": "Decide which part answers which kind of recall request. Decide how to merge or rank results when more than one part replies."
         },
         {
           "name": "Define compression and forgetting policies",
-          "description": "Each tier needs a compression strategy: summarisation, clustering, recency-weighted decay, forced eviction. Without explicit policies the tiers grow unboundedly.",
+          "description": "Give each part a way to shrink: summarise, cluster, decay by recency, or drop on purpose. Without these rules the parts grow without limit.",
           "uses_patterns": [
             "episodic-summaries",
             "memory-type-storage-specialization"
@@ -674,10 +679,10 @@
         }
       ],
       "principles": [
-        "Memory is not one store — it is four cooperating systems with different jobs.",
-        "Every tier has explicit write, read, and compression policies.",
-        "Retrieval is orchestrated across tiers, not delegated to a single vector index.",
-        "Forgetting is a feature — design it on purpose."
+        "Memory is not one store. It is four parts that work together with different jobs.",
+        "Every part has its own write, read, and compression rules.",
+        "Look-ups are routed across the parts, not handed to a single vector index.",
+        "Forgetting is a feature. Design it on purpose."
       ],
       "applies_to": [
         "agent"
@@ -731,7 +736,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "memory",
         "four-tier",
@@ -747,38 +752,39 @@
         "planning-reasoning-evaluation-feedback construction"
       ],
       "category": "agent-construction",
-      "summary": "Construct the agent's control logic as a four-stage loop: Plan generates a candidate trajectory, Reason elaborates the trajectory using chain-of-thought or tree-of-thoughts, Evaluate scores the result with self-consistency or a judge, and Feedback returns lessons to the planner for the next iteration. The methodology insists each stage be a distinct, instrumented station so the team can tune them independently — instead of a single mega-prompt doing all four jobs poorly.",
-      "intent": "Decompose the agent's control loop into Plan, Reason, Evaluate, and Feedback stages so each can be authored, tested, and tuned independently rather than collapsed into one prompt.",
-      "when_to_apply": "Apply when the agent must take on tasks complex enough to require explicit planning and self-evaluation — research agents, coding agents, multi-step problem solvers. Especially useful when a monolithic ReAct prompt has plateaued in quality. Don't apply to single-shot generators or simple tool callers — adding four stages to a trivial task is gold-plating. Skip when latency budgets cannot absorb the extra round-trips.",
+      "summary": "Build the agent's control logic as a loop with four stages. Plan drafts a candidate approach. Reason fills it in using chain-of-thought or tree-of-thoughts. Evaluate scores the result, using self-consistency or a judge. Feedback hands the lessons back to Plan for the next round. Make each stage its own step with its own metrics, so the team can tune them one at a time. The thing to avoid is one giant prompt trying to do all four jobs and doing each one badly.",
+      "intent": "Split the agent's control loop into Plan, Reason, Evaluate, and Feedback so each one can be written, tested, and tuned on its own instead of crammed into a single prompt.",
+      "when_to_apply": "Use this when the task is hard enough to need real planning and self-checking: research agents, coding agents, and multi-step problem solvers. It helps most when one big ReAct prompt has stopped improving. Don't apply it for single-shot generators and simple tool callers, where four stages on a trivial task is overkill. Skip it too when your latency budget cannot absorb the extra round-trips.",
       "inputs": [
         {
           "name": "Task specification",
-          "description": "What the agent must accomplish, decomposable into sub-steps."
+          "description": "What the agent must do, in a form you can break into sub-steps."
         },
         {
           "name": "Evaluator definition",
-          "description": "The judge, rubric, or self-consistency mechanism that will score Reason outputs."
+          "description": "The judge, rubric, or self-consistency check that will score what Reason produces."
         }
       ],
       "outputs": [
         {
           "name": "Four-stage control loop",
-          "description": "Plan, Reason, Evaluate, Feedback as distinct, instrumented stages."
+          "description": "Plan, Reason, Evaluate, and Feedback as four separate stages, each with its own metrics."
         },
         {
           "name": "Stage-level metrics",
-          "description": "Per-stage success/failure signals that downstream telemetry can graph and alert on."
+          "description": "A success or failure signal for each stage that your telemetry can graph and alert on."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart LR\n  task[Task specification] --> plan[Plan stage]\n  evalDef[Evaluator definition] --> eval[Evaluate stage]\n  plan --> reason[Reason stage]\n  reason --> eval\n  eval --> fb[Feedback stage]\n  fb -- accept --> done[Stop / emit result]\n  fb -- replan --> plan\n  fb -- reject with reasons --> reason\n  plan -.-> tel[Per-stage metrics]\n  reason -.-> tel\n  eval -.-> tel\n  fb -.-> tel\n  budget[Step budget] --> fb"
       },
-      "example_scenario": "A platform team is building an internal research-assistant agent that produces market-sizing memos for the strategy department. Their first monolithic ReAct prompt plateaued at memo-quality 6/10 according to the strategy team's rubric. They split the control loop into PREF stages. Inputs: task spec ('produce a market-sizing memo for product X in region Y'), evaluator definition (a 12-criterion rubric scored by a separate Claude model with the strategy team's exemplar memos in context).\n\nPlan stage emits two candidate trajectories using multi-path plan generation. Reason stage elaborates each with tree-of-thoughts, including source-quality reasoning. Evaluate stage scores both against the rubric with self-consistency over three rubric runs. Feedback stage either accepts the winner, rejects with rubric-criterion-specific reasons (e.g. 'sizing assumption unsupported'), or asks Plan to regenerate from a different angle. Iteration budget: three loops.\n\nWhat they learned: most of the gain came from making Evaluate independent — the same-model self-critique they started with always rated the memo at 8/10 regardless of quality. Switching to a different model with the rubric in-context dropped average rated quality but raised real quality (as judged by humans) from 6/10 to 8.4/10. The per-stage metrics revealed that Reason was the slowest stage but Plan was where the biggest quality jumps came from, which redirected their tuning effort productively.",
+      "example_scenario": "A platform team is building an internal research-assistant agent. It produces market-sizing memos for the strategy department. Their first big ReAct prompt stalled at memo-quality 6/10 on the strategy team's rubric. They split the control loop into PREF stages. Inputs: a task spec ('produce a market-sizing memo for product X in region Y') and an evaluator: a 12-criterion rubric scored by a separate Claude model with the strategy team's example memos in context.\n\nThe Plan stage emits two candidate approaches using multi-path plan generation. The Reason stage fills in each one with tree-of-thoughts, including reasoning about source quality. The Evaluate stage scores both against the rubric, running it three times for self-consistency. The Feedback stage either accepts the winner, rejects it with reasons tied to specific rubric criteria (such as 'sizing assumption unsupported'), or asks Plan to try a different angle. The iteration budget is three loops.\n\nWhat they learned: most of the gain came from making Evaluate independent. The same-model self-critique they started with always rated the memo at 8/10, no matter the quality. Switching to a different model with the rubric in context lowered the average rated score but raised the real quality, as judged by humans, from 6/10 to 8.4/10. The per-stage metrics showed that Reason was the slowest stage, but Plan was where the biggest quality jumps came from. That sent their tuning effort to the right place.",
+      "deep_dive": "PREF decomposes the agent control loop into four independently instrumented stations so each is separately authorable, testable, and tunable.\n\n- **Plan**: single-path or multi-path plan/trajectory generation, chosen by cost/risk profile.\n- **Reason**: generative elaboration via chain-of-thought or tree-of-thoughts — do *not* collapse this into Plan, since it is where trajectory detail and source-quality reasoning live.\n- **Evaluate**: scores the reasoning output via self-consistency, an LLM-as-judge, or a rubric. The non-negotiable property is **evaluator independence** — it must be able to dissent. *Same-model self-critique* (Evaluate sharing Reason's model and context) systematically rubber-stamps; the fix is a distinct model and/or rubric-in-context, which often *lowers* the rated score while *raising* human-judged quality.\n- **Feedback**: converts the evaluation into an actionable signal — accept, reject-with-criterion-specific-reasons, replan, or escalate — and closes the loop (Reflexion-style).\n\n**Termination** requires a max-iterations budget plus a convergence test, guarding against *infinite-debate* (Feedback reopening Plan without convergence) and *unbounded-loop* (no stage holding the authority to declare done). Per-stage telemetry is mandatory: shared telemetry makes independent tuning impossible, and it is what reveals where quality leverage actually sits (often Plan, not the slowest stage).",
       "steps": [
         {
           "name": "Author the Plan stage",
-          "description": "Generate a candidate plan or trajectory. Use single-path or multi-path plan generation depending on cost and risk.",
+          "description": "Draft a candidate plan or approach. Use single-path or multi-path plan generation depending on cost and risk.",
           "uses_patterns": [
             "plan-and-execute",
             "single-path-plan-generator",
@@ -787,7 +793,7 @@
         },
         {
           "name": "Author the Reason stage",
-          "description": "Elaborate the plan with chain-of-thought or tree-of-thoughts. Reasoning is generative; do not collapse it into Plan.",
+          "description": "Fill in the plan with chain-of-thought or tree-of-thoughts. Reasoning generates new detail. Do not fold it back into Plan.",
           "uses_patterns": [
             "chain-of-thought",
             "tree-of-thoughts"
@@ -795,7 +801,7 @@
         },
         {
           "name": "Author the Evaluate stage",
-          "description": "Score the reasoning output. Use self-consistency, an LLM judge, or a rubric. Evaluate must be independent enough to dissent.",
+          "description": "Score what Reason produced. Use self-consistency, an LLM judge, or a rubric. Evaluate must be independent enough to disagree.",
           "uses_patterns": [
             "self-consistency",
             "agent-as-judge",
@@ -804,7 +810,7 @@
         },
         {
           "name": "Author the Feedback stage",
-          "description": "Convert evaluation into actionable signal for the planner — accept, reject with reasons, replan, or escalate. Feedback closes the loop.",
+          "description": "Turn the score into a clear next step for the planner: accept, reject with reasons, replan, or escalate. Feedback is what closes the loop.",
           "uses_patterns": [
             "reflexion",
             "evaluator-optimizer"
@@ -812,21 +818,21 @@
         },
         {
           "name": "Instrument each stage independently",
-          "description": "Emit stage-scoped traces and metrics. Tuning is impossible if the four stages share telemetry."
+          "description": "Emit traces and metrics scoped to each stage. You cannot tune the four stages if they share one set of telemetry."
         },
         {
           "name": "Bound iterations",
-          "description": "Add a max-iterations budget and a convergence test so the loop terminates rather than oscillating between plan and reflection forever.",
+          "description": "Add a max-iterations budget and a test for when to stop. Otherwise the loop can bounce between plan and reflection forever.",
           "uses_patterns": [
             "step-budget"
           ]
         }
       ],
       "principles": [
-        "Plan, Reason, Evaluate, and Feedback are four jobs — give each its own prompt and metric.",
-        "The evaluator must be able to dissent — same-model self-critique is a failure mode, not a method.",
-        "Feedback closes the loop or it isn't feedback.",
-        "Iteration is bounded — set a budget and a convergence test."
+        "Plan, Reason, Evaluate, and Feedback are four jobs. Give each its own prompt and metric.",
+        "The evaluator must be able to disagree. Same-model self-critique is a failure mode, not a method.",
+        "Feedback closes the loop, or it is not feedback.",
+        "Bound the iterations. Set a budget and a test for when to stop."
       ],
       "applies_to": [
         "agent",
@@ -884,7 +890,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "control-loop",
         "planning",
@@ -901,38 +907,39 @@
         "single-to-multi-agent escalation"
       ],
       "category": "agent-construction",
-      "summary": "Start with one agent. Add a second only when the first measurably fails the task, and pick the multi-agent coordination style — democratic, manager, hierarchical, actor-critic — deliberately rather than reaching for a swarm by reflex. The methodology treats agent count as a tuning dial that should be moved only under evidence, with each escalation paired with a coordination shape that fits the failure mode.",
-      "intent": "Make 'how many agents' an evidence-driven decision and force a deliberate choice of coordination style at each escalation, instead of jumping to multi-agent by reflex.",
-      "when_to_apply": "Apply when teams are tempted to design a multi-agent system before a single-agent baseline exists, or when a single agent is plateauing and the next move is unclear. Don't apply when the task genuinely is multi-actor by nature (negotiation, simulation, debate as feature) — there the multi-agent shape is part of the requirement. Skip when there is no measurement of single-agent failure on which to base an escalation.",
+      "summary": "Start with one agent. Add a second only when the first clearly fails the task and you can show it. When you do add agents, pick the coordination style on purpose: democratic, manager, hierarchical, or actor-critic. Do not reach for a swarm by reflex. Treat the number of agents as a dial you turn only when the evidence says to. Pair each step up with a coordination shape that fits the failure you saw.",
+      "intent": "Make 'how many agents' a decision driven by evidence, and force a deliberate choice of coordination style at each step up, instead of jumping to multi-agent by reflex.",
+      "when_to_apply": "Use this when a team wants to design a multi-agent system before a single agent even exists, or when one agent has stopped improving and the next move is unclear. Don't apply it when the task is multi-actor by nature, such as negotiation, simulation, or debate as a feature. There the multi-agent shape is part of the requirement. Skip it too when you have no measurement of how the single agent fails, because then you have nothing to base a step up on.",
       "inputs": [
         {
           "name": "Single-agent baseline metrics",
-          "description": "Quantified evidence of where the single agent succeeds and fails."
+          "description": "Numbers that show where the single agent succeeds and where it fails."
         },
         {
           "name": "Coordination cost budget",
-          "description": "Latency, token, and infra budget available for adding more agents."
+          "description": "The latency, tokens, and infra you can spend on adding more agents."
         }
       ],
       "outputs": [
         {
           "name": "Agent-count decision",
-          "description": "Documented choice of 1, few, or many agents with the evidence that justifies it."
+          "description": "A written choice of one, a few, or many agents, with the evidence that backs it."
         },
         {
           "name": "Coordination shape",
-          "description": "Named coordination style (democratic, manager, hierarchical, actor-critic, swarm) with explicit roles."
+          "description": "The named coordination style (democratic, manager, hierarchical, actor-critic, or swarm) with clear roles."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  base[Single-agent baseline metrics] --> s1[Build and measure single-agent baseline]\n  budget[Coordination cost budget] --> s3\n  s1 --> dec{Single agent meets bar?}\n  dec -- yes --> ship1[Ship single agent]\n  dec -- no --> s2[Identify specific failure escalation should fix]\n  s2 --> s3[Pick coordination style]\n  s3 --> s4[Add smallest number of agents to resolve failure]\n  s4 --> s5[Re-measure against same eval set]\n  s5 --> dec2{Gains material?}\n  dec2 -- yes --> s6[Document escalation as decision record]\n  dec2 -- no --> rb[Roll back to baseline]\n  s6 --> out1[Agent-count decision]\n  s6 --> out2[Coordination shape]"
       },
-      "example_scenario": "A small ML platform team at a fintech was pressured by leadership to 'go multi-agent' for their compliance-document-review agent. They resisted long enough to apply the methodology. Inputs: a single-agent baseline already in production, hitting 78% F1 on the compliance-eval set with median latency 12s per document; a coordination cost budget of +$0.05 per document and +20s latency. Failures clustered in two places: (1) the single agent missed cross-reference inconsistencies between sections, (2) it occasionally produced overly conservative findings.\n\nThey named the failure first: 'evaluator independence missing — same agent both reads and judges, so it rationalises away inconsistencies'. That matched actor-critic, not a swarm. They added one critic agent with a different system prompt and a different model, kept the original agent as the actor, and re-measured. F1 went to 0.87, latency to 18s — within budget. They wrote the escalation as a decision record naming the conditions under which to climb further (e.g. cross-jurisdictional documents needing a specialist critic).\n\nA junior PM had proposed a five-agent democratic council for the same problem. The methodology produced a two-agent system that hit the quality bar at a fraction of the coordination cost. The decision record later prevented a re-escalation impulse when a new failure mode appeared — the team revisited it, realised the new failure wasn't covered by the recorded escalation triggers, and fixed it inside the existing actor-critic shape instead.",
+      "example_scenario": "A small ML platform team at a fintech was pushed by leadership to 'go multi-agent' for their compliance-document-review agent. They held out long enough to apply the methodology. Inputs: a single-agent baseline already in production, hitting 78% F1 on the compliance-eval set with median latency 12s per document, and a coordination cost budget of +$0.05 per document and +20s latency. The failures clustered in two places. First, the single agent missed cross-reference mismatches between sections. Second, it sometimes produced overly cautious findings.\n\nThey named the failure first: the evaluator was not independent, because the same agent both reads and judges, so it talks itself out of the mismatches. That points to actor-critic, not a swarm. They added one critic agent with a different system prompt and a different model. They kept the original agent as the actor and re-measured. F1 rose to 0.87 and latency to 18s, both within budget. They wrote the step up as a decision record. It named the conditions for climbing further, such as cross-jurisdictional documents that need a specialist critic.\n\nA junior PM had proposed a five-agent democratic council for the same problem. The methodology produced a two-agent system that hit the quality bar at a fraction of the coordination cost. The decision record later stopped a re-escalation impulse when a new failure appeared. The team revisited it, saw the new failure was not on the recorded triggers, and fixed it inside the existing actor-critic shape instead.",
+      "deep_dive": "Agent count is treated as an evidence-gated tuning dial, not an architectural starting point. Each escalation is justified by a *named* failure mode and matched to a coordination topology that addresses it:\n\n- **Democratic**: peers generate and vote/aggregate — fits diversity-of-perspective and reducing single-model bias.\n- **Manager (orchestrator-workers)**: one orchestrator decomposes and dispatches to workers — fits task decomposition and parallelism; watch for *orchestrator-as-bottleneck*.\n- **Hierarchical**: nested supervisors over sub-teams — fits deep decomposition with span-of-control limits.\n- **Actor-critic (evaluator-optimizer)**: one agent generates, a distinct one judges — fits the *evaluator-independence* failure where a single agent that both produces and self-judges rationalises away its own errors (use a different model/prompt for the critic).\n\nThe discipline: build and measure a single-agent baseline on a representative eval set; add the *minimum* agents that resolve the named failure (two is frequently sufficient); re-measure on the *same* metrics and roll back if gains are marginal; record the escalation as a decision record with explicit de-escalation conditions. Failure modes to guard: *hero-agent* (refusing to split an overloaded agent), *unbounded-subagent-spawn* (escalating to 'as many as needed' instead of a bounded topology), and *multi-agent-sequential-degradation* (information loss at each handoff when no coordination style was deliberately chosen).",
       "steps": [
         {
           "name": "Build and measure the single-agent baseline",
-          "description": "Implement the simplest single agent that could plausibly solve the task. Measure success, latency, and failure modes against a representative eval set.",
+          "description": "Build the simplest single agent that could plausibly solve the task. Measure its success, latency, and failures on a representative eval set.",
           "uses_patterns": [
             "augmented-llm",
             "tool-use"
@@ -940,11 +947,11 @@
         },
         {
           "name": "Identify the specific failure that escalation should fix",
-          "description": "Name the failure mode the second agent will address — context overflow, role conflict, missing specialist skill, evaluator independence. Without a named failure, escalation is theatre."
+          "description": "Name the failure the second agent will fix: context overflow, role conflict, a missing specialist skill, or a judge that is not independent. Without a named failure, adding agents is just theatre."
         },
         {
           "name": "Pick the coordination style",
-          "description": "Choose deliberately: democratic (peers vote), manager (one orchestrator with workers), hierarchical (nested supervisors), actor-critic (one generates, one judges). Each fits a different failure mode.",
+          "description": "Choose on purpose. Democratic: peers vote. Manager: one orchestrator with workers. Hierarchical: supervisors nested over sub-teams. Actor-critic: one agent generates, another judges. Each one fits a different failure.",
           "uses_patterns": [
             "orchestrator-workers",
             "supervisor",
@@ -955,22 +962,22 @@
         },
         {
           "name": "Add the smallest number of agents that resolves the failure",
-          "description": "Two is often enough. Resist the temptation to leap to a swarm — extra agents add coordination cost and new failure modes."
+          "description": "Two is often enough. Do not leap to a swarm. Extra agents add coordination cost and bring new failures of their own."
         },
         {
           "name": "Re-measure against the same eval set",
-          "description": "Compare the multi-agent system to the single-agent baseline on the same metrics. If gains are marginal, roll back."
+          "description": "Compare the multi-agent system to the single-agent baseline on the same metrics. If the gains are small, roll back."
         },
         {
           "name": "Document the escalation as a decision record",
-          "description": "Capture why the escalation happened, what failure it fixed, and the conditions under which de-escalation is appropriate. Future teams need this."
+          "description": "Write down why you stepped up, what failure it fixed, and when stepping back down would be right. The next team needs this."
         }
       ],
       "principles": [
-        "Single agent first — multi-agent is a tuning move, not a starting point.",
-        "Every escalation is paired with a named failure it is fixing.",
-        "Coordination style is a deliberate choice from a small menu, not 'whatever the framework defaults to'.",
-        "Re-measure after escalating; roll back if gains are marginal."
+        "Single agent first. Multi-agent is a tuning move, not a starting point.",
+        "Every step up is paired with a named failure it fixes.",
+        "Coordination style is a deliberate pick from a short list, not the framework default.",
+        "Re-measure after stepping up. Roll back if the gains are small."
       ],
       "applies_to": [
         "agent",
@@ -1030,7 +1037,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "multi-agent",
         "escalation",
@@ -1046,46 +1053,47 @@
         "MAESTRO security pass"
       ],
       "category": "agent-construction",
-      "summary": "Run an agent-specific threat-modeling pass before deployment using MAESTRO categories: foundation-model risks, data-protection threats, internal/external attack vectors, and red-team adversarial probes. The methodology adapts classical threat modeling (STRIDE, LINDDUN) to the unique attack surface of agentic systems — prompt injection, memory poisoning, tool misuse, exfiltration, agent-on-agent attacks — and produces a defensive-control catalogue tied to each identified threat.",
-      "intent": "Replace generic security review with an agent-aware threat-modeling discipline that enumerates agent-specific attack categories and pairs each with a concrete defensive control before deployment.",
-      "when_to_apply": "Apply before any agent goes to production, especially when it has tool access, autonomous loops, multi-agent coordination, or handles sensitive data. Use again after every material capability change. Don't apply as a substitute for application-level AppSec — MAESTRO complements, it doesn't replace. Skip when the system is genuinely a single-turn chat with no tools, no memory, and no access to private data — there is no agentic attack surface to model.",
+      "summary": "Run an agent-specific security review before you ship, using the MAESTRO categories. They are: risks from the model itself, threats to the data, attacks from inside and outside the system, and red-team probing. This takes classic threat modeling, such as STRIDE and LINDDUN, and adapts it to how agents get attacked. That includes prompt injection, memory poisoning, tool misuse, data theft, and agent-on-agent attacks. The output is a list of threats, each one tied to a concrete defence.",
+      "intent": "Replace a generic security review with an agent-aware one that lists the attack types specific to agents and pairs each with a concrete defence before you ship.",
+      "when_to_apply": "Run this before any agent goes to production, above all when it has tool access, a free-running loop, multi-agent coordination, or sensitive data. Run it again after every real change in capability. Do not use it instead of normal application security. MAESTRO adds to AppSec, it does not replace it. Don't apply it when the system really is a single-turn chat with no tools, no memory, and no access to private data. There is no agent attack surface to model.",
       "inputs": [
         {
           "name": "Agent architecture",
-          "description": "Model, tools, memory, loop, and integrations — all of which form the attack surface."
+          "description": "The model, tools, memory, loop, and integrations. Together they make up the attack surface."
         },
         {
           "name": "Data classification",
-          "description": "What data the agent reads, writes, or transmits, and its sensitivity."
+          "description": "What data the agent reads, writes, or sends, and how sensitive each piece is."
         },
         {
           "name": "Adversary model",
-          "description": "Who would attack this agent and what they want — external attacker, malicious user, compromised tool, hostile agent."
+          "description": "Who would attack this agent and what they want: an outside attacker, a malicious user, a compromised tool, or a hostile agent."
         }
       ],
       "outputs": [
         {
           "name": "Threat catalogue",
-          "description": "Enumerated threats grouped by MAESTRO category with severity and likelihood."
+          "description": "A list of threats, grouped by MAESTRO category, each with a severity and a likelihood."
         },
         {
           "name": "Defensive control map",
-          "description": "For each high-priority threat, the specific control (pattern, guardrail, isolation boundary) deployed to mitigate it."
+          "description": "For each high-priority threat, the specific defence you put in place: a pattern, a guardrail, or an isolation boundary."
         },
         {
           "name": "Red-team report",
-          "description": "Findings from adversarial probing of the agent against the catalogued threats."
+          "description": "What you found when you attacked the agent yourself against the listed threats."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  arch[Agent architecture] --> s1[Enumerate foundation-model threats]\n  cls[Data classification] --> s2[Enumerate data-protection threats]\n  adv[Adversary model] --> s3[Enumerate internal threats]\n  arch --> s4[Enumerate external threat vectors]\n  s1 --> s5[Map defensive controls to each threat]\n  s2 --> s5\n  s3 --> s5\n  s4 --> s5\n  s5 --> s6[Red-team agent against catalogue]\n  s6 --> out1[Threat catalogue]\n  s6 --> out2[Defensive control map]\n  s6 --> out3[Red-team report]"
       },
-      "example_scenario": "A SaaS company is preparing to ship its first agent feature — an autonomous email-triage assistant that reads customer support inboxes, drafts replies, and can update Zendesk tickets. Security agreed to ship only after a MAESTRO pass. Inputs: the four-component agent architecture (GPT-4 model, three tools: gmail.read, gmail.search, zendesk.update; pgvector memory of past tickets; an autonomous loop), data classification noting that 12% of tickets contain PII and 0.5% contain payment data, and an adversary model covering external attackers crafting malicious customer emails, malicious vendors in the supply chain, and curious internal staff.\n\nFoundation-model threats: prompt injection via crafted ticket bodies, model exfiltration of system prompt — mitigated by input filtering and a dual-LLM separation. Data-protection threats: PII leaving the model boundary into Zendesk drafts — paired with output filtering and a redaction step. Internal threats: memory poisoning where a malicious customer plants false 'preference' facts that bias future replies — mitigated by signed write provenance on the memory tier and a human-in-the-loop on any reply that cites a memory entry younger than 24h. External threats: supply-chain compromise of the embedding provider — pinned vendor and a fallback. Red-team probe: 40 adversarial emails were sent through a sandboxed instance; 3 succeeded in extracting hidden data, all closed before launch.\n\nThe team learned that 'we have AppSec' was not sufficient — the memory-poisoning class of threats simply didn't exist on prior systems and required net-new controls.",
+      "example_scenario": "A SaaS company is getting ready to ship its first agent feature. It is an autonomous email-triage assistant that reads customer support inboxes, drafts replies, and can update Zendesk tickets. Security agreed to ship only after a MAESTRO pass. Inputs: the four-component agent architecture (a GPT-4 model; three tools, gmail.read, gmail.search, and zendesk.update; pgvector memory of past tickets; an autonomous loop), a data classification noting that 12% of tickets contain PII and 0.5% contain payment data, and an adversary model covering outside attackers who craft malicious customer emails, malicious vendors in the supply chain, and curious internal staff.\n\nModel threats: prompt injection through crafted ticket bodies, and the model leaking its system prompt. They handled these with input filtering and a dual-LLM split. Data threats: PII leaving the model and landing in Zendesk drafts. They paired this with output filtering and a redaction step. Internal threats: memory poisoning, where a malicious customer plants false 'preference' facts that bias future replies. They handled this with signed write provenance on the memory store and a human in the loop on any reply that cites a memory entry younger than 24h. External threats: a supply-chain compromise of the embedding provider. They pinned the vendor and added a fallback. Red-team probe: they sent 40 adversarial emails through a sandboxed instance. 3 managed to extract hidden data, and all were closed before launch.\n\nThe team learned that 'we have AppSec' was not enough. The memory-poisoning class of threats simply did not exist on their earlier systems and needed brand-new controls.",
+      "deep_dive": "MAESTRO (Multi-Agent Environment, Security, Threat, Risk, & Outcome) adapts classical threat modeling (STRIDE, LINDDUN) to the agentic attack surface. The four enumeration axes and their characteristic threats:\n\n- **Foundation-model threats**: jailbreaks, prompt injection (direct and indirect via tool/retrieval content), system-prompt exfiltration, hallucination, sycophancy, training-data extraction. Controls: input/output guardrails, prompt-injection defenses, dual-LLM separation.\n- **Data-protection threats**: PII/secrets/proprietary content crossing the model or tool boundary, traced across context, memory, tool calls, and outputs. Controls: redaction, secrets handling, output filtering.\n- **Internal threats**: memory poisoning, agent scheming, hidden mode switching, role drift, agent-on-agent attacks. Controls: sandbox/subagent isolation, signed write provenance, quorum/authentication on memory writes.\n- **External threats**: supply-chain compromise of tools/models/embedding providers, hostile tool outputs, malicious documents in retrieval corpora, network-level attacks. Controls: vendor pinning, fallback providers, treating tool output as untrusted.\n\nEvery catalogued threat is bound to a concrete control (input/output filtering, sandbox, dual-LLM, allowlist, human-in-the-loop, policy gate) or an explicit accepted-risk note. **Red-teaming is in-scope, not a follow-up**: adversarial prompts, malicious tool outputs, and crafted memory injections, run in a sandboxed reproduction. Re-run the whole pass after every material capability change. Documented failure modes: a memory threat catalogued but not paired with authentication/quorum (*memory-poisoning*), a tool-access threat modelled without a policy gate (*agent-privilege-escalation*), and tool outputs trusted verbatim because no control was tied to that threat.",
       "steps": [
         {
           "name": "Enumerate foundation-model threats",
-          "description": "Catalogue risks rooted in the model itself: jailbreaks, prompt injection, hallucination, sycophancy, data extraction from training. Decide which require mitigation.",
+          "description": "List the risks that come from the model itself: jailbreaks, prompt injection, hallucination, sycophancy, and pulling data out of training. Decide which ones you must defend against.",
           "uses_patterns": [
             "prompt-injection-defense",
             "input-output-guardrails"
@@ -1093,7 +1101,7 @@
         },
         {
           "name": "Enumerate data-protection threats",
-          "description": "Identify where sensitive data enters, lives in, or leaves the agent. Trace PII, secrets, and proprietary content across context, memory, tool calls, and outputs.",
+          "description": "Find where sensitive data enters, sits in, or leaves the agent. Track PII, secrets, and proprietary content across context, memory, tool calls, and outputs.",
           "uses_patterns": [
             "pii-redaction",
             "secrets-handling"
@@ -1101,7 +1109,7 @@
         },
         {
           "name": "Enumerate internal threats",
-          "description": "Threats from within the agent system: memory poisoning, agent scheming, hidden mode switching, role drift, agent-on-agent attacks.",
+          "description": "List threats from inside the agent system: memory poisoning, agent scheming, hidden mode switching, role drift, and agent-on-agent attacks.",
           "uses_patterns": [
             "sandbox-isolation",
             "subagent-isolation"
@@ -1109,11 +1117,11 @@
         },
         {
           "name": "Enumerate external threat vectors",
-          "description": "Threats from outside: supply-chain compromise of tools or models, hostile tool outputs, malicious documents in retrieval corpora, network-level attacks."
+          "description": "List threats from outside: a compromised tool or model in the supply chain, hostile tool outputs, malicious documents in a retrieval corpus, and network attacks."
         },
         {
           "name": "Map defensive controls to each threat",
-          "description": "For each high-priority threat, name the specific control: input filtering, output filtering, sandbox, dual-LLM, allowlist, human-in-the-loop, policy gate.",
+          "description": "For each high-priority threat, name the defence: input filtering, output filtering, a sandbox, a dual-LLM split, an allowlist, a human in the loop, or a policy gate.",
           "uses_patterns": [
             "dual-llm-pattern",
             "policy-gated-agent-action",
@@ -1122,17 +1130,17 @@
         },
         {
           "name": "Red-team the agent against the catalogue",
-          "description": "Probe the deployed agent with adversarial prompts, malicious tool outputs, and crafted memory injections. Document where controls held and where they failed.",
+          "description": "Attack the live agent with hostile prompts, malicious tool outputs, and planted memory entries. Write down where the defences held and where they broke.",
           "uses_patterns": [
             "red-team-sandbox-reproduction"
           ]
         }
       ],
       "principles": [
-        "Threat modeling for agents is not generic AppSec — it must enumerate agent-specific categories.",
-        "Every catalogued threat is paired with a concrete control or an explicit accepted-risk note.",
-        "Red-team probing is part of the methodology, not optional follow-up.",
-        "Re-run the pass after every material capability change — new tools, new data, new autonomy."
+        "Threat modeling for agents is not generic AppSec. It must list agent-specific threats.",
+        "Every listed threat is paired with a concrete defence or a written note that you accept the risk.",
+        "Red-team probing is part of the method, not an optional follow-up.",
+        "Re-run the pass after every real change in capability: new tools, new data, more freedom."
       ],
       "applies_to": [
         "agent",
@@ -1193,7 +1201,7 @@
       ],
       "verification_status": "verified",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "security",
         "threat-modeling",
@@ -1210,42 +1218,43 @@
         "least-powerful-architecture rule"
       ],
       "category": "agent-construction",
-      "summary": "Choose the agent architecture on a four-rung ladder: plain model call, single agent, deterministic multi-agent workflow, autonomous multi-agent system. Pick the least powerful rung that solves the task. The methodology forces a defensible choice rather than reflexive escalation to autonomous MAS, treating architecture as a cost-benefit decision with explicit criteria at each rung.",
-      "intent": "Make architecture choice a deliberate, evidence-bound climb up a four-rung ladder — picking the least powerful rung that solves the task — instead of defaulting to autonomous multi-agent systems.",
-      "when_to_apply": "Apply at project kickoff before any architecture is implemented, and at every major capability addition that might trigger an escalation. Don't apply when the architecture is externally constrained (a vendor mandate or an existing framework choice already locks the rung). Skip when the team has no measurement discipline — without evals to compare rungs, the ladder is just opinion.",
+      "summary": "Pick the agent architecture from a four-rung ladder. The rungs are: a plain model call, a single agent, a fixed multi-agent workflow, and an autonomous multi-agent system. Pick the lowest rung that solves the task. This forces a choice you can defend, instead of jumping straight to an autonomous multi-agent system out of habit. Treat architecture as a cost-versus-benefit call, with clear criteria at each rung.",
+      "intent": "Make the architecture choice a deliberate climb up a four-rung ladder, backed by evidence, picking the lowest rung that solves the task, instead of defaulting to an autonomous multi-agent system.",
+      "when_to_apply": "Use this at project kickoff, before any architecture is built, and again at every big capability change that might push you up a rung. Don't apply it when the architecture is fixed for you, such as a vendor mandate or an existing framework that already locks the rung. Skip it too when the team has no habit of measurement. Without evals to compare rungs, the ladder is just opinion.",
       "inputs": [
         {
           "name": "Task profile",
-          "description": "Whether the task is text generation, action-taking, structured collaboration, or open-ended exploration."
+          "description": "What kind of task it is: text generation, taking actions, structured teamwork, or open-ended exploration."
         },
         {
           "name": "Determinism requirement",
-          "description": "How much variability stakeholders accept in agent behaviour and outputs."
+          "description": "How much variation the stakeholders will accept in the agent's behaviour and output."
         },
         {
           "name": "Cost and latency budget",
-          "description": "Per-task tokens, infra spend, and end-to-end latency limits."
+          "description": "The limits per task: tokens, infra spend, and total response time."
         }
       ],
       "outputs": [
         {
           "name": "Architecture decision",
-          "description": "One of: plain model, single agent, deterministic MAS workflow, autonomous MAS — with the reasoning recorded."
+          "description": "The chosen rung, with the reasoning written down. It is one of: plain model, single agent, fixed multi-agent workflow, or autonomous multi-agent system."
         },
         {
           "name": "Escalation triggers",
-          "description": "Named conditions under which to climb to the next rung in the future."
+          "description": "The named conditions that would justify climbing to the next rung later."
         }
       ],
       "diagram": {
         "type": "flow",
         "mermaid": "flowchart TD\n  prof[Task profile] --> s1[Profile task on ladder dimensions]\n  det[Determinism requirement] --> s1\n  cost[Cost and latency budget] --> s1\n  s1 --> r1{Tools or memory needed?}\n  r1 -- no --> rung1[Rung 1: plain model call]\n  r1 -- yes --> r2{Decomposable into fixed graph?}\n  r2 -- no --> rung2[Rung 2: single agent]\n  r2 -- yes --> r3{Determinism required?}\n  r3 -- yes --> rung3[Rung 3: deterministic MAS workflow]\n  r3 -- no --> rung4[Rung 4: autonomous MAS]\n  rung1 --> doc[Document decision and escalation triggers]\n  rung2 --> doc\n  rung3 --> doc\n  rung4 --> doc\n  doc --> out1[Architecture decision]\n  doc --> out2[Escalation triggers]"
       },
-      "example_scenario": "An enterprise data team is scoping three internal AI features at once: an FAQ chatbot for HR policies, a procurement agent that drafts and submits purchase orders, and an R&D 'paper-of-the-week' summariser that crawls arXiv. A junior architect proposed an autonomous multi-agent system for all three. The lead applied the decision ladder.\n\nFAQ chatbot: profiled as text generation, no tools, deterministic answers desired, tight latency budget — Rung 1, plain model call with a RAG wrapper. The team almost added an agent loop for 'feel' but the ladder said no. Procurement: needs SAP tool access, vendor-lookup tool, memory of approved vendors, multi-step planning — Rung 2, single agent with the four-component architecture. R&D summariser: decomposable into a fixed pipeline (crawl → filter → cluster → summarise → rank), no need for emergent coordination, determinism preferred so editors can reproduce results — Rung 3, deterministic orchestrator-workers pipeline. None of the three needed Rung 4.\n\nEscalation triggers were recorded: the FAQ bot would climb to Rung 2 only if HR needed it to file tickets; the procurement agent would climb to Rung 3 only if multiple specialist sub-agents (legal, finance) became necessary; the R&D pipeline would climb to Rung 4 only if cross-domain literature synthesis required negotiation between domain agents. Eight months later only the procurement use case actually climbed, and it climbed on evidence rather than enthusiasm.",
+      "example_scenario": "An enterprise data team is scoping three internal AI features at once: an FAQ chatbot for HR policies, a procurement agent that drafts and submits purchase orders, and an R&D 'paper-of-the-week' summariser that crawls arXiv. A junior architect proposed an autonomous multi-agent system for all three. The lead applied the decision ladder.\n\nFAQ chatbot: it is text generation, with no tools, deterministic answers wanted, and a tight latency budget. That is Rung 1, a plain model call with a RAG wrapper. The team almost added an agent loop for 'feel', but the ladder said no. Procurement: it needs SAP tool access, a vendor-lookup tool, memory of approved vendors, and multi-step planning. That is Rung 2, a single agent with the four-component architecture. R&D summariser: it breaks into a fixed pipeline (crawl, filter, cluster, summarise, rank), needs no emergent coordination, and wants deterministic results so editors can reproduce them. That is Rung 3, a deterministic orchestrator-workers pipeline. None of the three needed Rung 4.\n\nThey recorded the escalation triggers. The FAQ bot would climb to Rung 2 only if HR needed it to file tickets. The procurement agent would climb to Rung 3 only if specialist sub-agents (legal, finance) became necessary. The R&D pipeline would climb to Rung 4 only if cross-domain synthesis needed agents to negotiate. Eight months later only the procurement use case actually climbed, and it climbed on evidence, not enthusiasm.",
+      "deep_dive": "The ladder embodies a least-powerful-architecture rule, treating each rung as a capability/cost step with explicit selection criteria:\n\n- **Rung 1 — plain model call**: text generation, no tools, no memory, no multi-step planning. Wrap in an API (optionally a RAG wrapper) and ship. Cost: cheapest, fully deterministic-ish.\n- **Rung 2 — single agent**: tool use, memory, or a loop is required. Build the four-component agent (model/tools/data-stores/loop). Most production agents stop here.\n- **Rung 3 — deterministic multi-agent workflow**: the task decomposes into a fixed graph of specialist steps. Use orchestrator-workers, pipes-and-filters, or prompt-chaining — *structure lives in the graph, not in the agents*, preserving determinism and reproducibility.\n- **Rung 4 — autonomous multi-agent system**: genuinely open-ended tasks needing emergent coordination or agent-to-agent negotiation (hierarchical agents, swarm, debate). You deliberately pay nondeterminism and coordination overhead.\n\nThe decision is profiled along four dimensions — action-taking need, decomposability, determinism requirement, and exploration-vs-exploitation — and recorded with named escalation triggers so future climbs are evidence-bound. Anti-patterns this guards against: *hero-agent* (stuck on Rung 2 with one over-stuffed agent when the task is decomposable), *unbounded-subagent-spawn* (jumping to Rung 4 without triggers), *demo-to-production-cliff* (picking the rung that demoed well rather than the one production needs), and *top-tier-model-for-everything* (treating 'always go higher' as the default the way teams over-pick the biggest model).",
       "steps": [
         {
           "name": "Profile the task on the ladder dimensions",
-          "description": "Score the task on action-taking need, decomposability, determinism requirement, and exploration vs. exploitation. These dimensions decide the rung."
+          "description": "Rate the task on four things: does it need to take actions, does it break into parts, how deterministic must it be, and is it more about exploring or exploiting? These ratings decide the rung."
         },
         {
           "name": "Rung 1 — plain model call",
@@ -1257,7 +1266,7 @@
         },
         {
           "name": "Rung 2 — single agent",
-          "description": "If the task requires tool use, memory, or a loop, climb to a single agent with the four-component architecture. Most production agents stop here.",
+          "description": "If the task needs tools, memory, or a loop, climb to a single agent with the four-component architecture. Most production agents stop here.",
           "uses_patterns": [
             "tool-use",
             "react",
@@ -1266,7 +1275,7 @@
         },
         {
           "name": "Rung 3 — deterministic multi-agent workflow",
-          "description": "If the task is decomposable into a fixed graph of specialist steps, build a deterministic multi-agent workflow with orchestrator-workers or pipes-and-filters. Structure is in the graph, not in the agents.",
+          "description": "If the task breaks into a fixed graph of specialist steps, build a deterministic multi-agent workflow with orchestrator-workers or pipes-and-filters. The structure lives in the graph, not in the agents.",
           "uses_patterns": [
             "orchestrator-workers",
             "pipes-and-filters",
@@ -1275,7 +1284,7 @@
         },
         {
           "name": "Rung 4 — autonomous multi-agent system",
-          "description": "Only when the task is genuinely open-ended, requires emergent coordination, or benefits from agent-to-agent negotiation. Pay the cost of nondeterminism and coordination overhead deliberately.",
+          "description": "Climb here only when the task is truly open-ended, needs emergent coordination, or gains from agents negotiating with each other. Accept the cost of nondeterminism and coordination on purpose.",
           "uses_patterns": [
             "hierarchical-agents",
             "swarm",
@@ -1284,14 +1293,14 @@
         },
         {
           "name": "Document the decision and escalation triggers",
-          "description": "Record which rung was chosen and why. Name the conditions that would justify climbing higher later — so the next escalation is evidence-bound, not vibes."
+          "description": "Write down which rung you chose and why. Name the conditions that would justify climbing higher later, so the next move rests on evidence, not vibes."
         }
       ],
       "principles": [
-        "Pick the least powerful rung that solves the task.",
-        "Architecture choice is a written decision with evidence, not a reflex.",
-        "Each rung has a defining capability and a defining cost — know both before climbing.",
-        "Escalation triggers are named in advance — climb on evidence, not enthusiasm."
+        "Pick the lowest rung that solves the task.",
+        "The architecture choice is a written decision backed by evidence, not a reflex.",
+        "Each rung has a defining capability and a defining cost. Know both before you climb.",
+        "Name the escalation triggers up front. Climb on evidence, not enthusiasm."
       ],
       "applies_to": [
         "agent",
@@ -1364,7 +1373,7 @@
       ],
       "verification_status": "needs-verification",
       "date_added": "2026-05-24",
-      "last_updated": "2026-05-24",
+      "last_updated": "2026-05-27",
       "tags": [
         "architecture",
         "decision-ladder",
