@@ -38,6 +38,15 @@ Every entry in this catalog declares one thing the LLM is *forbidden* to do unde
 - **[`patterns-src/`](patterns-src/)** — source of truth: one JSON shard per category, each entry validated against [`schema.json`](schema.json).
 - **[`compositions-src/`](compositions-src/)** — single source of truth for *compositions*: named combinations of patterns with roles. Each entry is either `kind: recipe` (abstract design template: *modern coding agent*, *production RAG*, *voice agent stack*, *sovereign deployment*, …) or `kind: framework` (real shipping software: LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy, n8n, Temporal, Vercel AI SDK, Claude Agent SDK, Google ADK, Letta, …). Frameworks carry per-pattern evidence (URL + quote); each entry validated against [`compositions.schema.json`](compositions.schema.json).
 
+## Machine-readable downloads
+
+The build publishes the catalog as consolidated single-file artifacts to the Pages site, so you can fetch the whole thing in one request without cloning the repo or running the build. These are regenerated from `*-src/` on every push to `main`; they are not committed to the git tree.
+
+- **[`patterns.json`](https://agentpatternscatalog.github.io/patterns/patterns.json)** — every pattern in one file, each entry conforming to **[`schema.json`](https://agentpatternscatalog.github.io/patterns/schema.json)**.
+- **[`examples.json`](https://agentpatternscatalog.github.io/patterns/examples.json)** — per-pattern code examples, conforming to **[`examples.schema.json`](https://agentpatternscatalog.github.io/patterns/examples.schema.json)**.
+- **[`glossary.json`](https://agentpatternscatalog.github.io/patterns/glossary.json)** — term definitions used across the catalog.
+- **[`verification-todo.json`](https://agentpatternscatalog.github.io/patterns/verification-todo.json)** — per-aspect verification status for every pattern and composition.
+
 ## Find a pattern
 
 - **By problem:** [`docs/decision-table.md`](docs/decision-table.md) — "I want to... → read first".
