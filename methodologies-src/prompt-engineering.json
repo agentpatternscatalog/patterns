@@ -1,0 +1,172 @@
+{
+  "$schema": "../methodologies.schema.json",
+  "category": "prompt-engineering",
+  "label": "Prompt Engineering",
+  "methodologies": [
+    {
+      "id": "iterative-prompt-refinement-loop",
+      "name": "Iterative Prompt Refinement Loop",
+      "aliases": ["prompt engineering lifecycle", "test-and-iterate prompting"],
+      "category": "prompt-engineering",
+      "summary": "Treat a prompt like an experiment, not a one-shot write. Draft the simplest prompt that could work, run it on real inputs, read the failures, change one thing, and run again. Stop when the prompt clears a quality bar you set before you started. The loop is cheap, and it beats guessing at wording.",
+      "intent": "Turn prompt writing into a measured loop so every change is judged against real outputs instead of a hunch.",
+      "when_to_apply": "Use this whenever a single prompt drives a feature and its output quality matters. Reach for it the moment a prompt 'mostly works but sometimes fails'. Don't apply it to a throwaway one-off prompt you will never run again.",
+      "inputs": [
+        {"name": "Task and success bar", "description": "What the prompt must produce, and the measurable bar that counts as good enough."},
+        {"name": "Real example inputs", "description": "A handful of genuine inputs the prompt will face in production, including the awkward ones."},
+        {"name": "Target model", "description": "The model the prompt will run against, since wording that helps one model can hurt another."},
+        {"name": "A way to judge output", "description": "A human reader or an automated grader that can score each run against the bar."}
+      ],
+      "outputs": [
+        {"name": "A prompt that clears the bar", "description": "The frozen prompt text that passed on the real inputs."},
+        {"name": "Failure log", "description": "The short record of which inputs broke which version and why."},
+        {"name": "Regression example set", "description": "The example inputs, kept so the prompt can be re-checked after any later edit."}
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  bar[Task + success bar] --> draft[Draft simplest prompt]\n  inputs[Real example inputs] --> run[Run on real inputs]\n  draft --> run\n  run --> read[Read and bucket failures]\n  read --> change[Change one thing]\n  change --> rerun[Re-run and compare]\n  rerun -->|below bar| read\n  rerun -->|clears bar| freeze[Freeze prompt + keep examples]\n  freeze --> reg[Regression example set]"
+      },
+      "example_scenario": "A two-person team adds a feature that summarises a long support thread into three bullet points. They wrote a first prompt by feel; it looked fine on one thread and shipped. A week later users complained the summaries dropped the customer's actual question. The team switched to the loop. They collected twelve real threads, including two messy ones, and set a bar: the question must appear in bullet one on all twelve. The first prompt passed seven. They read the five misses, saw the model led with the agent's reply, and changed exactly one thing: they added a line saying bullet one is always the customer's question. Re-run: eleven of twelve. The last miss was a thread with two questions, so they added a single example showing how to handle that. Re-run: twelve of twelve. They froze the prompt and kept the twelve threads as a regression set, which caught a later edit that quietly broke the two-question case.",
+      "deep_dive": "The loop is deliberately one-variable-at-a-time. Changing role wording, an example, and the output format in the same pass means a score change tells you nothing about which edit caused it. Keep a version log: prompt text, the input set, and the score. The input set is the real asset. It starts as a few hand-picked cases and grows every time production throws a new failure, which turns the loop into the front half of `evaluation-driven-development`. Two failure modes to watch: over-fitting the prompt to the example set until it clears the bar but generalises worse, and never setting a bar so the loop runs forever on vibes. A fixed, pre-declared bar and a held-out check guard against both.",
+      "steps": [
+        {"name": "Draft the simplest prompt", "description": "Write the shortest prompt that could plausibly work. Resist adding rules you have not yet seen fail."},
+        {"name": "Run on real inputs", "description": "Run the prompt against the genuine example inputs, not imagined ones. Capture every output.", "uses_patterns": ["sampled-prompt-trace-eval"]},
+        {"name": "Read and bucket the failures", "description": "Read each bad output and group the failures by cause. The buckets tell you what to fix."},
+        {"name": "Change one thing", "description": "Make a single change aimed at the biggest bucket: a clearer instruction, one example, or a tighter output format.", "uses_patterns": ["structured-output", "chain-of-thought"]},
+        {"name": "Re-run and compare", "description": "Run the new version on the same inputs and compare scores against the bar. If still below, return to reading failures.", "uses_patterns": ["prompt-versioning"]},
+        {"name": "Freeze and keep the examples", "description": "When the prompt clears the bar, freeze it and keep the example inputs as a regression set for future edits."}
+      ],
+      "principles": [
+        "Change one variable at a time, or a score change tells you nothing.",
+        "Judge against real inputs, never imagined ones.",
+        "Keep every version and the inputs that broke it.",
+        "Stop at a bar you set before you started, not when you get bored."
+      ],
+      "applies_to": ["llm-app", "agent", "coding-agent", "rag-pipeline"],
+      "related_patterns": ["chain-of-thought", "structured-output", "prompt-versioning", "sampled-prompt-trace-eval", "own-your-prompts"],
+      "related_methodologies": ["evaluation-driven-development"],
+      "known_failure_modes": [
+        {"pattern": "prompt-bloat", "note": "Each failure adds a rule to the prompt and nothing is ever removed, so over many loops the prompt grows into a contradictory wall of text."},
+        {"pattern": "premature-closure", "note": "Declaring the prompt done after one good run on a single input, instead of holding it to the bar across the full example set."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {"type": "doc", "title": "Claude prompting best practices", "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices", "quote": "Prompt engineering is a science, and you should approach it like a scientist: test your prompts and iterate often."},
+        {"type": "doc", "title": "OpenAI prompt engineering guide", "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"}
+      ],
+      "verification_status": "partial",
+      "last_updated": "2026-05-27",
+      "date_added": "2026-05-27",
+      "tags": ["prompt-engineering", "iteration", "evaluation"]
+    },
+    {
+      "id": "structured-prompt-construction",
+      "name": "Structured Prompt Construction",
+      "aliases": ["CO-STAR", "component-based prompting", "prompt scaffolding"],
+      "category": "prompt-engineering",
+      "summary": "Build a prompt from named parts instead of one blob of text. Name the role, the context, the task, the examples, and the exact output format, and wrap each part in a tag so the model can tell them apart. A prompt with labelled parts is easier to read, test, and fix than a wall of instructions, and it is far easier to change one part without breaking the rest.",
+      "intent": "Compose a prompt from explicit, labelled slots so each part can be read, tested, and changed on its own.",
+      "when_to_apply": "Use this when a prompt is doing real work and has grown past a sentence or two. It pays off most when output format matters, when several people edit the same prompt, or when the same prompt must run on varied inputs. Don't apply it to a trivial one-line ask; that does not need slots.",
+      "inputs": [
+        {"name": "Task definition", "description": "What the prompt must accomplish, stated plainly enough to put in one slot."},
+        {"name": "Context and constraints", "description": "The background, audience, and rules the model needs but should not have to guess."},
+        {"name": "Two or three examples", "description": "Worked input-output pairs that show the format and tone better than instructions can."},
+        {"name": "Output contract", "description": "The exact shape the downstream code or reader expects, ideally a schema."}
+      ],
+      "outputs": [
+        {"name": "Slotted prompt", "description": "A prompt split into labelled, tagged sections: role, context, task, examples, output format."},
+        {"name": "Reusable template", "description": "The structure left behind, ready to be re-filled for the next similar task."}
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  task[Task definition] --> role[Name the role]\n  role --> ctx[State context + constraints]\n  ctx --> ex[Show 2-3 examples]\n  ex --> fmt[Pin the output format]\n  fmt --> tags[Wrap each part in tags]\n  tags --> reason[Ask for reasoning before answer]\n  reason --> out[Slotted prompt]"
+      },
+      "example_scenario": "An analyst needs a prompt that reads a vendor contract and returns renewal date, notice period, and auto-renew flag as JSON for a dashboard. The first version was one long paragraph of instructions; the model kept returning prose with the JSON buried inside. They rebuilt it with slots. Role: 'You are a contracts analyst.' Context: which clauses to read and which jurisdictions count. Task: extract the three fields. Examples: two contracts with their exact JSON answers. Output format: a fenced JSON object with three named keys, wrapped in an answer tag. They asked the model to note the clause it used inside a separate reasoning tag before the answer. The slotted prompt returned clean, parseable JSON on every test contract, and when the dashboard later needed a fourth field, they edited only the task and example slots without touching the rest.",
+      "deep_dive": "The named slots come from the same family as CO-STAR (Context, Objective, Style, Tone, Audience, Response) and the vendor best-practice lists: assign a role, give context, show examples, pin the output format, and structure everything with tags so the model can parse boundaries. Tags do double duty. They cut ambiguity for the model, and they make the prompt machine-editable so tooling can swap one slot programmatically. Pairing the format slot with `structured-output` (a schema, not a request for JSON in prose) is what makes the output reliably parseable. Asking for reasoning before the answer, in its own tag, layers `chain-of-thought` on top without polluting the parseable answer. The main failure mode is slot bloat: piling rules into the context slot until it becomes the same wall of text you were trying to escape. Each slot should hold one kind of thing.",
+      "steps": [
+        {"name": "Name the role", "description": "Open with a one-line role that frames the task, for example a contracts analyst or a senior reviewer."},
+        {"name": "State the task and context", "description": "Put the task in its own slot and the background, audience, and constraints in another. Do not mix them."},
+        {"name": "Show two or three examples", "description": "Give worked input-output pairs. Examples teach format and tone faster than prose rules.", "uses_patterns": ["chain-of-thought"]},
+        {"name": "Pin the output format", "description": "State the exact output shape the downstream consumer needs, as a schema where possible.", "uses_patterns": ["structured-output"]},
+        {"name": "Wrap each part in tags", "description": "Wrap role, context, task, examples, and output in named tags so the model and any tooling can tell the parts apart."},
+        {"name": "Ask for reasoning before the answer", "description": "When the task needs thought, request the reasoning in a separate tag that comes before the final, parseable answer."}
+      ],
+      "principles": [
+        "One slot holds one kind of thing; do not let context absorb everything.",
+        "Show examples instead of writing longer instructions.",
+        "Pin the output as a schema, not a polite request for JSON.",
+        "Tags are for the model and for tooling; keep them consistent."
+      ],
+      "applies_to": ["llm-app", "agent", "coding-agent", "extraction-task"],
+      "related_patterns": ["structured-output", "chain-of-thought", "prompt-chaining", "own-your-prompts"],
+      "related_methodologies": ["iterative-prompt-refinement-loop"],
+      "known_failure_modes": [
+        {"pattern": "prompt-bloat", "note": "The context slot absorbs every rule until the labelled structure collapses back into the wall of text it was meant to replace."},
+        {"pattern": "schema-free-output", "note": "Pinning the output as a polite request for JSON in prose rather than an enforced schema, so downstream parsing still breaks."}
+      ],
+      "maturity": "proven",
+      "sources": [
+        {"type": "doc", "title": "Anthropic — prompt engineering for business performance", "url": "https://www.anthropic.com/news/prompt-engineering-for-business-performance", "quote": "use XML tags for structure, ask for evidence before conclusions, assign specific roles, request step-by-step reasoning, and show examples"},
+        {"type": "doc", "title": "Prompt Engineering Guide (DAIR.ai)", "url": "https://www.promptingguide.ai"}
+      ],
+      "verification_status": "partial",
+      "last_updated": "2026-05-27",
+      "date_added": "2026-05-27",
+      "tags": ["prompt-engineering", "structure", "templates"]
+    },
+    {
+      "id": "automatic-prompt-optimization",
+      "name": "Automatic Prompt Optimization",
+      "aliases": ["prompt optimization", "DSPy-style compilation", "programmatic prompting"],
+      "category": "prompt-engineering",
+      "summary": "Stop hand-tuning the prompt. Define the task as inputs, outputs, and a metric, then let an optimizer search the prompt space for you. The optimizer proposes prompt variants, scores them on your metric, and keeps the winners. It pays off once you have a clear metric and a labelled example set, and it scales past what a human can tune by hand.",
+      "intent": "Replace manual prompt tweaking with a metric-driven search that an optimizer runs over the prompt space.",
+      "when_to_apply": "Use this when you have a measurable metric, a labelled example set of a few dozen cases or more, and a task stable enough to be worth optimising. It earns its keep on prompts in pipelines and on tasks too fiddly to tune by hand. Don't apply it when you have no metric, since the optimizer has nothing to climb.",
+      "inputs": [
+        {"name": "Typed task signature", "description": "The task stated as named inputs and outputs, so a program can call it and check the result."},
+        {"name": "Labelled example set", "description": "Input-output pairs the optimizer scores against, split into training and held-out parts."},
+        {"name": "Metric", "description": "A function that scores an output, from exact match to an LLM judge with a rubric."},
+        {"name": "An optimizer", "description": "The search procedure, such as a DSPy optimizer, that proposes and scores prompt variants."}
+      ],
+      "outputs": [
+        {"name": "Optimised prompt", "description": "The winning prompt text or few-shot demonstration set the optimizer found."},
+        {"name": "Score report", "description": "The metric scores on held-out data that justify the chosen variant."}
+      ],
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  sig[Typed task signature] --> prog[Express task as a program]\n  ex[Labelled example set] --> opt[Run optimizer]\n  metric[Metric] --> opt\n  prog --> opt\n  opt --> propose[Propose prompt variants]\n  propose --> score[Score on metric]\n  score -->|keep winners| propose\n  score --> lock[Lock prompt + check held-out]\n  lock --> report[Score report]"
+      },
+      "example_scenario": "A team runs a classifier prompt that tags incoming tickets into one of eight categories. Hand-tuning had stalled around 78 percent accuracy and every wording tweak helped one category while hurting another. They expressed the task as a typed signature: ticket text in, category label out. They labelled 200 tickets, holding back 60. The metric was exact-match accuracy on the label. They ran a DSPy optimizer that searched over instructions and few-shot demonstration sets, scoring each candidate on the training split. The search lifted training accuracy to 89 percent; on the held-out 60 it landed at 86 percent, well past the hand-tuned ceiling. They locked the winning prompt and demonstrations, and kept the held-out set as a regression check for the next model upgrade. They learned the metric mattered most: their first metric ignored a rare but important category, so the optimizer happily ignored it too until they reweighted it.",
+      "deep_dive": "The shift is treating the prompt as a learnable parameter rather than fixed text. Frameworks like DSPy let you declare modules (retrieve, generate, judge) and an optimizer learns the instructions and few-shot demonstrations that maximise your metric. Earlier instruction-search methods such as APE and OPRO framed the same idea as a black-box search: an LLM proposes candidate instructions, they are executed and scored, and the best survive. The non-negotiable input is the metric. The optimizer climbs exactly what you measure, so a blind spot in the metric becomes a blind spot in the prompt, as the worked example shows. Always keep a held-out split, because a prompt tuned hard on the training set can over-fit just like any other learned artifact. This methodology composes naturally with `evaluation-driven-development`: the eval suite that grades the prompt is the same metric the optimizer climbs.",
+      "steps": [
+        {"name": "Express the task as a program", "description": "State the task as a typed signature of named inputs and outputs so an optimizer can call it and check results.", "uses_patterns": ["structured-output"]},
+        {"name": "Assemble a labelled example set", "description": "Collect input-output pairs and split them into a training set the optimizer learns on and a held-out set for honest scoring."},
+        {"name": "Pick a metric", "description": "Choose a function that scores an output against the label, from exact match to a rubric-driven LLM judge.", "uses_patterns": ["evaluator-optimizer"]},
+        {"name": "Choose and run an optimizer", "description": "Pick an optimizer and let it propose prompt variants and few-shot demonstrations, scoring each on the metric.", "uses_patterns": ["prompt-variant-evaluation", "automatic-workflow-search"]},
+        {"name": "Lock the winner and re-check", "description": "Freeze the best-scoring prompt and confirm it holds up on the held-out set, not just the training set.", "uses_patterns": ["prompt-response-optimiser"]}
+      ],
+      "principles": [
+        "The optimizer climbs exactly what you measure, so the metric is the design.",
+        "Always keep a held-out split; tuned prompts over-fit too.",
+        "A clear typed signature makes the task optimisable in the first place.",
+        "Automate the search, but a human still chooses the metric and reads the failures."
+      ],
+      "applies_to": ["llm-app", "agent", "classification-task", "pipeline"],
+      "related_patterns": ["prompt-variant-evaluation", "prompt-response-optimiser", "evaluator-optimizer", "automatic-workflow-search", "best-of-n"],
+      "related_methodologies": ["evaluation-driven-development", "iterative-prompt-refinement-loop"],
+      "known_failure_modes": [
+        {"pattern": "premature-closure", "note": "Trusting the optimizer's training-set score and shipping without checking the held-out split, which hides over-fitting."},
+        {"pattern": "schema-free-output", "note": "An ill-defined output signature gives the optimizer nothing typed to optimise against, so the search wanders."}
+      ],
+      "maturity": "emerging",
+      "sources": [
+        {"type": "repo", "title": "DSPy — Stanford NLP", "url": "https://github.com/stanfordnlp/dspy", "quote": "DSPy is a declarative framework for building modular AI software ... it lets you compile prompts and weights against a metric."},
+        {"type": "paper", "title": "Promptomatix: An Automatic Prompt Optimization Framework for Large Language Models", "url": "https://arxiv.org/pdf/2507.14241"}
+      ],
+      "verification_status": "partial",
+      "last_updated": "2026-05-27",
+      "date_added": "2026-05-27",
+      "tags": ["prompt-engineering", "optimization", "dspy"]
+    }
+  ]
+}
