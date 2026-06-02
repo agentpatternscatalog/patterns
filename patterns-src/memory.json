@@ -532,6 +532,16 @@
         {
           "pattern": "lost-in-the-middle",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "context-compaction",
+          "relation": "complements",
+          "note": "Compaction condenses what packing has placed into the window once it fills."
+        },
+        {
+          "pattern": "tool-result-eviction",
+          "relation": "complements",
+          "note": "Packing decides what enters the window; eviction decides what leaves it once consumed."
         }
       ],
       "references": [
@@ -585,7 +595,7 @@
         "Behaviour drift across packing strategies — answer-quality delta when policies change, held against a fixed eval set",
         "Reserved-response saturation — how often the reply fills the reserved budget and gets truncated"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-06-02"
     },
     {
       "id": "cross-session-memory",
@@ -2591,6 +2601,11 @@
         {
           "pattern": "adaptive-compute-allocation",
           "relation": "complements"
+        },
+        {
+          "pattern": "context-compaction",
+          "relation": "complements",
+          "note": "Compaction distils the live conversation at runtime; sleep-time compute distils standing context offline."
         }
       ],
       "references": [
@@ -2657,7 +2672,7 @@
         "Offline-to-test cost ratio — total offline spend per saved test-time dollar",
         "Prediction-coverage growth — improvement in hit rate as the predictor learns from misses over time"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-06-02"
     },
     {
       "id": "vector-memory",
@@ -3982,6 +3997,145 @@
         "Per-session memory-module cost",
         "Cross-session bleed incidents"
       ]
+    },
+    {
+      "id": "context-compaction",
+      "name": "Context Compaction",
+      "aliases": [
+        "Conversation Summarisation Checkpoint",
+        "压实",
+        "Rolling Context Digest"
+      ],
+      "category": "memory",
+      "intent": "When the context window nears its limit, replace the older conversation span with a model-written digest that preserves decisions, commitments, and active constraints while discarding noise, so the agent keeps running without losing the thread.",
+      "context": "A long-running agent accumulates turns — tool calls, raw observations, intermediate reasoning — until the conversation approaches the model's context-window limit. The agent is mid-task and cannot simply stop, but it also cannot fit the full history into the next request. Most of the older turns are process noise: superseded plans, large tool dumps, abandoned branches. The decisions and conclusions those turns produced still matter.",
+      "problem": "A fixed context window caps how much history an agent can carry, but a long task generates more history than fits. Truncating the oldest turns blindly drops the decisions and commitments the agent still depends on; keeping everything overflows the window or inflates cost and latency on every subsequent call. The agent needs to shed token volume without shedding the conclusions that volume produced.",
+      "forces": [
+        "Context windows are bounded; long-horizon tasks are not.",
+        "Older turns are mostly process noise, but the decisions buried inside them are load-bearing.",
+        "Summarising too early discards detail still in use; summarising too late risks overflow mid-step.",
+        "A lossy digest can drop a constraint the agent will then silently violate.",
+        "Re-summarising on every turn is expensive; summarising rarely lets the window fill and overflow."
+      ],
+      "therefore": "Therefore: trigger a summarisation pass when window utilisation crosses a high-water mark, fold the older span into a compact digest that keeps decisions and open commitments, and resume from the pinned preamble plus that digest plus the most recent verbatim turns.",
+      "solution": "Track context-window utilisation. When it crosses a threshold (for example 80% of the window), run a compaction pass: feed the older span of the conversation to the model with an instruction to produce a dense digest that preserves goals, decisions, open commitments, and any constraints the agent must still honour, while discarding raw tool output, superseded plans, and dead-end reasoning. Replace that span in the working context with the digest, keep the most recent turns verbatim so local continuity survives, and resume. Pin content that must never be compacted away — the original task statement and hard constraints — outside the compactable region. Anthropic ships this as automatic compaction in Claude Code and the Agent SDK; the Chinese context-engineering literature names it 压实 (compaction).",
+      "structure": "Token-budget monitor -> (threshold crossed) -> Compaction pass (older span -> digest of goals/decisions/commitments/constraints) -> Working context = pinned preamble + digest + recent verbatim turns -> resume.",
+      "consequences": {
+        "benefits": [
+          "The agent runs past the nominal window limit on long tasks.",
+          "Per-call cost and latency drop because the carried history shrinks.",
+          "Decisions and commitments survive while raw noise is shed.",
+          "A pinned preamble guarantees the task and hard constraints are never summarised away."
+        ],
+        "liabilities": [
+          "Compaction is lossy: a dropped detail the agent later needs cannot be recovered from the digest.",
+          "A summarisation error can silently rewrite a commitment or constraint.",
+          "Each trigger costs an extra model call for the compaction pass.",
+          "Choosing what to keep is a judgement the model can get wrong under pressure.",
+          "Too small a recent-verbatim window blurs the agent's sense of what just happened."
+        ]
+      },
+      "constrains": "The agent must not shrink older context by blind truncation; reduction has to go through a summarisation pass that is instructed to preserve decisions, open commitments, and active constraints. Pinned content — the task statement and hard constraints — must be excluded from the compactable region and never summarised away.",
+      "known_uses": [
+        {
+          "system": "Claude Code",
+          "note": "Automatically compacts the conversation as it nears the context-window limit, summarising earlier turns to free space while the session continues.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        },
+        {
+          "system": "Anthropic Agent SDK",
+          "note": "Describes compaction as a core context-management technique for long-horizon agents.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        },
+        {
+          "system": "上下文工程 (Chico's Tech Blog)",
+          "note": "Names the technique 压实 (compaction): when the window is nearly full, condense an earlier span into a tight summary that keeps decisions and conclusions and drops process noise.",
+          "status": "available",
+          "url": "https://realtime-ai.chat/posts/context-engineering/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "context-window-packing",
+          "relation": "complements",
+          "note": "Packing chooses what to place into the window; compaction condenses what is already there once it fills."
+        },
+        {
+          "pattern": "sleep-time-compute",
+          "relation": "complements",
+          "note": "Sleep-time compute distils standing context offline; compaction distils the live conversation at runtime."
+        },
+        {
+          "pattern": "tool-result-eviction",
+          "relation": "complements",
+          "note": "Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Effective context engineering for AI agents",
+          "authors": "Anthropic",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        },
+        {
+          "type": "blog",
+          "title": "上下文工程：2026 年比 prompt engineering 更重要的事",
+          "authors": "Chico's Tech Blog",
+          "year": 2026,
+          "url": "https://realtime-ai.chat/posts/context-engineering/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "context-engineering",
+        "summarization",
+        "long-horizon",
+        "context-window"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs long enough that history approaches the context-window limit.",
+          "Older turns are dominated by raw tool output and superseded reasoning.",
+          "The task must continue past the point where the window would otherwise overflow.",
+          "You can identify decisions and constraints worth preserving in a digest."
+        ],
+        "do_not_use_when": [
+          "The full history fits comfortably and will keep fitting.",
+          "Every detail is potentially load-bearing and cannot be safely summarised, such as legal or audit transcripts.",
+          "An external memory store already offloads history and the live window stays small.",
+          "The extra summarisation call costs more than carrying the raw history would."
+        ]
+      },
+      "components": [
+        "Token-budget monitor — tracks context-window utilisation and fires the trigger at the high-water mark",
+        "Compaction pass — the model call that folds the older span into a decision-preserving digest",
+        "Pinned preamble — task statement and hard constraints held outside the compactable region",
+        "Recent-verbatim window — the most recent turns kept uncompacted so local continuity survives",
+        "Digest store — the compacted summary that replaces the older span in working context"
+      ],
+      "tools": [
+        "Token counter — measures window utilisation to drive the threshold, e.g. tiktoken or a provider token-count API",
+        "Summarisation LLM — runs the compaction pass, usually the same model driving the agent",
+        "Agent runtime — Claude Code, the Agent SDK, or an equivalent loop that swaps the older span for the digest"
+      ],
+      "evaluation_metrics": [
+        "Turns-to-overflow — how far past the nominal window the agent runs before failing",
+        "Decision-retention rate — sampled checks that compacted digests kept the commitments they should",
+        "Post-compaction regression rate — tasks that went wrong because compaction dropped a needed detail",
+        "Compaction overhead — extra tokens and latency spent on summarisation passes per task"
+      ],
+      "example_scenario": "A coding agent works through a multi-hour refactor, accumulating dozens of file reads, test runs, and diffs. As the conversation nears the model's context limit, the runtime summarises the earliest two-thirds of the session into a digest — migrated the auth module to the new API, agreed not to touch the billing tests, three files still outstanding — and drops the raw file dumps. The agent continues from the digest plus its last few turns, never losing the agreed constraint even though the original messages are gone.",
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  T[New turn appended] --> M{Window > threshold?}\n  M -->|no| C[Continue normally]\n  M -->|yes| K[Compaction pass]\n  K --> D[Digest: goals, decisions,<br/>open commitments, constraints]\n  P[Pinned preamble<br/>task + hard constraints] --> W[Working context]\n  D --> W\n  R[Recent verbatim turns] --> W\n  W --> C",
+        "caption": "When utilisation crosses the high-water mark, the older span is folded into a decision-preserving digest and the agent resumes."
+      },
+      "last_updated": "2026-06-02"
     }
   ]
 }

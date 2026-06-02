@@ -277,6 +277,7 @@ def rule_a2() -> list[Violation]:
 
     allowed_top = {
         "README.md",
+        "AGENTS.md",
         "LICENSE",
         ".gitignore",
         "Makefile",
