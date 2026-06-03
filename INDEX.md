@@ -1,6 +1,6 @@
 # Pattern Index
 
-426 patterns across 14 categories.
+427 patterns across 14 categories.
 
 ## Reasoning
 
@@ -274,6 +274,7 @@
 - [Refusal](patterns/refusal.md) *(a.k.a. Decline, Out-of-Scope Response)* — Explicitly refuse requests that fall outside the agent's scope, capability, or policy boundaries.
 - [Risk-Averse Reward Proxy](patterns/risk-averse-reward-proxy.md) *(a.k.a. Goodhart-Robust Optimisation, IRD-Based Conservatism)* — When operating outside the distribution the reward was designed for, treat the specified objective as a noisy proxy and plan conservatively across plausible true objectives.
 - [Secrets Handling](patterns/secrets-handling.md) *(a.k.a. Tool-Side Credential Injection, Model-Never-Sees-Secrets)* — Ensure the model never receives secrets in plaintext; tools resolve credentials from references at runtime.
+- [Self-Edit Critic Gate](patterns/self-edit-critic-gate.md) *(a.k.a. Two-Phase Write Critic, Self-Modification Veto Gate)* — Route every proposed write or delete to the agent's own load-bearing source and identity files through a separate critic model call that can veto the edit before it lands.
 - [Session-Scoped Payment Authorization](patterns/session-scoped-payment-authorization.md) *(a.k.a. Pre-Authorized Spend Session, Prepaid Micropayment Session, Session Spend Cap)* — Bound an agent's autonomous spending by having it open a payment session with a pre-approved cap, stream many micropayments inside that session, and settle once on close, instead of seeking approval for every transaction.
 - [Simulate Before Actuate](patterns/simulate-before-actuate.md) *(a.k.a. Dry-Run Harness, Simulate-Then-Commit, Pre-Action Simulation Gate)* — Before issuing an irreversible action, run a deterministic simulation that computes pre-conditions, invariants, and expected deltas; require a verifier — automated or human — to green-light the simulated outcome before the real command is sent.
 - [Soft-Optimization Cap](patterns/soft-optimization-cap.md) *(a.k.a. Quantilizer, Satisficing Cap, Argmax-Avoidance)* — Cap how strongly the agent optimises its inferred objective — sample from the top quantile of acceptable actions rather than the argmax, or stop improving once the objective is good enough.
