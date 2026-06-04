@@ -393,6 +393,18 @@
         {
           "pattern": "interruptible-agent-execution",
           "relation": "used-by"
+        },
+        {
+          "pattern": "managed-agent-runtime",
+          "relation": "complements"
+        },
+        {
+          "pattern": "local-to-cloud-handoff",
+          "relation": "complements"
+        },
+        {
+          "pattern": "journaled-llm-call",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -1125,6 +1137,10 @@
         {
           "pattern": "interruptible-agent-execution",
           "relation": "used-by"
+        },
+        {
+          "pattern": "journaled-llm-call",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2277,6 +2293,10 @@
         {
           "pattern": "durable-workflow-snapshot",
           "relation": "complements"
+        },
+        {
+          "pattern": "journaled-llm-call",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -3836,6 +3856,280 @@
         "Audit coverage — fraction of running instances whose template version is known"
       ],
       "last_updated": "2026-05-26"
+    },
+    {
+      "id": "managed-agent-runtime",
+      "name": "Managed Agent Runtime",
+      "aliases": [
+        "Agent Loop as a Service",
+        "Managed Agent Loop",
+        "Serverless Agent Runtime"
+      ],
+      "category": "governance-observability",
+      "intent": "Offer the agent loop itself as a managed cloud primitive so a caller supplies a model, system prompt, and tools and the platform runs the orchestration in an isolated, session-scoped runtime.",
+      "context": "An organisation is shipping several agent products and every team has hand-rolled the same orchestration loop: the reason-act cycle, tool dispatch, session state, per-session isolation, identity for outbound calls, retries, and observability. Each loop is operated separately, drifts in behaviour, and carries its own on-call burden, while the cloud now exposes the loop as a service alongside memory, identity, and tracing.",
+      "problem": "Re-implementing and operating the agent loop per team multiplies effort and risk. Each bespoke loop must solve session isolation, credential handling, resumability, and tracing on its own, and any one of them done weakly becomes a production incident. Sessions that share a process leak state into one another; outbound tool calls reach for ambient host credentials; a crash loses in-flight work because there was no checkpoint; and there is no uniform trace to debug across products. The loop is undifferentiated infrastructure that every team rebuilds and operates instead of consuming.",
+      "forces": [
+        "A bespoke loop gives full control over orchestration but multiplies operational surface across teams.",
+        "Session-scoped isolation needs a sandbox per session, which adds cold-start latency.",
+        "A managed runtime standardises identity, memory, and tracing but ties the deployment to a vendor contract.",
+        "Built-in observability is uniform across products but constrained to what the platform emits."
+      ],
+      "therefore": "Therefore: invoke the loop through a managed runtime that accepts model, system prompt, and tools per call and executes the orchestration in a session-scoped isolated sandbox with built-in memory, identity, and tracing, rather than operating a hand-rolled loop per team.",
+      "solution": "The platform exposes a single invoke endpoint that takes a model reference, a system prompt, and a tool set, then runs the full reason-act loop on the caller's behalf. Each session executes inside its own isolated sandbox, commonly a microVM with filesystem and shell access, so concurrent sessions never share state. The runtime wires in managed memory for short- and long-term context, a managed identity service that mints scoped credentials for outbound tool calls, and observability that emits a uniform trace of every step. The caller owns prompt, tools, and policy; the platform owns the loop, isolation, and operations.",
+      "example_scenario": "A company runs a coding agent, a research agent, and a support agent, each on a separately operated loop, and a state leak between two concurrent support sessions causes one user to see another's data. The teams move to a managed agent runtime: each defines its model, system prompt, and tools and invokes a single API, and the platform runs every session in its own microVM with built-in identity and tracing. The cross-session leak becomes structurally impossible and the three teams stop carrying three on-call rotations for the same loop.",
+      "consequences": {
+        "benefits": [
+          "Teams stop rebuilding and operating the same loop; orchestration becomes a consumed primitive.",
+          "Session-scoped sandboxing makes cross-session state leaks structurally hard.",
+          "Identity, memory, and tracing are uniform across every agent product on the platform."
+        ],
+        "liabilities": [
+          "The agent loop and its operational behaviour are tied to a vendor contract and pricing model.",
+          "Per-session sandbox provisioning adds cold-start latency that a long-lived in-process loop avoids.",
+          "Custom orchestration that the managed loop does not expose is hard or impossible to inject."
+        ]
+      },
+      "constrains": "Callers cannot run the orchestration loop in their own process; the loop runs only inside the platform's session-scoped sandbox, and each session is isolated rather than sharing a runtime.",
+      "known_uses": [
+        {
+          "system": "Amazon Bedrock AgentCore (Harness + Runtime)",
+          "note": "Harness is a managed agent loop invoked with a single API call passing model, system prompt, and tools inline; each session runs in an isolated microVM with filesystem and shell access, with Runtime providing session isolation, built-in identity, and observability.",
+          "status": "available",
+          "url": "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html"
+        },
+        {
+          "system": "Cloudflare Agents",
+          "note": "Serverless durable agent runtime that hosts the agent on Cloudflare infrastructure and connects chat, voice, email, and webhooks to it.",
+          "status": "available",
+          "url": "https://developers.cloudflare.com/agents/"
+        },
+        {
+          "system": "Modal Sandboxes",
+          "note": "Serverless platform that spins up isolated, secure sandboxes per workload to execute agent-generated code with sub-second cold starts.",
+          "status": "available",
+          "url": "https://modal.com/docs/guide"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "react",
+          "relation": "uses"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "uses"
+        },
+        {
+          "pattern": "session-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "What is Amazon Bedrock AgentCore?",
+          "url": "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html"
+        },
+        {
+          "type": "doc",
+          "title": "Cloudflare Agents",
+          "url": "https://developers.cloudflare.com/agents/"
+        },
+        {
+          "type": "doc",
+          "title": "Modal Guide",
+          "url": "https://modal.com/docs/guide"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "runtime",
+        "orchestration",
+        "isolation",
+        "managed-service",
+        "observability"
+      ],
+      "applicability": {
+        "use_when": [
+          "Several teams are each rebuilding and operating the same agent loop.",
+          "Per-session isolation, identity, and tracing must be uniform across agent products.",
+          "A cloud runtime that exposes the loop with session-scoped sandboxes is available."
+        ],
+        "do_not_use_when": [
+          "A single agent needs deep custom orchestration the managed loop cannot express.",
+          "Vendor lock-in or per-session latency budgets rule out a hosted runtime.",
+          "The workload is so simple that one in-process loop is cheaper to run than to outsource."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Caller[Caller: model + system prompt + tools] --> Invoke[Managed runtime: single invoke API]\n  Invoke --> Session[Session-scoped sandbox<br/>microVM: fs + shell]\n  Session --> Loop[Managed reason-act loop]\n  Loop --> Mem[Built-in memory]\n  Loop --> Id[Managed identity:<br/>scoped credentials]\n  Loop --> Obs[Observability: uniform trace]\n  Loop --> Result[Result to caller]"
+      },
+      "components": [
+        "Invoke API — single endpoint that accepts a model reference, system prompt, and tool set per call",
+        "Managed Loop Engine — runs the reason-act cycle, tool dispatch, retries, and response generation on the caller's behalf",
+        "Session Sandbox — per-session isolated runtime (commonly a microVM with filesystem and shell) so sessions never share state",
+        "Managed Identity Service — mints scoped credentials for outbound tool calls instead of using ambient host secrets",
+        "Built-in Memory Store — short-term per-session context and long-term memory that persists across sessions",
+        "Observability Layer — emits a uniform per-step trace of every session for debugging and audit"
+      ],
+      "tools": [
+        "Amazon Bedrock AgentCore (Harness + Runtime) — managed agent loop with microVM session isolation, identity, and observability",
+        "Cloudflare Agents — serverless durable runtime for hosting agents on edge infrastructure",
+        "Modal — serverless platform that provisions isolated sandboxes per workload with fast cold starts",
+        "Firecracker microVM — isolation boundary used to give each session its own filesystem and shell",
+        "OpenTelemetry — standardised telemetry format the runtime emits for cross-product tracing"
+      ],
+      "evaluation_metrics": [
+        "Per-session cold-start latency — time to provision the isolated sandbox before the loop runs",
+        "Cross-session isolation incidents — confirmed state or credential leaks between concurrent sessions per million sessions",
+        "Loop operational toil — on-call hours spent operating bespoke loops before versus after adoption",
+        "Trace coverage — share of session steps captured in the uniform observability trace",
+        "Resumability rate — fraction of interrupted sessions that resume from checkpoint without lost work"
+      ],
+      "last_updated": "2026-06-04"
+    },
+    {
+      "id": "journaled-llm-call",
+      "name": "Journaled LLM Call",
+      "category": "governance-observability",
+      "intent": "Record the output of every non-deterministic step on first execution and replay that recorded value during crash-recovery instead of re-invoking the model.",
+      "context": "A team runs an agent on a durable-execution engine that survives crashes by replaying the workflow from a recorded history. The workflow drives non-deterministic steps: LLM calls, tool results, timestamps, and random draws. The engine reconstructs in-memory state after a restart by re-running the workflow code up to the point it died, then resuming. For that reconstruction to be correct, every step the workflow code re-executes during replay must yield the same value it produced on the original run.",
+      "problem": "An LLM call is not a pure function: the same prompt returns a different completion on the next invocation, and a timestamp or random draw changes every time. If the durable engine re-invokes the model during replay, the recovered run diverges from the original — a tool gets called with arguments the first run never produced, a branch is taken that never happened, and the workflow history no longer matches reality. This replay divergence corrupts state silently and is hard to detect, because each individual call looks valid. Re-invoking also pays the model cost and latency a second time for work that already completed.",
+      "forces": [
+        "Replay correctness demands that re-executed steps return identical values, but model calls are non-deterministic by construction.",
+        "A recorded LLM response may be stale relative to the world, yet a fresh response breaks determinism.",
+        "Re-invoking the model on every recovery doubles token cost and latency for work already done.",
+        "Journaling adds storage and a write on the hot path of each non-deterministic step."
+      ],
+      "therefore": "Therefore: wrap each non-deterministic step as a recorded side-effect — execute it once, persist its output to the workflow journal, and on every subsequent replay return the journaled value without calling the model, clock, or RNG again.",
+      "solution": "Classify every step as deterministic workflow logic or non-deterministic effect. Run each effect — LLM call, tool invocation, timestamp read, random draw — exactly once and append its result to an append-only journal keyed by step position. On crash-recovery the engine replays the workflow code from the start; deterministic logic recomputes freely, but each effect call short-circuits to its journaled output instead of re-invoking the underlying resource. The model is queried only the first time a given step is reached; thereafter the recorded response stands in for it. This trades a possibly-stale recorded answer for deterministic, fault-tolerant replay and avoids paying the call cost twice.",
+      "example_scenario": "A durable research agent calls an LLM to pick a search query, runs the search as a tool, then summarises. The worker crashes after the summary tool call but before persisting the next step. On recovery the engine replays the workflow: without journaling it would re-prompt the model, get a different query, and summarise the wrong results. With journaled calls the engine returns the original query and search result from the journal, recomputes only the deterministic control flow, and resumes exactly where it left off.",
+      "consequences": {
+        "benefits": [
+          "Replay is deterministic: recovered runs follow the identical path the original took.",
+          "Each model call is paid for once; recovery reuses the recorded output instead of re-billing.",
+          "The journal doubles as an audit trail of every non-deterministic decision the workflow made."
+        ],
+        "liabilities": [
+          "A journaled response can be stale: replay reuses a value the world has since changed.",
+          "Forgetting to wrap one non-deterministic step reintroduces divergence that is hard to spot.",
+          "The append-only journal grows with every effect and must be stored and garbage-collected.",
+          "Changing workflow code between original run and replay can invalidate journaled step positions."
+        ]
+      },
+      "constrains": "On replay the workflow must not re-invoke the model, clock, or RNG; the journaled output is replayed in place of a fresh call.",
+      "known_uses": [
+        {
+          "system": "Temporal",
+          "note": "Non-deterministic work runs in Activities whose results are written to event history and reused when the workflow replays.",
+          "status": "available",
+          "url": "https://docs.temporal.io/workflow-definition"
+        },
+        {
+          "system": "Restate",
+          "status": "available"
+        },
+        {
+          "system": "DBOS",
+          "note": "Step outputs are checkpointed to a database; on recovery a step with a checkpoint returns the recorded output instead of executing.",
+          "status": "available",
+          "url": "https://docs.dbos.dev/architecture"
+        },
+        {
+          "system": "Inngest",
+          "status": "available"
+        },
+        {
+          "system": "LangGraph",
+          "status": "available"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "complements"
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements"
+        },
+        {
+          "pattern": "replay-time-travel",
+          "relation": "alternative-to"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Agent Workflows Are Rediscovering Durable Execution",
+          "url": "https://nittikkin.medium.com/agent-workflows-are-rediscovering-durable-execution-be110661ed8c"
+        },
+        {
+          "type": "blog",
+          "title": "Trustworthy AI Agents: Deterministic Replay",
+          "url": "https://www.sakurasky.com/blog/missing-primitives-for-trustworthy-ai-part-8/"
+        },
+        {
+          "type": "doc",
+          "title": "Temporal: Workflow Definition and Determinism",
+          "url": "https://docs.temporal.io/workflow-definition"
+        },
+        {
+          "type": "doc",
+          "title": "DBOS Architecture: Steps and Checkpointing",
+          "url": "https://docs.dbos.dev/architecture"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "durable-execution",
+        "determinism",
+        "replay",
+        "fault-tolerance",
+        "observability"
+      ],
+      "applicability": {
+        "use_when": [
+          "The agent runs on a durable-execution engine that recovers by replaying workflow code from a recorded history.",
+          "The workflow contains non-deterministic steps — LLM calls, tool results, timestamps, or random draws.",
+          "A recovered run must follow the same path the original took, and re-invoking the model on recovery is unacceptable on cost or correctness grounds."
+        ],
+        "do_not_use_when": [
+          "The agent keeps no durable history and simply restarts from scratch on failure.",
+          "Every step is already deterministic and pure, so replay is naturally faithful.",
+          "Replay deliberately wants fresh model outputs, as in trace re-runs with modified inputs."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Step[Non-deterministic step<br/>LLM / tool / time / random] --> Q{Journal entry<br/>for this step?}\n  Q -- No, first run --> Inv[Invoke model/resource] --> Rec[Append output to journal] --> Use[Use output]\n  Q -- Yes, replay --> Read[Read journaled output] --> Use\n  Use --> Det[Deterministic workflow logic] --> Next[Next step]"
+      },
+      "components": [
+        "Effect Wrapper — marks an LLM call, tool, timestamp, or RNG draw as a recorded side-effect rather than inline workflow logic",
+        "Step-Keyed Journal — append-only log mapping each step position to the output produced on first execution",
+        "Replay Resolver — on recovery, intercepts each effect call and returns the journaled value instead of invoking the resource",
+        "Determinism Checker — flags workflow-code changes or unwrapped non-determinism that would break replay",
+        "Journal Store — durable backend (event history, database, or log) that persists and garbage-collects entries"
+      ],
+      "tools": [
+        "Temporal — durable-execution engine that records Activity results in event history and replays them",
+        "DBOS — checkpoints step outputs to a database and returns the checkpoint instead of re-executing on recovery",
+        "Restate — durable execution runtime that journals handler results for deterministic replay"
+      ],
+      "evaluation_metrics": [
+        "Replay divergence incidents — recovered runs whose path differed from the original per million recoveries",
+        "Journal hit rate on replay — share of effect calls served from the journal versus re-invoked",
+        "Recovery model-cost saved — token/latency cost avoided by replaying recorded outputs instead of re-calling",
+        "Unwrapped-non-determinism findings — steps the determinism checker flags as not journaled",
+        "Journal storage growth — bytes of journal written per workflow run"
+      ],
+      "last_updated": "2026-06-04"
     }
   ]
 }
