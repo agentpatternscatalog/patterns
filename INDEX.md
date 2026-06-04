@@ -1,6 +1,6 @@
 # Pattern Index
 
-427 patterns across 14 categories.
+433 patterns across 14 categories.
 
 ## Reasoning
 
@@ -40,6 +40,7 @@
 - [Iteration Node](patterns/iteration-node.md) *(a.k.a. Map-Over-Collection Node, For-Each Sub-Workflow, Bounded Workflow Loop)* — Express map-over-collection inside a visual workflow as an explicit Iteration node that runs a subgraph once per element of an input array, with bounded, deterministic, observable execution.
 - [Language Agent Tree Search](patterns/lats.md) *(a.k.a. LATS, MCTS for Agents, Tree-Search Agent, Backtracking Agent)* — Lift the agent loop into a search tree with a learned value function and backtracking.
 - [LLMCompiler](patterns/llm-compiler.md) *(a.k.a. LLM Compiler, Parallel ReWOO)* — Take ReWOO's plan-as-DAG and run independent steps in parallel through a task-fetching dispatcher.
+- [Local-to-Cloud Handoff](patterns/local-to-cloud-handoff.md) — Promote an interactive local agent session mid-task to a detached cloud agent that keeps running after the developer disconnects and reports back asynchronously.
 - [MapReduce for Agents](patterns/map-reduce.md) *(a.k.a. LLM×MapReduce, Divide-and-Conquer)* — Split an oversize task into independent chunks, process each in parallel, then aggregate.
 - [Mental-Model-In-The-Loop Simulator](patterns/mental-model-in-the-loop-simulator.md) *(a.k.a. Internal Simulator, Strategy-Test-In-Mental-Model)* — Run candidate multi-step strategies inside an internal simulator of the environment before committing in the real world — broader than simulate-before-actuate (single action) by simulating multi-step strategies.
 - [Multi-Path Plan Generator](patterns/multi-path-plan-generator.md) *(a.k.a. Branching Plan Generator, Candidate-Path Producer)* — Generate multiple candidate next-steps at each plan node enabling later selection — the planning generator pattern paired with tree-of-thoughts / LATS-style search.
@@ -79,6 +80,7 @@
 - [Computer Use](patterns/computer-use.md) *(a.k.a. Desktop Agent, GUI Agent, Screen Control)* — Let the model drive a desktop end-to-end via screenshots plus virtual mouse/keyboard tool calls instead of bespoke per-app APIs.
 - [Crawler Dispatcher](patterns/crawler-dispatcher.md) *(a.k.a. URL Domain Dispatcher, Crawler Factory)* — Route each incoming URL to a domain-specific crawler through a central dispatcher mapping URL patterns to registered crawler classes.
 - [Dual-System GUI Agent](patterns/dual-system-gui-agent.md) *(a.k.a. Decision-Plus-Grounding, Planner-and-Vision Split, Two-Model GUI Agent)* — Split a GUI agent into a decision model that plans and recovers from errors and a grounding model that observes pixels and emits the precise action; route each subproblem to the better-suited model.
+- [Full-Desktop Computer Use](patterns/full-desktop-computer-use.md) — Give the agent a complete containerized OS desktop with native apps, a persistent filesystem, and desktop credential stores, so it can finish multi-application workflows a browser-only surface cannot.
 - [Hierarchical Tool Selection](patterns/hierarchical-tool-selection.md) *(a.k.a. Tool Tree, Categorised Tool Catalog, Two-Stage Tool Routing)* — Organise tools into a tree of categories so the agent first picks a branch and then a specific tool within it.
 - [Large Action Models (LAMs)](patterns/large-action-models.md) *(a.k.a. LAM, Action-Tuned Model)* — Use a model class specifically trained for action execution (tool calls, UI navigation, workflow steps) rather than text generation, when the workload is dominated by reliably completing actions in real systems.
 - [MCP Bidirectional Bridge](patterns/mcp-bidirectional-bridge.md) *(a.k.a. MCP Client and Server, Two-Way MCP, MCP Bridge Framework)* — Run a framework as both MCP client (consuming external MCP servers as tools) and MCP server (publishing its own agents, tools, and workflows back over MCP) so capabilities flow both directions across the protocol boundary.
@@ -134,6 +136,7 @@
 - [Cross-Session Memory](patterns/cross-session-memory.md) *(a.k.a. Persistent User Memory, Long-Lived User Profile, Beat Agent Amnesia, No-Forget Memory, Agent Forgets Between Sessions, Session-to-Session Memory)* — Persist user-specific facts, preferences, and prior context across all sessions, threads, and devices.
 - [Episodic Memory](patterns/episodic-memory.md) *(a.k.a. Event Memory, Experience Store, Memory Stream)* — Record past events as time-stamped first-person experiences the agent can recall later, separately from extracted facts (semantic) and learned how-to (procedural).
 - [Episodic Summaries](patterns/episodic-summaries.md) *(a.k.a. Compaction, Conversation Summarisation, Chunk Summaries, Reduce Token Cost, Shrink Context, Cuts Token Use, Too Many Tokens Reduction)* — Compress past episodes into summaries that preserve gist while shedding token cost.
+- [Filesystem as Context](patterns/filesystem-as-context.md) *(a.k.a. Context Offloading, Filesystem as External Memory, File-backed Working Memory)* — Use the filesystem as the agent's externalized working memory, writing plans, notes, and large tool outputs to files, dropping them out of the live window, and re-reading on demand.
 - [Five-Tier Memory Cascade](patterns/five-tier-memory-cascade.md) *(a.k.a. Multi-Tier Memory, Cognitive Memory Hierarchy)* — Stage agent memory across sensory, working, short-term, episodic, and long-term tiers with explicit promotion and decay between them.
 - [Hippocampal Rehearsal](patterns/hippocampal-rehearsal.md) *(a.k.a. Memory Reactivation, Lift-from-Archive)* — Lift archived memory items back into short-term tiers when something re-attends to them.
 - [Information Chunking for Agent Memory](patterns/information-chunking-memory.md) *(a.k.a. STM Chunking, Topical Segmentation for Memory)* — Structure inputs into digestible topical segments (chunks) before feeding to short-term memory rather than throwing the full input at the model; reduces overload and increases accuracy (~40% improvement observed in customer-service deployment).
@@ -237,6 +240,7 @@
 ## Safety & Control
 
 - [Action Selector Pattern](patterns/action-selector-pattern.md) *(a.k.a. Selector-Based Action Pattern, No-Feedback Action Loop)* — Eliminate the feedback channel from tool outputs back into the agent's reasoning step by having the agent select actions from a fixed catalog rather than free-form generation over tool output.
+- [Agent Credential Vault](patterns/agent-credential-vault.md) — Broker the agent's credentials at action time through a managed vault of passwords, MFA secrets, and digital personas, so secrets never enter the prompt or context and the agent authenticates as a governed identity.
 - [Approval Queue](patterns/approval-queue.md) *(a.k.a. Async Approval, Supervisor Inbox, Approval Inbox)* — Queue agent-proposed actions for asynchronous human review while the agent continues other work.
 - [Autonomy Slider](patterns/autonomy-slider.md) *(a.k.a. Autonomy Dial, Continuous Autonomy Control)* — Expose agent autonomy as a continuous adjustable parameter so the same codebase can span scripted assistant to fully autonomous worker without re-architecting.
 - [Code-Then-Execute with Dataflow Analysis](patterns/code-then-execute-with-dataflow.md) *(a.k.a. Tainted-Value Code Execution, Sandbox-DSL with Provenance)* — Have the agent emit code in a sandbox DSL whose values are statically tagged trusted/tainted via dataflow analysis before execution, enabling per-value policy enforcement.
@@ -328,8 +332,10 @@
 - [Eval as Contract](patterns/eval-as-contract.md) *(a.k.a. Test-Driven Agent, Eval-Gated Release)* — Treat the eval suite as the contract the agent must satisfy; releases ship only if evals pass.
 - [Eval Harness](patterns/eval-harness.md) *(a.k.a. Golden Dataset Suite, Champion-Challenger, Regression Suite)* — Run a held-out dataset against agent versions to detect regressions and measure improvement.
 - [Intermediate Artifact Evaluation](patterns/artifact-evaluation.md) *(a.k.a. Per-Pipeline-Node Eval, Mid-Pipeline Artifact Eval)* — Evaluate intermediate artifacts (plans, tool-call traces, guardrail reactions) not only final outputs; isolates failure to a specific pipeline node.
+- [Journaled LLM Call](patterns/journaled-llm-call.md) — Record the output of every non-deterministic step on first execution and replay that recorded value during crash-recovery instead of re-invoking the model.
 - [Lineage Tracking](patterns/lineage-tracking.md) *(a.k.a. Data Lineage, Artefact Provenance)* — Track which prompt version, model version, and data sources produced each agent output.
 - [LLM-as-Judge](patterns/llm-as-judge.md) *(a.k.a. Model Grading, Auto-Evaluator)* — Use an LLM to score open-ended outputs against rubric criteria when no exact-match metric applies.
+- [Managed Agent Runtime](patterns/managed-agent-runtime.md) *(a.k.a. Agent Loop as a Service, Managed Agent Loop, Serverless Agent Runtime)* — Offer the agent loop itself as a managed cloud primitive so a caller supplies a model, system prompt, and tools and the platform runs the orchestration in an isolated, session-scoped runtime.
 - [Multi-Principal Welfare Aggregation](patterns/multi-principal-welfare-aggregation.md) *(a.k.a. Multi-Principal Assistance Game, Social-Choice Aggregation for Agents)* — When an agent serves multiple humans with conflicting preferences, declare the aggregation rule explicitly rather than letting it be implicit in the prompt or fine-tune.
 - [Own Your Prompts (12-Factor Agents)](patterns/own-your-prompts.md) *(a.k.a. 12-Factor Prompts, Production-Owned Prompts)* — Every prompt in a production agent is versioned, tested, and owned by the team in the application repo — never inherited as a framework default.
 - [Prompt Versioning](patterns/prompt-versioning.md) *(a.k.a. Prompt-as-Artifact, Prompt Registry, Versioned Prompts)* — Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.

@@ -1361,6 +1361,10 @@
         {
           "pattern": "landmark-attention",
           "relation": "complements"
+        },
+        {
+          "pattern": "filesystem-as-context",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2066,6 +2070,10 @@
         {
           "pattern": "bdi-agent",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "filesystem-as-context",
+          "relation": "complements"
         }
       ],
       "references": [
@@ -2324,6 +2332,10 @@
         },
         {
           "pattern": "shadow-ai",
+          "relation": "complements"
+        },
+        {
+          "pattern": "managed-agent-runtime",
           "relation": "complements"
         }
       ],
@@ -4073,6 +4085,10 @@
           "pattern": "tool-result-eviction",
           "relation": "complements",
           "note": "Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest."
+        },
+        {
+          "pattern": "filesystem-as-context",
+          "relation": "alternative-to"
         }
       ],
       "references": [
@@ -4138,6 +4154,152 @@
         "caption": "When utilisation crosses the high-water mark, the older span is folded into a decision-preserving digest and the agent resumes."
       },
       "last_updated": "2026-06-02"
+    },
+    {
+      "id": "filesystem-as-context",
+      "name": "Filesystem as Context",
+      "aliases": [
+        "Context Offloading",
+        "Filesystem as External Memory",
+        "File-backed Working Memory"
+      ],
+      "category": "memory",
+      "intent": "Use the filesystem as the agent's externalized working memory, writing plans, notes, and large tool outputs to files, dropping them out of the live window, and re-reading on demand.",
+      "context": "An agent runs a long-horizon task that generates more state than the context window can hold: a multi-step plan, accumulating notes, and tool calls that each return large payloads such as logs, scraped pages, or query dumps. The runtime can read and write files, and the same files persist across many turns of the loop.",
+      "problem": "Keeping every plan revision, note, and verbatim tool output in the live window pushes the agent toward the window limit, raises per-turn cost, and degrades reasoning as relevant signal is buried under bulk. Truncating or dropping that material blindly loses state the agent still depends on later in the task, and a window that overflows mid-task forces an abrupt summarize-or-die compaction that can discard exactly the detail a later step needs.",
+      "forces": [
+        "The window is finite but the task generates unbounded state.",
+        "Large verbatim payloads cost tokens every turn they remain live.",
+        "State dropped from the window is gone unless it was stored somewhere durable.",
+        "Re-reading a file costs a tool round-trip and latency."
+      ],
+      "therefore": "Therefore: make the filesystem the primary store for the agent's plan, notes, and large outputs; keep only lightweight pointers and a short summary live, write the full content to files, and re-read a file only when the current step needs it.",
+      "solution": "The agent maintains its working state as files rather than as live context. A plan lives in a file such as todo.md that the agent rewrites as steps complete; running notes accumulate in a notes file; large tool outputs are written to disk and replaced in the window by a path plus a one-line description. Each turn the agent carries lightweight identifiers (file paths, line ranges, keys) and loads the full content back into context only for the step that needs it, then drops it again. Because the content is restorable from disk, compaction is lossless: the window holds a lean view while the filesystem holds the full state. This makes the filesystem the externalized memory of record, distinct from in-context note-taking, which keeps notes live, and from eviction, which discards consumed payloads behind a marker.",
+      "example_scenario": "A coding agent is migrating a large codebase across many turns. It writes the migration plan to todo.md and checks off steps as it goes, and each test run produces a 2,000-line log. Instead of holding those logs live, the harness writes each full log to a file and leaves only the path and a one-line verdict in the window. When a later step needs the exact stack trace, the agent re-reads the relevant log file. The window stays lean across the whole migration while no detail is permanently lost.",
+      "consequences": {
+        "benefits": [
+          "The live window stays lean across long-horizon tasks regardless of total state size.",
+          "State is durable and restorable, so compaction and window pressure do not destroy detail.",
+          "Per-turn token cost drops because bulk payloads no longer ride in every turn.",
+          "The plan and notes survive process restarts and can be inspected by a human."
+        ],
+        "liabilities": [
+          "Re-reading a file adds a tool round-trip and latency each time state is needed.",
+          "The live window no longer holds full state, so the agent must know which file to re-read or it works from a stale view.",
+          "Stale or contradictory files accumulate unless the agent prunes them.",
+          "File access widens the attack and accident surface and must respect sandbox boundaries."
+        ]
+      },
+      "constrains": "Large outputs and notes must not stay in the live window; they are written to files and re-read only when the current step needs them.",
+      "known_uses": [
+        {
+          "system": "Manus",
+          "note": "Treats the filesystem as the ultimate context: unlimited in size, persistent, and directly operable by the agent, with compression designed to be restorable from files.",
+          "status": "available",
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        },
+        {
+          "system": "Claude Code",
+          "note": "Maintains a todo list and reads and writes project files as durable working state across a long session rather than holding it all in the window.",
+          "status": "available"
+        },
+        {
+          "system": "Anthropic memory tool",
+          "note": "File-based store on the Claude Developer Platform for persisting structured notes outside the context window and loading them on demand.",
+          "status": "available",
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "scratchpad",
+          "relation": "complements"
+        },
+        {
+          "pattern": "tool-result-eviction",
+          "relation": "complements"
+        },
+        {
+          "pattern": "context-compaction",
+          "relation": "alternative-to"
+        },
+        {
+          "pattern": "synthetic-filesystem-overlay",
+          "relation": "complements"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "relation": "complements"
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "Context Engineering for AI Agents: Lessons from Building Manus",
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        },
+        {
+          "type": "blog",
+          "title": "Effective Context Engineering for AI Agents",
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        },
+        {
+          "type": "blog",
+          "title": "Agent Harness Engineering",
+          "url": "https://addyosmani.com/blog/agent-harness-engineering/"
+        },
+        {
+          "type": "blog",
+          "title": "AIエージェントのコンテキスト退避とファイルシステム活用",
+          "url": "https://tech.algomatic.jp/entry/2025/10/15/172110"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "context-engineering",
+        "filesystem",
+        "long-horizon"
+      ],
+      "applicability": {
+        "use_when": [
+          "The task runs over many turns and generates more state than the window holds.",
+          "Tool outputs are large and only needed intermittently rather than every turn.",
+          "The runtime can read and write files that persist across the agent loop.",
+          "The plan and notes should survive restarts or be inspectable by a human."
+        ],
+        "do_not_use_when": [
+          "The task is short and its full state fits comfortably in the window.",
+          "The runtime has no durable filesystem the agent can read back from.",
+          "Re-read latency on the hot path outweighs the token savings.",
+          "The needed state is small enough that in-context notes suffice."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Step[Agent step] --> Gen[Plan / notes / large output produced]\n  Gen --> Write[Write full content to file]\n  Write --> Drop[Drop from live window<br/>keep path + one-line summary]\n  Drop --> Lean[Lean live context]\n  Lean --> Need{Step needs this state?}\n  Need -- yes --> Read[Re-read file into context]\n  Read --> Step\n  Need -- no --> Step"
+      },
+      "components": [
+        "Plan File — durable file such as todo.md that holds the task plan and is rewritten as steps complete",
+        "Notes File — accumulating running notes the agent appends to and re-reads instead of holding live",
+        "Output Store — directory where large tool outputs are written, addressed by path and line range",
+        "Pointer Set — lightweight file paths, keys, and one-line summaries the agent keeps in the live window",
+        "Re-read Mechanism — tool call that loads a stored file back into context for the current step"
+      ],
+      "tools": [
+        "File read/write tools — let the agent persist and reload working state on demand",
+        "Coding-agent harness (Claude Code, Manus) — drives the write-then-drop-then-reread loop over a session",
+        "Anthropic memory tool — file-based store for notes persisted outside the context window",
+        "Sandbox filesystem (scoped workdir) — provides the durable, bounded storage the agent writes into"
+      ],
+      "evaluation_metrics": [
+        "Live-window token footprint — average tokens held live per turn versus a no-offload baseline",
+        "Re-read frequency — file reloads per task, indicating how often offloaded state is needed",
+        "Re-read latency — added round-trip time when state is pulled back into context",
+        "State-loss incidents — cases where a needed file was missing, stale, or never written",
+        "Task completion rate on long-horizon runs — share of long tasks finished without window overflow"
+      ],
+      "last_updated": "2026-06-04"
     }
   ]
 }
