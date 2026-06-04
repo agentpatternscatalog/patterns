@@ -1,0 +1,216 @@
+{
+  "kind": "framework",
+  "category": "research-agent",
+  "label": "Research Agents",
+  "compositions": [
+    {
+      "id": "deerflow",
+      "name": "DeerFlow",
+      "kind": "framework",
+      "category": "research-agent",
+      "build_surface": "full-code",
+      "vendor": "ByteDance",
+      "language": "Python, TypeScript",
+      "license": "MIT",
+      "status": "active",
+      "first_released": "2025-05",
+      "url": "https://deerflow.tech/",
+      "repo": "https://github.com/bytedance/deer-flow",
+      "docs_url": "https://deepwiki.com/bytedance/deer-flow",
+      "intent": "Turn a single research question into an automated deep-research run by composing a planner, a supervisor that dispatches specialised worker agents, retrieval tools, and a final report writer over a stateful LangGraph graph.",
+      "description": "DeerFlow (Deep Exploration and Efficient Research Flow) is ByteDance's MIT-licensed open-source deep-research framework, first released around May 2025. The architecture catalogued here is the classic DeerFlow 1.x graph (the `main-1.x` branch), built on LangGraph and LangChain as a stateful multi-agent workflow. A coordinator node gates incoming requests and routes research questions onward; an optional background-investigator runs a preliminary web search to ground planning; a planner decomposes the question into a typed, multi-step plan; a human-feedback interrupt lets the user accept, edit in natural language, or auto-accept the plan; a research-team node then supervises the plan, dispatching each step to a ReAct researcher (web search, crawling, retrieval, MCP tools) or a coder (Python REPL); and a reporter synthesises the findings into a cited final report. Iteration is bounded by max_plan_iterations and max_step_num. The project has since moved to a separate DeerFlow 2.0 \"SuperAgent harness\" on the `main` branch (a lead-agent plus dynamic subagents in Docker sandboxes), so the node names and file paths referenced here apply to `main-1.x`.",
+      "primary_use_cases": [
+        "automated deep research over a single natural-language question",
+        "long-form, cited report generation from web and private-KB sources",
+        "plan-then-execute research with a human plan-review gate",
+        "multi-agent workflows combining web search, retrieval, and Python analysis"
+      ],
+      "agent_loop_shape": "LangGraph state graph: coordinator -> (background_investigator) -> planner -> human_feedback -> research_team, which dispatches each plan step to researcher or coder (ReAct loops) and collects results back into shared state; the planner may re-plan up to max_plan_iterations before control passes to reporter, which writes the final report.",
+      "members": [
+        {
+          "pattern": "orchestrator-workers",
+          "role": "core",
+          "note": "The research_team node is a supervisor that iterates the plan and dispatches each step to specialised worker agents (researcher, analyst, coder), collecting their outputs back into shared state.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/builder.py — research_team dispatch",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/builder.py",
+              "quote": "builder.add_conditional_edges(\"research_team\", continue_to_running_research_team, [\"planner\", \"researcher\", \"analyst\", \"coder\"],)",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "doc",
+              "title": "README — Research Team",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+              "quote": "Research Team: A collection of specialized agents that execute the plan: Researcher ... Coder ...",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "plan-and-execute",
+          "role": "core",
+          "note": "The planner node produces an explicit, typed multi-step Plan (validated to a Pydantic model) that the research_team then executes step by step, separating planning from execution.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — planner_node",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "def planner_node(state: State, config: RunnableConfig) -> Command[Literal[\"human_feedback\", \"reporter\"]]: \"\"\"Planner node that generate the full plan.\"\"\"",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "src/prompts/planner.md — bounded plan",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/prompts/planner.md",
+              "quote": "- **Maximum Steps**: Limit the plan to a maximum of {{ max_step_num }} steps for focused research.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "role": "first-class",
+          "note": "The human_feedback node interrupts the run to surface the plan; the user can accept it ([ACCEPTED]), edit it in natural language ([EDIT_PLAN], looping back to the planner), or enable auto-accept to skip review.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — human_feedback_node",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "if not auto_accepted_plan: feedback = interrupt(\"Please Review the Plan.\") ... if feedback_normalized.startswith(\"[EDIT_PLAN]\"): ... goto=\"planner\"",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "doc",
+              "title": "README — Human-in-the-loop",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+              "quote": "Human-in-the-loop — Supports interactive modification of research plans using natural language; Supports auto-acceptance of research plans.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "react",
+          "role": "first-class",
+          "note": "The researcher and coder workers are ReAct agents that interleave reasoning with tool calls; they are constructed via a create_react_agent / create_agent factory and bound to search, retrieval, MCP, and Python-REPL tools.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/agents/agents.py — ReAct agent factory",
+              "url": "https://github.com/bytedance/deer-flow/blob/462752b462dd/src/agents/agents.py",
+              "quote": "from langgraph.prebuilt import create_react_agent ... return create_react_agent(name=agent_name, model=get_llm_by_type(AGENT_LLM_MAP[agent_type]), tools=tools, prompt=lambda state: apply_prompt_template(prompt_template, state),)",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "agentic-rag",
+          "role": "first-class",
+          "note": "The researcher dynamically attaches web-search tools (Tavily, DuckDuckGo, Brave, Arxiv, Wikipedia) and private knowledge-base retrievers (RAGFlow, VikingDB, Milvus, Qdrant) and reasons over the retrieved content.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/config/tools.py — SearchEngine enum",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/config/tools.py",
+              "quote": "class SearchEngine(enum.Enum): TAVILY = \"tavily\" ... DUCKDUCKGO = \"duckduckgo\" ... BRAVE_SEARCH = \"brave_search\" ... ARXIV = \"arxiv\"",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "doc",
+              "title": "README — private knowledgebase",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+              "quote": "DeerFlow supports private knowledgebase such as RAGFlow, Qdrant, Milvus, and VikingDB.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "routing",
+          "role": "first-class",
+          "note": "The coordinator node is the entry point that classifies the request, handling greetings or small talk with a direct response and handing research questions off to the planner (optionally via background investigation).",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — coordinator_node",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "def coordinator_node(state, config) -> Command[Literal[\"planner\", \"background_investigator\", \"coordinator\", \"__end__\"]]: \"\"\"Coordinator node that communicate with customers and handle clarification.\"\"\"",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "doc",
+              "title": "README — Coordinator",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+              "quote": "Coordinator: The entry point that manages the workflow lifecycle ... Delegates tasks to the planner when appropriate.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "replan-on-failure",
+          "role": "supported",
+          "note": "When the planner judges that context is insufficient it re-plans, bounded by max_plan_iterations; once the cap is reached control passes to the reporter rather than looping indefinitely.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/config/configuration.py — iteration bounds",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/config/configuration.py",
+              "quote": "max_plan_iterations: int = 1  # Maximum number of plan iterations / max_step_num: int = 3  # Maximum number of steps in a plan",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — iteration guard",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "if plan_iterations >= configurable.max_plan_iterations: return Command(update=preserve_state_meta_fields(state), goto=\"reporter\")",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "mcp",
+          "role": "supported",
+          "note": "Worker agents can be extended with external tools via the Model Context Protocol; configured MCP servers are loaded through MultiServerMCPClient and their tools merged into the agent's tool set at runtime.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — MCP client setup",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "if mcp_servers: client = MultiServerMCPClient(mcp_servers) all_tools = await client.get_tools()",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "doc",
+              "title": "README — MCP Seamless Integration",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+              "quote": "MCP Seamless Integration — Expand capabilities for private domain access, knowledge graph, web browsing and more.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "last_analyzed": "2026-06-04",
+      "verification_status": "partial",
+      "last_updated": "2026-06-04",
+      "date_added": "2026-06-04",
+      "status_in_practice": "mature",
+      "tags": [
+        "open-source",
+        "bytedance",
+        "deep-research",
+        "langgraph",
+        "multi-agent",
+        "plan-and-execute",
+        "mcp"
+      ]
+    }
+  ]
+}
