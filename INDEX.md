@@ -1,6 +1,6 @@
 # Pattern Index
 
-433 patterns across 14 categories.
+435 patterns across 14 categories.
 
 ## Reasoning
 
@@ -77,8 +77,10 @@
 - [Browser Agent](patterns/browser-agent.md) *(a.k.a. Web Agent, Browser Automation Agent)* — Expose websites to the agent through a structured DOM/accessibility tree plus a small action vocabulary, sitting between raw HTML and pixel-level Computer Use.
 - [Code Execution](patterns/code-execution.md) *(a.k.a. Code-Then-Execute, CodeAct, Program of Thoughts)* — Let the model emit code, run it in a sandbox, and treat the run as the answer instead of trusting the model to compute in its head.
 - [Code-as-Action Agent](patterns/code-as-action.md) *(a.k.a. CodeAct Agent, Code-Writing Agent, Python-Action ReAct, Executable Code Actions)* — Have the agent emit a code snippet as its action each step, executed in a constrained interpreter, instead of emitting JSON tool calls; tool composition becomes function nesting and control flow inside the snippet.
+- [Composite Service](patterns/composite-service-mcp.md) *(a.k.a. Capability Aggregation, Workflow Tool, Consolidated MCP Tool, Higher-Level MCP Tool)* — Expose one MCP tool that orchestrates several underlying API calls into a single higher-level operation, so the agent invokes a task-level capability instead of chaining many low-level endpoints.
 - [Computer Use](patterns/computer-use.md) *(a.k.a. Desktop Agent, GUI Agent, Screen Control)* — Let the model drive a desktop end-to-end via screenshots plus virtual mouse/keyboard tool calls instead of bespoke per-app APIs.
 - [Crawler Dispatcher](patterns/crawler-dispatcher.md) *(a.k.a. URL Domain Dispatcher, Crawler Factory)* — Route each incoming URL to a domain-specific crawler through a central dispatcher mapping URL patterns to registered crawler classes.
+- [Direct API Wrapper](patterns/direct-api-wrapper.md) *(a.k.a. Direct Translation, 1:1 API-to-MCP Mapping, Thin MCP Wrapper, API-to-MCP Wrapper)* — Expose an existing API as MCP tools by mapping each operation one-to-one to a tool, so a stable API becomes agent-callable with minimal wrapper logic.
 - [Dual-System GUI Agent](patterns/dual-system-gui-agent.md) *(a.k.a. Decision-Plus-Grounding, Planner-and-Vision Split, Two-Model GUI Agent)* — Split a GUI agent into a decision model that plans and recovers from errors and a grounding model that observes pixels and emits the precise action; route each subproblem to the better-suited model.
 - [Full-Desktop Computer Use](patterns/full-desktop-computer-use.md) — Give the agent a complete containerized OS desktop with native apps, a persistent filesystem, and desktop credential stores, so it can finish multi-application workflows a browser-only surface cannot.
 - [Hierarchical Tool Selection](patterns/hierarchical-tool-selection.md) *(a.k.a. Tool Tree, Categorised Tool Catalog, Two-Stage Tool Routing)* — Organise tools into a tree of categories so the agent first picks a branch and then a specific tool within it.
