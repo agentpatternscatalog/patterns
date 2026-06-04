@@ -26,6 +26,7 @@
         "multi-agent workflows combining web search, retrieval, and Python analysis"
       ],
       "agent_loop_shape": "LangGraph state graph: coordinator -> (background_investigator) -> planner -> human_feedback -> research_team, which dispatches each plan step to researcher or coder (ReAct loops) and collects results back into shared state; the planner may re-plan up to max_plan_iterations before control passes to reporter, which writes the final report.",
+      "pattern_composition": "flowchart TD\n  U[\"User query\"] --> C[\"Coordinator: route and gate\"]\n  C -->|small talk| DR[\"Direct response\"]\n  C -->|research| BG[\"Background investigator\"]\n  C -->|research| P[\"Planner: typed multi-step plan\"]\n  BG --> P\n  P --> HF{\"Human feedback: accept / edit / auto\"}\n  HF -->|edit plan| P\n  HF -->|accepted| RT[\"Research team: supervise plan\"]\n  RT --> R[\"Researcher: search, crawl, RAG, MCP\"]\n  RT --> CO[\"Coder: Python REPL\"]\n  R --> RT\n  CO --> RT\n  RT -->|re-plan, bounded by max_plan_iterations| P\n  RT -->|plan complete| RP[\"Reporter: synthesize cited report\"]\n  RP --> FR[\"Final report\"]",
       "members": [
         {
           "pattern": "orchestrator-workers",
@@ -195,6 +196,78 @@
             }
           ],
           "evidence_status": "full"
+        }
+      ],
+      "anti_patterns_avoided": [
+        {
+          "pattern": "unbounded-loop",
+          "note": "The plan/re-plan cycle is bounded: the planner re-plans only while plan_iterations is below max_plan_iterations (default 1), and each plan is capped at max_step_num steps, so the graph cannot loop indefinitely before control passes to the reporter.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/nodes.py — iteration guard",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/nodes.py",
+              "quote": "if plan_iterations >= configurable.max_plan_iterations: return Command(update=preserve_state_meta_fields(state), goto=\"reporter\")",
+              "accessed": "2026-06-04"
+            }
+          ]
+        },
+        {
+          "pattern": "unbounded-subagent-spawn",
+          "note": "The 1.x research_team dispatches each step to a fixed roster of worker roles (researcher, analyst, coder) via static conditional edges rather than dynamically spawning an open-ended number of subagents.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "src/graph/builder.py — fixed worker roster",
+              "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/src/graph/builder.py",
+              "quote": "builder.add_conditional_edges(\"research_team\", continue_to_running_research_team, [\"planner\", \"researcher\", \"analyst\", \"coder\"],)",
+              "accessed": "2026-06-04"
+            }
+          ]
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "langgraph",
+          "relation": "complements",
+          "note": "DeerFlow's graph is built on LangGraph, which supplies the stateful nodes, conditional edges, and the interrupt() primitive behind the human-feedback plan review."
+        },
+        {
+          "composition": "autogen",
+          "relation": "similar-shape",
+          "note": "Both orchestrate multiple specialised agents, but AutoGen is conversation-driven and general-purpose whereas DeerFlow is a fixed plan-and-execute graph specialised for deep research."
+        },
+        {
+          "composition": "crewai",
+          "relation": "similar-shape",
+          "note": "CrewAI composes role-based agents over tasks for similar research-automation goals; DeerFlow differs by foregrounding an explicit, human-reviewable plan and a bounded re-planning loop."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "DeerFlow homepage",
+          "url": "https://deerflow.tech/",
+          "accessed": "2026-06-04"
+        },
+        {
+          "type": "repo",
+          "title": "bytedance/deer-flow (GitHub)",
+          "url": "https://github.com/bytedance/deer-flow",
+          "accessed": "2026-06-04"
+        },
+        {
+          "type": "doc",
+          "title": "README — classic 1.x multi-agent architecture",
+          "url": "https://github.com/bytedance/deer-flow/blob/main-1.x/README.md",
+          "quote": "The system is built on LangGraph, enabling a flexible state-based workflow where components communicate through a well-defined message passing system.",
+          "accessed": "2026-06-04"
+        },
+        {
+          "type": "doc",
+          "title": "DeepWiki — bytedance/deer-flow architecture",
+          "url": "https://deepwiki.com/bytedance/deer-flow",
+          "accessed": "2026-06-04"
         }
       ],
       "last_analyzed": "2026-06-04",
