@@ -4,15 +4,15 @@
   "label": "Research Agents",
   "compositions": [
     {
-      "id": "deerflow",
-      "name": "DeerFlow",
+      "id": "deerflow-v1",
+      "name": "DeerFlow 1.x (Deep Research)",
       "kind": "framework",
       "category": "research-agent",
       "build_surface": "full-code",
       "vendor": "ByteDance",
       "language": "Python, TypeScript",
       "license": "MIT",
-      "status": "active",
+      "status": "maintenance",
       "first_released": "2025-05",
       "url": "https://deerflow.tech/",
       "repo": "https://github.com/bytedance/deer-flow",
@@ -228,6 +228,11 @@
       ],
       "alternatives": [
         {
+          "composition": "deerflow-v2",
+          "relation": "successor",
+          "note": "DeerFlow 2.0 is a ground-up rewrite that shares no code with 1.x: it replaces the fixed LangGraph research graph with a general SuperAgent harness (a lead agent that dynamically spawns sandboxed subagents). Active development has moved to 2.0; the 1.x graph catalogued here is maintained on the `main-1.x` branch."
+        },
+        {
           "composition": "langgraph",
           "relation": "complements",
           "note": "DeerFlow's graph is built on LangGraph, which supplies the stateful nodes, conditional edges, and the interrupt() primitive behind the human-feedback plan review."
@@ -282,6 +287,358 @@
         "langgraph",
         "multi-agent",
         "plan-and-execute",
+        "mcp"
+      ]
+    },
+    {
+      "id": "deerflow-v2",
+      "name": "DeerFlow 2.0 (SuperAgent harness)",
+      "kind": "framework",
+      "category": "research-agent",
+      "build_surface": "full-code",
+      "vendor": "ByteDance",
+      "language": "Python, TypeScript",
+      "license": "MIT",
+      "status": "active",
+      "first_released": "2026-02",
+      "url": "https://deerflow.tech/",
+      "repo": "https://github.com/bytedance/deer-flow",
+      "docs_url": "https://deepwiki.com/bytedance/deer-flow",
+      "intent": "Run long-horizon tasks that research, code, and create by giving a single lead agent the ability to dynamically spawn bounded, context-isolated subagents that execute code and tools inside Docker sandboxes and then synthesise their structured results.",
+      "description": "DeerFlow 2.0 is a ground-up rewrite of ByteDance's DeerFlow that shares no code with the 1.x deep-research graph and became the active line after its launch around late February 2026. Rather than a fixed LangGraph research workflow, it is a general open-source SuperAgent harness: a lead agent receives the request, decomposes it, and dynamically spawns subagents on the fly, each with its own scoped context, tools, and termination conditions. Subagents run in parallel when possible and report structured results back to the lead agent, which synthesises them into the final deliverable. The roster is not fixed: built-in subagents (a general-purpose agent and a bash agent) sit alongside user-defined custom agents declared in config.yaml, and concurrency is bounded by a SubagentLimitMiddleware. Each subagent executes inside an isolated sandbox — the AioSandboxProvider gives it a real filesystem and bash terminal in a Docker container (local, Docker, or Kubernetes-provisioned), while the LocalSandboxProvider is explicitly gated as not a secure boundary. Capabilities are extended through Agent Skills (SKILL.md capability modules, public or custom, loaded progressively) and through tools that include web search, web fetch, file operations, and bash, plus MCP servers exposed as deferred tools the agent must look up via a tool_search tool before calling. A persistent cross-session memory subsystem accumulates the user's profile and preferences, and a message gateway fronts the harness with LangGraph-compatible HTTP routes. The lead agent itself runs as a LangChain agent wrapped in a middleware chain (loop detection, summarisation, todo tracking, subagent limiting, sandbox auditing, and more). The original deep-research graph is catalogued separately as DeerFlow 1.x and is maintained on the `main-1.x` branch.",
+      "primary_use_cases": [
+        "long-horizon tasks (minutes to hours) that mix research, coding, and content creation",
+        "autonomous agents that need a real filesystem, bash terminal, and safe code execution",
+        "dynamic task decomposition where the lead agent spawns parallel subagents on demand",
+        "skill- and MCP-extensible super agents with persistent cross-session memory"
+      ],
+      "agent_loop_shape": "A lead agent runs a LangChain agent loop wrapped in a middleware chain; on each step it may call the `task` tool to delegate work to subagents (general-purpose, bash, or custom skill-scoped), each of which runs its own bounded ReAct-style loop inside an isolated Docker/AIO sandbox and returns a structured result. Concurrent subagent spawns are truncated to a clamped maximum, skills and deferred MCP tools are loaded lazily, and the lead agent synthesises subagent results into the final output while a cross-session memory subsystem persists profile and preferences across runs.",
+      "pattern_composition": "flowchart TD\n  GW[\"Message gateway: /api/langgraph/*\"] --> LA[\"Lead agent: decompose and synthesize\"]\n  SK[(\"Skills: SKILL.md, loaded progressively\")] -.-> LA\n  MEM[(\"Cross-session memory: profile and preferences\")] -.-> LA\n  LA -->|\"task tool, bounded by max_concurrent\"| SA1[\"Subagent: general-purpose\"]\n  LA -->|\"task tool\"| SA2[\"Subagent: bash\"]\n  LA -->|\"task tool\"| SAN[\"Subagent: custom / skill-scoped\"]\n  SA1 --> SB[\"Sandbox: Docker/AIO isolated FS and bash\"]\n  SA2 --> SB\n  SAN --> SB\n  SA1 -->|\"structured result\"| LA\n  SA2 -->|\"structured result\"| LA\n  SAN -->|\"structured result\"| LA\n  LA --> OUT[\"Finished deliverable\"]",
+      "members": [
+        {
+          "pattern": "orchestrator-workers",
+          "role": "core",
+          "note": "A lead agent decomposes the request and dispatches sub-tasks to subagents via a `task` tool, then synthesises their structured results into the finished deliverable — the harness's central orchestration shape.",
+          "evidence": [
+            {
+              "type": "doc",
+              "title": "README — SuperAgent harness orchestration",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/README.md",
+              "quote": "DeerFlow (Deep Exploration and Efficient Research Flow) is an open-source super agent harness that orchestrates sub-agents, memory, and sandboxes to do almost anything — powered by extensible skills.",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "task_tool.py — delegate work to subagents",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/tools/builtins/task_tool.py",
+              "quote": "\"\"\"Task tool for delegating work to subagents.\"\"\"",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "lead_agent package",
+              "url": "https://github.com/bytedance/deer-flow/tree/main/backend/packages/harness/deerflow/agents/lead_agent",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "subagent-isolation",
+          "role": "core",
+          "note": "Each subagent is spawned with its own scoped context, tool set, and termination conditions, and cannot see the parent or sibling contexts; the built-in general-purpose agent is recommended precisely when a task benefits from isolated context management.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "general_purpose.py — isolated context subagent",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/subagents/builtins/general_purpose.py",
+              "quote": "The task would benefit from isolated context management",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "subagents/registry.py — per-subagent config (tools, skills, model, max_turns)",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/subagents/registry.py",
+              "quote": "\"\"\"Subagent registry for managing available subagents.\"\"\"",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "parallel-fan-out-gather",
+          "role": "first-class",
+          "note": "Subagents run in parallel when possible, report back structured results, and the lead agent gathers and synthesises them; a single model response can emit several parallel `task` calls at once.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "subagent_limit_middleware.py — parallel task calls",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/middlewares/subagent_limit_middleware.py",
+              "quote": "When an LLM generates more than max_concurrent parallel task tool calls in one response, this middleware keeps only the first max_concurrent and discards the rest.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "agent-skills",
+          "role": "first-class",
+          "note": "Capabilities are packaged as Agent Skills — SKILL.md modules (public/built-in or user-authored custom) that define a workflow and supporting resources, loaded progressively so only the skills a task needs enter context.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "skills/types.py — SKILL.md modules, public vs custom",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/skills/types.py",
+              "quote": "PUBLIC: built-in skill bundled with the platform, read-only.",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": ".agent/skills/smoke-test/SKILL.md — example skill bundle",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/.agent/skills/smoke-test/SKILL.md",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "sandbox-isolation",
+          "role": "first-class",
+          "note": "Subagents execute inside isolated sandboxes: the AioSandboxProvider provisions Docker containers (local or Kubernetes-backed) with a real filesystem and bash, while the LocalSandboxProvider is explicitly gated off for host bash because it is not a secure boundary.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "sandbox/security.py — local provider is not a secure boundary",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/sandbox/security.py",
+              "quote": "Host bash execution is disabled for LocalSandboxProvider because it is not a secure sandbox boundary. Switch to AioSandboxProvider for isolated bash access",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "aio_sandbox_provider.py — Docker/K8s sandbox lifecycle",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/community/aio_sandbox/aio_sandbox_provider.py",
+              "quote": "SandboxBackend: how sandboxes are provisioned (local container vs remote/K8s)",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "code-execution",
+          "role": "first-class",
+          "note": "The harness is an execution engine, not just a reasoning layer: a dedicated bash subagent and sandbox tools run real bash commands and code inside the sandbox rather than only proposing them.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "bash_agent.py — command-execution specialist subagent",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/subagents/builtins/bash_agent.py",
+              "quote": "Command execution specialist for running bash commands in a separate context.",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "sandbox/tools.py — sandbox tool surface",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/sandbox/tools.py",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "tool-search-lazy-loading",
+          "role": "first-class",
+          "note": "Tools (including MCP-provided ones) are exposed as deferred entries the agent can see by name but cannot call until it fetches their full schema through a `tool_search` tool, keeping the active tool surface and context small.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "tools/builtins/tool_search.py — deferred tool discovery",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/tools/builtins/tool_search.py",
+              "quote": "The agent sees deferred tool names in <available-deferred-tools> but cannot call them until it fetches their full schema via the tool_search tool.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "cross-session-memory",
+          "role": "first-class",
+          "note": "A memory subsystem reads, writes, and updates persistent facts about the user's profile and preferences across sessions, deduplicating entries at apply time.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "agents/memory/updater.py — persistent memory updater",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/memory/updater.py",
+              "quote": "\"\"\"Memory updater for reading, writing, and updating memory data.\"\"\"",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "mcp",
+          "role": "supported",
+          "note": "External capabilities are added through MCP servers; their tools are tagged as deferred (deerflow_mcp) and merged into the agent's tool surface, discoverable via tool_search.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "mcp/tools.py — MCP tool integration",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/mcp/tools.py",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "tool_search.py — deferred MCP tool tag",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/tools/builtins/tool_search.py",
+              "quote": "a tool is \"deferred\" when it carries the ``deerflow_mcp`` metadata tag.",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "role": "supported",
+          "note": "The agent can pause to ask the user for clarification through a dedicated clarification tool and middleware before proceeding with an ambiguous task.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "tools/builtins/clarification_tool.py",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/tools/builtins/clarification_tool.py",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "middlewares/clarification_middleware.py",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/middlewares/clarification_middleware.py",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "limited"
+        },
+        {
+          "pattern": "agent-middleware-chain",
+          "role": "supported",
+          "note": "The lead agent is assembled by a factory that wraps the base LangChain agent in a stack of middlewares — loop detection, summarisation, todo tracking, subagent limiting, sandbox auditing, token usage, and more — each shaping the agent loop.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "agents/factory.py — agent assembly",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/factory.py",
+              "quote": "\"\"\"Pure-argument factory for DeerFlow agents.",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "agents/middlewares — middleware stack",
+              "url": "https://github.com/bytedance/deer-flow/tree/main/backend/packages/harness/deerflow/agents/middlewares",
+              "accessed": "2026-06-04"
+            }
+          ],
+          "evidence_status": "full"
+        }
+      ],
+      "anti_patterns_avoided": [
+        {
+          "pattern": "unbounded-subagent-spawn",
+          "note": "Although the lead agent spawns subagents dynamically, a SubagentLimitMiddleware truncates excess parallel `task` calls from a single model response down to a clamped maximum (default 3, clamped to the range 2–4), enforced in code rather than by prompt, so a model cannot fan out an unbounded number of concurrent subagents.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "subagent_limit_middleware.py — concurrency cap",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/middlewares/subagent_limit_middleware.py",
+              "quote": "Middleware to enforce maximum concurrent subagent tool calls per model response.",
+              "accessed": "2026-06-04"
+            }
+          ]
+        },
+        {
+          "pattern": "unbounded-loop",
+          "note": "A dedicated loop-detection middleware guards the agent loop, and each subagent carries a max_turns bound in its config, so neither the lead agent nor a subagent can iterate indefinitely.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "middlewares/loop_detection_middleware.py",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "subagents/registry.py — per-subagent max_turns",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/subagents/registry.py",
+              "quote": "max_turns=custom.max_turns,",
+              "accessed": "2026-06-04"
+            }
+          ]
+        },
+        {
+          "pattern": "agent-generated-code-rce",
+          "note": "Agent-executed code and bash run only inside an isolated sandbox boundary; host bash is disabled for the non-isolating LocalSandboxProvider, and agent-managed skill writes pass through a security scanner before they can be installed.",
+          "evidence": [
+            {
+              "type": "repo",
+              "title": "sandbox/security.py — capability gating",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/sandbox/security.py",
+              "quote": "Host bash execution is disabled for LocalSandboxProvider because it is not a secure sandbox boundary.",
+              "accessed": "2026-06-04"
+            },
+            {
+              "type": "repo",
+              "title": "skills/security_scanner.py — screening for skill writes",
+              "url": "https://github.com/bytedance/deer-flow/blob/main/backend/packages/harness/deerflow/skills/security_scanner.py",
+              "quote": "\"\"\"Security screening for agent-managed skill writes.\"\"\"",
+              "accessed": "2026-06-04"
+            }
+          ]
+        }
+      ],
+      "alternatives": [
+        {
+          "composition": "deerflow-v1",
+          "relation": "predecessor",
+          "note": "DeerFlow 1.x is the original deep-research framework — a fixed LangGraph plan-and-execute graph. 2.0 is a ground-up rewrite that shares no code with it and generalises from deep research to an open-ended SuperAgent harness."
+        },
+        {
+          "composition": "langgraph",
+          "relation": "complements",
+          "note": "The 2.0 lead agent and its middleware chain are built on LangChain/LangGraph, and the message gateway exposes LangGraph-compatible HTTP routes."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "DeerFlow homepage",
+          "url": "https://deerflow.tech/",
+          "accessed": "2026-06-04"
+        },
+        {
+          "type": "repo",
+          "title": "bytedance/deer-flow — repository description (2.0)",
+          "url": "https://github.com/bytedance/deer-flow",
+          "quote": "An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message gateway, it handles different levels of tasks that could take minutes to hours.",
+          "accessed": "2026-06-04"
+        },
+        {
+          "type": "doc",
+          "title": "README — DeerFlow 2.0 is a ground-up rewrite",
+          "url": "https://github.com/bytedance/deer-flow/blob/main/README.md",
+          "quote": "DeerFlow 2.0 is a ground-up rewrite. It shares no code with v1.",
+          "accessed": "2026-06-04"
+        }
+      ],
+      "last_analyzed": "2026-06-04",
+      "verification_status": "partial",
+      "last_updated": "2026-06-04",
+      "date_added": "2026-06-04",
+      "status_in_practice": "emerging",
+      "tags": [
+        "open-source",
+        "bytedance",
+        "super-agent",
+        "subagents",
+        "sandbox",
+        "agent-skills",
+        "multi-agent",
+        "memory",
         "mcp"
       ]
     }
