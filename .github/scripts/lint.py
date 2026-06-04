@@ -33,11 +33,48 @@ import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib import error, request
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SRC = ROOT / "patterns-src"
 SCHEMA = ROOT / "schema.json"
 TAXONOMY = ROOT / "docs" / "taxonomy.md"
+
+
+def load_url_allowlist() -> tuple[set[str], set[str]]:
+    """Load the CI liveness allowlist (.github/scripts/url-allowlist.txt).
+
+    Entries are URLs/hosts verified live from a workstation that intermittently
+    fail the A6.3 probe from CI runners (geo/IP/WAF 4xx-5xx). A matching URL is
+    downgraded from a violation to a warning. A line starting with http(s):// is
+    an exact-URL match; anything else is a host (matching that host and its
+    subdomains). '#' starts a comment.
+    """
+    path = Path(__file__).resolve().parent / "url-allowlist.txt"
+    exact: set[str] = set()
+    hosts: set[str] = set()
+    if not path.exists():
+        return exact, hosts
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith(("http://", "https://")):
+            exact.add(line.rstrip("/"))
+        else:
+            hosts.add(line.lower())
+    return exact, hosts
+
+
+URL_ALLOWLIST_EXACT, URL_ALLOWLIST_HOSTS = load_url_allowlist()
+
+
+def is_url_allowlisted(url: str) -> bool:
+    """True if a probe failure for this URL should be a warning, not an A6.3."""
+    if url.rstrip("/") in URL_ALLOWLIST_EXACT:
+        return True
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in URL_ALLOWLIST_HOSTS)
 
 PROSE_SLOTS = ("intent", "context", "problem", "solution", "constrains")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -571,6 +608,17 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
             print(
                 f"  [A6.3 warn] {url}: persistent network error from CI runner "
                 f"({err}); skipping liveness assertion",
+                file=sys.stderr,
+            )
+            seen[url] = None
+            return url, None
+
+        # Verified-live-but-CI-flaky hosts (see url-allowlist.txt): a real 4xx/5xx
+        # from a datacenter IP that serves fine from a workstation. Warn, never block.
+        if is_url_allowlisted(url):
+            print(
+                f"  [A6.3 warn] {url}: probe returned {err} but the host is on the "
+                f"CI liveness allowlist; skipping assertion",
                 file=sys.stderr,
             )
             seen[url] = None
