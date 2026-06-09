@@ -108,6 +108,6 @@ The agent may not refuse or downgrade a request because the user mixed languages
 ## References
 
 - (doc) *Sarvam AI*, <https://www.sarvam.ai/>
-- (doc) *AI4Bharat*, <https://ai4bharat.iitm.ac.in/>
+- (doc) *AI4Bharat*, <https://github.com/AI4Bharat>
 
 **Tags:** structure-data, multilingual, india-origin, code-switching

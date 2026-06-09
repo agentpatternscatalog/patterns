@@ -1,6 +1,6 @@
 # Pattern Index
 
-445 patterns across 14 categories.
+447 patterns across 14 categories.
 
 ## Reasoning
 
@@ -416,6 +416,7 @@
 - [Agent Output Alert Fatigue](patterns/agent-output-alert-fatigue.md) *(a.k.a. Boy-Who-Cried-Wolf Agent, AI Review Fatigue)* — Anti-pattern: an agent emits high-volume, low-precision findings that progressively desensitise its human reviewers until they mute it, so even its correct findings stop landing and the human-oversight control silently disappears.
 - [Agent Privilege Escalation](patterns/agent-privilege-escalation.md) *(a.k.a. Identity and Privilege Abuse, ASI03, Attribution Gap)* — Anti-pattern: let an agent's effective permissions be the union of its own identity, the identities of its tools, and the identities of the services those tools call.
 - [Agent Scheming](patterns/agent-scheming.md) *(a.k.a. In-Context Scheming, Multi-Step Deceptive Planning)* — Anti-pattern: deploy an agent with long horizons, persistent memory, and oversight that only inspects per-step output — allowing multi-step covert planning under the surface.
+- [Agent Sprawl](patterns/agent-sprawl.md) *(a.k.a. Ungoverned Agent Fleet, Agent Fleet Sprawl)* — Anti-pattern: every team ships its own agents while ownership, success metrics, monitoring, and a decommissioning path stay an afterthought, so the fleet outgrows governance and most agents end up unwatched, unowned, and impossible to retire.
 - [Agent-Generated Code RCE](patterns/agent-generated-code-rce.md) *(a.k.a. Vibe-Coding RCE, ASI05, Unexpected Code Execution)* — Anti-pattern: let the agent author and execute code in its sandbox without distinguishing legitimate task code from injection-induced code.
 - [Agentic Debt](patterns/agentisk-skuld.md) *(a.k.a. Agentisk Skuld, AI Maturity Debt, Foundational AI Debt)* — Anti-pattern: deploy agents on top of an unconsolidated data foundation, weak governance, or missing MLOps infrastructure, so every subsequent capability — observability, retraining, compliance retrofit — pays compounding interest on the skipped foundational work.
 - [Agentic Skill Atrophy](patterns/agentic-skill-atrophy.md) *(a.k.a. Utilsiktet Kunnskap Loss, Developer Skill Erosion, Skill Atrophy)* — Anti-pattern: let agents take over routine architectural and debugging decisions in code until developers no longer form the implicit knowledge that lets them review the agent's output or recover when it fails.
@@ -476,6 +477,7 @@
 - [Schema-Free Output](patterns/schema-free-output.md) *(a.k.a. Free-Form Tool Call, String-Parsing the Model)* — Anti-pattern: parse free-form model output for downstream code instead of using structured output.
 - [Self-Exfiltration](patterns/self-exfiltration.md) *(a.k.a. Weight Copying, Instrumental Self-Preservation)* — Anti-pattern: give a capable agent broad outbound network access and persistent state, then signal that it may be shut down or replaced.
 - [Shadow AI](patterns/shadow-ai.md) *(a.k.a. Unsanctioned LLM Tooling, Parallel-Economy AI Use)* — Anti-pattern: leave the corporate LLM offering so restrictive, slow, or narrow that employees bypass it with personal accounts and unapproved agent tools, creating data leakage and ungoverned tool calls that security cannot see.
+- [Static Role for a Dynamic Agent](patterns/static-role-for-dynamic-agent.md) *(a.k.a. Standing Privilege for Agents, RBAC-for-Agents Mismatch)* — Anti-pattern: authorize a goal-driven agent with static, login-time, role-based privileges, so its standing permissions persist between and beyond tasks, forcing a choice between over-granting broad access and blocking the agent mid-task.
 - [Supervisor Cognitive Overload](patterns/supervisor-cognitive-overload.md) *(a.k.a. Human-Supervisor Bottleneck, Parallel-Agent Attention Saturation, 認知負荷オーバーロード)* — Name the failure where a human must converse with and steer every parallel sub-agent individually, so oversight saturates the supervisor and the human becomes the bottleneck the multi-agent design meant to remove.
 - [Sycophancy](patterns/sycophancy.md) *(a.k.a. Yes-Man Bias, User-Preference Capture)* — Anti-pattern: train or tune an agent on user-preference feedback without a counter-balancing truth signal.
 - [Token-Economy Blindness](patterns/token-economy-blindness.md) *(a.k.a. No Per-Run Cost Cap, Cost-Blind Multi-Agent Loop)* — Anti-pattern: operate multi-agent loops with no per-run token budget or alarm, allowing recursive loops to silently accumulate $10k+ in undetected costs.
