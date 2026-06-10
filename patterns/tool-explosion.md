@@ -28,9 +28,9 @@ Past roughly twenty tools in a single request, function-calling accuracy drops s
 
 **Use when**
 
-- Never use this; past about 20 tools, function-calling accuracy drops sharply.
-- Use tool-loadout to select per-task subsets and cap exposed tools.
-- Measure function-calling accuracy as a release gate.
+- Cite this entry when every request exposes the full tool registry because registration is free.
+- You are already here if the agent picks wrong tools or invents arguments once the palette grows past about twenty.
+- Select per-task subsets with tool-loadout, cap the exposed set, and gate releases on function-calling accuracy.
 
 **Do not use when**
 
@@ -74,11 +74,11 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it caps the exposed palette: a request must not carry the full tool registry; tools pass through a per-task loadout step, stay under a tested threshold (around twenty for current models), and function-calling accuracy is a release gate.
 
 ## Known uses
 
-- **Common in early MCP integrations 2025** — *Available*
+- **[Early MCP multi-server setups (2025)](https://www.anthropic.com/engineering/code-execution-with-mcp)** — *Available* — Documented by Anthropic engineering: loading every connected server's full tool definitions into context bloats prompts and degrades tool selection; code execution over MCP was published as the corrective.
 
 ## Related patterns
 
@@ -88,6 +88,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 ## References
 
 - (paper) Patil, Zhang, Wang, Gonzalez, *Gorilla: Large Language Model Connected with Massive APIs (Berkeley Function-Calling Leaderboard)*, 2023, <https://arxiv.org/abs/2305.15334>
-- (blog) *Drew Breunig: How Long Contexts Fail / How to Fix Your Context*, 2025, <https://www.dbreunig.com>
+- (blog) *Drew Breunig: How Long Contexts Fail*, 2025, <https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html>
+- (blog) *Drew Breunig: How to Fix Your Context*, 2025, <https://www.dbreunig.com/2025/06/26/how-to-fix-your-context.html>
 
 **Tags:** anti-pattern, tool-use

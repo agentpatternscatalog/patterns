@@ -92,6 +92,6 @@ The reviewer cannot output finding categories outside the rubric; the JSON schem
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Bai et al., *Constitutional AI: Harmlessness from AI Feedback*, 2022, <https://arxiv.org/abs/2212.08073>
 
 **Tags:** reflection, rubric, structured-output

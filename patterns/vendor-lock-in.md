@@ -28,9 +28,9 @@ Every provider has its own request schema, its own streaming semantics, its own 
 
 **Use when**
 
-- Never as a deliberate choice. If you must bind to one provider for a feature, isolate the binding behind a feature module.
-- Treat the provider as a swappable adapter from the first commit; retrofitting an abstraction later is expensive.
-- Even one-provider deployments benefit from an adapter — outages and price changes do happen.
+- Cite this entry when application code is coupled to one provider's SDK, request shape, or proprietary features.
+- You are already here if a provider outage or price change would require rewriting application code rather than swapping an adapter.
+- Bind to a provider-agnostic abstraction from the first commit and isolate provider-specific features behind capability flags.
 
 **Do not use when**
 
@@ -75,7 +75,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint — application code must not depend on provider-specific surface — is the failure mode.
+Avoiding it imposes an isolation rule: application code must not import a provider's SDK surface directly; all model access goes through a provider-agnostic adapter, with proprietary features behind capability checks or feature modules.
 
 ## Known uses
 

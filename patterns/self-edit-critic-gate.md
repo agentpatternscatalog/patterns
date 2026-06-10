@@ -84,7 +84,7 @@ A write or delete to a high-stakes path cannot be applied until a separate criti
 
 ## Known uses
 
-- **Long-running self-modifying personal agent (private deployment)** — *Available*
+- **Author's long-running self-modifying personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
@@ -92,5 +92,9 @@ A write or delete to a high-stakes path cannot be applied until a separate criti
 - *complements* → [darwin-godel-self-rewrite](darwin-godel-self-rewrite.md)
 - *alternative-to* → [approval-queue](approval-queue.md)
 - *complements* → [quorum-on-mutation](quorum-on-mutation.md)
+
+## References
+
+- (paper) Jürgen Schmidhuber, *Goedel Machines: Self-Referential Universal Problem Solvers Making Provably Optimal Self-Improvements*, 2003, <https://arxiv.org/abs/cs/0309048>
 
 **Tags:** safety, self-modification, critic, write-gate

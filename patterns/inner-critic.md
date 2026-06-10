@@ -78,8 +78,7 @@ No write to self-modifiable files succeeds without a passing critic review.
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A separate critic persona reviews proposed edits and outputs before they land, gating self-modification.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — A separate critic persona reviews proposed edits and outputs before they land, gating self-modification. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
@@ -90,6 +89,6 @@ No write to self-modifiable files succeeds without a passing critic review.
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Madaan et al., *Self-Refine: Iterative Refinement with Self-Feedback*, 2023, <https://arxiv.org/abs/2303.17651>
 
 **Tags:** self-modification, critic, safety

@@ -84,8 +84,7 @@ Each persona may only act within its declared role; cross-persona reasoning is f
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A committee of internal voices deliberates within a tick before a single decision is emitted.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — A committee of internal voices deliberates within a tick before a single decision is emitted. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
@@ -95,6 +94,6 @@ Each persona may only act within its declared role; cross-persona reasoning is f
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Wang, Mao, Wu, Ge, Wei, Ji, *Unleashing the Emergent Cognitive Synergy in Large Language Models: A Task-Solving Agent through Multi-Persona Self-Collaboration*, 2024, <https://arxiv.org/abs/2307.05300>
 
 **Tags:** multi-persona, single-model

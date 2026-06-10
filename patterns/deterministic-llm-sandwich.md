@@ -95,6 +95,6 @@ An LLM-produced artefact lands only after passing the post-check; otherwise the 
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (doc) Guardrails AI, *Guardrails AI — Input and Output Guards*, 2024, <https://www.guardrailsai.com/docs>
 
 **Tags:** verification, boundary, sandwich

@@ -28,9 +28,9 @@ Real workloads do not partition cleanly into the roles the architect imagined in
 
 **Use when**
 
-- Never as the architectural backbone; role labels are not a free lunch.
-- Treat persona prompts as per-call overlays on general-purpose sub-agents, not as a fixed agent typology.
-- When tempted to add a new typed sub-agent, ask first whether a general-purpose sub-agent with a per-call overlay would do.
+- Cite this entry when a design pre-allocates manager/coder/designer/researcher agents and routes by label.
+- You are already here if tasks outside the anticipated role table have nowhere to go, or role agents idle while one is the bottleneck.
+- Use one general-purpose sub-agent shape and scope specialisation per call (system-prompt overlay, tool subset).
 
 **Do not use when**
 
@@ -76,7 +76,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the constraint it adds — fixed role membership — forbids capability-equal parallelism and tasks outside the anticipated role table.
+Avoiding it forbids baking the org chart into the architecture: sub-agent capability must not be fixed by role label; specialisation belongs in per-call overlays, not in a static typology the orchestrator routes by.
 
 ## Known uses
 

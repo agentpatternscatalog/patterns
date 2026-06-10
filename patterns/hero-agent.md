@@ -27,9 +27,9 @@ Past a certain size the single agent stops behaving like one coherent assistant 
 
 **Use when**
 
-- Never use this; once the prompt grows past a few hundred lines or tool count exceeds about a dozen, extract specialists.
-- Use routing, supervisor, or multi-model-routing to split capability across agents.
-- Treat single-prompt sprawl as a smell, not a destination.
+- Cite this entry when every new capability lands in the same prompt and tool list.
+- Warning signs: the system prompt has grown past a few hundred lines or the tool count past about a dozen, and regressions appear in unrelated features.
+- Extract specialists via routing, supervisor, or multi-model-routing instead of growing the monolith.
 
 **Do not use when**
 
@@ -72,11 +72,11 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it caps monolith growth: one agent must not accumulate every capability; past a few hundred prompt lines or about a dozen tools, specialists have to be extracted.
 
 ## Known uses
 
-- **Common in early-stage AI products** — *Available*
+- **[Auto-GPT (2023)](https://github.com/Significant-Gravitas/AutoGPT)** — *Deprecated* — The canonical single do-everything agent: one prompt, every tool, publicly documented to loop and stall on real tasks — the failures that pushed the field toward scoped specialist agents.
 
 ## Related patterns
 

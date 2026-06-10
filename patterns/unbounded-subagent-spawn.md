@@ -28,9 +28,9 @@ Per-agent safety mechanisms — step-budget caps the loop of a single agent, cos
 
 **Use when**
 
-- Never use this; fan-out without a global cap can recursively explode the agent tree.
-- Maintain a global step budget across all descendants of a root request.
-- Cap fan-out per supervisor and track parent_run_id for inspectability.
+- Cite this entry when sub-agents can spawn sub-agents with no global budget.
+- You are already here if one request can recursively explode into an agent tree nobody can enumerate.
+- Enforce a shared step budget across descendants, cap fan-out per supervisor, and track parent_run_id (pair with kill-switch).
 
 **Do not use when**
 
@@ -78,7 +78,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing global fan-out cap is the failure.
+Avoiding it imposes a global cap: descendants of a root request share one step budget; per-supervisor fan-out cannot exceed a small bound (typically 5-10 children), and every child records parent_run_id so the tree stays inspectable.
 
 ## Known uses
 

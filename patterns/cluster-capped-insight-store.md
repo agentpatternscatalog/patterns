@@ -86,7 +86,7 @@ Insight files in the active store are capped per stem-token cluster; an insight 
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
+- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 

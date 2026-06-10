@@ -108,8 +108,7 @@ Each preoccupation carries explicit affect tags (worry, anticipation, curiosity)
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Open concerns the agent keeps coming back to are tracked as first-class objects rather than re-derived from chat history each turn.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Open concerns the agent keeps coming back to are tracked as first-class objects rather than re-derived from chat history each turn. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 

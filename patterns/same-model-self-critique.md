@@ -28,9 +28,9 @@ Because producer and critic come from the same weights and read overlapping prom
 
 **Use when**
 
-- Never use this; the critic shares the producer's blind spots and reinforces wrong answers.
-- If self-critique is the only option, treat it as catching surface errors only.
-- Use a different model family for the critic (see llm-as-judge or evaluator-optimizer).
+- Cite this entry when a pipeline claims independent review but producer and critic are the same model.
+- You are already here if the critic consistently approves answers that an external check rejects.
+- Treat self-critique as surface-error checking only, or move the critic to a different model family (see llm-as-judge, evaluator-optimizer).
 
 **Do not use when**
 
@@ -69,7 +69,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes an independence requirement: a critique stage must not be presented as independent review when producer and critic share weights; either label it surface-error checking or use a different model family.
 
 ## Known uses
 
@@ -83,7 +83,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## References
 
-- (blog) *Theaiengineer.substack: ReAct vs Plan-and-Execute vs ReWOO vs Reflexion*, 2025, <https://theaiengineer.substack.com/>
-- (paper) Justin Kruger, David Dunning, *Unskilled and Unaware of It: How Difficulties in Recognizing One's Own Incompetence Lead to Inflated Self-Assessments*, 1999, <https://pubmed.ncbi.nlm.nih.gov/10626367/>
+- (blog) *Theaiengineer.substack: ReAct vs Plan-and-Execute vs ReWOO vs Reflexion*, 2025, <https://theaiengineer.substack.com/p/the-4-single-agent-patterns>
+- (paper) Huang et al., *Large Language Models Cannot Self-Correct Reasoning Yet*, 2023, <https://arxiv.org/abs/2310.01798>
 
 **Tags:** anti-pattern, reflection

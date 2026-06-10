@@ -86,8 +86,7 @@ Plan-affect hooks must use bounded deltas no larger than the substrate's per-eve
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
@@ -96,7 +95,7 @@ Plan-affect hooks must use bounded deltas no larger than the substrate's per-eve
 
 ## References
 
-- (book) Antonio Damasio, *Descartes' Error: Emotion, Reason, and the Human Brain (somatic marker hypothesis)*, 1994, <https://www.penguinrandomhouse.com/books/335521/descartes-error-by-antonio-damasio/>
-- (paper) Daniel Kahneman, Amos Tversky, *Prospect Theory: An Analysis of Decision under Risk*, 1979, <https://www.jstor.org/stable/1914185>
+- (book) Antonio Damasio, *Descartes' Error: Emotion, Reason, and the Human Brain (somatic marker hypothesis) — conceptual analogy, not evidence of practice*, 1994, <https://www.goodreads.com/book/show/103867.Descartes_Error>
+- (paper) Daniel Kahneman, Amos Tversky, *Prospect Theory: An Analysis of Decision under Risk — conceptual analogy, not evidence of practice*, 1979, <https://www.jstor.org/stable/1914185>
 
 **Tags:** cognition, affect, plan-lifecycle, felt-stakes

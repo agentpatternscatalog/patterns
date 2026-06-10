@@ -28,9 +28,9 @@ Mutating tool definitions in the middle of a running task invalidates the prefix
 
 **Use when**
 
-- Never. The combination of cache invalidation and contradicted conditioning is not worth the apparent flexibility.
-- Pick the tool loadout at run start (tool-loadout) and keep it stable across the run.
-- Constrain availability by masking logits during decoding, not by mutating the registry.
+- Cite this entry when tools are added or removed while a task is running.
+- You are already here if KV-cache invalidations spike and the model keeps calling tools that vanished a turn ago.
+- Fix the loadout at run start (tool-loadout) and constrain availability by masking logits during decoding.
 
 **Do not use when**
 
@@ -75,7 +75,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing rule — tool definitions must not change mid-run — is itself the failure mode.
+Avoiding it freezes the palette per run: tool definitions must not change mid-task; availability is constrained by masking tool-name logits at decode time, never by mutating the registry the model has already seen.
 
 ## Known uses
 

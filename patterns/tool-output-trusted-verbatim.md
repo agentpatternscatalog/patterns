@@ -28,9 +28,9 @@ Real-world tools do not behave that way. They return errors as HTTP 200 OK with 
 
 **Use when**
 
-- Never use this; real tools return errors as 200 OK, oversized bodies, scripts, or prompt-injection payloads.
-- Validate every tool result against a schema and cap response size.
-- Apply tool-output-poisoning defenses and structured-output downstream.
+- Cite this entry when tool results flow into context with no validation layer.
+- You are already here if an error page, oversized body, or injected instruction from a tool has steered the agent.
+- Validate against a schema, cap response size, sanitise markup, and apply tool-output-poisoning defenses.
 
 **Do not use when**
 
@@ -74,11 +74,11 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing validation is the failure.
+Avoiding it imposes a trust boundary at every tool return: results must not flow into context unvalidated; each one is schema-checked, size-capped, sanitised, and labeled with its trust level before the model reads it.
 
 ## Known uses
 
-- **Common in pre-2025 MCP integrations** — *Available*
+- **[GitHub MCP server (Invariant Labs disclosure, 2025)](https://invariantlabs.ai/blog/mcp-github-vulnerability)** — *Available* — Public disclosure of a prompt-injection chain where agents trusted issue text fetched through the GitHub MCP server verbatim, enabling exfiltration of private repository data.
 
 ## Related patterns
 
