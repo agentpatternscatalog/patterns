@@ -28,9 +28,9 @@ Past roughly twenty tools in a single request, function-calling accuracy drops s
 
 **Use when**
 
-- Never use this; past about 20 tools, function-calling accuracy drops sharply.
-- Use tool-loadout to select per-task subsets and cap exposed tools.
-- Measure function-calling accuracy as a release gate.
+- Cite this entry when every request exposes the full tool registry because registration is free.
+- You are already here if the agent picks wrong tools or invents arguments once the palette grows past about twenty.
+- Select per-task subsets with tool-loadout, cap the exposed set, and gate releases on function-calling accuracy.
 
 **Do not use when**
 
@@ -74,7 +74,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it caps the exposed palette: a request must not carry the full tool registry; tools pass through a per-task loadout step, stay under a tested threshold (around twenty for current models), and function-calling accuracy is a release gate.
 
 ## Known uses
 

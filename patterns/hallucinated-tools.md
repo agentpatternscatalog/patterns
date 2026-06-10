@@ -27,9 +27,9 @@ Models routinely invent tool names that look reasonable but are not registered â
 
 **Use when**
 
-- Never use this; treat any model-emitted tool name as untrusted input.
-- Validate every tool call against the registered tool palette before dispatch (see tool-use, structured-output).
-- Reject unknown tool names with a typed error the agent loop can react to.
+- Cite this entry when dispatch code calls whatever function name the model emits.
+- You are already here if logs show invocations of tools that were never registered.
+- Validate every call against the registered palette and reject unknown names with a typed error (see tool-use, structured-output).
 
 **Do not use when**
 
@@ -71,7 +71,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes a dispatch rule: a model-emitted tool name is untrusted input and must not reach execution without validation against the registered palette; unknown names must return a typed error.
 
 ## Known uses
 

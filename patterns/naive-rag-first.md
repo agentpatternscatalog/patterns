@@ -28,9 +28,9 @@ When the knowledge lives in a structured store, semantic retrieval over embeddin
 
 **Use when**
 
-- Never use this; check whether the knowledge belongs in a tool, database, or scoped prompt before adopting RAG.
-- Use tool-use when the knowledge lives behind an API or query.
-- Adopt naive-rag only when those simpler stores genuinely do not work.
+- Cite this entry when RAG is proposed as the first answer to any knowledge gap.
+- You are already here if a vector pipeline serves content that would fit in the system prompt or behind one API call.
+- Adopt naive-rag only after tool-use, scoped prompts, and inlined documents have genuinely failed.
 
 **Do not use when**
 
@@ -72,7 +72,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes an ordering rule: a retrieval pipeline must not be built before checking whether the knowledge lives in a tool, a database query, a scoped prompt, or a small inlined document.
 
 ## Known uses
 

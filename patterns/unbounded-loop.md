@@ -28,9 +28,9 @@ In practice the model rarely declares itself done on hard tasks: it wanders into
 
 **Use when**
 
-- Never use this; the agent wanders and cost is unbounded when termination depends solely on the model.
-- Set max_steps and add a stop hook (see step-budget, stop-hook).
-- Pair with cost-gating to cap total spend per task.
+- Cite this entry when loop termination depends solely on the model deciding it is done.
+- You are already here if runs occasionally wander for hundreds of steps with unbounded cost.
+- Set max_steps, add a stop hook (see step-budget, the-stop-hook), and pair with cost-gating.
 
 **Do not use when**
 
@@ -75,7 +75,7 @@ stateDiagram-v2
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes a hard budget: an agent loop must not rely on model self-termination; max_steps and a stop hook bound every run, and spend is capped per task.
 
 ## Known uses
 

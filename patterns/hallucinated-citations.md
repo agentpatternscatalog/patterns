@@ -27,9 +27,9 @@ Language models trained on academic and legal text are particularly fluent at pr
 
 **Use when**
 
-- Never use this; cite an example only to label the failure mode.
-- Use citation-streaming, naive-rag, or contextual-retrieval to bind citations to retrieved-source ids.
-- Validate URLs and titles against retrieval results before display.
+- Cite this entry when a system displays model-emitted references without checking them against retrieval results.
+- You are already here if users report URLs or paper titles that do not exist.
+- Bind citations to retrieved-source ids and validate before display (see citation-streaming, contextual-retrieval).
 
 **Do not use when**
 
@@ -70,7 +70,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes a binding rule: a citation must not be emitted as free text; every reference shown to a user must resolve to a retrieved-source id validated before display.
 
 ## Known uses
 

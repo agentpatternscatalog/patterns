@@ -28,9 +28,9 @@ A JSON tool call cannot directly express a loop, a conditional over an intermedi
 
 **Use when**
 
-- Never as the default. JSON-only is fine for narrow one-tool-per-turn flows; declare that scope explicitly.
-- If the task needs nesting, conditionals, or reuse of intermediate results, switch to code-as-action.
-- Pair code-as-action with sandbox-isolation; the sandbox is the new security envelope.
+- JSON-only is acceptable for narrow one-tool-per-turn flows; declare that scope explicitly.
+- Cite this entry when tasks need nesting, conditionals, or reuse of intermediate results and the schema forbids expressing them.
+- Switch to code-as-action behind sandbox-isolation; the sandbox becomes the security envelope.
 
 **Do not use when**
 
@@ -75,7 +75,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the JSON-only restriction is itself the failure when composition is needed.
+Avoiding it constrains the action-language choice: JSON-only dictionaries may serve narrow one-tool-per-turn flows, but composition-heavy tasks must not be forced through them when code-as-action in a sandbox is the natural shape.
 
 ## Known uses
 

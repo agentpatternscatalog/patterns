@@ -28,9 +28,9 @@ Without an evaluation harness, every release is a guess: regressions land invisi
 
 **Use when**
 
-- Never use this; treat indefinite beta as a smell and exit it deliberately.
-- Build an eval harness so quality regressions are visible (see eval-harness).
-- Pair eval-harness with llm-as-judge and shadow-canary to gate releases.
+- Cite this entry when the beta label is the answer to every quality complaint.
+- You are already here if the product has been 'beta' for quarters with no eval harness or exit criteria.
+- Build eval-harness, gate releases with llm-as-judge and shadow-canary, and exit beta deliberately.
 
 **Do not use when**
 
@@ -71,7 +71,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes an accountability rule: 'beta' cannot be a permanent disclaimer; a release must carry an eval harness and an explicit exit condition, or the label is hiding unowned quality regressions.
 
 ## Known uses
 

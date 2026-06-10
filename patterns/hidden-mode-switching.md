@@ -27,9 +27,9 @@ When users compare runs over time, or compare two answers to the same prompt, th
 
 **Use when**
 
-- Never use this; routing model changes silently undermines reproducibility and trust.
-- Use multi-model-routing transparently with the chosen model disclosed per response.
-- Make routing decisions inspectable in traces and operator dashboards.
+- Cite this entry when a router swaps the underlying model silently between requests.
+- You are already here if users report quality shifts that operators cannot reproduce because traces omit model identity.
+- Disclose model identity per response and make routing decisions inspectable (see multi-model-routing).
 
 **Do not use when**
 
@@ -73,7 +73,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes a disclosure rule: the serving model must not change between requests without the change being visible to users and operators; routing decisions have to be inspectable.
 
 ## Known uses
 

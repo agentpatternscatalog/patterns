@@ -28,9 +28,9 @@ The model varies its punctuation, capitalisation, field names, and ordering in w
 
 **Use when**
 
-- Never use this; downstream code parsing free-form model text is brittle and silently corrupts state.
-- Use structured-output (JSON Schema, Pydantic, function calling) instead.
-- If a provider lacks structured output, validate with strict post-parse and retry.
+- Cite this entry when downstream code regex-parses prose the model happened to emit.
+- You are already here if format drift in model output silently corrupts state.
+- Use structured-output (JSON Schema, Pydantic, function calling); if the provider lacks it, validate strictly post-parse and retry.
 
 **Do not use when**
 
@@ -69,7 +69,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes an interface contract: downstream code must not parse free-form model text; every machine-consumed output needs a schema enforced at generation time or validated immediately after.
 
 ## Known uses
 

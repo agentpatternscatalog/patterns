@@ -28,9 +28,9 @@ The error message, stack trace, or rejection reason is exactly the signal the mo
 
 **Use when**
 
-- Never. Hiding errors removes the signal the model needs to adapt.
-- Read this entry as a warning, then preserve failure observations in the agent's running context.
-- Compress only at run boundaries, not mid-loop.
+- Cite this entry when a trace-cleanup step removes failed actions so runs look tidy.
+- You are already here if the model repeats an action that just failed because the failure left no evidence in context.
+- Keep failure observations in the running transcript and compress only at run boundaries (see decision-log, provenance-ledger).
 
 **Do not use when**
 
@@ -73,7 +73,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint — that failure observations must remain in context — is the failure mode.
+Avoiding it imposes a context-hygiene rule: failure observations (stack traces, tool errors, rejections) must not be scrubbed from the running transcript mid-loop; compression may happen only at run boundaries.
 
 ## Known uses
 

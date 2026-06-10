@@ -27,9 +27,9 @@ Without a termination rule, debate converges only by accident; far more often th
 
 **Use when**
 
-- Never use this; multi-agent debate without a termination rule loops indefinitely.
-- Use debate together with a round cap and an explicit termination predicate.
-- Pair debate with a judge or aggregator (see debate, step-budget, the-stop-hook).
+- Cite this entry when a debate loop has no round cap or termination predicate.
+- You are already here if debate transcripts grow until the budget runs out without converging.
+- Add a round cap and a judge or aggregator (see debate, step-budget, the-stop-hook).
 
 **Do not use when**
 
@@ -72,7 +72,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it imposes a termination rule: multi-agent debate must not run without a round cap and an explicit stop predicate, and the verdict cannot be left to the debaters themselves.
 
 ## Known uses
 

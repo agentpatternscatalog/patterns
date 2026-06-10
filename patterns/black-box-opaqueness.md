@@ -58,15 +58,15 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing constraint is the failure mode.
+Avoiding it means observability is not optional: an agent must not ship without traces, decision logs, and provenance attached to every action, and debugging must never depend on user reports alone.
 
 ## Applicability
 
 **Use when**
 
-- Never. This is an anti-pattern documented to be avoided.
-- It exists in the catalogue only to warn against shipping agents without traces or decision logs.
-- Reading this entry should redirect you to provenance-ledger, decision-log, and lineage-tracking.
+- Cite this entry when a team proposes shipping an agent whose only failure signal is user reports.
+- You are already here if production incidents cannot be replayed from traces or decision logs.
+- Exit via provenance-ledger, decision-log, and lineage-tracking before launch, not after the first incident.
 
 **Do not use when**
 

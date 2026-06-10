@@ -28,9 +28,9 @@ Past a few thousand tokens, the prompt starts to squeeze retrieved context and t
 
 **Use when**
 
-- Never use this; treat unbounded prompt growth as a process failure.
-- Use prompt-versioning and eval-gates on length to keep prompts in budget.
-- Lift recurring procedures into agent-skills and stable rules into a constitutional charter.
+- Cite this entry when every bug fix lands as one more sentence in the system prompt.
+- You are already here if nobody can say which prompt rules are still load-bearing.
+- Put prompts under PR review with a length budget (prompt-versioning), lift procedures into agent-skills, and move stable rules into a constitutional charter.
 
 **Do not use when**
 
@@ -71,7 +71,7 @@ flowchart TD
 
 ## What this pattern constrains
 
-By definition, this anti-pattern imposes no useful constraint; the missing eviction policy is the failure.
+Avoiding it imposes an eviction policy: the system prompt must not grow monotonically; every addition needs review, a length budget enforced by an eval gate, and periodic pruning.
 
 ## Known uses
 
