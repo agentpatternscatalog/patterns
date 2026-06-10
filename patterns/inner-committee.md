@@ -95,6 +95,6 @@ Each persona may only act within its declared role; cross-persona reasoning is f
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Wang, Mao, Wu, Ge, Wei, Ji, *Unleashing the Emergent Cognitive Synergy in Large Language Models: A Task-Solving Agent through Multi-Persona Self-Collaboration*, 2024, <https://arxiv.org/abs/2307.05300>
 
 **Tags:** multi-persona, single-model

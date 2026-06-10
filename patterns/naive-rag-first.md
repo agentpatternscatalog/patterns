@@ -85,6 +85,6 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Gao et al., *Retrieval-Augmented Generation for Large Language Models: A Survey*, 2023, <https://arxiv.org/abs/2312.10997>
 
 **Tags:** anti-pattern, rag, architecture

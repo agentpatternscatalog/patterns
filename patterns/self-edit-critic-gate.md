@@ -93,4 +93,8 @@ A write or delete to a high-stakes path cannot be applied until a separate criti
 - *alternative-to* → [approval-queue](approval-queue.md)
 - *complements* → [quorum-on-mutation](quorum-on-mutation.md)
 
+## References
+
+- (paper) Jürgen Schmidhuber, *Goedel Machines: Self-Referential Universal Problem Solvers Making Provably Optimal Self-Improvements*, 2003, <https://arxiv.org/abs/cs/0309048>
+
 **Tags:** safety, self-modification, critic, write-gate

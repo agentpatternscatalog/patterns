@@ -92,6 +92,6 @@ The Executor cannot decide to stop or replan; only the Observer can.
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models (Code Different #14)*, 2026
+- (paper) Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models*, 2022, <https://arxiv.org/abs/2210.03629>
 
 **Tags:** planning, three-role

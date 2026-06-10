@@ -86,6 +86,6 @@ By definition, this anti-pattern imposes no useful constraint; the missing evict
 ## References
 
 - (blog) *Eugene Yan: Prompt engineering as a craft*, <https://eugeneyan.com/writing/llm-patterns/>
-- (blog) *Hamel Husain: Improving the operations of agents*, <https://hamel.dev>
+- (blog) *Hamel Husain: A Field Guide to Rapidly Improving AI Products*, 2025, <https://hamel.dev/blog/posts/field-guide/>
 
 **Tags:** anti-pattern, prompt

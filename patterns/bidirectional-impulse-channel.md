@@ -97,6 +97,6 @@ The agent may push at most one unsolicited message per window; user commands beg
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Liu, Fang, Shi, Wu, Igarashi, Chen, *Proactive Conversational Agents with Inner Thoughts*, 2024, <https://arxiv.org/abs/2501.00383>
 
 **Tags:** ux, long-running, agent-initiated

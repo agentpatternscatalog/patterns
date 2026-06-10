@@ -90,6 +90,6 @@ No write to self-modifiable files succeeds without a passing critic review.
 
 ## References
 
-- (blog) *Marco Nissen, Working with the models*, 2026
+- (paper) Madaan et al., *Self-Refine: Iterative Refinement with Self-Feedback*, 2023, <https://arxiv.org/abs/2303.17651>
 
 **Tags:** self-modification, critic, safety

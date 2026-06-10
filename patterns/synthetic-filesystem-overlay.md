@@ -114,7 +114,6 @@ The agent must access enterprise data only through the five primitives — direc
 
 ## References
 
-- (blog) Dust, *Building Deep Dive: Infrastructure for AI Agents That Actually Go Deep*, 2025, <https://blog.dust.tt/>
-- (blog) Dust, *How We Taught AI Agents to Navigate Company Data Like a Filesystem*, 2025, <https://blog.dust.tt/>
+- (blog) Dust, *Building Deep Dive: Infrastructure for AI Agents That Actually Go Deep*, 2025, <https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/>
 
 **Tags:** tool-design, enterprise, data-access, filesystem, unified-interface

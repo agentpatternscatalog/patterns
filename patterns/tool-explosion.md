@@ -88,6 +88,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 ## References
 
 - (paper) Patil, Zhang, Wang, Gonzalez, *Gorilla: Large Language Model Connected with Massive APIs (Berkeley Function-Calling Leaderboard)*, 2023, <https://arxiv.org/abs/2305.15334>
-- (blog) *Drew Breunig: How Long Contexts Fail / How to Fix Your Context*, 2025, <https://www.dbreunig.com>
+- (blog) *Drew Breunig: How Long Contexts Fail*, 2025, <https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html>
+- (blog) *Drew Breunig: How to Fix Your Context*, 2025, <https://www.dbreunig.com/2025/06/26/how-to-fix-your-context.html>
 
 **Tags:** anti-pattern, tool-use

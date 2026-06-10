@@ -121,6 +121,6 @@ A long-running personal agent has had a tense exchange in the morning, a routine
 
 ## References
 
-- (book) Antonio Damasio, *The Feeling of What Happens*, 1999, <https://www.goodreads.com/book/show/125777.The_Feeling_of_What_Happens>
+- (book) Antonio Damasio, *The Feeling of What Happens — conceptual analogy, not evidence of practice*, 1999, <https://www.goodreads.com/book/show/125777.The_Feeling_of_What_Happens>
 
 **Tags:** affect, state, tick-loop, self-model

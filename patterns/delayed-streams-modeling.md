@@ -114,7 +114,7 @@ The model must not predict output tokens ahead of the configured offset — emis
 ## References
 
 - (paper) Kyutai Labs, *Delayed Streams Modeling*, 2025, <https://arxiv.org/abs/2509.08753>
-- (blog) Kyutai, *Simultaneous, on-device, high fidelity speech-to-speech translation with Hibiki*, 2025, <https://kyutai.org/>
+- (blog) Kyutai, *Simultaneous, on-device, high fidelity speech-to-speech translation with Hibiki*, 2025, <https://kyutai.org/blog/2025-02-10-hibiki>
 - (repo) Kyutai Labs, *delayed-streams-modeling*, 2025, <https://github.com/kyutai-labs/delayed-streams-modeling>
 
 **Tags:** streaming, speech, low-latency, translation, full-duplex, architecture
