@@ -76,7 +76,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## Known uses
 
-- **Common in early-stage AI products** — *Available*
+- **[Auto-GPT (2023)](https://github.com/Significant-Gravitas/AutoGPT)** — *Deprecated* — The canonical single do-everything agent: one prompt, every tool, publicly documented to loop and stall on real tasks — the failures that pushed the field toward scoped specialist agents.
 
 ## Related patterns
 

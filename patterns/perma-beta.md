@@ -75,7 +75,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## Known uses
 
-- **Many AI products since 2023** — *Available*
+- **[Google Bard 'Experiment' label (2023-2024)](https://blog.google/technology/ai/try-bard/)** — *Deprecated* — Shipped to the public for a year while labeled an experiment; the label acknowledged unreliability without reducing exposure, and quality complaints were answered with the beta framing.
 
 ## Related patterns
 

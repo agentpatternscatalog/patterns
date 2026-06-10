@@ -78,7 +78,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## Known uses
 
-- **Common in early MCP integrations 2025** — *Available*
+- **[Early MCP multi-server setups (2025)](https://www.anthropic.com/engineering/code-execution-with-mcp)** — *Available* — Documented by Anthropic engineering: loading every connected server's full tool definitions into context bloats prompts and degrades tool selection; code execution over MCP was published as the corrective.
 
 ## Related patterns
 

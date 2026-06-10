@@ -75,7 +75,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## Known uses
 
-- **Common in pre-2024 agent integrations** — *Available*
+- **[Berkeley Function-Calling Leaderboard (relevance detection)](https://gorilla.cs.berkeley.edu/leaderboard.html)** — *Available* — The benchmark scores models on declining to call tools that do not exist — a metric that exists because production agents kept inventing tool names.
 
 ## Related patterns
 

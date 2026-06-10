@@ -78,7 +78,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing valid
 
 ## Known uses
 
-- **Common in pre-2025 MCP integrations** — *Available*
+- **[GitHub MCP server (Invariant Labs disclosure, 2025)](https://invariantlabs.ai/blog/mcp-github-vulnerability)** — *Available* — Public disclosure of a prompt-injection chain where agents trusted issue text fetched through the GitHub MCP server verbatim, enabling exfiltration of private repository data.
 
 ## Related patterns
 

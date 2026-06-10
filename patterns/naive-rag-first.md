@@ -76,7 +76,7 @@ By definition, this anti-pattern imposes no useful constraint; the missing const
 
 ## Known uses
 
-- **Common in 2023-2024 enterprise AI projects** — *Available*
+- **[Anthropic contextual retrieval](https://www.anthropic.com/engineering/contextual-retrieval)** — *Available* — Published as a corrective to naive chunk-and-embed RAG, with measured retrieval-failure reductions over the naive baseline it replaces.
 
 ## Related patterns
 
