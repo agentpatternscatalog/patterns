@@ -84,7 +84,7 @@ A write or delete to a high-stakes path cannot be applied until a separate criti
 
 ## Known uses
 
-- **Long-running self-modifying personal agent (private deployment)** — *Available*
+- **Author's long-running self-modifying personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 

@@ -88,7 +88,7 @@ The agent may push at most one unsolicited message per window; user commands beg
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
+- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 

@@ -86,8 +86,7 @@ Plan-affect hooks must use bounded deltas no larger than the substrate's per-eve
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 

@@ -88,8 +88,7 @@ Pre-tick hints can only append a short steering line; they cannot block the call
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A loop-gate inspects context for divergence signatures (repeating phrasing, ping-pong shape, post-compaction drift) BEFORE the next generation and injects steering hints or refuses, rather than waiting for the output to fail downstream.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — A loop-gate inspects context for divergence signatures (repeating phrasing, ping-pong shape, post-compaction drift) BEFORE the next generation and injects steering hints or refuses, rather than waiting for the output to fail downstream. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 

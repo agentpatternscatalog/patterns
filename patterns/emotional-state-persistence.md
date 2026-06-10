@@ -109,8 +109,7 @@ A long-running personal agent has had a tense exchange in the morning, a routine
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Affect is captured as six bounded scalars with per-emotion decay half-lives, persisted to disk so emotional state survives restarts.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Affect is captured as six bounded scalars with per-emotion decay half-lives, persisted to disk so emotional state survives restarts. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 

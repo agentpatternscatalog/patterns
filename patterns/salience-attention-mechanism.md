@@ -108,8 +108,7 @@ A long-running personal agent has months of memory; dumping it all into context 
 
 ## Known uses
 
-- **Long-running personal agent loops (private deployment)** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Per-tick salience scoring directs attention toward what matters most rather than processing everything uniformly.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Per-tick salience scoring directs attention toward what matters most rather than processing everything uniformly. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
