@@ -252,6 +252,11 @@
         {
           "pattern": "llm-as-periphery",
           "relation": "used-by"
+        },
+        {
+          "pattern": "unstructured-human-capture-layer",
+          "relation": "complements",
+          "note": "Append-only protects the agent's OWN log from rewrite by the agent; this protects the HUMAN's raw dump from rewrite by the agent. Both freeze a source layer and accrete structure elsewhere."
         }
       ],
       "references": [
@@ -1232,6 +1237,11 @@
         {
           "pattern": "world-model-graph-memory",
           "relation": "generalises"
+        },
+        {
+          "pattern": "tacit-knowledge-elicitation-agent",
+          "relation": "complements",
+          "note": "Once externalised, the extracted criteria and cases can be persisted as entities and relations so downstream agents run symbolic queries over them."
         }
       ],
       "references": [
@@ -1298,7 +1308,10 @@
       "aliases": [
         "Virtual Context",
         "Memory Paging",
-        "OS-Style Memory"
+        "OS-Style Memory",
+        "Indexed Experience Memory",
+        "Memex(RL)",
+        "Indexed Experience Store"
       ],
       "category": "memory",
       "intent": "Treat the LLM context window as RAM and external storage as disk, with the model issuing tool calls to page memory in and out.",
@@ -1366,6 +1379,11 @@
         {
           "pattern": "filesystem-as-context",
           "relation": "complements"
+        },
+        {
+          "pattern": "context-folding",
+          "relation": "alternative-to",
+          "note": "Paging moves spans in and out of an external store; folding discards the span and keeps only a summary."
         }
       ],
       "references": [
@@ -1419,7 +1437,7 @@
         "Cross-window continuity — task completion on dialogues whose total tokens exceed the window many times over",
         "Archival recall@k — how often the right historical item appears in the top-k of search_archival"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-06-14"
     },
     {
       "id": "now-anchoring",
@@ -1490,6 +1508,16 @@
         {
           "pattern": "rogue-agent-drift",
           "relation": "complements"
+        },
+        {
+          "pattern": "standing-state-injection",
+          "relation": "complements",
+          "note": "Both inject a freshly computed block into every prompt assembly; now-anchoring restates the current time, standing-state-injection restates the current task state."
+        },
+        {
+          "pattern": "tool-result-reinforcement",
+          "relation": "complements",
+          "note": "Both ride an existing channel with a freshly computed block; now-anchoring stamps the current time into the prompt, tool-result reinforcement stamps goal and status onto the tool return."
         }
       ],
       "references": [
@@ -2071,6 +2099,11 @@
         {
           "pattern": "filesystem-as-context",
           "relation": "complements"
+        },
+        {
+          "pattern": "unstructured-human-capture-layer",
+          "relation": "alternative-to",
+          "note": "A scratchpad is the agent's own writable working space, purged at task end; the dump layer is human-authored, durable, and read-only to the agent."
         }
       ],
       "references": [
@@ -2335,6 +2368,11 @@
         {
           "pattern": "managed-agent-runtime",
           "relation": "complements"
+        },
+        {
+          "pattern": "tenant-scoped-tool-binding",
+          "relation": "complements",
+          "note": "Session isolation separates conversations; tenant binding separates customers' data at the tool layer."
         }
       ],
       "references": [
@@ -2623,6 +2661,11 @@
           "pattern": "adaptive-memory-decay",
           "relation": "complements",
           "note": "Sleep-time compute schedules when consolidation runs; adaptive decay decides what is forgotten."
+        },
+        {
+          "pattern": "speculative-agentic-actions",
+          "relation": "complements",
+          "note": "Both precompute likely-future work, but sleep-time-compute runs offline during idle periods against the standing context, while speculation runs in-loop on the live trajectory and is discarded the moment the prediction misses."
         }
       ],
       "references": [
@@ -4098,6 +4141,21 @@
         {
           "pattern": "filesystem-as-context",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "context-folding",
+          "relation": "alternative-to",
+          "note": "Compaction digests the older span reactively when the window nears its limit; folding is a learned, agent-issued operation scoped to a self-chosen subtask."
+        },
+        {
+          "pattern": "guardrail-erosion-through-compaction",
+          "relation": "conflicts-with",
+          "note": "This is the failure mode of compaction: when the digesting pass is allowed to touch the safety span, the very mechanism that preserves the thread erodes the guardrail. The corrective is the compaction pattern's own pinned-region rule, enforced strictly."
+        },
+        {
+          "pattern": "standing-state-injection",
+          "relation": "complements",
+          "note": "Compaction reduces the bloated history; a standing state block guarantees the goal and next step survive the reduction in a fixed high-salience slot."
         }
       ],
       "references": [
@@ -4240,6 +4298,16 @@
         {
           "pattern": "memgpt-paging",
           "relation": "complements"
+        },
+        {
+          "pattern": "repo-map-context",
+          "relation": "complements",
+          "note": "The map is a ranked index over the same working tree the agent reads files from."
+        },
+        {
+          "pattern": "unstructured-human-capture-layer",
+          "relation": "complements",
+          "note": "Filesystem-as-context externalises the agent's working state to files the agent writes; here the dump path is mounted read-only and only the derived knowledge path is writable."
         }
       ],
       "references": [
@@ -4457,6 +4525,261 @@
         "Decay scheduler — applies the decay function and updates scores on access",
         "Relevance scorer — supplies the semantic-relevance signal that modulates the decay rate"
       ]
+    },
+    {
+      "id": "context-folding",
+      "name": "Context Folding",
+      "aliases": [
+        "Sub-Trajectory Folding"
+      ],
+      "category": "memory",
+      "intent": "Let the agent branch into a temporary sub-context for a subtask and fold it back into a short summary on completion, so a long-horizon task stays within a small active window.",
+      "context": "An agent works a task that spans hundreds of steps, such as a repository-wide refactor, a multi-document research sweep, or a long tool chain. Every step appends its tool calls and observations to the running context, and the window fills long before the task is finished. Reactive truncation or whole-window summarisation near the limit either drops detail the agent still needs or pays to re-read it.",
+      "problem": "A single linear context cannot hold a hundred-step trajectory, yet most of the intermediate detail produced while exploring one subtask stops mattering once that subtask returns its result. Keeping every step wastes the window and slows the model, while discarding steps blindly loses the thread. The agent needs a way to spend a large working context on a subtask and then reclaim almost all of it, retaining only the outcome.",
+      "forces": [
+        "Aggressive compression buys a long horizon under a fixed token budget, but folding away detail risks discarding something a later subtask needs.",
+        "A subtask's exploration is high-value while it runs and near-worthless once it returns a result.",
+        "Reliable folding is a learned skill: prompting an agent to self-summarise is brittle, while training the fold end-to-end (for example with FoldGRPO) is costly."
+      ],
+      "therefore": "Therefore: give the agent explicit branch and return actions so it can open a fresh sub-context for a subtask and collapse it into a concise summary on completion, keeping the main trajectory small.",
+      "solution": "Expose two control actions to the agent. The branch action opens a new sub-context seeded with just the subtask goal; the return action closes it and writes back only a short outcome summary to the parent trajectory. The agent reasons and calls tools freely inside the branch, and when it returns, the intermediate steps are folded away so the parent sees one compact result. The decision of when to branch and what to keep is learned during training (FoldGRPO assigns credit through the fold) rather than hard-coded by the harness, so the agent folds where it pays off.",
+      "structure": "Main trajectory --branch(goal)--> Sub-context (explores, calls tools) --return(summary)--> Main trajectory (intermediate steps discarded)",
+      "consequences": {
+        "benefits": [
+          "A roughly 100K-token task can run inside an active main trajectory of a few thousand tokens, extending the feasible horizon under a fixed window.",
+          "Intermediate tool noise from one subtask never pollutes reasoning about the next."
+        ],
+        "liabilities": [
+          "A summary that drops a detail a later step needed forces costly re-derivation or fails the task.",
+          "The folding policy must be trained; an untrained agent folds at the wrong boundaries.",
+          "Debugging is harder because the folded steps are gone from the visible trace."
+        ]
+      },
+      "failure_modes": [
+        "Over-folding — the agent collapses a subtask whose detail a later step still needs, and cannot recover it.",
+        "Premature return — a branch folds before the subtask is actually finished, summarising an incomplete result.",
+        "Summary drift — the retained summary subtly misstates what happened inside the branch."
+      ],
+      "constrains": "Folded sub-trajectories are no longer visible to the parent context; once a branch returns, the agent cannot read its intermediate steps, only the retained summary.",
+      "known_uses": [
+        {
+          "system": "Context-Folding (FoldGRPO)",
+          "status": "pure-future",
+          "note": "RL-trained agent that emits branch/return to fold sub-trajectories, reported to keep an ~8K active context over ~100K total tokens on long-horizon benchmarks.",
+          "url": "https://arxiv.org/abs/2510.11967"
+        },
+        {
+          "system": "FoldAct",
+          "status": "pure-future",
+          "note": "Follow-up adding stable branch/return actions for long-horizon search agents.",
+          "url": "https://arxiv.org/abs/2512.22733"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "context-compaction",
+          "relation": "alternative-to",
+          "note": "Compaction digests the older span reactively when the window nears its limit; folding is a learned, agent-issued operation scoped to a self-chosen subtask."
+        },
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "complements",
+          "note": "Both hide a sub-computation's turns from the parent; embedding does it at a call boundary, folding does it mid-trajectory via branch/return."
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "complements"
+        },
+        {
+          "pattern": "memgpt-paging",
+          "relation": "alternative-to",
+          "note": "Paging moves spans in and out of an external store; folding discards the span and keeps only a summary."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Scaling Long-Horizon LLM Agent via Context-Folding",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2510.11967"
+        },
+        {
+          "type": "paper",
+          "title": "FoldAct: Efficient and Stable Context Folding for Long-Horizon Search Agents",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2512.22733"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "long-horizon",
+        "context-management",
+        "memory",
+        "reinforcement-learning"
+      ],
+      "example_scenario": "A coding agent is asked to migrate a 40-file module to a new API. For each file it opens a branch, reads the file, runs the tests, and fixes the call sites — dozens of steps per file. When a file is done it returns a one-line summary such as 'migrated payments.py, 3 call sites updated, tests pass' and folds away the rest, so by the fortieth file the main context still fits comfortably instead of overflowing.",
+      "applicability": {
+        "use_when": [
+          "Tasks routinely exceed the context window because they decompose into many self-contained subtasks.",
+          "The detail generated inside a subtask is not needed once the subtask returns a result.",
+          "The folding policy can be trained or fine-tuned rather than relying on prompt-only self-summarisation."
+        ],
+        "do_not_use_when": [
+          "Tasks are short enough to finish inside one context window.",
+          "Later steps frequently need the fine-grained detail of earlier steps, so folding would discard load-bearing context.",
+          "The folding policy cannot be trained and deterministic, harness-controlled compaction is required instead."
+        ]
+      },
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant M as Main trajectory\n  participant B as Sub-context (branch)\n  M->>B: branch(subtask goal)\n  B->>B: reason + tool calls\n  B-->>M: return(summary)\n  Note over M: intermediate steps folded away",
+        "caption": "Branch opens a fresh sub-context; return folds it to a one-line summary in the main trajectory."
+      },
+      "components": [
+        "Main trajectory — the persistent context that holds the task goal and the folded summaries",
+        "Branch controller — opens a fresh sub-context seeded with a subtask goal when the agent emits a branch action",
+        "Sub-context — the temporary working window where the agent explores one subtask",
+        "Folder — on return, discards the sub-context's steps and writes a short outcome summary back to the main trajectory",
+        "Folding policy — the learned decision of when to branch and what to keep (for example trained via FoldGRPO)"
+      ],
+      "tools": [
+        "Tool-calling LLM — reasons and acts inside both the main trajectory and each branch",
+        "Token-budget accounting — tracks active-window size so the main trajectory stays small"
+      ],
+      "evaluation_metrics": [
+        "Active main-trajectory size vs total tokens consumed — how much context the fold reclaims",
+        "Long-horizon task success rate vs a no-fold baseline at the same window size",
+        "Over-fold rate — fraction of failures traced to a folded detail a later step needed",
+        "Steps completed before context overflow — the horizon the pattern buys"
+      ],
+      "last_updated": "2026-06-14"
+    },
+    {
+      "id": "unstructured-human-capture-layer",
+      "name": "Unstructured Human Capture Layer",
+      "aliases": [
+        "Human Dump Layer",
+        "Read-Only Raw Notes Layer",
+        "Two-Layer Capture (Dump / Knowledge)"
+      ],
+      "category": "memory",
+      "intent": "Keep a human-authored raw dump layer that the agent may read but never edit, and confine all structuring to a separate derived layer, so half-formed human thought survives as durable context.",
+      "context": "A person works alongside an agent over weeks and keeps notes — half-formed ideas, contradictions, dead ends, observations recorded before they have hardened into a position. The agent has memory tools and is eager to help: it tags, reformats, deduplicates, and reorganises whatever it can write to. The notes are valuable to the agent as context, so the temptation is to fold them into the agent's tidy knowledge store. The moment the agent normalises a half-formed note, the raw material the person was still thinking through is gone.",
+      "problem": "Unstructured human thought and a structured knowledge base have opposite requirements, and a single shared store cannot satisfy both. Tagging, choosing headings, and aligning format all force a premature commitment that discards the loose, contradictory, still-forming material that gave the note its value. Yet the agent does need structure to retrieve and reason over the corpus. If the agent is allowed to rewrite the human's raw notes, it strips them down to whatever it could already articulate; if the agent is forbidden to structure anything, the corpus stays unsearchable. The capture surface and the retrieval surface pull in incompatible directions over the same data.",
+      "forces": [
+        "Structuring a note — tags, headings, a fixed format — is exactly what makes it retrievable, and exactly what kills the half-formed material the human was still working out.",
+        "The agent is more capable at organising than the human and will, given write access, normalise the raw layer toward what it can already express.",
+        "The corpus is useless to the agent as one undifferentiated pile, yet equally useless if every entry has been flattened into the agent's own categories.",
+        "Contradictions, dead ends, and unresolved hypotheses carry signal, but only survive if no consistency pass is run over the layer that holds them."
+      ],
+      "therefore": "Therefore: split capture into a read-only human dump layer the agent may never modify and a separate derived knowledge layer the agent grows by reading the dump, so the raw material stays intact while structure accrues beside it.",
+      "solution": "Maintain two distinct layers over the same body of notes. The dump layer is human-authored and deliberately unstructured: dated free-form entries, kept rough on purpose, holding contradictions and unfinished thoughts. The agent has read access to this layer and nothing more — it may quote, cite, and reason over a dump entry, and it may propose changes for the human to apply, but it cannot write, tag, reformat, or reorganise it. The knowledge layer is separate and derived: an index, theme clusters, and structured notes that the agent reads the dump to build and maintain. When the agent learns something from the raw layer, it writes the structured form into the knowledge layer and leaves the source untouched, linking back to the dump entry rather than absorbing it. The enforcement is at the tool boundary, not the prompt: the agent is granted read-only access to the dump path and read-write access only to the derived path, so the rough material is structurally safe from the agent's own tidiness.",
+      "structure": "Human --writes--> Dump layer (raw, dated, read-only to agent)\nAgent --reads--> Dump layer\nAgent --writes--> Knowledge layer (index + theme clusters, derived)\nAgent --proposes edits to--> Human (who alone may change the dump)",
+      "consequences": {
+        "benefits": [
+          "Half-formed thought, contradictions, and dead ends survive as context instead of being normalised away the moment the agent could touch them.",
+          "The agent still gets a structured, retrievable corpus — built in the derived layer — without paying for it in lost raw material.",
+          "The read-only boundary is enforced at the tool layer, so the guarantee does not depend on the agent obeying a prompt.",
+          "Provenance is clear: every structured note links back to the unaltered dump entry it was derived from."
+        ],
+        "liabilities": [
+          "The two layers can drift: the derived knowledge layer goes stale when dump entries change and no re-derivation pass runs.",
+          "The human must keep dumping for the layer to stay valuable; if capture lapses, the agent has only an ageing corpus to derive from.",
+          "Duplicated content across the dump and the derived layer raises storage and re-reading cost compared with one normalised store.",
+          "A proposal-only agent cannot fix obvious errors in the raw layer itself, so typos and mislabels persist until the human acts."
+        ]
+      },
+      "failure_modes": [
+        "Tidy-up creep — the agent is given write access to the dump for one 'harmless' cleanup and silently starts normalising the raw layer.",
+        "Derived-layer staleness — the knowledge layer is built once and never re-derived, so it diverges from the dump it claims to index.",
+        "Capture collapse — the human stops dumping because the structured layer looks complete, and the raw stream dries up.",
+        "Proposal flood — the agent proposes so many edits to the human that the proposals themselves become an unstructured backlog."
+      ],
+      "constrains": "The agent may read but must never edit, tag, reformat, or restructure the human dump layer; any change to the raw layer is proposal-only and applied by the human, and all structuring the agent performs is written to a separate derived layer.",
+      "known_uses": [
+        {
+          "system": "okikusan two-layer note system (daily/ + knowledge/)",
+          "status": "available",
+          "note": "Personal long-running agent setup described on Qiita: the daily/ tree is the 暗黙考 (tacit-thought) dump layer the agent must not touch — 'AI は触らない（提案のみ、書き換えない）' (the agent does not touch it: proposals only, no rewriting) — while knowledge/ is a derived hub layer (INDEX + theme MOCs) the agent grows by reading the dumps. Rationale given verbatim: '暗黙考は整理した瞬間に死ぬ' (tacit thought dies the moment it is organised).",
+          "url": "https://qiita.com/okikusan-public/items/e7de5f0abecf4f13c9c8"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "append-only-thought-stream",
+          "relation": "complements",
+          "note": "Append-only protects the agent's OWN log from rewrite by the agent; this protects the HUMAN's raw dump from rewrite by the agent. Both freeze a source layer and accrete structure elsewhere."
+        },
+        {
+          "pattern": "scratchpad",
+          "relation": "alternative-to",
+          "note": "A scratchpad is the agent's own writable working space, purged at task end; the dump layer is human-authored, durable, and read-only to the agent."
+        },
+        {
+          "pattern": "filesystem-as-context",
+          "relation": "complements",
+          "note": "Filesystem-as-context externalises the agent's working state to files the agent writes; here the dump path is mounted read-only and only the derived knowledge path is writable."
+        },
+        {
+          "pattern": "tacit-knowledge-elicitation-agent",
+          "relation": "alternative-to",
+          "note": "The elicitation agent actively interviews experts and structures the output into a knowledge base; here the human dumps freely and the agent is forbidden to structure the raw layer at all — structuring is confined to a separate derived layer."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "コードでは書けない領域に降りる AI エージェント — ロングテール × 暗黙知 × 暗黙考",
+          "authors": "okikusan-public",
+          "year": 2026,
+          "url": "https://qiita.com/okikusan-public/items/e7de5f0abecf4f13c9c8"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "memory",
+        "human-agent-collaboration",
+        "note-taking",
+        "read-only",
+        "knowledge-management"
+      ],
+      "example_scenario": "A researcher keeps a daily/ folder of rough, dated notes — stray observations, contradictory takes, ideas not yet worth defending. The agent is mounted with read-only access to daily/ and read-write access to a separate knowledge/ folder. Each day it reads the new dumps and grows knowledge/: an index and a few theme clusters that cite the raw entries. When it spots a likely typo in a dump note, it proposes the fix to the researcher rather than editing it, leaving the rough material exactly as written.",
+      "applicability": {
+        "use_when": [
+          "A human accumulates loose, half-formed notes over time that lose their value once tagged, reformatted, or reorganised.",
+          "The agent needs structure to retrieve and reason over the corpus, but that structure can live in a layer separate from the raw notes.",
+          "The capture boundary can be enforced at the tool layer — read-only on the dump path, read-write on a derived path — rather than relying on the agent to behave."
+        ],
+        "do_not_use_when": [
+          "The notes are already structured records where normalising in place is the desired behaviour.",
+          "There is no human steadily authoring raw material, so a dedicated capture layer would stay empty.",
+          "The cost of maintaining two layers and re-deriving the knowledge layer outweighs the value of preserving rough material."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  H[Human] -->|writes raw, dated notes| D[(Dump layer\\nread-only to agent)]\n  A[Agent] -->|reads| D\n  A -->|writes structured notes| K[(Knowledge layer\\nindex + theme clusters)]\n  A -.->|proposes edits| H\n  K -.->|links back to| D",
+        "caption": "The human writes the raw dump layer; the agent reads it and writes only the derived knowledge layer, proposing dump edits back to the human."
+      },
+      "components": [
+        "Dump layer — the human-authored, deliberately-unstructured store of dated raw notes; read-only to the agent",
+        "Knowledge layer — the derived structured store (index, theme clusters) the agent reads the dump to build and maintain",
+        "Permission boundary — tool-layer enforcement granting the agent read-only on the dump path and read-write only on the derived path",
+        "Derivation step — the agent's process of reading dump entries and writing structured notes that link back to their sources",
+        "Proposal channel — the path by which the agent suggests changes to the dump for the human to apply, since it may not write the raw layer"
+      ],
+      "tools": [
+        "Read-only filesystem mount or scoped storage permission — exposes the dump path for reading while blocking writes at the boundary",
+        "Read-write knowledge store — the derived layer the agent maintains (files, a wiki, or a vector index)",
+        "Retrieval / linking tool — lets a derived note cite the exact dump entry it was built from for provenance"
+      ],
+      "evaluation_metrics": [
+        "Raw-layer integrity — count of agent-originated writes to the dump path; the correct value is zero",
+        "Derivation freshness — lag between a new or changed dump entry and the knowledge layer reflecting it",
+        "Provenance coverage — fraction of derived notes that link back to a specific dump entry",
+        "Capture continuity — rate of new human dump entries over time, signalling whether the raw stream stays alive"
+      ],
+      "last_updated": "2026-06-14"
     }
   ]
 }

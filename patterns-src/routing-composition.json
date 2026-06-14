@@ -510,6 +510,16 @@
         {
           "pattern": "large-reasoning-model-paradigm",
           "relation": "complements"
+        },
+        {
+          "pattern": "behavior-space-architecture",
+          "relation": "complements",
+          "note": "Complexity routing binds a query to a model tier by difficulty; behavior-space routing binds it to a subset of architectural subsystems. They stack: difficulty picks the model, capability need picks the subsystems."
+        },
+        {
+          "pattern": "sla-aware-triage-scoring",
+          "relation": "alternative-to",
+          "note": "Both pick a routing key, but complexity-based-routing keys on estimated request difficulty to choose a model tier; here the key is a deadline-x-entitlement-x-sentiment score that orders a human work queue."
         }
       ],
       "references": [
@@ -930,6 +940,11 @@
         {
           "pattern": "infrastructure-burst-bottleneck",
           "relation": "complements"
+        },
+        {
+          "pattern": "silent-source-rot",
+          "relation": "alternative-to",
+          "note": "Graceful degradation is the corrective stance: route a failed source-health check to a degraded-mode fallback instead of feeding the empty payload forward."
         }
       ],
       "references": [
@@ -1654,6 +1669,11 @@
         {
           "pattern": "code-as-action",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "speculative-agentic-actions",
+          "relation": "alternative-to",
+          "note": "Parallel tool calls fan out calls already known to be independent within one turn; speculative actions execute the predicted likely-NEXT call before the agent has confirmed it needs it, and discard it on a miss."
         }
       ],
       "references": [
@@ -2689,6 +2709,11 @@
         {
           "pattern": "toolformer",
           "relation": "complements"
+        },
+        {
+          "pattern": "tool-output-arithmetic-trust",
+          "relation": "alternative-to",
+          "note": "MRKL routes computation to a symbolic expert (a calculator) instead of asking one model to do the math; this anti-pattern is what happens when that routing is skipped for aggregates over tool data."
         }
       ],
       "references": [
@@ -2876,6 +2901,272 @@
         "Allocator — runs the sampling policy",
         "Operator dashboard — surfaces reputation distribution"
       ]
+    },
+    {
+      "id": "behavior-space-architecture",
+      "name": "Behavior-Space Architecture",
+      "aliases": [
+        "Behaviour-Space Architecture",
+        "Query-Selected Subsystem Routing"
+      ],
+      "category": "routing-composition",
+      "intent": "Treat a deployed agent as a space of behaviors over a pool of subsystems and let a router pick, per query, the minimal disjoint subset that query needs, so the effective architecture emerges per query.",
+      "context": "A team assembles an agent from several heavyweight subsystems: a plain tool loop, a retrieval-augmented pipeline, a knowledge graph, a multi-agent sub-team, a cache, and tiered memory. Most production traffic is mixed: a greeting needs none of them, a lookup needs only retrieval, an audit query needs the graph and memory, and a planning request needs the sub-team. Wiring every query through the full stack is the default, and it is the source of latency, cost, and brittleness.",
+      "problem": "A single fixed pipeline forces every request through every subsystem it bundles, which pays for retrieval, graph traversal, and multi-agent fan-out even when a query needs none of them. Each extra layer is a feature and a failure surface at once, so a maximal architecture maximises both spend and the ways a simple query can break. The system needs a way to spend only the subsystems a given query actually requires.",
+      "forces": [
+        "A richer subsystem pool answers more query types, but invoking the whole pool per query multiplies latency, cost, and the number of components that can fail.",
+        "The most-tuned subsystem is rarely the most-invoked one, so optimisation effort and routing decisions are usually misaligned.",
+        "A deterministic per-query selector is inspectable and testable, but it must be kept correct as subsystems are added or retired or it routes to the wrong subset."
+      ],
+      "therefore": "Therefore: design a deterministic router that maps each query to the minimal disjoint subset of subsystems it needs, treat the deliverable as that space of behaviors rather than one wired pipeline, and add a subsystem only once a query class actually routes through it.",
+      "solution": "Model the agent as a pool of independent subsystems and a router rather than a wired graph of layers. For each incoming query the router classifies intent and required capabilities, then activates the minimal subset of subsystems that query needs and bypasses the rest; a trivial query may activate the bare loop alone, a complex one a retrieval-plus-graph-plus-memory subset. The subsets are disjoint and non-nested across query classes, so the architecture that actually runs is a property that emerges query by query instead of a shape chosen once at build time. Design effort concentrates on the routing heuristics and their evaluation, and a new subsystem is built only when a query class is shown to route through it, so the pool grows on demand rather than upfront.",
+      "structure": "Query --> Router (classify intent + capabilities) --> activate minimal disjoint subset {loop | RAG | knowledge-graph | multi-agent | cache | memory} --> compose active subsystems --> Response",
+      "consequences": {
+        "benefits": [
+          "A simple query pays only for the subsystems it activates, so common cheap traffic stops subsidising the cost and latency of rarely-needed heavy layers.",
+          "Each query class exercises a small, named subset, which shrinks the failure surface and makes a failed query trace back to one active subsystem.",
+          "The subsystem pool grows only when a query class demands it, so unused layers are never built or maintained."
+        ],
+        "liabilities": [
+          "Routing quality becomes the dominant determinant of system quality, so a mis-tuned router degrades every query class at once.",
+          "Maintaining correct disjoint subsets as subsystems are added or retired is ongoing work, and a stale mapping silently routes to the wrong subset.",
+          "A heterogeneous pool of subsystems is harder to observe and reason about end to end than a single fixed pipeline."
+        ]
+      },
+      "failure_modes": [
+        "Over-activation — the router defaults to a maximal subset, restoring the full-pipeline cost the pattern exists to avoid.",
+        "Under-activation — the router omits a subsystem a query needed, returning a confidently wrong or incomplete answer.",
+        "Layer worship — effort is poured into the most visible subsystem while the router that decides when it runs is left unimproved."
+      ],
+      "constrains": "A subsystem runs for a query only when the router selects it; no subsystem may self-activate or be invoked outside the router's per-query decision, and a layer must not be added to the pool before a query class routes through it.",
+      "known_uses": [
+        {
+          "system": "Tom's Hardware production-agent analysis",
+          "status": "available",
+          "note": "Field account of enterprise agents built as a router over a pool of subsystems (plain loop, RAG, knowledge graph, multi-agent, cache, memory), where the effective agent emerges query by query and design effort moves to the router.",
+          "url": "https://www.tomshw.it/business/agente-ai-non-ha-forma-percorsi-sp"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "complexity-based-routing",
+          "relation": "complements",
+          "note": "Complexity routing binds a query to a model tier by difficulty; behavior-space routing binds it to a subset of architectural subsystems. They stack: difficulty picks the model, capability need picks the subsystems."
+        },
+        {
+          "pattern": "dynamic-topology-routing",
+          "relation": "alternative-to",
+          "note": "Topology routing rewires links between agents inside an all-multi-agent system; behavior-space routing selects which kinds of subsystem participate at all, and may activate zero agents."
+        },
+        {
+          "pattern": "modular-rag",
+          "relation": "complements",
+          "note": "Modular RAG rearranges modules inside the retrieval subsystem; behavior-space routing decides whether the retrieval subsystem is on the path for a query in the first place."
+        },
+        {
+          "pattern": "orchestrator-workers",
+          "relation": "alternative-to",
+          "note": "Orchestrator-workers decomposes a task within one fixed architecture; behavior-space routing decides which architectures exist for a query before any decomposition."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "L'agente AI non ha una forma: ha dei percorsi",
+          "year": 2026,
+          "url": "https://www.tomshw.it/business/agente-ai-non-ha-forma-percorsi-sp"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "architecture",
+        "composition",
+        "cost-control",
+        "rag"
+      ],
+      "example_scenario": "An enterprise support agent fronts a tool loop, a vector retriever, a knowledge graph of entitlements, and a planning sub-team. A user typing 'thanks' activates the bare loop and nothing else. 'What's my plan limit?' activates retrieval alone. 'Was my account ever over its quota, and what changed?' activates the graph plus memory. 'Draft a migration plan for my workspace' activates the planning sub-team. No query ever runs the full stack, and a new subsystem is added only when a recurring query class needs one.",
+      "applicability": {
+        "use_when": [
+          "Production traffic is mixed, so different query classes need genuinely different and largely disjoint capabilities.",
+          "Heavyweight subsystems (retrieval, knowledge graph, multi-agent) are expensive or slow enough that running them on every query is wasteful.",
+          "Routing decisions can be made deterministic, inspectable, and evaluated against labelled query classes."
+        ],
+        "do_not_use_when": [
+          "Almost every query needs the same subsystems, so a single fixed pipeline is simpler and the router adds only overhead.",
+          "Query intent cannot be classified reliably enough to pick the right subset, so misrouting would dominate the savings.",
+          "The subsystem pool is small and cheap, so activating all of it costs less than building and maintaining the router."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  Q[Query] --> R{Router: classify intent + needed capabilities}\n  R -->|trivial| L[Tool loop]\n  R -->|lookup| RAG[Retrieval]\n  R -->|relational| KG[Knowledge graph + memory]\n  R -->|planning| MA[Multi-agent sub-team]\n  L --> A[Compose active subsystems]\n  RAG --> A\n  KG --> A\n  MA --> A\n  A --> Resp[Response]",
+        "caption": "The router activates the minimal disjoint subset of subsystems per query; the effective architecture emerges query by query."
+      },
+      "components": [
+        "Subsystem pool — the independent capabilities the agent can draw on (tool loop, retrieval, knowledge graph, multi-agent sub-team, cache, tiered memory)",
+        "Router — classifies each query's intent and required capabilities and selects the minimal disjoint subset of subsystems to activate",
+        "Capability map — the maintained mapping from query class to the subset of subsystems it requires",
+        "Composer — wires the activated subsystems for the current query and assembles their outputs into one response",
+        "Router evaluation harness — scores routing decisions against labelled query classes so the selector stays correct as the pool changes"
+      ],
+      "tools": [
+        "Intent classifier — labels each query so the router can pick a subset",
+        "Retrieval pipeline — the activatable RAG subsystem in the pool",
+        "Knowledge graph store — the activatable relational subsystem in the pool",
+        "Multi-agent runtime — the activatable planning or decomposition subsystem in the pool",
+        "Tracing and cost accounting — records which subsets ran so routing can be measured and tuned"
+      ],
+      "evaluation_metrics": [
+        "Mean active-subset size per query — how much of the pool a typical query avoids",
+        "Routing accuracy — fraction of queries activating exactly the subset their query class needs (under- and over-activation rates)",
+        "Cost and latency per query vs a full-pipeline baseline — the spend the routing reclaims",
+        "Failure localisation rate — fraction of failed queries traced to a single active subsystem"
+      ],
+      "last_updated": "2026-06-14"
+    },
+    {
+      "id": "sla-aware-triage-scoring",
+      "name": "SLA-Aware Triage Scoring",
+      "aliases": [
+        "SLA-Deadline-Aware Triage Scoring",
+        "Deadline-Aware Ticket Prioritisation",
+        "Business-Impact Triage Score"
+      ],
+      "category": "routing-composition",
+      "intent": "Order the work queue by a single fused score that blends each ticket's time-to-SLA-breach, the requester's entitlement tier, and sentiment trajectory, and surface items predicted to breach before they do.",
+      "context": "A support or operations team runs a shared queue under contractual service-level agreements that promise a response or resolution within a fixed window per account tier. Tickets arrive faster than they can be worked, so the order in which an agent picks the next item decides which commitments hold and which slip. A first-in-first-out queue ignores deadlines and tier; ordering by the requester's stated urgency is gameable, since every requester marks their own ticket urgent.",
+      "problem": "No single field on a ticket captures its true priority. Time-to-breach matters, but a distant deadline on a top-tier account can still outrank a near deadline on a free-tier one, and a customer whose tone is deteriorating may need attention before either. Sorting by any one of these axes alone mis-orders the queue, and the breach risk is only visible once the deadline is already close, which is too late to act. The queue needs one comparable score that fuses the axes and looks ahead to predicted breaches.",
+      "forces": [
+        "A deadline-only sort starves high-value accounts whose breach window is further out; an entitlement-only sort lets cheap, urgent tickets breach unattended.",
+        "Stated urgency is self-reported and gameable, so it cannot be the ordering key, yet the genuine signal it sometimes carries should not be discarded entirely.",
+        "Acting on a breach only once the deadline is near leaves no slack to work the ticket, so the score must predict the breach early enough to matter.",
+        "A fused score is only as trustworthy as its weights; opaque weighting makes the ordering impossible to audit when a commitment slips."
+      ],
+      "therefore": "Therefore: compute one fused triage score per ticket from time-to-breach, entitlement tier, and sentiment trajectory, sort the queue by it, and raise a separate alert for any ticket whose predicted completion crosses its SLA deadline.",
+      "solution": "Define a scoring function over each open ticket. Read its SLA clock to compute time remaining to breach, look up the requester's contractual entitlement or account tier, and estimate a sentiment trajectory from the conversation so far. Normalise each axis and combine them with explicit, reviewable weights into one fused triage score; sort the queue by that score so the next item an agent picks is the one with the most at stake. In parallel, run a breach predictor that compares each ticket's expected time-to-completion against its deadline and emits an early alert for those on track to breach, so they can be expedited or escalated before the window closes rather than after. Keep the weights and the per-ticket score contributions visible so a slipped commitment can be traced to the inputs that ranked it.",
+      "structure": "Open tickets --(SLA clock, entitlement tier, sentiment)--> Scorer --(fused score)--> Sorted queue; Breach predictor --(predicted breach)--> Early-alert lane",
+      "consequences": {
+        "benefits": [
+          "One comparable number replaces ad-hoc per-axis sorts, so the next-picked ticket reflects deadline, contract value, and customer state together.",
+          "Early breach alerts convert deadline slips from after-the-fact incidents into items expedited while slack remains.",
+          "Explicit weights make the ordering auditable: a slipped commitment can be traced to the score inputs that ranked it."
+        ],
+        "liabilities": [
+          "Mis-set weights systematically starve one axis — for example a low sentiment weight that lets a deteriorating top-tier account sit behind routine work.",
+          "A wrong breach prediction either floods the alert lane with false positives that get ignored or misses a real breach by under-estimating completion time.",
+          "Sentiment trajectory estimated from text is noisy and can be gamed or misread, skewing the fused score."
+        ]
+      },
+      "failure_modes": [
+        "Weight blindness — the fused score hides which axis dominated, so a recurring mis-order goes undiagnosed.",
+        "Alert fatigue — the breach predictor over-fires, agents learn to ignore the lane, and a real breach slips through unseen.",
+        "Tier capture — high-tier accounts always rank first, so low-tier tickets breach silently and never enter the worked set."
+      ],
+      "constrains": "An agent must not pull the next ticket by arrival order or self-reported urgency alone; the queue ordering is read only from the fused triage score, and breach-predicted tickets cannot be left in the normal lane.",
+      "known_uses": [
+        {
+          "system": "IrisAgent",
+          "status": "available",
+          "note": "AI support platform that scores tickets against a combined model of customer urgency, business impact, SLA risk, and sentiment, and predicts SLA breaches so teams act before the deadline.",
+          "url": "https://irisagent.com/blog/predict-sla-breaches-with-ai-tools/"
+        },
+        {
+          "system": "DevRev",
+          "status": "available",
+          "note": "Support-triage tooling that ranks tickets on SLA proximity and a business-impact score built from ARR, contract stage, feature usage, and historical satisfaction.",
+          "url": "https://devrev.ai/blog/ai-support-ticket-triaging"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "complexity-based-routing",
+          "relation": "alternative-to",
+          "note": "Both pick a routing key, but complexity-based-routing keys on estimated request difficulty to choose a model tier; here the key is a deadline-x-entitlement-x-sentiment score that orders a human work queue."
+        },
+        {
+          "pattern": "cost-aware-action-delegation",
+          "relation": "alternative-to",
+          "note": "Cost-aware-action-delegation tiers an action by risk to choose an approval policy; this pattern tiers a queued ticket by SLA-impact to choose its position in the work order."
+        },
+        {
+          "pattern": "mandatory-red-flag-escalation",
+          "relation": "complements",
+          "note": "The breach predictor's early alert is a natural trigger source for an unconditional escalation when a high-tier ticket is predicted to breach."
+        },
+        {
+          "pattern": "conversation-handoff",
+          "relation": "complements",
+          "note": "A ticket the score flags as predicted-to-breach or sentiment-deteriorating is a prime candidate to hand off to a human agent before the window closes."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "AI Support Ticket Triaging: The Enterprise Playbook",
+          "year": 2025,
+          "url": "https://devrev.ai/blog/ai-support-ticket-triaging"
+        },
+        {
+          "type": "blog",
+          "title": "Predict SLA Breaches with AI Tools",
+          "year": 2025,
+          "url": "https://irisagent.com/blog/predict-sla-breaches-with-ai-tools/"
+        },
+        {
+          "type": "blog",
+          "title": "Prioritizing Tickets with User Sentiment and Business Impact",
+          "year": 2025,
+          "url": "https://irisagent.com/blog/prioritizing-tickets-with-user-sentiment-and-business-impact/index.html"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "routing",
+        "triage",
+        "sla",
+        "prioritisation",
+        "customer-support",
+        "queue-management"
+      ],
+      "example_scenario": "A support queue holds two open tickets. One is a free-tier user whose SLA breaches in twenty minutes; the other is an enterprise account whose SLA breaches in two hours but whose last three messages have turned sharply angry. A pure deadline sort works the free-tier ticket first; the fused score weights the enterprise account's tier and souring sentiment high enough to surface it now, while a breach alert still flags the free-tier ticket so neither is forgotten.",
+      "applicability": {
+        "use_when": [
+          "Work arrives into a shared queue under contractual SLAs with different deadlines per account or entitlement tier.",
+          "Demand exceeds capacity, so the pick order genuinely decides which commitments are met.",
+          "Time-to-breach, account value, and customer sentiment each carry real signal and no single one suffices as the sort key."
+        ],
+        "do_not_use_when": [
+          "The queue is never backlogged, so any reasonable order meets every deadline.",
+          "There are no differentiated SLAs or entitlement tiers, so a simple deadline or arrival sort already suffices.",
+          "The inputs cannot be measured reliably — no SLA clock, no tier data, or no usable sentiment signal — so the fused score would be guesswork."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  T[Open tickets] --> C[SLA clock: time to breach]\n  T --> E[Entitlement tier lookup]\n  T --> S[Sentiment trajectory]\n  C --> F[Fused triage scorer]\n  E --> F\n  S --> F\n  F --> Q[Queue sorted by fused score]\n  T --> P[Breach predictor]\n  P -->|predicted breach| A[Early-alert lane]\n  A --> Q",
+        "caption": "Three axes feed one fused triage score that orders the queue; a parallel predictor routes likely breaches to an early-alert lane."
+      },
+      "components": [
+        "SLA clock — tracks each ticket's elapsed time against its contractual deadline to yield time-to-breach",
+        "Entitlement resolver — looks up the requester's account or contract tier and its weight",
+        "Sentiment estimator — reads the conversation so far to estimate the customer's sentiment trajectory",
+        "Fused scorer — normalises the three axes and combines them with explicit weights into one triage score",
+        "Sorted queue — orders open tickets by the fused score so the next pick has the most at stake",
+        "Breach predictor — compares expected completion time against the deadline and raises early alerts for likely breaches"
+      ],
+      "tools": [
+        "Ticketing or service-desk system — holds the queue, SLA timers, and per-account tier data",
+        "Sentiment or LLM classifier — scores the conversation's sentiment trajectory from text",
+        "Scoring engine — evaluates the weighted fused score per ticket and re-sorts the queue"
+      ],
+      "evaluation_metrics": [
+        "SLA compliance rate vs a FIFO or deadline-only baseline — whether the fused order keeps more commitments",
+        "Breach lead time — how early the predictor flags a ticket before its deadline, leaving slack to act",
+        "Breach-prediction precision and recall — false-alert rate vs missed-breach rate in the early-alert lane",
+        "Per-tier starvation — fraction of low-tier tickets that breach without ever entering the worked set"
+      ],
+      "last_updated": "2026-06-14"
     }
   ]
 }

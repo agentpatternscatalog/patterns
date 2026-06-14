@@ -1543,6 +1543,62 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "two-rate-brain-controller-split",
+      "intent": "Pseudo-code skeleton of two loops on two clocks sharing one latent plan slot: a slow off-board planner posts plans, a fast on-device controller tracks the last one at the native rate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Slow planner posts a latent plan a few times a second; fast controller closes the motor loop at the native rate without ever blocking on it.",
+          "code": "# one shared slot holds the latest latent plan + when it arrived\nslot = SharedSlot(plan=None, posted_at=None)\n\n# --- slow loop: large planner, off-board, low rate ---\ndef planner_loop():\n    while running:\n        obs = read_observations()\n        plan = big_model.plan(instruction, obs)   # slow: many control periods\n        slot.post(plan, now())                     # overwrite asynchronously\n        sleep(1 / PLANNER_HZ)                       # e.g. 3 Hz\n\n# --- fast loop: small controller, on-device, native control rate ---\ndef controller_loop():\n    next_tick = now()\n    while running:\n        plan, posted_at = slot.read()              # never blocks on the planner\n        prop = read_proprioception()\n        if plan is None or now() - posted_at > MAX_STALE:\n            cmd = safe_hold(prop)                   # fallback: no fresh plan\n        else:\n            cmd = small_model.track(plan, prop)     # decode latent -> motor cmd\n        send_motor_command(cmd)\n        next_tick += 1 / CONTROL_HZ                 # e.g. 100 Hz fixed deadline\n        sleep_until(next_tick)\n\n# the two loops run concurrently on two clocks; the slot is the only coupling\nrun_concurrently(planner_loop, controller_loop)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "standing-state-injection",
+      "intent": "Pseudo-code skeleton of an agent loop that re-derives a compact state snapshot each turn and injects it as a system block before the model reasons.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Derive goal/status/next-step from the live run every turn and inject it as a high-salience system block.",
+          "code": "# run_state is the source of truth, updated by each turn's tool calls\nrun_state = {\"goal\": user_goal, \"done\": [], \"next\": user_goal}\nhistory = [user(user_goal)]\n\ndef derive_snapshot(state):\n    # recompute from the LIVE run, never copy last turn's block\n    return (\n        f\"## CURRENT STATE\\n\"\n        f\"goal: {state['goal']}\\n\"\n        f\"done: {len(state['done'])} step(s) - {summary(state['done'])}\\n\"\n        f\"next: {state['next']}\"\n    )\n\nfor step in 1..MAX_STEPS:\n    snapshot = derive_snapshot(run_state)          # fresh every turn\n    # inject the block in the high-attention slot, ahead of reasoning\n    messages = [system(BASE_PROMPT), system(snapshot)] + history\n    reply = llm.generate(messages=messages, tools=TOOLS + [finish])\n    history.append(reply)\n    if reply.calls(\"finish\"):\n        return reply.content\n    for call in reply.tool_calls:\n        obs = dispatch(call)\n        history.append(tool_result(call, obs))\n        update_run_state(run_state, call, obs)     # advances done/next\n# a turn assembled WITHOUT a freshly derived snapshot is a harness bug",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "speculative-agentic-actions",
+      "intent": "Pseudo-code agent loop that speculatively runs the predicted likely-next read-only call while the model reasons, splicing a hit and discarding a miss.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Predict the next read-only call, run it preemptively, and collapse the turn on a hit.",
+          "code": "# speculation overlaps the predicted next call with the model's reasoning\nmessages = [system_prompt, user(task)]\nlast_obs = None\n\nfor step in 1..MAX_STEPS:\n    # 1. fire the predicted likely-NEXT call speculatively (read-only only)\n    spec = None\n    if last_obs is not None:\n        guess = predictor.next_call(last_obs)          # cheap lookahead\n        if guess and is_read_only(guess):\n            spec = async_dispatch(guess)               # runs while model thinks\n\n    # 2. the model commits to its ACTUAL next action this turn\n    reply = llm.generate(messages=messages, tools=TOOLS)\n    messages.append(reply)\n    if reply.calls(\"finish\"):\n        return reply.content\n    call = reply.tool_call\n\n    # 3. match-and-splice: hit collapses the turn, miss is discarded\n    if spec and call == spec.call:\n        result = spec.await_result()                   # already in flight -> ~free\n    else:\n        if spec:\n            spec.cancel()                              # drop the misprediction\n        result = dispatch(call)                         # normal act-observe\n\n    last_obs = result\n    messages.append(tool_result(call, result))\n# speculation only ever touches read-only/idempotent calls, so a discarded\n# misprediction wastes compute, never external state.",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-result-reinforcement",
+      "intent": "Pseudo-code skeleton of an agent loop where the harness wraps every tool result with a freshly derived goal, status, and failure or next-step hint before the model reads it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Append a re-derived goal/status/hint block to each tool return without altering the raw result.",
+          "code": "# run_state is the source of truth, updated by each turn's calls\nrun_state = {\"goal\": user_goal, \"done\": [], \"last_failure\": None}\nhistory = [system(BASE_PROMPT), user(user_goal)]\n\ndef reinforce(raw, call, state):\n    # re-derive from the LIVE run; never copy last turn's block\n    goal = f\"goal: {state['goal']}\"\n    status = f\"status: {len(state['done'])} step(s) done - {summary(state['done'])}\"\n    if call.failed:\n        hint = f\"hint: {call.error_kind} failed; {next_step_after(call, state)}\"\n    else:\n        hint = f\"next: {state.get('next', 'pick the next subtask')}\"\n    # raw result is preserved verbatim; reminder is clearly delimited\n    return f\"{raw}\\n\\n--- reinforcement (harness) ---\\n{goal}\\n{status}\\n{hint}\"\n\nfor step in 1..MAX_STEPS:\n    reply = llm.generate(messages=history, tools=TOOLS + [finish])\n    history.append(reply)\n    if reply.calls(\"finish\"):\n        return reply.content\n    for call in reply.tool_calls:\n        raw = dispatch(call)                       # raw tool output\n        update_run_state(run_state, call, raw)     # advances done / last_failure\n        enriched = reinforce(raw, call, run_state) # wrap, do not replace\n        history.append(tool_result(call, enriched))\n# a tool return shipped WITHOUT a freshly derived reinforcement block is a harness bug",
+          "verified": false
+        }
+      ]
     }
   ]
 }

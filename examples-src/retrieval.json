@@ -713,6 +713,62 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "repo-map-context",
+      "intent": "Pseudo-code for building a PageRank-ranked symbol map and prepending the top-N to the agent's context.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Parse symbols, rank by dependency centrality, render the top-N as orientation.",
+          "code": "# 1. parse the repo into symbols + dependency edges\ngraph = Graph()\nfor file in repo.files():\n    for sym in tree_sitter.symbols(file):       # functions, classes, methods\n        graph.add_node(sym, file=file, signature=sym.signature)\n    for call in tree_sitter.calls(file):        # who calls/imports whom\n        graph.add_edge(call.caller, call.callee)\n\n# 2. rank symbols by importance (optionally bias toward task-mentioned files)\nscores = pagerank(graph, personalization=mentioned_in(task))\n\n# 3. render only the top-N as a compact map (fits the budget)\ntop = sorted(graph.nodes, key=lambda s: -scores[s])[:N]\nrepo_map = \"\\n\".join(f\"{s.file}: {s.signature}\" for s in top)\n\n# 4. orient the agent BEFORE it opens any file\ncontext = [system_prompt, repo_map_block(repo_map), user(task)]\n# agent now opens only files the map surfaced, not the whole tree",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "semantic-response-cache",
+      "intent": "Pseudo-code skeleton of a semantic cache that returns a stored answer on a similarity hit and populates the cache on a miss.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Embed the query, vector-search prior (query, answer) pairs, and serve the cache only above the similarity threshold.",
+          "code": "SIMILARITY_THRESHOLD = 0.92   # tight: only near-equivalent queries share an answer\nTTL_SECONDS = 24 * 3600       # entries expire so they don't outlive the data\n\ndef answer(query, tenant):\n    q_vec = embed(query)\n    # search is scoped to the tenant so one caller's answer never serves another\n    hit = vector_store.nearest(q_vec, filter={\"tenant\": tenant}, top_k=1)\n    if hit and hit.score >= SIMILARITY_THRESHOLD and not expired(hit, TTL_SECONDS):\n        return hit.answer                       # cache hit: no model call\n\n    result = run_pipeline(query)                # miss: full LLM / RAG path\n    vector_store.insert(\n        embedding=q_vec,\n        answer=result,\n        tenant=tenant,\n        stored_at=now(),\n    )\n    return result\n\n# invalidate when the underlying data changes, so hits never go stale\ndef on_data_changed(scope):\n    vector_store.evict(filter={\"tenant\": scope})",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "table-augmented-generation",
+      "intent": "Pseudo-code for the synthesise-execute-generate loop, where execution embeds a per-row model call for the semantic predicate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Compile a question into SQL extended with an LLM predicate, execute it (relational work in the engine, model called per surviving row), then generate the grounded answer.",
+          "code": "# 1. SYNTHESISE: question -> executable query (SQL + an LLM predicate)\n#    The synthesiser knows the schema and may emit a UDF call.\nquery = synthesise(question, schema)\n# e.g. SELECT id, postmortem FROM incidents\n#      WHERE quarter = '2026Q1'\n#        AND llm_is(postmortem, 'caused by a vendor misconfiguration')\n\n# 2. EXECUTE: relational work stays in the engine; the LLM predicate\n#    is evaluated only on the rows that survive the exact filters.\ndef llm_is(text, claim):                 # registered as a UDF / semantic operator\n    return judge.classify(text, claim)   # per-row model call, returns bool\n\nrows = engine.execute(query, udfs={\"llm_is\": llm_is})\n#    -> the engine pushes 'quarter = ...' down first, so the model\n#       only judges the postmortems that pass the date filter.\n\n# 3. GENERATE: answer grounded ONLY in the returned result set\n#    (the full table is never placed in the prompt).\nanswer = llm.generate(\n    system=\"Answer using only the rows provided.\",\n    user=f\"Question: {question}\\nResult rows: {rows}\",\n)\nreturn answer\n# Text2SQL == this with no llm_is predicate; retrieval == a point-lookup query.",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "tacit-knowledge-elicitation-agent",
+      "intent": "Pseudo-code skeleton of an elicitation phase that interviews an expert, extracts decision criteria, consolidates them into a structured base, and gates the downstream agent to that base.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Front-load expert interviews into a queryable knowledge base, then answer judgement questions only from that base.",
+          "code": "# ---- Phase 1: elicitation (runs once, before task agents go live) ----\ndef elicit(expert, hard_cases):\n    transcript = []\n    for case in hard_cases:\n        # case-anchored, open-ended questions surface the UNWRITTEN rule\n        q = interviewer.ask(case, history=transcript)\n        transcript.append((q, expert.answer(q)))\n    text = transcribe(transcript)\n    criteria = llm.extract(             # summarise + classify\n        text,\n        schema=\"criterion{when, decide, rationale, source_case}\")\n    return criteria\n\ndef build_base(experts, docs):\n    criteria = []\n    for ex in experts:\n        criteria += elicit(ex, ex.hard_cases)\n    criteria = consolidate(criteria, docs)  # merge, reconcile contradictions\n    return KnowledgeBase(criteria)          # structured + queryable\n\nKB = build_base(EXPERTS, INTERNAL_AND_EXTERNAL_DOCS)\n\n# ---- Phase 2: downstream task agent (queries the externalised base) ----\ndef decide(situation):\n    hits = KB.query(situation)\n    if not hits:\n        return escalate(situation)      # constrains: no parametric guessing\n    return llm.generate(situation, grounded_on=hits)",
+          "verified": false
+        }
+      ]
     }
   ]
 }
