@@ -125,8 +125,12 @@ The agent does not browse the repository blind; it must consult the ranked struc
 - _alternative-to_ **GraphRAG** — GraphRAG builds an entity-relation graph over prose; a repo map builds a symbol-dependency graph over code.
 - _complements_ **Filesystem as Context** — The map is a ranked index over the same working tree the agent reads files from.
 - _complements_ **Code-as-Action Agent**
+- _complements_ **Context-Driven Architecture Drift** — A repo map gives the agent structural context across the codebase, reducing the local-sample inference that drives wrong-layer placement; it is partial mitigation, not the full spec.
 
 ## References
 
 - [Inside the Scaffold: A Source-Code Taxonomy of Coding Agent Architectures](https://arxiv.org/abs/2604.03515) — 2026
 - [Aider: Repository map](https://aider.chat/docs/repomap.html) — Aider, 2024
+- [Building a better repository map with tree sitter](https://aider.chat/2023/10/22/repomap.html) — Paul Gauthier, 2023
+- [RANGER -- Repository-Level Agent for Graph-Enhanced Retrieval](https://arxiv.org/abs/2509.25257) — 2025
+- [TypeScript Repository Indexing for Code Agent Retrieval](https://arxiv.org/html/2604.18413v2) — 2026

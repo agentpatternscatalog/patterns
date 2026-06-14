@@ -131,3 +131,6 @@ The agent does not write directly to the real working tree; all edits land in th
 
 - [Inside the Scaffold: A Source-Code Taxonomy of Coding Agent Architectures](https://arxiv.org/abs/2604.03515) — 2026
 - [cline/cline](https://github.com/cline/cline) — 2024
+- [Fault-Tolerant Sandboxing for AI Coding Agents: A Transactional Approach to Safe Autonomous Execution](https://arxiv.org/abs/2512.12806) — Boyang Yan, 2025
+- [Crab: A Semantics-Aware Checkpoint/Restore Runtime for Agent Sandboxes](https://arxiv.org/abs/2604.28138) — Tianyuan Wu, Chaokun Chang, Lunxi Cao, Wei Gao, Wei Wang, 2026
+- [Roo Code Checkpoints (shadow Git repository)](https://docs.roocode.com/features/checkpoints) — 2025

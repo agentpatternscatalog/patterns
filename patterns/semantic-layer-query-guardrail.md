@@ -127,6 +127,9 @@ The agent may not author or execute raw SQL against production data; it may only
 
 - **[dbt Semantic Layer (MetricFlow)](https://docs.getdbt.com/docs/build/about-metricflow)** _available_ — Metrics and dimensions are defined once in YAML semantic models; MetricFlow handles SQL query construction, compiling a metric request into the correct SQL across join paths so consumers query vetted metrics rather than authoring SQL.
 - **[Cube](https://cube.dev/)** _available_ — Semantic layer that exposes modelled measures and dimensions through a query API and an AI/agent endpoint, so an agent selects vetted metrics and the layer generates the SQL.
+- **[Looker (LookML)](https://docs.cloud.google.com/looker/docs/lookml-terms-and-concepts)** _available_ — LookML models dimensions and measures once per view, and Looker generates the SQL from that model, so consumers query vetted metrics rather than authoring raw SQL against the warehouse.
+- **[Databricks AI/BI Genie](https://docs.databricks.com/aws/en/genie/)** _available_ — Genie Spaces are curated by data analysts with Unity Catalog datasets, example SQL queries, and SQL expressions for business semantics, so natural-language questions resolve against vetted definitions instead of free-form SQL.
+- **[AtScale](https://www.atscale.com/)** _available_ — Universal semantic layer that centralises metric and dimension definitions so BI tools and agents query consistent, vetted metrics that the layer compiles to SQL.
 
 ## Related patterns
 
@@ -140,3 +143,5 @@ The agent may not author or execute raw SQL against production data; it may only
 - [AI Agent 產品開發仍然不簡單（2025）](https://ihower.tw/blog/13513-agent-design-is-still-hard-2025) — ihower (Wen-Tien Chang), 2025
 - [About MetricFlow — dbt Semantic Layer](https://docs.getdbt.com/docs/build/about-metricflow) — 2025
 - [About the dbt Semantic Layer](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl) — 2025
+- [TrustSQL: Benchmarking Text-to-SQL Reliability with Penalty-Based Scoring](https://arxiv.org/abs/2403.15879) — Gyubok Lee, Woosog Chay, Seonhee Cho, Edward Choi, 2024
+- [Large Language Model Enhanced Text-to-SQL Generation: A Survey](https://arxiv.org/abs/2410.06011) — 2024

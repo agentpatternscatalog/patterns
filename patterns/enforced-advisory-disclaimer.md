@@ -122,6 +122,9 @@ A high-risk regulated answer is never emitted without the advisory component; th
 
 - **[Patient-posed medical-question study (Anthropic et al.)](https://arxiv.org/abs/2507.18905)** _pure-future_ — Measured disclaimer collapse across LLM releases (26.3% of outputs in 2022 to under 1% in 2025) and argues safety framing must be enforced rather than left emergent.
 - **[Regulated-domain assistant deployments (health, legal, finance)](https://www.computerworld.com/article/4026778/ai-chatbots-ditch-medical-disclaimers-putting-users-at-risk-study-warns.html)** _available_ — Production chat assistants in regulated verticals attach an information-not-advice notice as a fixed output component on flagged answers rather than relying on the model to phrase it.
+- **[NVIDIA NeMo Guardrails](https://github.com/NVIDIA-NeMo/Guardrails)** _available_ — Open-source toolkit whose output rails are applied to the LLM output and can reject or alter it before it reaches the user, letting deployments enforce a fixed advisory component outside the model's discretion.
+- **[Guardrails AI](https://github.com/guardrails-ai/guardrails)** _available_ — Runs Input/Output Guards that validate and mitigate output risks at the boundary, the mechanism by which a regulated-domain deployment attaches and enforces an information-not-advice notice rather than relying on the model to phrase it.
+- **[Ada Health](https://ada.com/app/)** _available_ — Symptom-assessment product that frames every result as an assessment and not a medical diagnosis, surfacing the information-not-professional-advice framing as a fixed product element on flagged health answers.
 
 ## Related patterns
 
@@ -134,3 +137,6 @@ A high-risk regulated answer is never emitted without the advisory component; th
 
 - [Large language models provide unsafe answers to patient-posed medical questions](https://arxiv.org/abs/2507.18905) — 2025
 - [AI chatbots ditch medical disclaimers, putting users at risk, study warns](https://www.computerworld.com/article/4026778/ai-chatbots-ditch-medical-disclaimers-putting-users-at-risk-study-warns.html) — 2025
+- [NeMo Guardrails: A Toolkit for Controllable and Safe LLM Applications with Programmable Rails](https://arxiv.org/abs/2310.10501) — Traian Rebedea, Razvan Dinu, Makesh Sreedhar, Christopher Parisien, Jonathan Cohen, 2023
+- [Safeguarding Large Language Models: A Survey](https://arxiv.org/abs/2406.02622) — Yi Dong, Ronghui Mu, Yanghao Zhang, Siqi Sun, et al., 2024
+- [NeMo Guardrails (NVIDIA) — programmable output rails applied to the LLM output](https://github.com/NVIDIA-NeMo/Guardrails) — 2025

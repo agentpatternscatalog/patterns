@@ -115,6 +115,9 @@ The agent must not answer or act outside its declared capability and scope; when
 
 - **[The Six Sigma Agent (failure archetype)](https://arxiv.org/abs/2601.22290)** _pure-future_ — Enterprise-reliability study that names Over-Helpfulness as a failure archetype: agents prioritise responsiveness and task completion over accuracy, answering even when uncertain or when the request falls outside their capabilities.
 - **[Aegis agent-environment failure taxonomy](https://arxiv.org/abs/2508.19504)** — Trace study of LLM-agent failures that catalogues where agents persist on tasks the environment cannot support, adjacent to answering past capability.
+- **[NVIDIA NeMo Guardrails](https://github.com/NVIDIA-NeMo/Guardrails)** _available_ — Programmable rails (topic control, self-check facts, hallucination output rails) keep the model from answering off-topic or producing ungrounded output, directly gating the answer-anyway default this anti-pattern names; quote: "Guardrails are specific ways of controlling the output of a large language model, such as not talking about politics, responding in a particular way to specific user requests, following a predefined dialog path."
+- **[Guardrails AI](https://github.com/guardrails-ai/guardrails)** _available_ — Output guards such as the Grounded AI Hallucination validator detect when a response is not grounded in the provided context, catching the fabricated-grounding failure mode; quote (validator): "detects hallucinations in AI-generated responses. It evaluates whether a given response is grounded in the provided context or if it contains factually incorrect or nonsensical information."
+- **[LLM Guard (Protect AI)](https://github.com/protectai/llm-guard)** _available_ — "The Security Toolkit for LLM Interactions" ships output scanners (Relevance, FactualConsistency) that flag answers irrelevant to or unsupported by the input, surfacing the out-of-scope-completion smell rather than letting it pass silently.
 
 ## Related patterns
 
@@ -127,3 +130,6 @@ The agent must not answer or act outside its declared capability and scope; when
 
 - [The Six Sigma Agent: Achieving Enterprise-Grade Reliability in LLM Systems Through Consensus-Driven Decomposed Execution](https://arxiv.org/abs/2601.22290) — 2026
 - [Aegis: Taxonomy and Optimizations for Overcoming Agent-Environment Failures in LLM Agents](https://arxiv.org/abs/2508.19504) — 2025
+- [Know Your Limits: A Survey of Abstention in Large Language Models](https://arxiv.org/abs/2407.18418) — Bingbing Wen, Jihan Yao, Shangbin Feng, Chenjun Xu, Yulia Tsvetkov, Bill Howe, Lucy Lu Wang, 2025
+- [AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions](https://arxiv.org/abs/2506.09038) — Polina Kirichenko, Mark Ibrahim, Kamalika Chaudhuri, Samuel J. Bell, 2025
+- [Towards Understanding Sycophancy in Language Models](https://arxiv.org/abs/2310.13548) — Mrinank Sharma, Meg Tong, Tomasz Korbak, et al., 2023

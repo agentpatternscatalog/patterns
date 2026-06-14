@@ -119,6 +119,10 @@ A citation may not appear in the output until it resolves against the external a
 - **[BriefCatch citation validation](https://www.briefcatch.com/blog/blog-citation-validation-engines-fake-case-law)** _available_ — Cross-references every citation in a legal document against authoritative databases (Westlaw, LexisNexis, CourtListener); a case that does not appear in any of them is flagged.
 - **[NexLaw legal assistant](https://www.nexlaw.ai/)** _available_ — Legal-AI platform that validates generated case citations against legal sources rather than trusting the model's free-text references.
 - **[HalluGraph (legal RAG)](https://arxiv.org/abs/2512.01659)** _planned_ — Graph-alignment auditor that scores whether entities and relations in a generated legal answer are grounded in source documents, reported AUC up to 0.979 on structured documents.
+- **[vLex Vincent AI](https://vlex.com/vincent-ai)** _available_ — Legal research assistant (part of Clio) that returns answers with citations linked back to primary sources resolved against vLex's authority collection, so cited cases and materials are real rather than free-text.
+- **[LexisNexis Lexis+ AI (Protege)](https://www.lexisnexis.com/en-us/products/lexis-plus-ai.page)** _available_ — Generative legal assistant whose responses are grounded in and linked to LexisNexis's verified case-law and statute databases, with benchmark hallucination rates below those of free-text models.
+- **[Clearbrief Cite Check Report](https://www.lawnext.com/2025/12/clearbrief-launches-cite-check-report-to-give-law-firm-partners-an-audit-trail-against-ai-hallucinations.html)** _available_ — Word add-in that cross-references every citation in a brief against LexisNexis and Fastcase/vLex databases to flag missing or non-existent cases before filing.
+- **[Reducing Hallucinations in Medical AI Through Citation-Enforced Prompting in RAG Systems](https://www.mdpi.com/2076-3417/16/6/3013)** _available_ — Medical-AI study showing citation-enforced RAG that grounds each generated reference against retrieved/indexed sources to suppress fabricated PubMed-style citations in clinical answers.
 
 ## Related patterns
 
@@ -131,3 +135,6 @@ A citation may not appear in the output until it resolves against the external a
 
 - [Spotting Fake Case Law with Citation Validation Engines](https://www.briefcatch.com/blog/blog-citation-validation-engines-fake-case-law) — 2025
 - [HalluGraph: Auditable Hallucination Detection for Legal RAG Systems via Knowledge Graph Alignment](https://arxiv.org/abs/2512.01659) — 2025
+- [Citation Grounding: Detecting and Reducing LLM Citation Hallucinations via Legal Citation Graphs](https://arxiv.org/abs/2606.00898) — Volodymyr Ovcharov, 2026
+- [Source or It Didn't Happen: A Multi-Agent Framework for Citation Hallucination Detection](https://arxiv.org/abs/2605.08583) — 2026
+- [CiteCheck: Retrieval-Grounded Detection of LLM Citation Hallucinations in Scientific Text](https://arxiv.org/html/2605.27700v1) — 2026

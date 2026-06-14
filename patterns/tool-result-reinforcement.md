@@ -128,3 +128,6 @@ The reinforcement block appended to a tool return may not alter or replace the r
 ## References
 
 - [AI Agent 產品開發仍然不簡單 (2025)](https://ihower.tw/blog/13513-agent-design-is-still-hard-2025) — ihower (Wen-Tien Chang), 2025
+- [Context Engineering for AI Agents: Lessons from Building Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus) — Yichao 'Peak' Ji, 2025
+- [Writing effective tools for AI agents — using AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) — Anthropic, 2025
+- [Technical Report: Evaluating Goal Drift in Language Model Agents](https://arxiv.org/abs/2505.02709) — Rauno Arike, Elizabeth Donoway, Henning Bartsch, Marius Hobbhahn, 2025

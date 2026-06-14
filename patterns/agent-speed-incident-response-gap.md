@@ -124,6 +124,9 @@ No useful constraint; the missing control is automated containment that fires in
 
 - **[Computerworld Polska — agentic-AI security rules](https://www.computerworld.pl/article/100050896/agentowa-ai-wymaga-nowych-zasad-bezpieczenstwa.html)** _available_ — Industry analysis arguing that breach-frameworks built around a seventy-two-hour reporting window were not designed for agents that can exfiltrate data and erase traces in roughly ninety seconds.
 - **[eGospodarka.pl — agentic-AI threat reporting](https://www.egospodarka.pl/)** _available_ — Polish trade-press coverage of the same machine-speed exfiltration-and-wipe scenario, framing human-paced incident-response timing as structurally too slow for autonomous agents.
+- **[General Analysis AI Runtime Security](https://generalanalysis.com/products/ai-runtime-security)** _available_ — Sits in the agent request path and provides automated containment with sub-10ms (P95 ~187ms) inline enforcement that blocks unsafe flows faster than any human review cycle — the machine-speed containment layer this gap is missing.
+- **[GuardionAI](https://guardion.ai/)** _available_ — Drop-in proxy between agents and systems offering a kill-switch and a full audit trail for every autonomous action plus real-time behavior-based guardrails, placing the halt and tamper-resistant logging inside the action window.
+- **[Lakera Guard](https://www.lakera.ai/lakera-guard)** _available_ — Real-time AI security firewall that analyzes every agent input and output and flags or blocks prompt injection, data leakage, and PII exfiltration at sub-50ms latency, i.e. inside the agent's burst rather than after a human-paced alert.
 
 ## Related patterns
 
@@ -135,3 +138,6 @@ No useful constraint; the missing control is automated containment that fires in
 ## References
 
 - [Agentowa AI wymaga nowych zasad bezpieczeństwa](https://www.computerworld.pl/article/100050896/agentowa-ai-wymaga-nowych-zasad-bezpieczenstwa.html) — 2026
+- [AI Kill Switch for malicious web-based LLM agent](https://arxiv.org/abs/2511.13725) — Sechan Lee, Sangdon Park, 2026
+- [AgentWard: A Lifecycle Security Architecture for Autonomous AI Agents](https://arxiv.org/html/2604.24657) — Yixiang Zhang, Xinhao Deng, Jiaqing Wu, Yue Xiao, Ke Xu, Qi Li, 2026
+- [SoK: The Attack Surface of Agentic AI — Tools, and Autonomy](https://arxiv.org/abs/2603.22928) — 2026

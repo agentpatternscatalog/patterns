@@ -125,6 +125,7 @@ A slow tool must not block until its work finishes; the start tool may only retu
 
 - **[AWS-espanol: Patron HandleId Asincrono (MCP timeout fix)](https://dev.to/aws-espanol/por-que-fallan-los-agentes-de-ia-3-modos-de-fallo-que-cuestan-tokens-y-tiempo-20b)** _available_ — Field write-up of MCP tools that time out after ~7s; the prescribed fix returns a job handleId immediately and exposes a check-result tool for the agent to poll.
 - **[AWS-espanol: Async HandleId among 8 production agent patterns](https://dev.to/aws-espanol/como-guiar-asistentes-de-ia-para-construir-agentes-listos-para-produccion-8-patrones-esenciales-1ifd)** _available_ — Listed as one of eight production-readiness patterns: 'Async handleId retorna un ID de trabajo inmediatamente, permitiendo que el agente continue con otras tareas' while a separate tool checks for the result.
+- **Restate** _available_
 
 ## Related patterns
 
@@ -137,3 +138,8 @@ A slow tool must not block until its work finishes; the start tool may only retu
 
 - [Por Que Fallan los Agentes de IA: 3 Modos de Fallo Que Cuestan Tokens y Tiempo](https://dev.to/aws-espanol/por-que-fallan-los-agentes-de-ia-3-modos-de-fallo-que-cuestan-tokens-y-tiempo-20b) — AWS en Espanol, 2025
 - [Como Guiar Asistentes de IA para Construir Agentes Listos para Produccion: 8 Patrones Esenciales](https://dev.to/aws-espanol/como-guiar-asistentes-de-ia-para-construir-agentes-listos-para-produccion-8-patrones-esenciales-1ifd) — AWS en Espanol, 2025
+- [MCP Tasks: Asynchronous task execution for long-running MCP operations](https://modelcontextprotocol.io/extensions/tasks/overview) — Model Context Protocol, 2025
+- [Asynchronous LLM Function Calling](https://arxiv.org/abs/2412.07017) — In Gim, Seung-seob Lee, Lin Zhong, 2024
+- [AsyncTool: Evaluating the Asynchronous Function Calling Capability under Multi-Task Scenarios](https://arxiv.org/abs/2605.27995) — Kou Shi, Ziao Zhang, Shiting Huang, Avery Nie, Zhen Fang, Qiuchen Wang, Lin Chen, Huaian Chen, Zehui Chen, Feng Zhao, 2026
+- [MCP Async Tasks: Building long-running workflows for AI Agents](https://workos.com/blog/mcp-async-tasks-ai-agent-workflows) — WorkOS, 2025
+- [Of course you can build dynamic AI agents with Temporal](https://temporal.io/blog/of-course-you-can-build-dynamic-ai-agents-with-temporal) — Temporal Technologies, 2025

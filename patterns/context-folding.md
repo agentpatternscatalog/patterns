@@ -116,6 +116,7 @@ Folded sub-trajectories are no longer visible to the parent context; once a bran
 
 - **[Context-Folding (FoldGRPO)](https://arxiv.org/abs/2510.11967)** _pure-future_ — RL-trained agent that emits branch/return to fold sub-trajectories, reported to keep an ~8K active context over ~100K total tokens on long-horizon benchmarks.
 - **[FoldAct](https://arxiv.org/abs/2512.22733)** _pure-future_ — Follow-up adding stable branch/return actions for long-horizon search agents.
+- **[FoldAgent (sunnweiwei/FoldAgent)](https://github.com/sunnweiwei/FoldAgent)** _available_ — Official open-source implementation of the Context-Folding paper, exposing branch(description, prompt) and return(message) actions plus the FoldGRPO RL training framework.
 
 ## Related patterns
 
@@ -128,3 +129,5 @@ Folded sub-trajectories are no longer visible to the parent context; once a bran
 
 - [Scaling Long-Horizon LLM Agent via Context-Folding](https://arxiv.org/abs/2510.11967) — 2025
 - [FoldAct: Efficient and Stable Context Folding for Long-Horizon Search Agents](https://arxiv.org/abs/2512.22733) — 2025
+- [Scaling LLM Multi-turn RL with End-to-end Summarization-based Context Management (SUPO)](https://arxiv.org/abs/2510.06727) — 2025
+- [Learning Agent-Compatible Context Management for Long-Horizon Tasks (AdaCoM)](https://arxiv.org/abs/2605.30785) — 2026

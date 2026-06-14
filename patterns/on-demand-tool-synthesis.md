@@ -120,6 +120,8 @@ A synthesized tool may not be called until it has passed a validation check; unt
 - **[LATM (LLMs as Tool Makers)](https://arxiv.org/abs/2305.17126)** _pure-future_ — Decouples a tool-maker role from a tool-user role: the maker writes a reusable tool, the user calls it.
 - **[CREATOR](https://arxiv.org/abs/2305.14318)** _pure-future_ — Transforms an abstract problem into a concrete Python tool, separating tool creation from decision making.
 - **[Evolution of Tool Use in LLM Agents (survey)](https://arxiv.org/abs/2603.22862)** _available_ — Treats 'Autonomous Tool Expansion' (LATM, CREATOR, ToolMaker, RestGPT) as a distinct branch of the tool-use literature.
+- **[ToolMaker](https://arxiv.org/abs/2502.11705)** _available_ — Agentic framework that autonomously transforms papers-with-code repositories into LLM-compatible tools, installing dependencies and using a closed-loop self-correction mechanism with unit tests before the tool is exposed for use.
+- **[CRAFT](https://arxiv.org/abs/2309.17428)** _available_ — Creates a toolset of diverse, reusable, validated code-snippet tools and retrieves from it at inference, separating tool creation from tool use.
 
 ## Related patterns
 
@@ -132,3 +134,5 @@ A synthesized tool may not be called until it has passed a validation check; unt
 - [Large Language Models as Tool Makers](https://arxiv.org/abs/2305.17126) — 2023
 - [CREATOR: Tool Creation for Disentangling Abstract and Concrete Reasoning of Large Language Models](https://arxiv.org/abs/2305.14318) — 2023
 - [The Evolution of Tool Use in LLM Agents](https://arxiv.org/abs/2603.22862) — 2026
+- [LLM Agents Making Agent Tools (ToolMaker)](https://arxiv.org/abs/2502.11705) — Georg Wölflein, Dyke Ferber, Daniel Truhn, Ognjen Arandjelović, Jakob Nikolas Kather, 2025
+- [CRAFT: Customizing LLMs by Creating and Retrieving from Specialized Toolsets](https://arxiv.org/abs/2309.17428) — Lifan Yuan, Yangyi Chen, Xingyao Wang, Yi R. Fung, Hao Peng, Heng Ji, 2023

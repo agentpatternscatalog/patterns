@@ -124,6 +124,9 @@ An agent must not pull the next ticket by arrival order or self-reported urgency
 
 - **[IrisAgent](https://irisagent.com/blog/predict-sla-breaches-with-ai-tools/)** _available_ — AI support platform that scores tickets against a combined model of customer urgency, business impact, SLA risk, and sentiment, and predicts SLA breaches so teams act before the deadline.
 - **[DevRev](https://devrev.ai/blog/ai-support-ticket-triaging)** _available_ — Support-triage tooling that ranks tickets on SLA proximity and a business-impact score built from ARR, contract stage, feature usage, and historical satisfaction.
+- **[Zendesk AI (Intelligent Triage)](https://support.zendesk.com/hc/en-us/articles/6298065502874-Configuring-intelligent-triage-for-the-agent-experience)** _available_ — Intelligent triage classifies each ticket by intent, sentiment, language, and entities, then uses those signals to route, prioritise, and tailor SLAs so deteriorating or high-impact tickets surface ahead of routine work.
+- **[Freshdesk Freddy AI](https://support.freshdesk.com/support/solutions/articles/50000009489-introduction-to-sentiment-analysis-prioritize-tickets-based-on-customer-sentiments)** _available_ — Freddy AI scores per-message sentiment to categorise and prioritise tickets, and Freddy AI Insights predicts SLA breaches and auto-escalates as deadlines approach or sentiment drops.
+- **[ServiceNow Predictive AIOps / Predictive Intelligence](https://www.servicenow.com/community/platform-analytics-forum/predictive-intelligence-in-servicenow-20-real-time-use-cases/m-p/3444290)** _available_ — Predicts tickets likely to breach SLA from past resolution times and complexity, derives priority from CMDB service-tier/business-criticality, and triggers escalation workflows before the breach window closes.
 
 ## Related patterns
 
@@ -137,3 +140,5 @@ An agent must not pull the next ticket by arrival order or self-reported urgency
 - [AI Support Ticket Triaging: The Enterprise Playbook](https://devrev.ai/blog/ai-support-ticket-triaging) — 2025
 - [Predict SLA Breaches with AI Tools](https://irisagent.com/blog/predict-sla-breaches-with-ai-tools/) — 2025
 - [Prioritizing Tickets with User Sentiment and Business Impact](https://irisagent.com/blog/prioritizing-tickets-with-user-sentiment-and-business-impact/index.html) — 2025
+- [SLA Violation Prediction In Cloud Computing: A Machine Learning Perspective](https://arxiv.org/abs/1611.10338) — Reyhane Askari Hemmat, Abdelhakim Hafid, 2016
+- [TaDaa: real time Ticket Assignment Deep learning Auto Advisor for customer support, help desk, and issue ticketing systems](https://arxiv.org/abs/2207.11187) — Leon Feng, Jnana Senapati, Bill Liu, 2022

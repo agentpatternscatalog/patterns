@@ -131,3 +131,6 @@ An action estimated as irreversible cannot execute by default; the filter must r
 
 - [Self-Supervised Reversibility-Aware Reinforcement Learning](https://research.google/blog/self-supervised-reversibility-aware-reinforcement-learning/) — Nathan Grinsztajn, Johan Ferret, Olivier Pietquin, Philippe Preux, Matthieu Geist (Google Research), 2021
 - [AISVS Action-Class Authority: reversibility class in the tool manifest](https://theweatherreport.ai/posts/aisvs-action-class-authority/) — 2025
+- [There Is No Turning Back: A Self-Supervised Approach for Reversibility-Aware Reinforcement Learning](https://arxiv.org/abs/2106.04480) — Nathan Grinsztajn, Johan Ferret, Olivier Pietquin, Philippe Preux, Matthieu Geist, 2021
+- [Penalizing Side Effects Using Stepwise Relative Reachability](https://arxiv.org/abs/1806.01186) — Victoria Krakovna, Laurent Orseau, Ramana Kumar, Miljan Martic, Shane Legg, 2018
+- [Learning to Undo: Rollback-Augmented Reinforcement Learning with Reversibility Signals](https://arxiv.org/abs/2510.14503) — 2025

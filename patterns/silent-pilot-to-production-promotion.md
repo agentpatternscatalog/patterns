@@ -3,7 +3,7 @@
 **Also known as:** Permanent Pilot, Pilot-in-Name-Only, The Pilot That Never Ended
 
 **Category:** Governance & Observability  
-**Status in practice:** deprecated
+**Status in practice:** emerging
 
 ## Intent
 
@@ -118,6 +118,8 @@ No useful constraint; the missing constraint is mandatory pilot expiry and gradu
 
 - **[AI-governance commentary on board decision-making (zig.pl)](https://www.zig.pl/baza-wiedzy/jak-zarzad-powinien-dzis-podejmowac-decyzje-o-ai-zeby-nie-odpowiadac-za-nie-jutro)** _available_ — Polish governance writing warns that a pilot which works is never switched off, its scope expands 'po cichu' (quietly), and at the formal level it is still a 'pilotaz' while at the factual level it is a production decision system, escaping the go-live oversight that label would trigger.
 - **[ERP / enterprise rollout commentary (erp-view.pl)](https://www.erp-view.pl/)** _available_ — Polish ERP-rollout writing describes the same dynamic in enterprise deployments, where a proof-of-concept becomes an operational dependency without the formal acceptance step that production status would require.
+- **[Holistic AI](https://www.holisticai.com/)** _available_ — AI governance platform whose 'Enforce' layer adds deployment gates, approval workflows, and kill switches before an AI system reaches production, making the go-live transition an explicit gated event rather than a silently-expanding pilot.
+- **[Credo AI](https://www.credo.ai/)** _available_ — AI governance platform that discovers and catalogs every AI system (agents, models, applications) in a central registry and runs pre-deployment governance workflows, so a deployment's true scope and production status are visible to oversight instead of lagging behind a stale 'pilot' label.
 
 ## Related patterns
 
@@ -131,3 +133,6 @@ No useful constraint; the missing constraint is mandatory pilot expiry and gradu
 - [Jak zarzad powinien dzis podejmowac decyzje o AI, zeby nie odpowiadac za nie jutro?](https://www.zig.pl/baza-wiedzy/jak-zarzad-powinien-dzis-podejmowac-decyzje-o-ai-zeby-nie-odpowiadac-za-nie-jutro) — 2025
 - [EU AI Act — high-risk system obligations (placing on the market and putting into service)](https://en.wikipedia.org/wiki/Artificial_Intelligence_Act) — 2024
 - [Scope creep](https://en.wikipedia.org/wiki/Scope_creep) — 2025
+- [Governing the Agentic Enterprise: A Governance Maturity Model for Managing AI Agent Sprawl in Business Operations](https://arxiv.org/abs/2604.16338) — Vivek Acharya, 2026
+- [NIST AI Risk Management Framework (AI RMF 1.0, NIST AI 100-1)](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf) — National Institute of Standards and Technology, 2023
+- [Shadow IT](https://en.wikipedia.org/wiki/Shadow_IT) — 2025

@@ -120,6 +120,7 @@ An interaction is not counted resolved on session-end alone; deflection without 
 
 - **[Digital Applied — AI support deflection resolution layer](https://www.digitalapplied.com/blog/ai-support-deflection-resolution-layer-2026-playbook)** _available_ — Playbook defining true resolution as (deflected tickets − wrong answers − 48-hour re-contacts) / total AI-handled, with re-contact rate named as the only metric that cannot be inflated by aggressive automation.
 - **[Swept.ai — AI customer-service metrics that matter](https://www.swept.ai/post/ai-customer-service-agent-metrics-that-matter)** _available_ — Draws the line that a bot deflects when the user stops talking but resolves only if the customer does not reach back out for the same problem, treating re-contact as the resolution test.
+- **[Ada](https://www.ada.cx/blog/unpacking-ai-agent-pricing-resolution-based-vs-conversation-based-models/)** _available_ — Ada explicitly rejects containment/deflection as a success measure, separating it from automated resolution, the same refusal to count session-end as a solved issue that defines this gate.
 
 ## Related patterns
 
@@ -132,3 +133,5 @@ An interaction is not counted resolved on session-end alone; deflection without 
 
 - [AI Support Deflection: Resolve Tickets, Don't Just Defer](https://www.digitalapplied.com/blog/ai-support-deflection-resolution-layer-2026-playbook) — 2026
 - [7 AI Customer Service Metrics That Predict Success (And 3 That Mislead)](https://www.swept.ai/post/ai-customer-service-agent-metrics-that-matter) — 2026
+- [Defining and Characterizing Reward Hacking](https://arxiv.org/abs/2209.13085) — Joar Skalse, Nikolaus H. R. Howe, Dmitrii Krasheninnikov, David Krueger, 2022
+- [On Goodhart's law, with an application to value alignment](https://arxiv.org/abs/2410.09638) — El-Mahdi El-Mhamdi, Le-Nguyen Hoang, 2024

@@ -3,7 +3,7 @@
 **Also known as:** Unconditional Escalation Trigger, Red-Flag Short-Circuit
 
 **Category:** Safety & Control  
-**Status in practice:** established
+**Status in practice:** mature
 
 ## Intent
 
@@ -130,6 +130,7 @@ On a matched red flag the agent must abort the workflow and hand off to a human 
 
 - **[s10.ai AI phone agent](https://s10.ai/blog/how-to-automate-clinical-triage-and-emergency-escalation-in-ai-phone-agents)** _available_ — Clinical-triage voice agent that bypasses all menus and escalates immediately on emergency red-flag phrases such as a caller reporting that someone is not breathing.
 - **[AssemblyAI telehealth triage voice agent](https://www.assemblyai.com/blog/telehealth-triage-voice-agent)** _available_ — Reference build whose stated rule is that red-flag escalation must be automatic, not conditional, and the agent must never continue triaging after a red flag is captured.
+- **[Hippocratic AI (Polaris)](https://hippocraticai.com/polaris/)** _available_ — Healthcare voice-agent constellation that catches urgent red-flag symptoms across clinical categories and immediately transfers the call to a human nurse mid-conversation under clinically proven nursing escalation protocols, rather than continuing autonomous handling.
 
 ## Related patterns
 
@@ -137,6 +138,7 @@ On a matched red flag the agent must abort the workflow and hand off to a human 
 - _complements_ **Human-in-the-Loop** — Human-in-the-loop gates a planned action on approval; this aborts the whole flow on a detected signal rather than pausing one step for sign-off.
 - _complements_ **Risk-Tiered Action Autonomy** — Risk tiers grade autonomy by materiality and let the agent keep working at lower tiers; a red flag is an all-or-nothing interrupt that ends autonomous handling outright.
 - _complements_ **Input/Output Guardrails** — Guardrails validate inputs and outputs in line; the red-flag check is an input-side guardrail whose action is a forced abort-and-handoff rather than a block or rewrite.
+- _complements_ **SLA-Aware Triage Scoring** — The breach predictor's early alert is a natural trigger source for an unconditional escalation when a high-tier ticket is predicted to breach.
 
 ## References
 
@@ -145,3 +147,5 @@ On a matched red flag the agent must abort the workflow and hand off to a human 
 - [Streamlining Telephone Triage: Improving Safety & Efficiency with a Red Flag List](https://www.myamericannurse.com/streamlining-telephone-triage-improving-safety-efficiency-with-a-red-flag-list/) — Yowell, Chernak, Albery, 2026
 - [Clinical Escalation After-Hours Triage Protocols](https://triagelogic.com/clinical-escalation-after-hours-triage-protocols/) — 2024
 - [Policy Cards: Machine-Readable Runtime Governance for Autonomous AI Agents](https://arxiv.org/abs/2510.24383) — 2025
+- [Crisis-line workers' perspectives on AI in suicide prevention: a qualitative exploration of risk and opportunity](https://pmc.ncbi.nlm.nih.gov/articles/PMC12220356/) — Greaves, Colucci, 2025
+- [Predicting imminent suicide risk in a crisis hotline chat using machine learning](https://pmc.ncbi.nlm.nih.gov/articles/PMC12748772/) — Levi-Belz, Grimland, Segal-Elbak, Munz, Yeshayahu, Benatov, Segal, Ben Dayan, Shenfeld, Gal, 2025

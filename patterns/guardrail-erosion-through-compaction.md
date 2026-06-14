@@ -132,3 +132,6 @@ Safety constraints must be pinned outside the compactable span and re-injected v
 
 - [Engenharia de Contexto para Agentes de IA em Produção](https://www.robertodiasduarte.com.br/engenharia-de-contexto-para-agentes-de-ia-em-producao/) — 2025
 - [OpenClaw: o que é o assistente de IA que automatiza o computador e quais são os riscos de segurança](https://www.welivesecurity.com/pt/seguranca-digital/openclaw-o-que-e-o-assistente-de-ia-que-automatiza-seu-computador-e-quais-sao-os-riscos-de-seguranca/) — 2025
+- [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic, 2025
+- [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172) — Nelson F. Liu et al., 2023
+- [Context Length Alone Hurts LLM Performance Despite Perfect Retrieval](https://arxiv.org/abs/2510.05381) — Yufeng Du et al., 2025

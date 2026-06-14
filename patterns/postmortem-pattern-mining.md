@@ -120,6 +120,9 @@ The aggregate report may assert only trends that trace back to cited per-documen
 ## Known uses
 
 - **[OTUS postmortem-analysis pipeline](https://habr.com/ru/companies/otus/articles/1000366/)** _available_ — Production staged model pipeline over thousands of incident postmortems that emits a one-page report of recurring trends and incident patterns, with human expertise wired into each stage.
+- **[incident.io (post-mortems / AI SRE)](https://incident.io/ai-sre)** _available_ — Aggregates post-mortem data across many incidents to surface recurring patterns and root causes; per its docs, "Aggregated post-mortem data reveals patterns: Which services generate the most incidents? Are database connection pool issues recurring?"
+- **[Rootly (Knowledge Reinforcement / postmortem analytics)](https://rootly.com/sre/rootly-knowledge-reinforcement-captures-postmortem-insights)** _available_ — Centralises retrospective data and applies AI-driven analysis so that, in its words, it "makes it possible to identify recurring patterns and systemic issues that would otherwise remain hidden" across the incident corpus.
+- **[FireHydrant (AI-drafted retrospectives)](https://firehydrant.com/incident-retrospective/)** _available_ — AI maps each incident to a normalised retrospective and compares incidents to past ones to "uncover patterns faster" and surface recurring contributing factors across the archive.
 
 ## Related patterns
 
@@ -131,3 +134,6 @@ The aggregate report may assert only trends that trace back to cited per-documen
 ## References
 
 - [LLM вместо «прочитаем потом»: анализ постмортемов и паттерны инцидентов](https://habr.com/ru/companies/otus/articles/1000366/) — OTUS, 2026
+- [Automatic Root Cause Analysis via Large Language Models for Cloud Incidents](https://arxiv.org/abs/2305.15778) — Yinfang Chen, Huaibing Xie, Minghua Ma, Yu Kang, Xin Gao, Liu Shi, Yunjie Cao, Xuedong Gao, Hao Fan, Ming Wen, Jun Zeng, Supriyo Ghosh, Xuchao Zhang, Chaoyun Zhang, Qingwei Lin, Saravan Rajmohan, Dongmei Zhang, Tianyin Xu, 2023
+- [Context-Aware Hierarchical Merging for Long Document Summarization](https://arxiv.org/abs/2502.00977) — Litu Ou, Mirella Lapata, 2025
+- [Exploring LLM-based Agents for Root Cause Analysis](https://arxiv.org/abs/2403.04123) — Devjeet Roy, Xuchao Zhang, Rashi Bhave, Chetan Bansal, Pedro Las-Casas, Rodrigo Fonseca, Saravan Rajmohan, 2024

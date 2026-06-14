@@ -117,6 +117,10 @@ A terminal success status must not be treated as a business-correctness verdict;
 
 - **[Castelis ClawPilot production agent REX](https://www.castelis.com/insights-ressources/rex-pipeline-agents-ia-clawpilot/)** _available_ — Field report on a production content-agent pipeline: a run can follow the instruction, edit the right files, produce a CMS-valid format, and finish without error yet still be business-wrong; 'finished successfully' is explicitly not 'publishable'.
 - **[Workflow-engine status semantics (BPMN/agent pipelines)](https://www.fosse.fr/)** _available_ — General observation that workflow and agent runtimes emit a completion/success state describing execution only, leaving business validity to a separate layer the engine does not provide.
+- **[LangSmith (LLM-as-judge evaluators)](https://www.langchain.com/langsmith/evaluation)** _available_ — Adds an LLM-as-judge layer that scores agent output for correctness, groundedness and guardrail conformance beyond what deterministic/format checks capture, so a finished run is judged on business validity, not just clean execution.
+- **[Langfuse (LLM-as-a-Judge)](https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge)** _available_ — Observability platform whose LLM-as-a-judge evaluators score traced outputs on quality dimensions (correctness, relevance, hallucination), the separate validity signal this anti-pattern says must not collapse into terminal status.
+- **[MLflow (LLM-as-a-Judge / Agent evaluation)](https://mlflow.org/llm-as-a-judge)** _available_ — Provides LLM-as-judge scorers that assess whether agent/LLM output is actually correct and grounded, surfaced as a distinct evaluation metric rather than inferred from a successful run.
+- **[DeepEval (LLM-as-a-judge metrics)](https://deepeval.com/guides/guides-llm-as-a-judge)** _available_ — Evaluation framework that uses LLM judges for the quality dimensions rule-based checks cannot reach, giving a business-validity verdict independent of execution outcome.
 
 ## Related patterns
 
@@ -124,8 +128,12 @@ A terminal success status must not be treated as a business-correctness verdict;
 - _complements_ **False Resolution** — Both ship as success while being wrong; false resolution subtly violates a stated constraint, this one passes every technical check yet fails on business validity.
 - _alternative-to_ **Supervisor-Plus-Gate** — A validating supervisor that gates output against deterministic business checks before commit is the remedy; this anti-pattern is what its absence produces.
 - _alternative-to_ **Deterministic-LLM Sandwich** — Bracketing the run with a deterministic post-check against business rules is the corrective; relying on the bare exit status is the failure it prevents.
+- _complements_ **Silent Hypotheses in Generated Code** — Both treat a green signal as false proof; that anti-pattern mis-reads a workflow's terminal status as business-correctness, this one mis-reads a passing test suite as evidence the code carries no hidden runtime premise.
 
 ## References
 
 - [Agents IA en production : pourquoi un workflow réussi peut livrer un mauvais résultat (REX ClawPilot)](https://www.castelis.com/insights-ressources/rex-pipeline-agents-ia-clawpilot/) — 2025
 - [Fosse — agents IA et orchestration en production](https://www.fosse.fr/) — 2025
+- [Beyond Task Completion: An Assessment Framework for Evaluating Agentic AI Systems](https://arxiv.org/html/2512.12791v1) — 2025
+- [Beyond Accuracy: A Multi-Dimensional Framework for Evaluating Enterprise Agentic AI Systems](https://arxiv.org/html/2511.14136v1) — 2025
+- [Evaluation and Benchmarking of LLM Agents: A Survey](https://arxiv.org/html/2507.21504v1) — 2025

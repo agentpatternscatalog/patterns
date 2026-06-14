@@ -118,6 +118,9 @@ Only actions the scene affords reach the controller; the agent may not execute a
 
 - **[LLM+A (Affordance Prompting)](https://arxiv.org/abs/2404.11027)** _pure-future_ — Prompts a vision-language model to predict affordance values for candidate robot manipulation actions against the current scene, screening physically infeasible actions before execution.
 - **[OVAL-Prompt](https://arxiv.org/abs/2404.11000)** _pure-future_ — Open-vocabulary affordance localisation that prompts a VLM to ground where on an object an action is feasible, supplying the grounded affordance the gate screens on.
+- **[SayCan](https://say-can.github.io/)** _available_ — A language model proposes candidate skills while learned affordance functions score each one for what the robot can actually execute in the current state, so only feasible actions are selected — the canonical affordance gate.
+- **[VoxPoser](https://voxposer.github.io/)** _available_ — An LLM and a VLM compose 3D value maps that ground affordances and constraints from the scene observation, steering trajectory synthesis toward what the environment physically affords.
+- **[ReKep](https://rekep-robot.github.io/)** _available_ — Large vision models and VLMs ground RGB-D observations into relational keypoint constraints that encode what manipulation a scene affords, screening actions against perceived feasibility before motion.
 
 ## Related patterns
 
@@ -130,3 +133,6 @@ Only actions the scene affords reach the controller; the agent may not execute a
 
 - [Empowering Large Language Models on Robotic Manipulation with Affordance Prompting](https://arxiv.org/abs/2404.11027) — 2024
 - [OVAL-Prompt: Open-Vocabulary Affordance Localization for Robot Manipulation through LLM Affordance-Grounding](https://arxiv.org/abs/2404.11000) — 2024
+- [Do As I Can, Not As I Say: Grounding Language in Robotic Affordances](https://arxiv.org/abs/2204.01691) — Michael Ahn, Anthony Brohan, Noah Brown, et al., 2022
+- [VoxPoser: Composable 3D Value Maps for Robotic Manipulation with Language Models](https://arxiv.org/abs/2307.05973) — Wenlong Huang, Chen Wang, Ruohan Zhang, Yunzhu Li, Jiajun Wu, Li Fei-Fei, 2023
+- [ReKep: Spatio-Temporal Reasoning of Relational Keypoint Constraints for Robotic Manipulation](https://arxiv.org/abs/2409.01652) — Wenlong Huang, Chen Wang, Yunzhu Li, Ruohan Zhang, Li Fei-Fei, 2024

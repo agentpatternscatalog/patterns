@@ -126,6 +126,9 @@ The fast controller must close its loop at the native control rate and may not b
 - **[Fast-in-Slow (FiS-VLA)](https://arxiv.org/abs/2506.01953)** _pure-future_ — Dual-system vision-language-action model: System 2 reasons slowly while System 1 executes actions at a much higher control frequency on asynchronous clocks.
 - **[Asynchronous Fast-Slow VLA (DuoCore-FS)](https://arxiv.org/abs/2512.20188)** _pure-future_ — Truly asynchronous fast-slow framework where the high-frequency action loop does not wait on the slow vision-language reasoning loop for whole-body manipulation.
 - **[PhysiFlow](https://arxiv.org/abs/2603.05410)** _pure-future_ — Humanoid whole-body VLA using a multi-brain latent flow-matching split with robust high-frequency tracking on edge devices.
+- **[Figure Helix](https://www.figure.ai/news/helix)** _available_ — System 2 is an onboard VLM running at 7-9 Hz that posts a latent vector to System 1, a reactive visuomotor policy that runs as a separate real-time process at 200 Hz and never blocks on S2 — exactly the slow-planner / fast-controller split.
+- **[NVIDIA Isaac GR00T N1](https://nvidianews.nvidia.com/news/nvidia-isaac-gr00t-n1-open-humanoid-robot-foundation-model-simulation-frameworks)** _available_ — Open humanoid foundation model whose System 2 VLM reasons and plans while a fast System 1 diffusion policy (~10ms latency) decodes the plan into low-level actions at the high control rate.
+- **[Gemini Robotics On-Device (backbone + decoder)](https://arxiv.org/abs/2503.20020)** _available_ — A VLA backbone (originally cloud-hosted, ~160ms) emits action chunks that an on-robot decoder unrolls with a rolling horizon to hide the slow leg behind a smooth 50 Hz control loop.
 
 ## Related patterns
 
@@ -140,3 +143,5 @@ The fast controller must close its loop at the native control rate and may not b
 - [Asynchronous Fast-Slow Vision-Language-Action Policies for Whole-Body Robotic Manipulation](https://arxiv.org/abs/2512.20188) — 2025
 - [PhysiFlow: Physics-Aware Humanoid Whole-Body VLA via Multi-Brain Latent Flow Matching and Robust Tracking](https://arxiv.org/abs/2603.05410) — 2026
 - [Foundation Models for Robotics: VLA](https://rohitbandaru.github.io/blog/Foundation-Models-for-Robotics-VLA/) — 2025
+- [Gemini Robotics: Bringing AI into the Physical World](https://arxiv.org/abs/2503.20020) — Gemini Robotics Team, Google DeepMind, 2025
+- [OpenHelix: A Short Survey, Empirical Analysis, and Open-Source Dual-System VLA Model for Robotic Manipulation](https://arxiv.org/abs/2505.03912) — Can Cui et al., 2025

@@ -124,7 +124,8 @@ The server must not call any model or hold any model credential of its own; ever
 ## Known uses
 
 - **[Model Context Protocol (sampling primitive)](https://modelcontextprotocol.io/specification/2025-06-18/client/sampling)** _available_ — The protocol defines a client/host sampling capability that lets a server request a model completion from the host via createMessage, with the host retaining approval and model choice.
-- **[MCP SDK servers using sampling](https://mcginniscommawill.com/posts/2026-03-25-mcp-sampling-elicitation-guide/)** _emerging_ — Server authors use the sampling request inside tool handlers to delegate summarisation and classification steps to the host's model rather than embedding their own.
+- **[MCP SDK servers using sampling](https://mcginniscommawill.com/posts/2026-03-25-mcp-sampling-elicitation-guide/)** _available_ — Server authors use the sampling request inside tool handlers to delegate summarisation and classification steps to the host's model rather than embedding their own.
+- **FastMCP** _available_
 
 ## Related patterns
 
@@ -138,3 +139,5 @@ The server must not call any model or hold any model credential of its own; ever
 - [Sampling — Model Context Protocol specification (2025-06-18)](https://modelcontextprotocol.io/specification/2025-06-18/client/sampling) — 2025
 - [Architecture overview — Model Context Protocol](https://modelcontextprotocol.io/docs/learn/architecture) — 2025
 - [MCP Sampling and Elicitation: The Features That Make Servers Smart](https://mcginniscommawill.com/posts/2026-03-25-mcp-sampling-elicitation-guide/) — Will McGinnis, 2026
+- [A survey of agent interoperability protocols: Model Context Protocol (MCP), Agent Communication Protocol (ACP), Agent-to-Agent Protocol (A2A), and Agent Network Protocol (ANP)](https://arxiv.org/abs/2505.02279) — Abul Ehtesham, Aditi Singh, Gaurav Kumar Gupta, Saket Kumar, 2025
+- [Sampling — FastMCP documentation](https://gofastmcp.com/servers/sampling) — 2026

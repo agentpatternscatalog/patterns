@@ -124,6 +124,8 @@ Generation must not be scaled past the team's measured capacity to specify, veri
 
 - **[EconLab AI — Das Verständnis-Manifest](https://econlab-ai.de/blog/verstaendnis-knappes-gut-agentic-engineering)** _available_ — German practitioner manifesto naming the gap directly: as code generation became cheap in 2026, the binding constraint shifts to understanding, and teams that chase output volume ('Output-Rausch') fall on the wrong side of the jagged frontier.
 - **[METR — early-2025 AI developer-productivity field study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)** _available_ — Randomised field study of experienced open-source developers: tasks took ~19% longer with AI tools while participants believed AI made them faster — the perceived-vs-actual productivity divergence at the core of this anti-pattern.
+- **[Greptile](https://www.greptile.com/blog/ai-code-review)** _available_ — Dedicated AI pull-request review agent that builds a whole-codebase knowledge graph to scale verification capacity to match the rising volume of agent-written code; explicitly addresses the cure side of this anti-pattern, that 'the volume of code hitting review has gone up' and much of it is now agent-written and never read pre-commit.
+- **[CodeRabbit](https://www.coderabbit.ai/)** _available_ — AI code-review tool that auto-reviews every PR to recover review throughput as AI generation outpaces human verification, targeting exactly the unverified-fraction growth this anti-pattern describes.
 
 ## Related patterns
 
@@ -136,3 +138,6 @@ Generation must not be scaled past the team's measured capacity to specify, veri
 
 - [Das Verständnis-Manifest: Verständnis als knappes Gut im Agentic Engineering](https://econlab-ai.de/blog/verstaendnis-knappes-gut-agentic-engineering) — 2026
 - [Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) — METR, 2025
+- [Navigating the Jagged Technological Frontier: Field Experimental Evidence of the Effects of AI on Knowledge Worker Productivity and Quality](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4573321) — Fabrizio Dell'Acqua, Edward McFowland III, Ethan R. Mollick, Hila Lifshitz-Assaf, Katherine Kellogg, Saran Rajendran, Lisa Krayer, Francois Candelon, Karim R. Lakhani, 2023
+- [The Specification as Quality Gate: Three Hypotheses on AI-Assisted Code Review](https://arxiv.org/abs/2603.25773) — Christo Zietsman, 2026
+- [The AI Verification Bottleneck: Developer Toil Isn't Shrinking](https://thenewstack.io/the-ai-verification-bottleneck-developer-toil-isnt-shrinking/) — 2026

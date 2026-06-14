@@ -120,6 +120,8 @@ No useful constraint; the missing constraint is a machine-readable architecture 
 
 - **[Software Architecture Summit — coding-agent architecture failures](https://software-architecture-summit.de/blog/software-architektur/coding-agent-architektur-spec-harness/)** _available_ — German practitioner write-up of brownfield coding agents producing wrong layers, ignored conventions, and misplaced logic, and the spec/harness remedy.
 - **[EconLab — agent harness explained](https://econlab-ai.de/blog/agent-harness-erklaert)** _available_ — States that without spec, guardrails, and judgement, agents produce consistent nonsense — the failure shape this anti-pattern names.
+- **[ArchUnit](https://www.archunit.org/)** _available_ — Library that expresses allowed layer dependencies and module boundaries as test-like assertions, the in-loop drift check that rejects wrong-layer and forbidden-dependency diffs before they merge.
+- **[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)** _available_ — Validates JS/TS code against forbidden-dependency and layer rules, encoding the cross-layer boundaries an agent would otherwise violate from a local view.
 
 ## Related patterns
 
@@ -132,3 +134,6 @@ No useful constraint; the missing constraint is a machine-readable architecture 
 
 - [Warum dein Coding Agent die falsche Architektur baut](https://software-architecture-summit.de/blog/software-architektur/coding-agent-architektur-spec-harness/) — 2026
 - [Agent Harness erklärt](https://econlab-ai.de/blog/agent-harness-erklaert) — 2026
+- [Architecture Without Architects: How AI Coding Agents Shape Software Architecture](https://arxiv.org/abs/2604.04990) — 2026
+- [ContextCov: Deriving and Enforcing Executable Constraints from Agent Instruction Files](https://arxiv.org/abs/2603.00822) — 2026
+- [Constraint Decay: The Fragility of LLM Agents in Backend Code Generation](https://arxiv.org/abs/2605.06445) — 2026

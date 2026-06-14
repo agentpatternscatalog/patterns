@@ -124,6 +124,9 @@ The final answer must be grounded only in the result set the data engine returns
 - **[TAG (Table-Augmented Generation)](https://arxiv.org/abs/2408.14717)** _pure-future_ — UC Berkeley / Stanford paper introducing the synthesis-execute-generate paradigm; reports that standard methods (Text2SQL, RAG) answer no more than 20% of such questions correctly on the TAG-Bench benchmark.
 - **[TAG-Bench](https://github.com/TAG-Research/TAG-Bench)** _available_ — Open benchmark and reference hand-written TAG pipelines from the same group, measuring questions that need semantic reasoning over rows beyond pure Text2SQL or retrieval.
 - **[LOTUS](https://github.com/lotus-data/lotus)** _available_ — Query engine with semantic operators that embed model calls (semantic filter, join, aggregate, rank) into relational-style execution over tables — a concrete substrate for the execution stage.
+- **[Databricks AI Functions (ai_query)](https://docs.databricks.com/aws/en/sql/language-manual/functions/ai_query)** _available_ — Built-in SQL function that invokes a model-serving endpoint per row inside query execution, so a semantic predicate (classify, extract, summarise free text) runs as part of the SQL plan — the concrete TAG execution substrate where model calls are embedded in execution rather than done afterward.
+- **[Databricks AI/BI Genie](https://docs.databricks.com/aws/en/genie/)** _available_ — Natural-language analytics space that synthesises read-only SQL from a question and returns the result table; implements the Text2SQL special case of TAG and pairs with ai_query when a semantic predicate must run inside execution.
+- **[Vanna](https://github.com/vanna-ai/vanna)** _available_ — Open-source RAG framework that trains on schema/docs/queries, synthesises SQL from a question, and runs it against the database — the Text2SQL special case where execution needs no embedded model calls.
 
 ## Related patterns
 
@@ -131,6 +134,7 @@ The final answer must be grounded only in the result set the data engine returns
 - _complements_ **Vectorless Reasoning-Based Retrieval** — Both push reasoning into retrieval rather than ranking embeddings; vectorless walks a document tree, while TAG reasons over database rows through an executable query.
 - _alternative-to_ **Agentic RAG** — Agentic RAG loops an agent over retrievers as tools; TAG instead compiles the question into one executable query whose execution layer itself invokes the model.
 - _complements_ **Canonical-Entity Grounding** — Grounding resolves the identifiers a TAG query filters and joins on, so synthesis builds plans over authoritative ids rather than model-emitted ones.
+- _alternative-to_ **Semantic-Layer Query Guardrail** — TAG keeps the model authoring an executable query and embeds model calls inside its execution for semantic predicates; this pattern removes the model's authority to author SQL entirely, routing the question through pre-defined metrics the layer compiles deterministically.
 
 ## References
 
@@ -138,3 +142,5 @@ The final answer must be grounded only in the result set the data engine returns
 - [TAG-Bench: benchmark and reference pipelines for Table-Augmented Generation](https://github.com/TAG-Research/TAG-Bench) — 2024
 - [LOTUS: a query engine with semantic operators over tables](https://github.com/lotus-data/lotus) — 2024
 - [Text2SQL 不夠：以 TAG 統一 AI 與資料庫，讓 SQL 語法擴充呼叫 LLM](https://medium.com/@bohachu/text2sql%E4%B8%8D%E5%A4%A0-%E4%BB%A5tag%E7%B5%B1%E4%B8%80ai%E8%88%87%E8%B3%87%E6%96%99%E5%BA%AB-%E8%AE%93sql%E8%AA%9E%E6%B3%95%E6%93%B4%E5%85%85%E5%91%BC%E5%8F%ABllm-ec0fad6478af) — 2024
+- [Semantic Operators: A Declarative Model for Rich, AI-based Data Processing](https://arxiv.org/abs/2407.11418) — Patel, Jha, Pan, Gupta, Asawa, Guestrin, Zaharia, 2024
+- [ai_query function — Databricks SQL](https://docs.databricks.com/aws/en/sql/language-manual/functions/ai_query) — 2025
