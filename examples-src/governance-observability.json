@@ -1031,6 +1031,90 @@
           "last_updated": "2026-05-26"
         }
       ]
+    },
+    {
+      "pattern_id": "re-contact-subtracted-resolution",
+      "intent": "Compute a re-contact-subtracted resolution rate from handled interactions and gate a rollout on it instead of on raw deflection.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Subtract wrong answers and within-window re-contacts from deflected interactions, optionally apply a CSAT floor, then gate.",
+          "code": "RECONTACT_WINDOW_HOURS = 48\nCSAT_FLOOR = 4.0          # set to None to skip the CSAT condition\nGATE_THRESHOLD = 0.55     # rollout requires a true-resolution rate at or above this\n\ndef gated_resolution_rate(interactions):\n    handled = len(interactions)\n    if handled == 0:\n        return 0.0\n    resolved = 0\n    for it in interactions:\n        if not it.deflected:\n            continue                              # session never ended on its own\n        if correctness_scorer(it).is_wrong:\n            continue                              # subtract: confidently-wrong answer\n        if recontact_within(it, RECONTACT_WINDOW_HOURS):\n            continue                              # subtract: customer came back, same problem\n        if CSAT_FLOOR is not None and it.csat is not None and it.csat < CSAT_FLOOR:\n            continue                              # worn-down departure is not a win\n        resolved += 1\n    return resolved / handled\n\ndef recontact_within(it, hours):\n    # un-gameable signal: a later conversation linked to the SAME customer + problem\n    later = lookup_followups(customer=it.customer, topic=it.topic,\n                             after=it.closed_at, within_hours=hours)\n    return len(later) > 0\n\ndef rollout_gate(window):\n    deflection = sum(1 for it in window if it.deflected) / len(window)\n    true_rate = gated_resolution_rate(window)\n    report(raw_deflection=deflection, true_resolution=true_rate)  # deflection is throughput, not quality\n    if true_rate < GATE_THRESHOLD:\n        block(f\"true resolution {true_rate:.0%} < gate {GATE_THRESHOLD:.0%} \"\n              f\"(raw deflection {deflection:.0%} was inflated)\")\n    return true_rate >= GATE_THRESHOLD",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "compliance-certified-launch-gate",
+      "intent": "Pseudo-code skeleton of a release pipeline that builds the regulator's enumerated content-safety artifacts, measures them against published thresholds, files for certification, and gates public availability on the result.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Produce measured content-safety artifacts, file them, and refuse to launch until the regulator certifies.",
+          "code": "# thresholds come from the published standard, not from internal judgement\nMIN_KEYWORDS      = 10000   # terms, across all named risk categories\nMIN_REFUSAL_RATE  = 0.95    # on the classified sensitive-question bank\nMIN_SPOTCHECK     = 0.90    # sampled-generation pass rate\n\ndef certify_release(model, corpus, standard):\n    # 1. build the enumerated controls\n    kw_library = build_keyword_library(standard.risk_categories)\n    assert len(kw_library) >= MIN_KEYWORDS, \"keyword library below mandated count\"\n    clean_corpus = filter_corpus(corpus, standard.prohibited_content)\n\n    # 2. measure the service against the classified question bank\n    svc = deploy_candidate(model, kw_library, clean_corpus)   # not public yet\n    bank = load_classified_questions(standard)\n    refusal  = measure_refusal_rate(svc, bank.sensitive)\n    spotchk  = measure_spotcheck(svc, sample(bank.all))\n    if refusal < MIN_REFUSAL_RATE or spotchk < MIN_SPOTCHECK:\n        return Blocked(reason=\"thresholds not met\", refusal=refusal, spotcheck=spotchk)\n\n    # 3. file the versioned evidence and wait for the regulator\n    filing = Filing(model=version(model), corpus=version(clean_corpus),\n                    keyword_library=version(kw_library),\n                    refusal=refusal, spotcheck=spotchk)\n    decision = regulator.submit(filing)\n    if not decision.certified:\n        return Blocked(reason=decision.reason)\n\n    return PublicAvailability(filing_id=decision.id)   # only now serve the public\n\n# any model OR corpus change re-enters certify_release before it may serve users\non_change(model_or_corpus) -> certify_release(model, corpus, standard)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-decision-token",
+      "intent": "Pseudo-code skeleton showing a consequential action that commits only after a complete, signed Decision Token is minted and stored at execution time.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Bind committing a consequential action to minting and storing its Decision Token in the same step.",
+          "code": "def execute_consequential(action, agent, model_version):\n    # gather, at execution time, the parts a supervisor will ask for\n    rule        = action.rule_that_fired          # e.g. \"large-transfer review < EUR 50,000\"\n    data_read   = action.inputs_snapshot          # exact inputs the agent read\n    conclusion  = action.conclusion_text          # the agent's human-readable rationale\n    identity    = agent.authorizing_identity      # service account + policy version\n\n    token = {\n        \"action_id\":   action.id,\n        \"rule\":        rule,\n        \"data_read\":   data_read,\n        \"conclusion\":  conclusion,\n        \"identity\":    identity,\n        \"model\":       model_version,             # bind to the model that produced it\n        \"ts\":          now(),\n    }\n    if not complete(token):                       # every required field present?\n        raise RejectAction(\"no complete decision token -> action does not commit\")\n\n    signed = sign(token, key=SIGNING_KEY)         # authorship + integrity\n    token_store.append(signed)                    # append-only, keyed by action_id\n\n    return action.commit()                        # commit ONLY after the token is stored\n\n# months later, a supervisor reads ONE self-contained token per action:\ndef explain(action_id):\n    return token_store.get(action_id)             # no log reconstruction needed",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "postmortem-pattern-mining",
+      "intent": "Pseudo-code skeleton of a map-fold pipeline that turns a postmortem corpus into a cited one-page trend report with a human sampling gate before aggregation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Map each postmortem to a normalised record, gate on a human sample, then classify, cluster, and aggregate into a report.",
+          "code": "TAXONOMY = load_cause_taxonomy()        # fixed label set agreed by the team\n\ndef extract_record(doc):\n    # MAP: one model call per postmortem -> a normalised record\n    return llm.extract(\n        doc,\n        schema=\"cause_category, component, trigger, mitigation, severity\",\n        taxonomy=TAXONOMY,\n        source_id=doc.id,            # keep the citation back to the postmortem\n    )\n\ndef mine(corpus):\n    records = [extract_record(d) for d in corpus]        # parallel map\n\n    # human sampling check BEFORE the aggregate -> a bad record can't poison the count silently\n    for r in sample(records, n=50):\n        r.apply(review(r))                                # reviewer corrects miscategorised rows\n\n    classified = [classify(r, TAXONOMY) for r in records]  # snap causes onto the taxonomy\n    clusters   = cluster_and_rank(classified,\n                                  by=(\"frequency\", \"recency\", \"severity\"))\n\n    # AGGREGATE: fold thousands of records into one page; every trend cites its records\n    report = llm.summarise(\n        clusters,\n        format=\"one-page trend report\",\n        require=\"each claimed trend lists the source_ids behind it\",\n    )\n    assert all(t.source_ids for t in report.trends)       # constrains: no uncited trend\n    return report",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "silent-pilot-to-production-promotion",
+      "intent": "Pseudo-code contrasting the silent-promotion shape (open-ended pilot, scope grows with no re-classification) with the remedy (expiry + objective triggers force a graduate-or-retire go-live decision).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show how an open-ended pilot ratchets into production unnoticed, and the gating remedy that forces a go-live decision.",
+          "code": "# ANTI-PATTERN: 'pilot' is an open-ended status; scope grows, the gate never fires\npilot = Deployment(status=\"pilot\", scope=[\"desk-A\"], mode=\"advisory\")\n\ndef on_expansion_request(pilot, req):\n    # each increment looks too small to re-classify, so it is just added\n    pilot.scope.append(req.user_group)        # + users\n    pilot.decision_types |= req.decision_types # + decision types\n    if req.auto_action:\n        pilot.mode = \"actioned\"               # outputs now acted on directly\n    log(\"pilot expansion\")                     # never logged as a production launch\n    return pilot                              # status stays \"pilot\" forever\n\n# REMEDY: time-box the pilot and define triggers that FORCE a go-live decision\nTRIGGERS = {\n    \"users\": 25, \"traffic_share\": 0.10,\n    \"stakes\": \"consequential\", \"irreversible_outputs\": True,\n}\n\ndef on_expansion_request_gated(pilot, req, now):\n    candidate = pilot.with_added(req)\n    if now > pilot.expires_at or crosses_any(candidate, TRIGGERS):\n        # crossing a trigger is a GO-LIVE event: graduate or retire, do not just grow\n        decision = production_governance.review(candidate)  # sign-off, risk assessment, named owner\n        if decision != \"approved\":\n            raise ExpansionBlocked(\"must graduate to production or retire; cannot stay a pilot\")\n        return candidate.promote(status=\"production\", owner=decision.named_owner)\n    return pilot.with_added(req)              # below all triggers: still a real pilot\n\ndef crosses_any(d, triggers):\n    return (len(d.scope) >= triggers[\"users\"]\n            or d.traffic_share >= triggers[\"traffic_share\"]\n            or d.stakes == triggers[\"stakes\"]\n            or d.irreversible_outputs == triggers[\"irreversible_outputs\"])",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "determinism-tier-replay-gate",
+      "intent": "Pseudo-code skeleton that replays logged cases on identical inputs, classifies the agent into a reproducibility tier, and gates deployment plus validation-sample size on the measured tier.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Measure trace/action/decision determinism from paired re-runs, then admit a use only if its required tier is met and scale validation by the tier.",
+          "code": "# ordered reproducibility ladder (strictest last)\nTIERS = [\"none\", \"action\", \"decision\", \"trace\"]   # index = strength\nREQUIRED = {\"regulated\": \"decision\", \"advisory\": \"action\", \"internal\": \"none\"}\n\ndef classify_tier(cases, agent, conf=0.99):\n    same_trace = same_action = same_decision = 0\n    for case in cases:\n        a = agent.run(case.inputs)          # paired re-run on IDENTICAL inputs\n        b = agent.run(case.inputs)\n        same_decision += (a.decision == b.decision)\n        same_action   += (a.tool_seq == b.tool_seq)\n        same_trace    += (a.full_trace == b.full_trace)\n    n = len(cases)\n    # strictest tier whose agreement clears the confidence bar\n    if same_trace / n >= conf:    return \"trace\"\n    if same_action / n >= conf:   return \"action\"\n    if same_decision / n >= conf: return \"decision\"\n    return \"none\"\n\ndef gate(agent, use_class, logged_cases):\n    tier = classify_tier(sample(logged_cases), agent)\n    need = REQUIRED[use_class]\n    if TIERS.index(tier) < TIERS.index(need):\n        return Block(f\"{use_class} needs >= {need}, measured {tier}\")\n    # weaker tier -> larger validation sample + tighter monitoring\n    strength = TIERS.index(tier)\n    plan = ValidationPlan(sample_size=BASE_N * (len(TIERS) - strength),\n                          monitor_every=BASE_DAYS / (len(TIERS) - strength))\n    return Admit(tier=tier, plan=plan,\n                 artifact=certify(agent.model_id, agent.tool_versions, tier))\n\n# re-measure whenever the model or any tool the agent calls changes\non_model_or_tool_change(lambda agent, use, cases: gate(agent, use, cases))",
+          "verified": false
+        }
+      ]
     }
   ]
 }

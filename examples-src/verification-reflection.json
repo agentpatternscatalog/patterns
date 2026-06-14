@@ -996,6 +996,34 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "verify-before-cite-gate",
+      "intent": "Pseudo-code of a post-generation gate that resolves each cited authority against an external registry and strips any that does not exist.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Parse citations from the answer, resolve each against an authority index, keep resolved ones and strip the rest before delivery.",
+          "code": "# 1. the model produces an answer that may cite external authorities\nanswer = llm.generate(messages=conversation)\n\n# 2. parse structured citations out of the finished text\ncitations = extract_citations(answer)   # -> [{kind, name, docket, jurisdiction, title, doi}, ...]\n\nkept, stripped = [], []\nfor c in citations:\n    # 3. resolve against an EXTERNAL ground-truth registry (not the retrieval set)\n    if c.kind in (\"case\", \"statute\"):\n        record = legal_registry.resolve(c)      # Westlaw / CourtListener / LexisNexis\n    else:\n        record = biblio_registry.resolve(c)     # PubMed / DOI resolver\n\n    # 4. require an exact match on the load-bearing fields\n    if record and record.matches(c, fields=[\"docket\", \"jurisdiction\", \"title\"]):\n        c.resolved = record                      # keep + annotate\n        kept.append(c)\n    else:\n        stripped.append(c)                       # fabricated / repealed / wrong jurisdiction\n\n# 5. disposition: strip non-resolving citations; block in the strictest mode\nif stripped and policy == \"block\":\n    return regenerate_or_escalate(answer, stripped)\nanswer = redact_citations(answer, stripped)      # remove unverified authorities from the text\nanswer = annotate_citations(answer, kept)        # attach resolved records / links\nreturn answer, flags(stripped)                   # surface what was removed",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "behavior-pinning-test-before-agent-edit",
+      "intent": "Pseudo-code showing behaviour captured as golden fixtures before an agent edit, with the deterministic core asserted exactly and model prose compared loosely, run as a finish-step gate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Pin legacy behaviour before the edit, then gate the agent's change on an exact-match diff of the deterministic core.",
+          "code": "# 1) BEFORE the agent edits: capture the untouched behaviour\ngolden = {}\nfor case in representative_inputs():        # cover the rule-bearing branches\n    out = legacy.invoice(case)              # run the code as it is TODAY\n    golden[case.id] = {\n        \"core\": {                            # deterministic, must-match-exactly\n            \"total\": out.total,\n            \"tax\": out.tax,\n            \"tier\": out.tier,\n        },\n        \"prose\": out.explanation,            # model-written, compared loosely\n    }\nsave(\"golden.json\", golden)                 # freeze the baseline\n\n# 2) the agent refactors the module\nagent.edit(\"invoice.py\", goal=\"refactor, preserve behaviour\")\n\n# 3) finish step auto-runs the characterization gate (keyword-triggered)\ndef regression_gate():\n    golden = load(\"golden.json\")\n    for case in representative_inputs():\n        out = legacy.invoice(case)\n        ref = golden[case.id]\n        assert out.core_dict() == ref[\"core\"], f\"VALUE DRIFT {case.id}\"   # exact\n        assert similar(out.explanation, ref[\"prose\"]) >= 0.8             # loose\n\nif finish_step_detected():                  # not left to the agent's discretion\n    try:\n        regression_gate()\n    except AssertionError as e:\n        block_change(reason=str(e))         # any exact-match failure rejects\n# golden 'core' values change ONLY by deliberate human update, never by the model",
+          "verified": false
+        }
+      ]
     }
   ]
 }

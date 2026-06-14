@@ -1196,6 +1196,34 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "context-folding",
+      "intent": "Pseudo-code skeleton of an agent loop with explicit branch/return actions that fold a finished subtask back into a one-line summary.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Branch into a fresh sub-context per subtask, then fold it to a summary on return.",
+          "code": "# main trajectory holds only the goal and folded summaries\nmain = [system_prompt, user(task)]\n\ndef run_subtask(goal):\n    # branch: a FRESH sub-context, seeded with just the subtask goal\n    sub = [system_prompt, user(goal)]\n    for step in 1..SUB_BUDGET:\n        reply = llm.generate(messages=sub, tools=TOOLS + [return_fold])\n        sub.append(reply)\n        if reply.calls(\"return_fold\"):\n            return reply.summary          # fold: discard `sub`, keep one line\n        for call in reply.tool_calls:\n            sub.append(tool_result(call, dispatch(call)))\n    return summarise(sub)                  # safety fold if the sub-budget is hit\n\nfor step in 1..MAX_STEPS:\n    reply = llm.generate(messages=main, tools=[branch, finish])\n    main.append(reply)\n    if reply.calls(\"finish\"):\n        return reply.content\n    if reply.calls(\"branch\"):\n        summary = run_subtask(reply.branch.goal)\n        main.append(folded(summary))       # only the summary re-enters main\n# a learned policy (e.g. FoldGRPO) decides WHEN to branch and WHAT to keep",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "unstructured-human-capture-layer",
+      "intent": "Pseudo-code skeleton mounting the human dump layer read-only and confining all agent writes to a separate derived knowledge layer.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Read the raw human dumps, write structure only to the derived layer, and propose (never apply) edits to the raw layer.",
+          "code": "# two paths, two permission levels enforced at the TOOL boundary\nDUMP      = mount(\"daily/\",     mode=\"read-only\")    # human-authored raw notes\nKNOWLEDGE = mount(\"knowledge/\", mode=\"read-write\")   # derived index + theme clusters\n\ndef ingest_new_dumps():\n    for entry in DUMP.list_new():                # rough, dated, contradictory: leave as-is\n        notes = analyse(entry)                   # read + reason ONLY\n        for n in notes:\n            # structure lives in the DERIVED layer; source is left untouched\n            KNOWLEDGE.upsert(\n                cluster=n.theme,\n                summary=n.text,\n                source=entry.path,               # link back, do not absorb\n            )\n\ndef suggest_fix(entry, fix):\n    # the agent may NOT write DUMP -- it proposes, the human applies\n    assert DUMP.mode == \"read-only\"\n    propose_to_human(entry.path, fix)            # proposal-only channel\n\n# DUMP.write(...) is impossible: the mount denies it at the boundary,\n# so the rough material is structurally safe from the agent's own tidiness.",
+          "verified": false
+        }
+      ]
     }
   ]
 }

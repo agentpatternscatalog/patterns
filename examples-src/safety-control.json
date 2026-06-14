@@ -1832,6 +1832,118 @@
           "last_updated": "2026-05-26"
         }
       ]
+    },
+    {
+      "pattern_id": "conformal-prediction-help-gate",
+      "intent": "Pseudo-code for calibrating a conformal threshold and gating action on prediction-set size.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Calibrate once for a target coverage, then act only when the prediction set is a singleton.",
+          "code": "# one-time calibration on held-out (input, correct_action, scores) data\nq = conformal_quantile(calib_set, target_coverage=0.85)\n\ndef step(observation):\n    options = planner.candidates(observation)        # actions + scores\n    pred_set = [a for a in options if a.score >= q]  # calibrated set\n    if len(pred_set) == 1:\n        return act(pred_set[0])                      # confident -> autonomous\n    else:\n        # 0 or >1 candidates: not confident enough\n        return ask_human(\"which action?\", options=pred_set or options)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "scope-of-practice-gate",
+      "intent": "Pseudo-code for a gate that classifies each request and response against enumerated license-gated acts and blocks them unless a licensed human is in the session.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Classify against reserved acts in code; allow a reserved act only with a licensed human present, else downgrade and refer.",
+          "code": "# enumeration owned by compliance, NOT in the prompt\nRESERVED_ACTS = {\"diagnosis\", \"treatment_plan\", \"dosing\", \"legal_opinion\"}\n\ndef classify(text):\n    # returns one of: \"general_info\" or a reserved-act label\n    return scope_classifier.score(text, RESERVED_ACTS)\n\ndef handle(request, session):\n    act = classify(request)\n    if act in RESERVED_ACTS and not session.licensed_human_present():\n        log_block(act, statute_for(act))\n        return downgrade_and_refer(request, act)   # general info + handoff offer\n\n    draft = agent.respond(request)                  # model may still over-reach\n\n    # re-classify the RESPONSE: the model could emit a reserved act unprompted\n    out_act = classify(draft)\n    if out_act in RESERVED_ACTS and not session.licensed_human_present():\n        log_block(out_act, statute_for(out_act))\n        return downgrade_and_refer(request, out_act)\n\n    return draft\n\ndef downgrade_and_refer(request, act):\n    info = general_information_only(request)\n    return info + \"\\n\\n\" + refer_to_licensed_professional(act)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "mandatory-red-flag-escalation",
+      "intent": "Pseudo-code showing a per-turn deterministic red-flag check that forces an abort-and-handoff before the normal workflow ever runs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Check every turn against a deterministic trigger set first; on a match, abort the workflow and warm-hand-off with the context gathered so far.",
+          "code": "# Versioned, deterministic trigger set, reviewed against the governing protocol.\nRED_FLAGS = load_red_flag_rules(version=\"2026-06\")   # phrases + classifier thresholds\n\ndef red_flag_match(turn, context):\n    if RED_FLAGS.phrase_match(turn.text):\n        return True\n    return RED_FLAGS.classifier_score(turn.text, context) >= RED_FLAGS.threshold\n\ndef handle_turn(turn, context):\n    # The check runs BEFORE the normal workflow, on every turn, outside model discretion.\n    if red_flag_match(turn, context):\n        abort_workflow(context)                       # stop all further autonomous handling\n        warm_handoff(\n            operator=on_call_human(),\n            transcript=context.transcript,\n            collected=context.structured_fields,      # pass context gathered so far\n        )\n        # The model only relays a fixed message; it does NOT decide whether to escalate.\n        return relay(RED_FLAGS.escalation_message)\n\n    # No red flag: normal turn-by-turn handling proceeds.\n    reply = agent.step(turn, context)\n    context.append(turn, reply)\n    return reply",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "ephemeral-agent-identity",
+      "intent": "Pseudo-code skeleton of an orchestrator that mints a task-scoped, short-lived identity per agent run and revokes it on completion.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Mint a per-run identity scoped to one task, run under it, then revoke it so nothing standing is left behind.",
+          "code": "# the agent's own identity is its OWN class: born with the run, scoped to the task, gone at the end\n\ndef run_agent_task(task, workload_id):\n    # mint just-in-time: scoped to THIS task, short TTL, stamped with workload lineage\n    ident = idp.mint_identity(\n        scopes=scope_policy.for_task(task),     # least privilege at issuance\n        ttl=seconds(90),                        # short-lived: expires on its own\n        lineage=workload_id,                    # audit can group runs of one workload\n    )\n    try:\n        cred = ident.credential()\n        result = agent.run(task, auth=cred)     # every step authenticates under the ephemeral identity\n        return result\n    finally:\n        # revoke at task end; do NOT rely on TTL alone\n        ok = idp.revoke(ident.id)\n        audit.assert_retired(ident.id, ok)      # revocation drift here recreates identity sprawl\n\n# orchestrator spawns many short runs; each gets its own dissolving identity\nfor task in batch:\n    run_agent_task(task, workload_id=batch.id)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "velocity-magnitude-governor",
+      "intent": "Pseudo-code skeleton of a governor that meters committed financial magnitude and velocity per unit time, rejects over-cap actions, and downgrades autonomy from human-on-the-loop to human-in-the-loop on a >3-sigma deviation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Gate every money-moving action through magnitude/velocity caps and a baseline-deviation downgrade.",
+          "code": "# hard caps, borrowed from HFT pre-trade controls\nCAPS = {\n    \"notional_per_sec\": 250_000,   # dollars committed per second\n    \"max_order_size\":   100_000,   # dollars per single action\n    \"max_position\":    2_000_000,  # cumulative open exposure\n    \"actions_per_min\":      120,   # velocity ceiling\n}\nSIGMA_TRIGGER = 3.0                  # autonomy-downgrade threshold\n\nwindow   = TimeWindowedCounters()   # rolling value + action-count per horizon\nbaseline = RollingBaseline()        # mean/std of normal volume & value\nautonomy = \"human-on-the-loop\"      # human watches, rarely intervenes\n\ndef governor(action):\n    global autonomy\n    # 1. magnitude + velocity caps -- reject BEFORE execution\n    if action.notional > CAPS[\"max_order_size\"]:               return reject(action, \"over order size\")\n    if window.notional_last_sec() + action.notional > CAPS[\"notional_per_sec\"]: return reject(action, \"over notional/sec\")\n    if window.position() + action.notional > CAPS[\"max_position\"]: return reject(action, \"over position\")\n    if window.actions_last_min() + 1 > CAPS[\"actions_per_min\"]: return reject(action, \"over velocity\")\n\n    # 2. statistical deviation -> graduated autonomy downgrade (NOT a full halt)\n    if baseline.zscore(window.value_rate()) > SIGMA_TRIGGER:\n        autonomy = \"human-in-the-loop\"   # every further material action now needs sign-off\n\n    # 3. dispatch under the current autonomy level\n    if autonomy == \"human-in-the-loop\" and action.material:\n        return hold_for_approval(action)  # wait for affirmative human signal\n    window.record(action)\n    return execute(action)\n\n# the agent calls governor(a) for every money-moving step; nothing bypasses it",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "enforced-advisory-disclaimer",
+      "intent": "Pseudo-code skeleton that attaches a non-suppressible advisory to high-risk regulated answers at the output boundary, with a release-gate check that pins coverage across model upgrades.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Classify the answer, attach the advisory as an enforced field outside the model's control, and gate upgrades on its presence.",
+          "code": "ADVISORY = (\n    \"This is general information, not a substitute for advice \"\n    \"from a licensed professional. For your situation, consult one.\"\n)\n\ndef respond(user_msg):\n    answer = llm.generate(messages=[system_prompt, user(user_msg)])\n    # classification + attachment happen OUTSIDE the model's discretion\n    if output_classifier.is_regulated_high_risk(answer, user_msg):\n        return Message(body=answer, advisory=ADVISORY)   # typed field, not prose\n    return Message(body=answer, advisory=None)\n\n# the model cannot remove `advisory`: it never produced it. user pushback\n# (\"skip the disclaimer\") only changes `body`, never the attached field.\n\ndef upgrade_gate(candidate_model, frozen_high_risk_prompts):\n    # replay a held-out high-risk set; a checkpoint that drops the\n    # advisory FAILS the gate and is not shipped\n    for prompt in frozen_high_risk_prompts:\n        msg = respond_with(candidate_model, prompt)\n        assert msg.advisory == ADVISORY, f\"advisory missing for: {prompt.id}\"\n    return \"upgrade allowed\"",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "reversibility-aware-action-filter",
+      "intent": "Pseudo-code skeleton that inserts a reversibility filter between the policy and the environment, re-sampling the policy until a reversible action is chosen and escalating when none is.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Estimate each proposed action's reversibility, execute only reversible ones, re-sample for the next-best action otherwise, and escalate a genuinely necessary one-way action.",
+          "code": "REVERSIBILITY_THRESHOLD = 0.9  # higher = more cautious\n\ndef reversibility(action, state):\n    # learned estimate, OR a per-tool class declared in the manifest\n    # outside the agent's reach: read-only / reversible /\n    # external-reversible / irreversible\n    cls = tool_manifest.reversibility_class(action.tool)\n    if cls is not None:\n        return {\"read-only\": 1.0, \"reversible\": 0.95,\n                \"external-reversible\": 0.6, \"irreversible\": 0.0}[cls]\n    return reversibility_model.predict(state, action)  # in [0, 1]\n\ndef step(state):\n    # standing filter between policy and environment\n    for action in policy.ranked_actions(state):      # best-first\n        if reversibility(action, state) >= REVERSIBILITY_THRESHOLD:\n            return env.execute(action)                # reversible: go\n        # irreversible: reject and try the next-best action\n    # no reversible action cleared the threshold\n    return escalate_for_approval(state)              # do not loop forever",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "formal-proof-compliance-gate",
+      "intent": "Pseudo-code skeleton of an action gate that admits an action only if its machine-checkable proof type-checks against the encoded regulatory invariants.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Reject any proposed action whose proof of the regulatory invariants does not check; execute and log the proof otherwise.",
+          "code": "# Invariants are encoded ONCE as formal theorems (e.g. Lean 4):\n#   theorem position_ok (s : State) (a : Action) : within_limit (apply s a)\n#   theorem capital_ok  (s : State) (a : Action) : capital_floor (apply s a)\nINVARIANTS = [\"position_ok\", \"capital_ok\"]\n\ndef gate(state, proposal):\n    action = proposal.action\n    proof  = proposal.proof          # proof object the agent must supply\n    if proof is None:\n        return reject(action, reason=\"no proof supplied\")\n\n    # deterministic theorem checker -- NOT the LLM, NOT a heuristic\n    result = checker.verify(\n        proof,\n        goals=[(thm, state, action) for thm in INVARIANTS],\n    )\n    if not result.type_checks:\n        # unprovable -> rejected by construction, never executes\n        return reject(action, reason=result.failed_goal)\n\n    outcome = execution_layer.run(state, action)   # only checked actions run\n    proof_ledger.append(action, proof)             # independently re-verifiable\n    return outcome\n\n# The agent may search for an action AND a proof, but only the checker\n# grants execution: compliance is established before anything runs.",
+          "verified": false
+        }
+      ]
     }
   ]
 }

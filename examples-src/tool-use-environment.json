@@ -1343,6 +1343,90 @@
           "last_updated": "2026-05-26"
         }
       ]
+    },
+    {
+      "pattern_id": "on-demand-tool-synthesis",
+      "intent": "Pseudo-code for the creator/user split: synthesize, validate, register, then call a new tool when none fits.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Close a capability gap by creating, validating, and registering a tool, then calling it.",
+          "code": "def use_tools(subtask):\n    tool = registry.find(subtask)\n    if tool is None:                       # capability gap\n        tool = synthesize(subtask)         # creator role\n    return tool.call(subtask.args)         # user role\n\ndef synthesize(subtask):\n    spec = creator.write_spec(subtask)     # name, signature, docstring\n    code = creator.write_code(spec)        # the implementation\n    test = creator.write_test(spec)        # an expected-output check\n    if not sandbox.run(test, code):        # validate BEFORE registering\n        raise NoToolSynthesised(subtask)   # discard untrusted code\n    return registry.register(spec, code)   # persists for reuse",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "shadow-workspace-vcs",
+      "intent": "Pseudo-code for editing a checkpointed shadow and promoting only accepted diffs to the real tree.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Mirror the tree, checkpoint each edit, roll back a bad step, promote on accept.",
+          "code": "shadow = mirror(real_tree)          # hidden git repo / in-memory overlay\nshadow.commit(\"base\")\n\nfor edit in agent.edits():\n    shadow.apply(edit)\n    shadow.commit(edit.summary)      # one checkpoint per edit\n    if not run_tests(shadow):\n        shadow.rollback_last()       # revert just this step, keep the rest\n\nif human_accepts(shadow.diff(against=\"base\")):\n    promote(shadow, real_tree)       # real files change ONLY here\nelse:\n    discard(shadow)                  # real tree untouched",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "affordance-grounding-gate",
+      "intent": "Pseudo-code skeleton of a perception-side gate that scores each candidate action's affordance against the current scene and forwards only feasible ones.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Score each candidate action against the scene image with a VLM and forward only the feasible ones to the controller.",
+          "code": "FEASIBILITY_THRESHOLD = 0.6\n\ndef affordance_gate(candidates, scene_image):\n    feasible = []\n    for action in candidates:\n        # pure perception: ask the VLM whether THIS body can do THIS action HERE\n        result = vlm.score_affordance(\n            image=scene_image,\n            question=f\"Can the robot {action.verb} the {action.target} \"\n                     f\"in this scene? Is it reachable and {action.requirement}?\",\n        )\n        # result has a score and, optionally, the grounded location\n        if result.score >= FEASIBILITY_THRESHOLD:\n            action.grounded_at = result.location\n            feasible.append(action)\n        else:\n            log_filtered(action, result.reason)   # no real step spent\n    return feasible\n\ndef step(goal, scene_image):\n    candidates = planner.propose(goal, scene_image)\n    feasible = affordance_gate(candidates, scene_image)\n    if not feasible:\n        return planner.revise(goal, scene_image, hint=\"all candidates infeasible\")\n    # the gate screens feasibility, NOT downstream effects -- no rollout, no simulator\n    return controller.execute(feasible[0])",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "async-tool-handle",
+      "intent": "Pseudo-code skeleton of a slow operation split into a start tool that returns a handle and a poll tool that fetches the result.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Start enqueues the slow job and returns a handle at once; poll reads status/result keyed by that handle.",
+          "code": "# durable store: handle -> {status, result|error}\nJOBS = store()\n\n@tool\ndef render_video_start(spec) -> handle:\n    handle = new_id()\n    JOBS.put(handle, {\"status\": \"running\"})\n    enqueue(lambda: _run(handle, spec))   # background worker, off the request path\n    return handle                         # returns INSIDE the transport deadline\n\ndef _run(handle, spec):\n    try:\n        result = slow_render(spec)        # may take 90s\n        JOBS.put(handle, {\"status\": \"done\", \"result\": result})\n    except Exception as e:\n        JOBS.put(handle, {\"status\": \"failed\", \"error\": str(e)})\n\n@tool\ndef render_video_poll(handle) -> dict:\n    return JOBS.get(handle)               # running | done(result) | failed(error)\n\n# agent loop usage:\n#   h = render_video_start(spec)          # cheap, non-blocking\n#   ...do other steps (e.g. draft caption)...\n#   while True:\n#       s = render_video_poll(h)\n#       if s[\"status\"] != \"running\": break\n#       wait(backoff())                   # backoff so polling does not storm",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "mcp-server-side-sampling",
+      "intent": "Pseudo-code of an MCP tool handler that delegates its reasoning step to the host's model via a createMessage callback instead of holding a model key.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A summarise tool that borrows the host's model through sampling instead of carrying its own.",
+          "code": "# the server holds NO model and NO key\n@server.tool(\"summarise_contract\")\ndef summarise_contract(ctx, url):\n    # 1. the server does its own non-language work\n    text = extract_text(fetch(url))\n\n    # 2. reasoning step: ask the HOST's model, do not call one ourselves\n    #    createMessage reverses the call direction back up the connection\n    completion = ctx.session.create_message(\n        messages=[user(\"Summarise the obligations in this contract:\\n\" + text)],\n        model_preferences={\"hints\": [\"a capable summariser\"]},\n        max_tokens=400,\n    )\n    # the host may have denied, capped, or re-routed this; handle absence\n    if completion is None:\n        raise ToolError(\"host did not provide a sampling completion\")\n\n    # 3. fold the host-produced text back into the tool result\n    return {\"summary\": completion.content.text, \"source\": url}\n# model + key + spend stayed with the host; orchestration stayed on the server",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "semantic-layer-query-guardrail",
+      "intent": "Pseudo-code for routing a natural-language data question through a semantic layer: the model selects a vetted metric and parameters, the layer validates and compiles the SQL, and raw SQL authoring is never an available action.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Map the question onto pre-defined metrics, emit a structured request, and let the semantic layer compile and run the SQL — refusing questions whose metric is not modelled.",
+          "code": "# The agent's ONLY data tool is `query_metrics`. It cannot author raw SQL.\n# The semantic layer (e.g. dbt Semantic Layer / Cube) owns metric definitions\n# and deterministic SQL compilation.\n\nCATALOGUE = semantic_layer.list_metrics()   # vetted metrics + dimensions\n\ndef query_metrics(request):\n    # request = {metrics: [...], group_by: [...], grain: ..., filters: {...}}\n    if not semantic_layer.validate(request):       # unknown metric/dimension?\n        raise Unmodelled(request)                  # refuse, do NOT improvise SQL\n    sql = semantic_layer.compile(request)          # deterministic: layer owns SQL\n    return warehouse.execute(sql)                  # layer-compiled SQL only\n\ndef answer(question):\n    # The model SELECTS from the catalogue; it does not write SQL.\n    request = llm.generate(\n        system=\"Map the question onto metrics and dimensions from the catalogue. \"\n               \"Emit a metric request. If no metric fits, say so. Never write SQL.\",\n        user=f\"Question: {question}\\nCatalogue: {CATALOGUE}\",\n        schema=METRIC_REQUEST_SCHEMA,              # structured output, not SQL text\n    )\n    if request.no_metric_fits:\n        return escalate(question)                  # extend the layer, not the query\n    rows = query_metrics(request)                  # validated -> compiled -> run\n    return llm.generate(\n        system=\"Answer using only these result rows.\",\n        user=f\"Question: {question}\\nResult: {rows}\",\n    )\n# revenue / active_user mean exactly what the layer says they mean,\n# for every agent and consumer, every time.",
+          "verified": false
+        }
+      ]
     }
   ]
 }

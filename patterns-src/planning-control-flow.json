@@ -631,6 +631,11 @@
         {
           "pattern": "socratic-questioning-agent",
           "relation": "complements"
+        },
+        {
+          "pattern": "conformal-prediction-help-gate",
+          "relation": "generalises",
+          "note": "Disambiguation asks a clarifying question on ambiguity; this is a calibrated form whose trigger and success rate carry a statistical guarantee."
         }
       ],
       "references": [
@@ -1550,6 +1555,11 @@
         {
           "pattern": "control-flow-integrity",
           "relation": "used-by"
+        },
+        {
+          "pattern": "speculative-agentic-actions",
+          "relation": "complements",
+          "note": "The compiler overlaps independent steps of a KNOWN plan DAG; speculation overlaps the next step of an UNKNOWN plan by guessing it, so a speculated hit can feed the compiler's next dispatch."
         }
       ],
       "references": [
@@ -1691,6 +1701,11 @@
         {
           "pattern": "query-decomposition-agent",
           "relation": "used-by"
+        },
+        {
+          "pattern": "postmortem-pattern-mining",
+          "relation": "used-by",
+          "note": "The per-document summarise/classify stage is the map and the cluster/rank/report stage is the reduce; this pattern specialises that mechanism to an incident-postmortem corpus."
         }
       ],
       "references": [
@@ -4130,6 +4145,11 @@
         {
           "pattern": "pre-flight-spec-authoring",
           "relation": "complements"
+        },
+        {
+          "pattern": "standing-state-injection",
+          "relation": "alternative-to",
+          "note": "The todo-list agent re-injects a durable plan file the agent reads and writes; standing-state-injection re-derives the snapshot per turn with no plan file to maintain."
         }
       ],
       "references": [
@@ -4745,6 +4765,11 @@
         {
           "pattern": "planner-executor-verifier",
           "relation": "complements"
+        },
+        {
+          "pattern": "affordance-grounding-gate",
+          "relation": "alternative-to",
+          "note": "The simulator scores multi-step strategy outcomes; the affordance gate scores whether a single candidate action is physically possible right now."
         }
       ],
       "references": [
@@ -5359,6 +5384,11 @@
         {
           "pattern": "policy-gated-agent-action",
           "relation": "complements"
+        },
+        {
+          "pattern": "re-proposing-rejected-decisions",
+          "relation": "complements",
+          "note": "Decision Context Maps gates a decision on a declared set of gathered inputs; recorded prior decisions and their rejected alternatives are one such required input, so requiring the map closes the re-derivation gap this anti-pattern exploits."
         }
       ],
       "references": [
@@ -5474,6 +5504,11 @@
         {
           "pattern": "scheduled-agent",
           "relation": "complements"
+        },
+        {
+          "pattern": "two-rate-brain-controller-split",
+          "relation": "complements",
+          "note": "Handoff promotes a session once from local to cloud; this split keeps a continuous off-board planner driving an on-board controller throughout the task."
         }
       ],
       "references": [
@@ -5540,6 +5575,561 @@
         "Unobserved-drift incidents — detached runs that drifted or overran budget before being caught"
       ],
       "last_updated": "2026-06-04"
+    },
+    {
+      "id": "two-rate-brain-controller-split",
+      "name": "Two-Rate Cloud-Brain / Edge-Controller Split",
+      "aliases": [
+        "Fast-Slow VLA Split",
+        "Two-Clock Brain-Controller",
+        "Asynchronous Dual-System Robot Policy"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Run a slow planner at low frequency that emits a compact latent plan, and a small on-device controller that tracks it at the robot's native control rate without ever blocking on the planner.",
+      "context": "An embodied agent has to keep a physical body stable and on-task. The body needs new motor commands tens of times a second to stay balanced and to track a moving target, but the large model that understands the scene, follows the instruction, and chooses what to do next takes far longer than one control period to produce an output. The big model often runs off-board on a cloud or workstation accelerator, while only a small accelerator sits on the robot.",
+      "problem": "A single model cannot be both the deliberate planner and the real-time motor loop. If the high-rate controller waits for each new plan from the slow planner, its effective rate collapses to the planner's inference speed and the body falls out of balance or overshoots its target. If the slow planner is forced to run fast enough for control, it must shrink until it can no longer reason about the scene or the instruction. The agent needs deliberation and real-time actuation at the same time on the same body.",
+      "forces": [
+        "Real-time stability needs a fixed high control rate; a missed deadline is a physical failure, not a slow response.",
+        "Scene understanding and instruction following need a large model whose inference is far slower than one control period.",
+        "On-board compute and power are limited, so the large model often runs off-board and reaches the body over a link with variable latency.",
+        "The two parts must agree on what to do, yet they update on two different clocks."
+      ],
+      "therefore": "Therefore: split the agent into a slow planner that emits a compact latent plan at low rate and a small on-device controller that decodes that plan into motor commands at the native control rate, and let the controller keep running on the last plan whenever a fresh one has not yet arrived.",
+      "solution": "Separate the agent into two loops that run on two clocks and communicate through a small shared latent. The slow planner — a large model, often off-board — reads the instruction and recent observations and emits a compact latent plan or goal at low frequency, for example a few hertz. The fast controller — a small model on the robot — takes that latent plan plus the latest proprioception and sensor readings and produces motor commands at the native control rate, for example fifty to a hundred hertz. The fast loop never waits for the slow loop: it reads whichever latent plan is currently posted and keeps tracking it, and the slow loop overwrites that plan asynchronously whenever its next inference finishes. The interface between them is the latent plan, so the planner can be retrained or moved across the link without changing the controller's deadline.",
+      "structure": "Slow planner (low rate, off-board) --latent plan--> shared slot <--read-- Fast controller (native control rate, on-board) --motor commands--> robot body --observations--> both loops",
+      "consequences": {
+        "benefits": [
+          "Deliberation and real-time control coexist on one body without either starving the other.",
+          "The control loop keeps a stable rate even when the planning link is slow or jittery.",
+          "The large planner can run off-board on bigger accelerators while only a small controller sits on the robot.",
+          "Planner and controller can be sized, trained, and updated independently across the latent interface."
+        ],
+        "liabilities": [
+          "A stale latent plan can drive the body confidently in the wrong direction until the next plan arrives.",
+          "Tuning the planner's rate against the controller's tracking horizon is delicate and task-specific.",
+          "A link drop leaves the controller with no fresh plan, so it needs a safe fallback or hold behaviour.",
+          "Debugging spans two clocks, which makes timing faults hard to reproduce."
+        ]
+      },
+      "failure_modes": [
+        "Stale-plan drift — the controller tracks an out-of-date latent plan and the body acts on a scene that has already changed.",
+        "Rate coupling — an implementation detail makes the fast loop block on the slow loop, so the control rate quietly collapses.",
+        "Latent mismatch — the controller decodes a latent the retrained planner no longer means, and motor commands diverge.",
+        "No-plan stall — the planning link drops and the controller has no defined hold or safe-stop behaviour."
+      ],
+      "constrains": "The fast controller must close its loop at the native control rate and may not block waiting on the slow planner; it must act on the last posted latent plan, and when no fresh plan has arrived it must keep tracking the previous one or fall back to a safe hold rather than stall.",
+      "known_uses": [
+        {
+          "system": "Fast-in-Slow (FiS-VLA)",
+          "status": "pure-future",
+          "note": "Dual-system vision-language-action model: System 2 reasons slowly while System 1 executes actions at a much higher control frequency on asynchronous clocks.",
+          "url": "https://arxiv.org/abs/2506.01953"
+        },
+        {
+          "system": "Asynchronous Fast-Slow VLA (DuoCore-FS)",
+          "status": "pure-future",
+          "note": "Truly asynchronous fast-slow framework where the high-frequency action loop does not wait on the slow vision-language reasoning loop for whole-body manipulation.",
+          "url": "https://arxiv.org/abs/2512.20188"
+        },
+        {
+          "system": "PhysiFlow",
+          "status": "pure-future",
+          "note": "Humanoid whole-body VLA using a multi-brain latent flow-matching split with robust high-frequency tracking on edge devices.",
+          "url": "https://arxiv.org/abs/2603.05410"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "talker-reasoner",
+          "relation": "alternative-to",
+          "note": "Talker-Reasoner splits a conversational agent so the chat turn never blocks on deliberation; this split is for an embodied body where the fast loop is a fixed-rate motor controller, not a dialogue turn."
+        },
+        {
+          "pattern": "dual-system-gui-agent",
+          "relation": "alternative-to",
+          "note": "The GUI split routes by subproblem (planning vs pixel grounding) with no timing invariant; here the split is by clock rate and the fast loop must hold its control deadline."
+        },
+        {
+          "pattern": "hierarchical-agents",
+          "relation": "complements",
+          "note": "Hierarchy decomposes tasks logically across levels; this split adds a frequency boundary so the lowest level runs on its own real-time clock."
+        },
+        {
+          "pattern": "local-to-cloud-handoff",
+          "relation": "complements",
+          "note": "Handoff promotes a session once from local to cloud; this split keeps a continuous off-board planner driving an on-board controller throughout the task."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Fast-in-Slow: A Dual-System Foundation Model Unifying Fast Manipulation within Slow Reasoning",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.01953"
+        },
+        {
+          "type": "paper",
+          "title": "Asynchronous Fast-Slow Vision-Language-Action Policies for Whole-Body Robotic Manipulation",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2512.20188"
+        },
+        {
+          "type": "paper",
+          "title": "PhysiFlow: Physics-Aware Humanoid Whole-Body VLA via Multi-Brain Latent Flow Matching and Robust Tracking",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2603.05410"
+        },
+        {
+          "type": "blog",
+          "title": "Foundation Models for Robotics: VLA",
+          "year": 2025,
+          "url": "https://rohitbandaru.github.io/blog/Foundation-Models-for-Robotics-VLA/"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "embodied",
+        "robotics",
+        "real-time-control",
+        "dual-system",
+        "latency"
+      ],
+      "example_scenario": "A humanoid robot is told to carry a tray across a moving crowd. A large planner on a nearby workstation looks at the scene a few times a second and posts a short latent goal such as 'step left, keep the tray level'. A small model on the robot reads that goal and the robot's balance sensors a hundred times a second and sends the leg and arm commands that keep it upright. When a person steps in and the next plan is late, the small model keeps tracking the last goal so the robot does not stumble.",
+      "applicability": {
+        "use_when": [
+          "An agent controls a physical body that needs motor commands at a fixed high rate to stay stable.",
+          "The model that understands the scene and instruction is too slow to run inside one control period.",
+          "The large model can run off-board while only a small controller fits on the device.",
+          "A compact latent plan can carry intent from the slow loop to the fast loop."
+        ],
+        "do_not_use_when": [
+          "The task has no real-time actuation deadline, so a single model per turn is enough.",
+          "One model is fast enough to both reason and act within the control period.",
+          "No safe fallback exists for the controller when the planning link drops.",
+          "The body's behaviour cannot be captured in a latent plan small enough to send at low rate."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart LR\n  OBS[Observations] --> SP[Slow planner low rate off-board]\n  OBS --> FC[Fast controller native rate on-board]\n  SP -->|latent plan| SLOT[(Shared plan slot)]\n  SLOT -->|read last plan| FC\n  FC -->|motor commands| BODY[Robot body]\n  BODY --> OBS",
+        "caption": "The slow planner posts a latent plan asynchronously; the fast controller reads the last posted plan and closes the motor loop at the native control rate."
+      },
+      "components": [
+        "Slow planner — large model, often off-board, that reads instruction and observations and emits a latent plan at low rate",
+        "Fast controller — small on-device model that decodes the latent plan into motor commands at the native control rate",
+        "Shared plan slot — the single latent plan the fast loop reads and the slow loop overwrites asynchronously",
+        "Latent plan interface — the compact intent representation that decouples the two clocks",
+        "Fallback policy — the hold or safe-stop behaviour the controller runs when no fresh plan arrives"
+      ],
+      "tools": [
+        "On-device accelerator — runs the small controller within each control period",
+        "Off-board accelerator — runs the large planner for scene and instruction understanding",
+        "Real-time control loop — schedules the controller at a fixed rate and enforces its deadline",
+        "Low-latency link — carries latent plans from planner to controller and observations back"
+      ],
+      "evaluation_metrics": [
+        "Achieved control-loop frequency vs the target native rate — whether the fast loop holds its deadline",
+        "Planner update rate vs control rate — how many control steps run per posted plan",
+        "Stale-plan window — how long the controller drives on an out-of-date plan before refresh",
+        "Task success and stability under planner-link latency and drops vs a synchronous baseline"
+      ],
+      "last_updated": "2026-06-14"
+    },
+    {
+      "id": "standing-state-injection",
+      "name": "Standing State Injection",
+      "aliases": [
+        "Current-State Recitation",
+        "Per-Turn State Snapshot",
+        "Standing Goal Block"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Recompute a compact task-state snapshot each turn and inject it as a fresh system block before the model reasons, so a long tool-call loop stays oriented on the goal.",
+      "context": "An agent runs a task that stretches across dozens or hundreds of tool-call turns, such as a multi-step research sweep or a long build-and-fix loop. Every turn the prior reasoning, tool calls, and observations pile up in the running history, and the original goal slides toward the middle of a window that the model attends to less and less. The harness still controls prompt assembly on each turn, so it can place a small block wherever attention is strongest.",
+      "problem": "A goal stated once at the start of a long trajectory drifts as the history grows: the model loses track of what it set out to do, what is already done, and what comes next, and it may ask a question it already answered or declare the task finished early. Relying on the buried opening instruction is brittle, while re-reading the whole history each turn is expensive and still leaves the goal lost in the middle. The agent needs its current state restated where it will actually be read, every turn.",
+      "forces": [
+        "Long histories push the original goal into the low-attention middle of the window, so a one-time goal statement decays even though it is still present.",
+        "Recomputing a snapshot every turn costs tokens and a small derivation step, but a stale or absent state block costs a drifted or abandoned task.",
+        "A snapshot that is too terse omits the next step the model needs, while one that copies the whole plan reintroduces the bloat the loop was meant to avoid.",
+        "Deriving the snapshot from live execution keeps it honest, whereas trusting the model to self-summarise its own state invites quiet drift between the snapshot and reality."
+      ],
+      "therefore": "Therefore: on every prompt assembly, derive a short current-state block — goal, status so far, next step — from the live run and inject it as a high-salience system message ahead of the model's reasoning.",
+      "solution": "Before each model turn, the harness builds a compact state snapshot from the live execution: the standing goal, a one-line status of what is done, and the immediate next step or open question. It renders this as a short structured block and injects it as a system message placed near the top of the assembled prompt, where the model attends most. The block is recomputed every turn from the current run rather than copied from the previous turn, so it tracks progress as the agent works. The full history may still be present or offloaded elsewhere, but the standing block guarantees the goal and next step are always restated in a low-cost, high-salience position, independent of any durable plan file.",
+      "structure": "Live run state --derive--> Compact snapshot (goal, status, next step) --inject as system block--> Assembled prompt --> Model turn --updates--> Live run state",
+      "consequences": {
+        "benefits": [
+          "The goal and next step are restated in a high-attention position every turn, cutting goal drift across long trajectories.",
+          "The snapshot is a few dozen tokens regardless of history length, so the orientation cost stays flat as the run grows.",
+          "Because the block is re-derived from the live run, it reflects real progress instead of a stale opening instruction."
+        ],
+        "liabilities": [
+          "A snapshot derived from a wrong reading of run state confidently misdirects the model, which trusts the high-salience block.",
+          "Recomputing and serialising the block each turn adds a small fixed cost to every assembly.",
+          "If the snapshot omits a detail a step needs, the model may act on the terse summary and skip context that was still load-bearing."
+        ]
+      },
+      "failure_modes": [
+        "Stale snapshot — the block is copied from a previous turn instead of re-derived, so it reports a next step the agent already completed.",
+        "Snapshot drift — the derived state subtly disagrees with the real run, and the model follows the block over the evidence in history.",
+        "Over-compression — the snapshot drops the next step or open question, leaving the model oriented on the goal but unsure how to advance."
+      ],
+      "constrains": "The injected state block must be recomputed from the live run on every prompt assembly; the agent cannot reuse a snapshot carried over from a previous turn, and a turn assembled without a current-state block is a harness bug.",
+      "known_uses": [
+        {
+          "system": "Manus",
+          "status": "available",
+          "note": "Recites an evolving goal/todo block near the end of context each turn to fight lost-in-the-middle goal drift across long tool-call loops.",
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        },
+        {
+          "system": "Deep Agents context-management (Lance Martin)",
+          "status": "available",
+          "note": "Structured compaction retains session intent and next-step fields so the agent keeps its direction after the history is reduced.",
+          "url": "https://blog.aihao.tw/2026/02/20/agent-design-patterns/"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements",
+          "note": "Both inject a freshly computed block into every prompt assembly; now-anchoring restates the current time, standing-state-injection restates the current task state."
+        },
+        {
+          "pattern": "todo-list-driven-agent",
+          "relation": "alternative-to",
+          "note": "The todo-list agent re-injects a durable plan file the agent reads and writes; standing-state-injection re-derives the snapshot per turn with no plan file to maintain."
+        },
+        {
+          "pattern": "attentive-reasoning-queries",
+          "relation": "complements",
+          "note": "ARQs re-anchor attention via a fixed query sequence inside the model's reasoning; standing-state-injection re-anchors it via a harness-computed state block placed ahead of reasoning."
+        },
+        {
+          "pattern": "context-compaction",
+          "relation": "complements",
+          "note": "Compaction reduces the bloated history; a standing state block guarantees the goal and next step survive the reduction in a fixed high-salience slot."
+        },
+        {
+          "pattern": "tool-result-reinforcement",
+          "relation": "complements",
+          "note": "Both restate goal, status, and next step from the live run; standing-state-injection injects the block as a system message ahead of reasoning, tool-result reinforcement appends it to the tool return the model reads on the action turn."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "AI Agent 怎麼管理 Context? 從設計模式到 Deep Agents 實作",
+          "year": 2026,
+          "url": "https://blog.aihao.tw/2026/02/20/agent-design-patterns/"
+        },
+        {
+          "type": "blog",
+          "title": "Context Engineering for AI Agents: Lessons from Building Manus",
+          "authors": "Yichao 'Peak' Ji",
+          "year": 2025,
+          "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+        },
+        {
+          "type": "blog",
+          "title": "Effective context engineering for AI agents",
+          "authors": "Anthropic",
+          "year": 2025,
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "context-management",
+        "long-horizon",
+        "goal-drift",
+        "prompt-assembly",
+        "planning"
+      ],
+      "example_scenario": "An agent is asked to triage forty open bug reports and file a summary for each. Twenty turns in, the original instruction sits far up the history and the model starts re-asking which repository to look in. With standing state injection, every turn begins with a small block — goal: triage 40 bugs; done: 23 filed; next: report #24 in the payments repo — so the agent keeps moving through the queue instead of losing the thread.",
+      "applicability": {
+        "use_when": [
+          "Tasks run long enough that the original goal sinks into the low-attention middle of the context window.",
+          "The harness controls prompt assembly and can derive a current-state snapshot from the live run each turn.",
+          "Goal drift, premature completion, or re-asking answered questions is an observed failure on long trajectories."
+        ],
+        "do_not_use_when": [
+          "Tasks finish in a few turns, so the goal never drifts and the per-turn snapshot cost is pure overhead.",
+          "A durable, agent-edited plan file is already the working memory and re-injecting it serves the same role.",
+          "Reliable run state cannot be derived, so an injected snapshot would more often misdirect than orient the model."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  R[Live run state] -->|derive each turn| S[Compact snapshot: goal, status, next step]\n  S -->|inject as system block| P[Assembled prompt]\n  P --> M[Model turn]\n  M -->|tool calls + observations| R",
+        "caption": "Each turn the harness re-derives a compact state snapshot from the live run and injects it as a high-salience system block before the model reasons."
+      },
+      "components": [
+        "State deriver — reads the live run each turn and extracts the standing goal, current status, and next step",
+        "Snapshot renderer — serialises the derived state into a short structured block, kept to a fixed small budget",
+        "Prompt assembler — places the snapshot as a system message in the high-attention slot before the model's reasoning",
+        "Run-state store — the source of truth the deriver reads, updated by each turn's tool calls and observations",
+        "Salience policy — decides where in the assembled prompt the block sits so the model reliably attends to it"
+      ],
+      "tools": [
+        "Tool-calling LLM — consumes the injected state block and acts on the next step",
+        "Prompt-assembly layer — rebuilds the message list each turn and injects the recomputed block",
+        "Run-state tracker — records progress so the snapshot can be re-derived rather than copied"
+      ],
+      "evaluation_metrics": [
+        "Goal-drift rate — fraction of long runs where the agent abandons or misremembers the original goal, with vs without the block",
+        "Premature-completion rate — how often the agent declares done early, compared to a no-snapshot baseline",
+        "Snapshot token overhead — average tokens the state block adds per turn against the orientation it buys",
+        "Snapshot fidelity — how often the injected state agrees with the true run state on audit"
+      ],
+      "last_updated": "2026-06-14"
+    },
+    {
+      "id": "speculative-agentic-actions",
+      "name": "Speculative Agentic Actions",
+      "aliases": [
+        "Speculative Tool Execution",
+        "Action Lookahead",
+        "Preemptive Tool Bundling"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Predict the tool calls the agent is most likely to issue next and execute them preemptively on the current turn, then keep the results that the confirmed trajectory needs and discard the rest.",
+      "context": "An agent works a long-horizon task as a strict request-act-observe loop: each turn it reads the prior observation, decides on one tool call, waits for the result, and only then plans the next call. On tasks that take dozens of turns this serialisation is the dominant cost. Every turn replays the growing transcript, pays a model round-trip, and waits on a tool whose outcome was often predictable from the previous observation, so the run exhausts its turn or token budget before the goal is reached.",
+      "problem": "Many of the tool calls an agent will make are highly predictable from the current state — after listing a directory it will read the obvious file, after a failing test it will open the named stack-frame, after a search hit it will fetch the top result. Forcing each of these through its own confirm-then-act turn spends a full model round-trip and a transcript replay on a decision the agent had already implicitly made. The agent needs a way to run ahead of itself on the predictable stretches without committing to a wrong branch when the prediction misses.",
+      "forces": [
+        "Each extra turn replays the whole transcript and pays a model round-trip, so collapsing turns directly buys horizon under a fixed token budget — but speculation that misses wastes the very budget it tried to save.",
+        "The next tool call is often near-certain from the current observation, yet the loop treats every call as if it were a fresh, uncertain decision.",
+        "Executing a predicted call early overlaps its latency with the model's reasoning, but a speculative call with side effects cannot simply be thrown away if the prediction is wrong.",
+        "A bolder prediction horizon collapses more turns when right and burns more budget when wrong, so the speculation depth must be tuned to the prediction's confidence."
+      ],
+      "therefore": "Therefore: predict the likely-next tool calls from the current state, execute the read-only ones preemptively alongside the model's reasoning, splice in the results that the confirmed trajectory turns out to need, and discard the mispredicted speculation.",
+      "solution": "Add a speculation step to the agent loop. From the current observation a lightweight predictor proposes the tool call (or short chain of calls) the agent is most likely to issue next, and the harness dispatches those calls speculatively while the main model reasons about the same turn. When the model commits to its actual next action, the harness checks it against the speculation: on a hit it splices in the already-computed result and skips the round-trip, collapsing two or more turns into one; on a miss it drops the speculative result and falls back to the normal act-observe step. Speculation is confined to read-only, idempotent, side-effect-free calls so a discarded prediction costs only wasted compute, never corrupted state. The prediction horizon is bounded by confidence, so the loop speculates aggressively where the next step is near-certain and conservatively where it is not.",
+      "structure": "Observation --> Predictor (likely-next call) --speculate(read-only)--> Tool ; Main model --commit(actual call)--> Match? --hit--> splice cached result (turn collapsed) / --miss--> discard + normal act-observe",
+      "consequences": {
+        "benefits": [
+          "Predictable stretches of a trajectory collapse from one turn per call into a single turn, cutting the round-trips and transcript replays that dominate long-horizon cost.",
+          "Speculative call latency overlaps with the model's reasoning, so a correct prediction is effectively free wall-clock time.",
+          "The agent reaches further under the same turn or token budget, addressing resource exhaustion on long tasks."
+        ],
+        "liabilities": [
+          "A mispredicted speculation spends compute and tool quota on a result that is thrown away, so a poor predictor can make a run slower and costlier than the plain loop.",
+          "Restricting speculation to read-only idempotent calls excludes the state-changing actions that often dominate a task, limiting the turns that can be collapsed.",
+          "The predictor adds a component to build, tune, and keep aligned with the agent's real policy; drift between the two silently lowers the hit rate."
+        ]
+      },
+      "failure_modes": [
+        "Side-effect leakage — a call assumed idempotent is speculated and mutates external state, so a discarded misprediction leaves a partial write behind.",
+        "Over-speculation — the predictor runs a deep chain ahead on a low-confidence branch, burning more budget on discarded work than the loop saved.",
+        "Predictor drift — the speculator's policy diverges from the agent's real policy, the hit rate collapses, and every turn pays speculation overhead with no payoff."
+      ],
+      "constrains": "Only read-only, idempotent, side-effect-free tool calls may be executed speculatively; state-changing actions must not run before the agent commits to them, and a mispredicted speculative result must be discarded rather than fed into the trajectory.",
+      "known_uses": [
+        {
+          "system": "Aegis",
+          "status": "pure-future",
+          "note": "Taxonomy of agent-environment failures that names Speculative Agentic Actions as an optimisation against resource exhaustion, preemptively bundling related tool calls so the trajectory collapses fewer turns.",
+          "url": "https://arxiv.org/abs/2508.19504"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "parallel-tool-calls",
+          "relation": "alternative-to",
+          "note": "Parallel tool calls fan out calls already known to be independent within one turn; speculative actions execute the predicted likely-NEXT call before the agent has confirmed it needs it, and discard it on a miss."
+        },
+        {
+          "pattern": "llm-compiler",
+          "relation": "complements",
+          "note": "The compiler overlaps independent steps of a KNOWN plan DAG; speculation overlaps the next step of an UNKNOWN plan by guessing it, so a speculated hit can feed the compiler's next dispatch."
+        },
+        {
+          "pattern": "sleep-time-compute",
+          "relation": "complements",
+          "note": "Both precompute likely-future work, but sleep-time-compute runs offline during idle periods against the standing context, while speculation runs in-loop on the live trajectory and is discarded the moment the prediction misses."
+        },
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "complements",
+          "note": "A world model that rolls out hypothetical futures can supply the likely-next-action prediction that speculation acts on, turning a simulated rollout into a real preemptive call."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Aegis: Taxonomy and Optimizations for Overcoming Agent-Environment Failures in LLM Agents",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2508.19504"
+        }
+      ],
+      "status_in_practice": "experimental",
+      "tags": [
+        "long-horizon",
+        "latency",
+        "tool-use",
+        "control-flow",
+        "speculative-execution"
+      ],
+      "example_scenario": "A debugging agent is told a test failed. From the failure observation a predictor guesses the agent's next move is to open the file named in the top stack frame, so the harness reads that file speculatively while the model is still reasoning. When the model commits to exactly that read, the already-fetched contents are spliced in and the read-and-wait turn is skipped; when the model instead decides to re-run the test, the speculative read is dropped and the loop proceeds normally.",
+      "applicability": {
+        "use_when": [
+          "The next tool call is frequently predictable from the current observation, so a cheap predictor can hit often enough to pay for its misses.",
+          "Per-turn cost (model round-trip plus transcript replay) dominates the run and the task spans many turns.",
+          "The predictable calls are read-only and idempotent, so a discarded misprediction wastes only compute and not external state."
+        ],
+        "do_not_use_when": [
+          "The likely-next action is genuinely uncertain at each step, so speculation misses more often than it hits and adds net cost.",
+          "The dominant tool calls have side effects or are not idempotent, so they cannot be safely run before the agent commits to them.",
+          "Tool calls are cheap and the task is short, so the per-turn cost the pattern targets is not the bottleneck."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  O[Observation] --> P[Predictor: likely-next call]\n  P -->|speculate read-only| T[Tool runs early]\n  O --> M[Main model reasons]\n  M --> C{Committed call == speculation?}\n  T --> C\n  C -->|hit| S[Splice cached result, turn collapsed]\n  C -->|miss| D[Discard result, normal act-observe]\n  S --> O\n  D --> O",
+        "caption": "A predictor speculatively runs the likely-next read-only call while the model reasons; a hit collapses the turn, a miss is discarded."
+      },
+      "components": [
+        "Agent loop — the request-act-observe controller that decides one committed tool call per turn",
+        "Next-action predictor — proposes the likely-next tool call (or short chain) from the current observation",
+        "Speculation dispatcher — executes predicted read-only calls preemptively while the main model reasons",
+        "Match-and-splice gate — compares the agent's committed call to the speculation, splicing a hit and dropping a miss",
+        "Speculative result buffer — holds in-flight preemptive results until they are spliced or discarded"
+      ],
+      "tools": [
+        "Tool-calling LLM — reasons and commits the actual next action on each turn",
+        "Read-only / idempotent tool subset — the calls eligible for safe speculative execution",
+        "Async execution runtime — runs speculative calls concurrently with model reasoning so their latency overlaps"
+      ],
+      "evaluation_metrics": [
+        "Speculation hit rate — fraction of preemptive calls the agent actually committed to, the key driver of net benefit",
+        "Turns collapsed per task — how many act-observe round-trips the pattern removes versus the plain loop",
+        "Wasted-work overhead — compute and tool quota spent on discarded mispredictions",
+        "Task success rate and budget headroom — completion under the same turn or token budget versus a no-speculation baseline"
+      ],
+      "last_updated": "2026-06-14"
+    },
+    {
+      "id": "tool-result-reinforcement",
+      "name": "Tool-Result Reinforcement",
+      "aliases": [
+        "Reinforcement (tool-return)",
+        "Enriched Tool Return",
+        "Tool-Return Re-grounding"
+      ],
+      "category": "planning-control-flow",
+      "intent": "Append a goal reminder, current task status, and failure or next-step hints to each tool return so the agent is re-grounded through the action channel it already reads.",
+      "context": "An agent runs a long tool-call loop where most of the content the model reads back is the result of its own actions: a file dumped, a query answered, an HTTP body, an error trace. Across dozens of turns these raw returns dominate the active window while the standing goal, the place in the plan, and the lessons of earlier failures sit far up the history. The harness, however, owns the function that hands each tool result back to the model, so it can decide exactly what text that result carries.",
+      "problem": "A tool return that carries only the raw result tells the model what happened but not why it was doing it or what to do next, and after a failed call it often returns just the raw error with no steer away from the dead end. Restating orientation only in the system prompt or an injected block leaves the goal competing with a wall of tool output the model is actively reading, and re-reading the whole history each turn is expensive. The orientation needs to ride the very channel the model attends to most: the tool result itself.",
+      "forces": [
+        "The tool return is the freshest, highest-attention text the model reads on an action turn, yet a raw result spends none of that attention on orientation.",
+        "Padding every return with reminders, status, and hints costs tokens on each call, while a bare return costs a drifted plan or a repeated dead-end after a failure.",
+        "A return that restates the whole plan reintroduces the bloat the loop was meant to avoid, while one too terse omits the next step the model needs.",
+        "Reminders derived from live run state stay honest, whereas a static reminder copied onto every return goes stale as the task advances."
+      ],
+      "therefore": "Therefore: have the harness wrap each tool result, raw output plus a compact reminder of the goal, the current task status, and a failure or next-step hint, so orientation arrives on the channel the model reads anyway.",
+      "solution": "Route every tool result through a wrapper the harness controls before it reaches the model. The wrapper keeps the raw output and appends a small reinforcement block derived from the live run: the standing goal in one line, a one-line status of progress so far, and, on a failed call, a hint about what did not work and what to try next. On a successful call the block carries the goal and the immediate next step instead. The block is recomputed from the current run on each return rather than copied from the previous one, so it tracks progress, and it stays to a fixed small budget so it never swamps the result. Because the reminder rides the tool return, the model meets it at the exact point it is reasoning about what to do next, without a separate injection slot or a re-read of the history.",
+      "structure": "Tool call --dispatch--> Raw result --wrap(goal + status + failure/next-step hint, derived from live run)--> Enriched return --> Model reads result + reminder together --> Next action",
+      "consequences": {
+        "benefits": [
+          "Orientation reaches the model on the highest-attention text of an action turn, cutting goal drift without a separate injection block.",
+          "A failure hint travels with the error, so the model is steered off a dead end on the same turn instead of retrying the same call.",
+          "The reinforcement block is a few dozen tokens regardless of history length, so the orientation cost stays flat as the run grows."
+        ],
+        "liabilities": [
+          "A reminder derived from a wrong reading of run state confidently misdirects the model, which trusts the text attached to its own result.",
+          "Wrapping every return adds a small fixed cost to each tool call and lengthens the context the model must read.",
+          "If the appended block crowds or visually merges with the raw output, the model may confuse the harness reminder for tool-produced content."
+        ]
+      },
+      "failure_modes": [
+        "Stale reminder — the block is copied from a previous return instead of re-derived, so it reports a next step the agent already completed.",
+        "Reminder swamps result — the reinforcement block grows until it crowds out the raw output the model actually needed from the call.",
+        "Hint-as-data confusion — the appended steer is not clearly delimited from the tool output, and the model treats the harness reminder as a returned value."
+      ],
+      "constrains": "The reinforcement block appended to a tool return may not alter or replace the raw result, and it must be re-derived from the live run on each return; a reminder carried over verbatim from a previous turn or one that overwrites the tool's actual output is a harness bug.",
+      "known_uses": [
+        {
+          "system": "Manus (as reported by ihower)",
+          "status": "available",
+          "note": "Practitioner write-up describes a 'reinforcement' move: after every tool call the agent returns more than the raw data — a goal reminder, task status, and a hint on failure — to keep the agent on track.",
+          "url": "https://ihower.tw/blog/13513-agent-design-is-still-hard-2025"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "standing-state-injection",
+          "relation": "complements",
+          "note": "Both restate goal, status, and next step from the live run; standing-state-injection injects the block as a system message ahead of reasoning, tool-result reinforcement appends it to the tool return the model reads on the action turn."
+        },
+        {
+          "pattern": "action-selector-pattern",
+          "relation": "alternative-to",
+          "note": "Opposite direction on the tool-return channel: the action selector removes tool output from the decision context to block injection; tool-result reinforcement deliberately enriches the tool return to steer the agent, trusting the harness as the source of the appended text."
+        },
+        {
+          "pattern": "tool-output-trusted-verbatim",
+          "relation": "complements",
+          "note": "Avoiding the anti-pattern puts a trust boundary at every tool return; tool-result reinforcement reuses that same wrap point to append harness-authored, clearly-delimited orientation rather than untrusted tool bytes."
+        },
+        {
+          "pattern": "now-anchoring",
+          "relation": "complements",
+          "note": "Both ride an existing channel with a freshly computed block; now-anchoring stamps the current time into the prompt, tool-result reinforcement stamps goal and status onto the tool return."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "AI Agent 產品開發仍然不簡單 (2025)",
+          "authors": "ihower (Wen-Tien Chang)",
+          "year": 2025,
+          "url": "https://ihower.tw/blog/13513-agent-design-is-still-hard-2025"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "context-management",
+        "long-horizon",
+        "goal-drift",
+        "tool-use",
+        "error-handling",
+        "planning"
+      ],
+      "example_scenario": "An agent is asked to fix the failing tests across a service. Each test-runner call returns a long failure log; on its own that log tells the model what broke but not what it set out to do. With tool-result reinforcement, every run-tests return ends with a short block — goal: get the suite green; status: 6 of 9 files passing; last failure: import error in billing, try fixing the path before rerunning — so the agent keeps working the queue and stops re-running the same broken call.",
+      "applicability": {
+        "use_when": [
+          "Tasks run long enough that raw tool returns dominate the window and push the standing goal into the low-attention history.",
+          "The harness owns the function that hands tool results back to the model and can wrap each return.",
+          "Failed tool calls are common and the agent tends to retry the same dead end without a steer toward the next step."
+        ],
+        "do_not_use_when": [
+          "Tasks finish in a few turns, so the goal never drifts and per-return reminders are pure overhead.",
+          "The tool-return channel is deliberately stripped of influence over the next action for injection safety, as in the action-selector pattern.",
+          "Reliable run state cannot be derived, so an appended reminder would more often misdirect than orient the model."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  C[Model issues tool call] --> D[Dispatch -> raw result]\n  D --> W[Wrapper: append goal + status + failure/next-step hint, derived from live run]\n  W --> E[Enriched return: raw result + reinforcement block]\n  E --> M[Model reads result and reminder together]\n  M -->|next action| C",
+        "caption": "The harness wraps each tool result, appending a freshly derived goal, status, and hint block so orientation rides the tool-return channel the model already reads."
+      },
+      "components": [
+        "Tool-return wrapper — the harness function that intercepts each raw result before it reaches the model",
+        "Reinforcement deriver — reads the live run and produces the goal line, status line, and failure or next-step hint for this return",
+        "Reinforcement block — the compact, clearly-delimited text appended after the raw output, kept to a fixed small budget",
+        "Run-state store — the source of truth the deriver reads, updated by each turn's tool calls and observations",
+        "Result formatter — joins raw output and reinforcement block so the model can tell tool content from harness reminder"
+      ],
+      "tools": [
+        "Tool-calling LLM — reads the enriched return and chooses the next action",
+        "Tool-dispatch layer — executes the call and exposes the wrap point where the block is appended",
+        "Run-state tracker — records progress and last failure so the block can be re-derived rather than copied"
+      ],
+      "evaluation_metrics": [
+        "Goal-drift rate — fraction of long runs where the agent abandons or misremembers the goal, with vs without the appended block",
+        "Repeat-failure rate — how often the agent retries an identical failed call, compared to a no-hint baseline",
+        "Reinforcement token overhead — average tokens the block adds per tool return against the orientation it buys",
+        "Reminder fidelity — how often the appended goal and status agree with the true run state on audit"
+      ],
+      "last_updated": "2026-06-14"
     }
   ]
 }

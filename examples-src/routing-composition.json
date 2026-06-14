@@ -819,6 +819,34 @@
           "last_updated": "2026-05-24"
         }
       ]
+    },
+    {
+      "pattern_id": "behavior-space-architecture",
+      "intent": "Pseudo-code of a deterministic router that activates the minimal disjoint subset of subsystems per query and composes only the active ones.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Classify a query, select the minimal subsystem subset it needs, run only those, and compose the result.",
+          "code": "# the agent is a POOL of subsystems plus a router, not a wired pipeline\nSUBSYSTEMS = {\n    \"loop\":   ToolLoop(),        # bare reason-act loop\n    \"rag\":    Retriever(),       # vector retrieval\n    \"graph\":  KnowledgeGraph(),  # relational / entitlement queries\n    \"agents\": MultiAgentTeam(),  # planning / decomposition\n    \"memory\": TieredMemory(),\n}\n\n# capability map: query class -> minimal DISJOINT subset it needs\nNEEDS = {\n    \"chitchat\":  [\"loop\"],\n    \"lookup\":    [\"rag\"],\n    \"relational\":[\"graph\", \"memory\"],\n    \"planning\":  [\"agents\"],\n}\n\ndef route(query):\n    qclass = classify_intent(query)          # deterministic, evaluated classifier\n    return NEEDS.get(qclass, [\"loop\"])       # default to the cheapest subset, never the full stack\n\ndef answer(query):\n    active = route(query)                     # the architecture EMERGES per query\n    ctx = {}\n    for name in active:                       # run ONLY the selected subsystems\n        ctx[name] = SUBSYSTEMS[name].run(query, ctx)\n    record_subset(query, active)              # trace which subset ran -> tune the router\n    return compose(query, ctx)                # assemble outputs of the active subsystems\n\n# a new subsystem is added to SUBSYSTEMS + NEEDS only once a query class needs it",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "sla-aware-triage-scoring",
+      "intent": "Pseudo-code for a fused triage scorer that orders a ticket queue by time-to-breach, entitlement tier, and sentiment, and emits early alerts for predicted breaches.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Compute one fused score per ticket, sort the queue by it, and raise an early alert for tickets predicted to breach.",
+          "code": "# explicit, reviewable weights -- the audit trail for any slipped SLA\nWEIGHTS = {\"deadline\": 0.5, \"tier\": 0.3, \"sentiment\": 0.2}\n\ndef fused_score(ticket):\n    # each axis normalised to 0..1, higher = more at stake\n    t_breach   = time_to_breach(ticket.sla_clock)            # seconds remaining\n    deadline   = clamp(1.0 - t_breach / ticket.sla_window, 0, 1)\n    tier       = TIER_WEIGHT[ticket.account.entitlement]     # e.g. free<pro<enterprise\n    sentiment  = sentiment_trajectory(ticket.conversation)   # falling tone -> higher\n    return (WEIGHTS[\"deadline\"]  * deadline\n          + WEIGHTS[\"tier\"]      * tier\n          + WEIGHTS[\"sentiment\"] * sentiment)\n\ndef triage(open_tickets):\n    # 1. order the work queue by the single fused score\n    queue = sorted(open_tickets, key=fused_score, reverse=True)\n\n    # 2. in parallel, look ahead: flag tickets predicted to breach\n    alerts = []\n    for tk in open_tickets:\n        eta = predict_completion(tk)         # expected time-to-resolve\n        if eta > time_to_breach(tk.sla_clock):\n            alerts.append(tk)                # route to the early-alert lane\n\n    return queue, alerts\n\n# next item an agent picks = queue[0]; never arrival order or self-reported urgency\nqueue, breaching = triage(load_open_tickets())\nfor tk in breaching:\n    escalate_or_expedite(tk)                 # act while slack remains",
+          "verified": false
+        }
+      ]
     }
   ]
 }
