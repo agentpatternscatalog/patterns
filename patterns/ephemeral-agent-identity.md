@@ -122,6 +122,10 @@ An agent run must not authenticate under a long-lived or shared identity; it may
 
 - **[Non-Human Identity governance (security-insider.de)](https://www.security-insider.de/ki-agenten-identitaet-non-human-identity-governance-a-e6e78d8d8129836af0147d3b0d8e764c/)** _planned_ — German practitioner coverage arguing agents need dynamic, per-agent identities rather than static accounts, because a compromised session token of a static-account agent appears on the network as a fully legitimate identity.
 - **[Agentic identity as a distinct class (datensicherheit.de)](https://www.datensicherheit.de/identitaetsmanagement-spannungsfeld-mensch-maschine-agent-ki-persona)** _planned_ — Positions autonomous agents and machine personas as their own identity class alongside human users and machines, with identity becoming fluid as systems gain autonomy and act independently on behalf of people or organisations.
+- **[Aembit (Workload IAM for AI agents)](https://aembit.io/glossary/ai-agent/)** _available_ — Workload IAM platform that gives AI agents attested, verifiable non-human identities and brokers per-request access; "Agents receive short-lived, scoped credentials or secretless access, ensuring no static secrets or embedded keys" — ephemeral tokens scoped to one access request that expire shortly after the work is done.
+- **[Astrix Security (Agentic Identity governance)](https://astrix.security/glossary/what-is-an-agentic-identity/)** _available_ — Defines and governs the per-agent identity class directly: "Agentic identity is a digitally ephemeral identity assigned to an AI agent — a software-based system that performs tasks autonomously or semi-autonomously", discovering and scoping these ephemeral identities to prevent over-privileged, orphaned credentials.
+- **[Microsoft Entra Agent ID](https://learn.microsoft.com/en-us/entra/agent-id/what-is-microsoft-entra-agent-id)** _available_ — Treats agents as a first-class non-human identity class distinct from human users and from static service principals: agents need "purpose-built identity constructs to authenticate, authorize, govern, and protect these nonhuman identities", with lifecycle management, blueprints, and short-lived OAuth 2.0 / workload-identity-federation tokens.
+- **[Token Security (AI Agent Identity Lifecycle Management)](https://www.token.security/news/token-security-extends-identity-governance-to-autonomous-ai-with-launch-of-ai-agent-identity-lifecycle-management)** _available_ — Manages the birth-to-death lifecycle of agent identities, assigning ownership and retiring stale ones: it "retires or deprovisions dormant/orphan agents before they become long-term risks" and governs each agent "throughout their entire lifecycle from discovery to deprovisioning" — the direct counter to standing-credential sprawl.
 
 ## Related patterns
 
@@ -129,8 +133,12 @@ An agent run must not authenticate under a long-lived or shared identity; it may
 - _complements_ **Agent Credential Vault** — The vault brokers the secrets an identity uses; this pattern governs the lifecycle of the identity itself, minting and retiring it per task.
 - _conflicts-with_ **Agent Identity Sprawl** — Sprawl is the accumulation of long-lived over-privileged agent identities; per-task minting with revocation at completion is the direct counter to it.
 - _conflicts-with_ **Static Role for a Dynamic Agent** — Pinning a dynamic agent to a fixed static role is the anti-pattern this replaces with an identity born and retired with each run.
+- _alternative-to_ **Identity Impersonation** — Giving the agent its own task-bounded identity class is the cure for treating the agent's self as the user's self.
 
 ## References
 
 - [KI-Agenten absichern: Dynamische Identitäten statt Accounts](https://www.security-insider.de/ki-agenten-identitaet-non-human-identity-governance-a-e6e78d8d8129836af0147d3b0d8e764c/) — 2026
 - [Identitätsmanagement im Spannungsfeld zwischen menschlichen Nutzern, Maschinen, Agenten und KI-Personas](https://www.datensicherheit.de/identitaetsmanagement-spannungsfeld-mensch-maschine-agent-ki-persona) — 2026
+- [Agentic AI Identity Management Approach](https://cloudsecurityalliance.org/blog/2025/03/11/agentic-ai-identity-management-approach) — Ken Huang (Cloud Security Alliance), 2025
+- [Who Governs the Machine? A Machine Identity Governance Taxonomy (MIGT) for AI Systems Operating Across Enterprise and Geopolitical Boundaries](https://arxiv.org/abs/2604.06148) — Andrew Kurtz, Klaudia Krawiecka, 2026
+- [OWASP Non-Human Identities Top 10](https://owasp.org/www-project-non-human-identities-top-10/) — 2025

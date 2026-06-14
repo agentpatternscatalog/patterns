@@ -119,6 +119,9 @@ An agent working a design or architecture task must not re-open a recorded decis
 ## Known uses
 
 - **[Slepoe pyatno LLM-razrabotki (Habr essay, solo-developer field report)](https://habr.com/ru/articles/1010478/)** _available_ — Solo developer running an LLM agent across dozens of microservices reports that, without access to the project's decision history, the model re-proposes options already considered and rejected — argued convincingly each time — and names feeding that history into context as the remedy.
+- **[adr-tools (npryce)](https://github.com/npryce/adr-tools)** _available_ — Command-line tool for creating and maintaining Architecture Decision Records in a project repo, including superseding/linking decisions — the persisted decision-history record this anti-pattern's corrective retrieves into agent context.
+- **[joelparkerhenderson/architecture-decision-record](https://github.com/joelparkerhenderson/architecture-decision-record)** _available_ — Widely used collection of ADR templates and examples whose formats capture considered-but-rejected alternatives and revisit conditions, the exact rejected-option rationale the agent otherwise re-derives.
+- **[AGENTS.md](https://agents.md/)** _available_ — Convention for an in-repo agent-context file that coding agents read on each task; teams use it to surface decision context and constraints so the agent treats settled choices as given rather than re-proposing rejected options.
 
 ## Related patterns
 
@@ -131,3 +134,6 @@ An agent working a design or architecture task must not re-open a recorded decis
 
 - [Slepoe pyatno LLM-razrabotki: kontekst za predelami koda](https://habr.com/ru/articles/1010478/) — 2026
 - [Architecture Decision Records (adr.github.io)](https://adr.github.io/)
+- [Documenting Architecture Decisions](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions) — Michael Nygard, 2011
+- [MADR — Markdown Architectural Decision Records (template with a "Considered Options" section recording rejected alternatives)](https://github.com/adr/madr) — Oliver Kopp, Olaf Zimmermann, et al. (adr org), 2024
+- [A Survey on the Memory Mechanism of Large Language Model based Agents](https://arxiv.org/abs/2404.13501) — Zeyu Zhang, Xiaohe Bo, Chen Ma, Rui Li, Xu Chen, Quanyu Dai, Jieming Zhu, Zhenhua Dong, Ji-Rong Wen, 2024

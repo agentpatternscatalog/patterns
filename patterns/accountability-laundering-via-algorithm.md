@@ -116,6 +116,8 @@ No useful constraint; the missing constraint is named-owner accountability — e
 
 - **[Algorithmic decision shielding (corporate-governance commentary)](https://www.zig.pl/baza-wiedzy/jak-zarzad-powinien-dzis-podejmowac-decyzje-o-ai-zeby-nie-odpowiadac-za-nie-jutro)** _available_ — Polish governance writing warns that boards 'substitute the algorithm' (podstawia sie algorytm) for hard decisions so operational responsibility dissolves while the firm's liability is unchanged.
 - **[Automated decision-making under GDPR Art. 22 / EU AI Act](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation)** _available_ — Regulation treats consequential automated decisions as the controller's responsibility and grants affected people a right to a meaningful explanation, so routing a decision through a model does not move liability.
+- **[EU AI Act Article 14 (human oversight of high-risk AI systems)](https://artificialintelligenceact.eu/article/14/)** _available_ — Mandates the inverse of this anti-pattern: a natural person overseeing a high-risk system must be able 'to decide, in any particular situation, not to use the high-risk AI system or to otherwise disregard, override or reverse the output', so meaningful human accountability cannot be laundered into a model score.
+- **[NIST AI Risk Management Framework — GOVERN function](https://www.nist.gov/itl/ai-risk-management-framework)** _available_ — Requires documented roles, responsibilities and explicit executive ownership of AI risk decisions, holding that there is always a named human accountable for an AI system's outcomes rather than the algorithm itself.
 
 ## Related patterns
 
@@ -123,9 +125,13 @@ No useful constraint; the missing constraint is named-owner accountability — e
 - _alternative-to_ **Deontic Token Delegation** — Deontic tokens make accountability travel with the work and stay attributable; laundering does the opposite, severing the decision from any owner while the firm's duty is unchanged.
 - _complements_ **Black-Box Opaqueness** — Thin traces and missing decision logs are what let an organisation point to a model score instead of a reasoned human endorsement; opacity is the enabling condition for laundering.
 - _conflicts-with_ **Human-in-the-Loop** — Genuine human-in-the-loop requires a reviewer who can and does override; laundering keeps the reviewer for form while collapsing review into a rubber stamp, subverting the safeguard it imitates.
+- _complements_ **Silent Pilot-to-Production Promotion** — Both let a production-scale decision system escape ownership, and both surface in the same Polish governance source: laundering severs the decision from a named owner; silent promotion severs the deployment from a named production status, so neither trips the controls real stakes demand.
 
 ## References
 
 - [Jak zarzad powinien dzis podejmowac decyzje o AI, zeby nie odpowiadac za nie jutro?](https://www.zig.pl/baza-wiedzy/jak-zarzad-powinien-dzis-podejmowac-decyzje-o-ai-zeby-nie-odpowiadac-za-nie-jutro) — 2025
 - [General Data Protection Regulation (Article 22 — automated individual decision-making)](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation) — 2025
 - [Automation bias](https://en.wikipedia.org/wiki/Automation_bias) — 2025
+- [Moral Crumple Zones: Cautionary Tales in Human-Robot Interaction](https://datasociety.net/library/moral-crumple-zones/) — Madeleine Clare Elish, 2019
+- [The responsibility gap: Ascribing responsibility for the actions of learning automata](https://link.springer.com/article/10.1007/s10676-004-3422-1) — Andreas Matthias, 2004
+- [AI Risk Management Framework (AI RMF 1.0) — GOVERN function (accountability and named roles)](https://www.nist.gov/itl/ai-risk-management-framework) — NIST, 2023

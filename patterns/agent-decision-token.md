@@ -120,6 +120,7 @@ A consequential action cannot commit unless a complete, signed Decision Token na
 
 - **[Backbase Agentic AI Compliance](https://www.backbase.com/blog/agentic-ai-compliance-banking)** _available_ — Banking compliance framing in which every Decision Token carries a human-readable justification naming the specific rule triggered, the data the agent read, and the conclusion it reached.
 - **[Model risk governance practice (GARP risk insights)](https://www.garp.org/risk-intelligence)** _available_ — Risk-management guidance that authored, per-decision explainability captured at execution time is more defensible to a supervisor than explanations retrofitted after the fact.
+- **[Monitaur](https://www.monitaur.ai/)** _available_ — Model-assurance platform whose record-keeping captures and documents individual AI/ML model decisions as audit-ready evidence for regulators, rather than reconstructing the rationale later from operational logs.
 
 ## Related patterns
 
@@ -132,3 +133,6 @@ A consequential action cannot commit unless a complete, signed Decision Token na
 
 - [Agentic AI Compliance in Banking](https://www.backbase.com/blog/agentic-ai-compliance-banking) — 2025
 - [GARP Risk Insights](https://www.garp.org/risk-intelligence) — 2025
+- [Decision Provenance: Harnessing data flow for accountable systems](https://arxiv.org/abs/1804.05741) — Jatinder Singh, Jennifer Cobbe, Chris Norval, 2018
+- [Governance-as-a-Service: A Multi-Agent Framework for AI System Compliance and Policy Enforcement](https://arxiv.org/abs/2508.18765) — Suyash Gaurav, Jukka Heikkonen, Jatin Chaudhary, 2025
+- [Agent Decision Audit and Explainability (FINOS AI Governance Framework)](https://air-governance-framework.finos.org/mitigations/mi-21_agent-decision-audit-and-explainability.html) — 2025

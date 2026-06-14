@@ -3,7 +3,7 @@
 **Also known as:** Tool Output Processing Failure, In-Head Aggregation Over Tool Data
 
 **Category:** Anti-Patterns  
-**Status in practice:** deprecated
+**Status in practice:** emerging
 
 ## Intent
 
@@ -115,6 +115,7 @@ Avoiding it forbids the agent from computing aggregates over tool data itself: c
 
 - **[Aegis (agent-environment failure taxonomy)](https://arxiv.org/abs/2508.19504)** _pure-future_ — Names Tool Output Processing Failure — the agent makes computational errors such as comparisons and ranking when processing correctly-returned tool outputs — as a high-frequency failure class in its annotated data.
 - **Code-execution / tool-calculator offloading** _available_ — Production agent stacks mitigate the failure by routing arithmetic and comparison through a code sandbox or calculator tool rather than the model's free-form output.
+- **[OpenAI Code Interpreter (Advanced Data Analysis)](https://platform.openai.com/docs/assistants/tools/code-interpreter)** _available_ — Routes arithmetic, comparison, and data aggregation to a sandboxed Python runtime and reads back the computed result, the corrected offload this anti-pattern skips.
 
 ## Related patterns
 
@@ -127,3 +128,6 @@ Avoiding it forbids the agent from computing aggregates over tool data itself: c
 ## References
 
 - [Aegis: Taxonomy and Optimizations for Overcoming Agent-Environment Failures in LLM Agents](https://arxiv.org/abs/2508.19504) — 2025
+- [PAL: Program-aided Language Models](https://arxiv.org/abs/2211.10435) — Luyu Gao, Aman Madaan, Shuyan Zhou, Uri Alon, Pengfei Liu, Yiming Yang, Jamie Callan, Graham Neubig, 2022
+- [Program of Thoughts Prompting: Disentangling Computation from Reasoning for Numerical Reasoning Tasks](https://arxiv.org/abs/2211.12588) — Wenhu Chen, Xueguang Ma, Xinyi Wang, William W. Cohen, 2022
+- [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761) — Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli, Luke Zettlemoyer, Nicola Cancedda, Thomas Scialom, 2023

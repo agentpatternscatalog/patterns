@@ -3,7 +3,7 @@
 **Also known as:** Delegation Not Impersonation, Agent Impersonation
 
 **Category:** Anti-Patterns  
-**Status in practice:** deprecated
+**Status in practice:** emerging
 
 ## Intent
 
@@ -109,6 +109,10 @@ No useful constraint; the missing constraint is that the agent must never presen
 
 - **[Red Hat Emerging Technologies — zero-trust agent identity](https://next.redhat.com/2026/05/21/zero-trust-for-ai-agents-why-delegation-beats-impersonation/)** _available_ — Names impersonation as the dangerous default in which 'the agent assumes your full identity, inherits all your permissions, and operates as if it were you', and warns that downstream agent calls make 'the audit trail disappear into a single identity'.
 - **[Christian Posta — agent identity impersonation vs delegation](https://blog.christianposta.com/agent-identity-impersonation-or-delegation/)** _available_ — Walks through an order-placement example where impersonation produces the audit row 'Christian placed order for 50 MacBook Pros' for a step the agent decided autonomously; the delegation fix preserves that 'the user authorized the goal; the agent chose the implementation'.
+- **[Microsoft Entra Agent ID](https://learn.microsoft.com/en-us/entra/agent-id/agent-on-behalf-of-oauth-flow)** _available_ — Treats agents as first-class Entra identities and runs an OAuth 2.0 on-behalf-of token exchange that mints a token carrying both the agent identity and the user's delegated permissions, so the acting agent stays distinguishable from the consenting user rather than reusing the user's own token.
+- **[Okta Cross App Access (XAA / ID-JAG)](https://developer.okta.com/docs/guides/ai-agent-token-exchange/-/main/)** _available_ — An AI agent exchanges its own ID token through the enterprise IdP for a scoped, short-lived token granting only the capabilities the task needs; the request is logged and traceable back to both the user and the agent, and the delegation lineage can be revoked, instead of the agent borrowing the user's full identity.
+- **[WorkOS (AuthKit / auth.md agent auth)](https://workos.com/blog/developers-guide-to-ai-agent-authentication-and-authorization)** _available_ — Argues an agent is a new category of actor that should not reuse the user's session token, calling credential pass-through 'the equivalent of handing your car keys to a valet and telling them they can also access your bank account', and instead has the agent authenticate under its own identity to act on the user's behalf.
+- **[Aembit IAM for Agentic AI (Blended Identity)](https://aembit.io/iam-for-agentic-ai/)** _available_ — Combines an AI agent's non-human identity with the identity of the human operating it in a single cryptographically verifiable policy decision and issues short-lived scoped credentials at runtime, so requests are attributable to both the agent and the human rather than to the user alone.
 
 ## Related patterns
 
@@ -122,3 +126,6 @@ No useful constraint; the missing constraint is that the agent must never presen
 - [Zero trust for AI agents: why delegation beats impersonation](https://next.redhat.com/2026/05/21/zero-trust-for-ai-agents-why-delegation-beats-impersonation/) — Pavel Anni, 2026
 - [Agent Identity - Impersonation or Delegation?](https://blog.christianposta.com/agent-identity-impersonation-or-delegation/) — Christian Posta, 2025
 - [OAuth 2.0 Token Exchange (RFC 8693)](https://datatracker.ietf.org/doc/html/rfc8693) — 2020
+- [Authenticated Delegation and Authorized AI Agents](https://arxiv.org/abs/2501.09674) — Tobin South, Samuele Marro, Thomas Hardjono, Robert Mahari, Cedric Deslandes Whitney, Dazza Greenwood, Alan Chan, Alex Pentland, 2025
+- [OAuth 2.0 Extension: On-Behalf-Of User Authorization for AI Agents (draft-oauth-ai-agents-on-behalf-of-user-02)](https://www.ietf.org/archive/id/draft-oauth-ai-agents-on-behalf-of-user-02.txt) — 2026
+- [Agent OAuth flows - On-behalf-of flow - Microsoft Entra Agent ID](https://learn.microsoft.com/en-us/entra/agent-id/agent-on-behalf-of-oauth-flow) — 2026

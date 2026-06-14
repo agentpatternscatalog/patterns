@@ -134,3 +134,5 @@ A subsystem runs for a query only when the router selects it; no subsystem may s
 ## References
 
 - [L'agente AI non ha una forma: ha dei percorsi](https://www.tomshw.it/business/agente-ai-non-ha-forma-percorsi-sp) — 2026
+- [Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity](https://arxiv.org/abs/2403.14403) — Soyeong Jeong, Jinheon Baek, Sukmin Cho, Sung Ju Hwang, Jong C. Park, 2024
+- [Doing More with Less: A Survey on Routing Strategies for Resource Optimisation in Large Language Model-Based Systems](https://arxiv.org/abs/2502.00409) — 2025

@@ -118,6 +118,8 @@ An action may not execute unless it ships a machine-checked proof that the requi
 ## Known uses
 
 - **[Type-Checked Compliance (Lean 4)](https://arxiv.org/abs/2604.01483)** _pure-future_ — Research design that encodes financial regulatory constraints as Lean 4 theorems and requires each agentic action to carry a theorem-prover-checked proof before execution, rejecting unprovable actions by construction.
+- **[Harmonic Aristotle](https://tooldirectory.ai/tools/harmonic)** _available_ — Aristotle formalizes each answer as a Lean 4 proof and runs the Lean 4 deterministic checker before returning anything, presenting only results whose proof checks out, which is exactly this gate's reject-unprovable contract applied to mathematical outputs rather than financial actions.
+- **[Lean Copilot / LeanDojo](https://github.com/lean-dojo/LeanCopilot)** _available_ — An LLM proposes proof tactics and candidate proofs that are admitted only if the Lean proof assistant verifies them, so the model can search but only the deterministic checker grants acceptance, eliminating hallucinated steps by construction.
 
 ## Related patterns
 
@@ -129,3 +131,6 @@ An action may not execute unless it ships a machine-checked proof that the requi
 ## References
 
 - [Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving](https://arxiv.org/abs/2604.01483) — 2026
+- [Provably Secure Agent Guardrail](https://arxiv.org/abs/2605.29251) — Benlong Wu, Weiming Zhang, Kejiang Chen, Han Fang, Nenghai Yu, 2026
+- [Proof-Carrying Code](https://dl.acm.org/doi/10.1145/263699.263712) — George C. Necula, 1997
+- [Lean Copilot: Large Language Models as Copilots for Theorem Proving in Lean](https://arxiv.org/abs/2404.12534) — Peiyang Song, Kaiyu Yang, Anima Anandkumar, 2024

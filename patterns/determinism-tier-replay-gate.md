@@ -138,3 +138,6 @@ An agent that has not been measured at the decision-determinism tier must not be
 
 - [Replayable Financial Agents: A Determinism-Faithfulness Assurance Harness for Tool-Using LLM Agents](https://arxiv.org/abs/2601.15322) — Raffi Khatchadourian, 2026
 - [From Accuracy to Auditability: A Survey of Determinism in Financial AI Systems](https://arxiv.org/abs/2605.23955) — Ruizhe Zhou et al., 2026
+- [Get Experience from Practice: LLM Agents with Record & Replay](https://arxiv.org/abs/2505.17716) — Erhu Feng, Wenbo Zhou, Zibin Liu, et al., 2025
+- [ESAA: Event Sourcing for Autonomous Agents in LLM-Based Software Engineering](https://arxiv.org/abs/2602.23193) — Elzo Brito dos Santos Filho, 2026
+- [Temporal Workflow (deterministic workflow execution and event-history replay)](https://docs.temporal.io/workflows)

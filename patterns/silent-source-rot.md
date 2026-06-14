@@ -116,6 +116,9 @@ The missing constraint is a content-level source-health canary: an extracted pay
 - **[Tensoria n8n production agent (REX)](https://tensoria.fr/blog/agents-ia-n8n-retour-experience-production)** _available_ — Field report: a daily-briefing agent's HTTP Request node kept returning content after sources changed their HTML, but the CSS selector pulled nothing relevant; the briefing went out half-empty for ten days before a human flagged it, after which a per-source content check was added.
 - **[Great Expectations validation suites](https://docs.greatexpectations.io/docs/)** _available_ — Expectation suites assert content-level conditions (non-null, value ranges, row counts) on each batch, so a source that goes valid-but-empty fails the check instead of flowing downstream.
 - **[Monte Carlo data observability](https://www.montecarlodata.com/blog-what-is-data-observability/)** _available_ — Monitors freshness, volume, and schema as first-class signals so silent staleness ('data downtime') is caught upstream rather than after a consumer notices thin output.
+- **[Bigeye](https://www.bigeye.com/)** _available_ — Data-observability platform that learns column-level metric baselines and freshness SLAs, alerting when a source goes valid-but-empty or stale rather than letting thin data flow downstream.
+- **[Soda (Soda Core + Soda Cloud)](https://www.soda.io/)** _available_ — Pipeline-embedded data-quality checks that assert non-empty, row-count, and freshness expectations on each batch, failing the run when extracted content falls outside its baseline.
+- **[Anomalo](https://www.anomalo.com/)** _available_ — Automatically learns expected volume, freshness, and schema for each table and raises an alert when a source silently empties or drifts, catching rot before a human notices.
 
 ## Related patterns
 
@@ -129,3 +132,6 @@ The missing constraint is a content-level source-health canary: an extracted pay
 - [Agents IA n8n en production : retour d'experience terrain](https://tensoria.fr/blog/agents-ia-n8n-retour-experience-production) — 2025
 - [What is Data Observability? Freshness, Volume, Schema, and Data Downtime](https://www.montecarlodata.com/blog-what-is-data-observability/) — Monte Carlo
 - [Great Expectations Documentation](https://docs.greatexpectations.io/docs/)
+- [Wrapper Maintenance: A Machine Learning Approach](https://arxiv.org/abs/1106.4872) — Kristina Lerman, Steven N. Minton, Craig A. Knoblock, 2003
+- [Solving Freshness in RAG: A Simple Recency Prior and the Limits of Heuristic Trend Detection](https://arxiv.org/abs/2509.19376) — Matthew Grofsky, 2025
+- [Data Contracts in Cloud-Native Analytics: Governing Schema and Semantics to Prevent Pipeline Breakage and Accelerate Safe Change](https://ijcesen.com/index.php/ijcesen/article/view/5152) — 2025

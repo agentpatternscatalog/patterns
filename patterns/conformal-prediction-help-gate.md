@@ -118,6 +118,8 @@ The agent acts autonomously only when its calibrated prediction set is a singlet
 
 - **[KnowNo (Robots That Ask For Help)](https://robot-help.github.io/)** _pure-future_ — Uses conformal prediction over LLM-planner options and triggers human help when the prediction set is not a singleton.
 - **[INSIGHT](https://arxiv.org/abs/2510.01389)** _pure-future_ — Token-level uncertainty introspection for vision-language-action models to decide when to request help.
+- **[Introspective Planning (Princeton)](https://arxiv.org/abs/2402.06529)** _available_ — Couples an LLM planner's introspective reasoning with conformal prediction so the robot acts on a singleton prediction set and requests user clarification when the calibrated set is larger, tightening KnowNo-style success guarantees.
+- **[S-ATLAS / Probabilistically Correct Multi-Robot Planning](https://arxiv.org/abs/2402.15368)** _available_ — Distributed LLM multi-robot planner where each robot uses conformal prediction to act when its prediction set is a singleton and otherwise asks teammates or a human, achieving a user-specified mission success rate with the fewest help requests.
 
 ## Related patterns
 
@@ -130,3 +132,6 @@ The agent acts autonomously only when its calibrated prediction set is a singlet
 
 - [Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners (KnowNo)](https://robot-help.github.io/) — 2023
 - [INSIGHT: INference-time Sequence Introspection for Generating Help Triggers in Vision-Language-Action Models](https://arxiv.org/abs/2510.01389) — 2025
+- [A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification](https://arxiv.org/abs/2107.07511) — Anastasios N. Angelopoulos, Stephen Bates, 2021
+- [Introspective Planning: Aligning Robots' Uncertainty with Inherent Task Ambiguity](https://arxiv.org/abs/2402.06529) — Kaiqu Liang, Zixu Zhang, Jaime Fernandez Fisac, 2024
+- [Probabilistically Correct Language-based Multi-Robot Planning using Conformal Prediction](https://arxiv.org/abs/2402.15368) — Jun Wang, Guocheng He, Yiannis Kantaros, 2024

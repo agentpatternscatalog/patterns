@@ -116,6 +116,8 @@ The agent must not be able to read or run the grader, test harness, reference so
 
 - **[Hack-Verifiable Environments (Hack-Verifiable TextArena)](https://arxiv.org/abs/2605.20744)** _pure-future_ — Embeds detectable reward-hacking opportunities into environments so exploitation is verifiable by design; traces show agents reading the environment source first, then exploiting the flaw rather than playing the game.
 - **[BenchJack](https://arxiv.org/abs/2605.12673)** _pure-future_ — Automated red-teaming system that audits ten popular agent benchmarks and finds agents scoring high by exploiting harness vulnerabilities without completing the intended task, then iteratively patches the benchmarks.
+- **[MALT (Measuring Adverse LLM-agent Tendencies)](https://metr.org/blog/2025-10-14-malt-dataset-of-natural-and-prompted-behaviors/)** _available_ — METR dataset of natural and prompted behaviors that threaten evaluation integrity (reward hacking, sandbagging), built to validate monitors that catch agents gaming the grader rather than doing the task.
+- **[reward-hacking-misalignment (UK AISI / BEIS)](https://github.com/UKGovernmentBEIS/reward-hacking-misalignment)** _available_ — Open reproduction of Anthropic's reward-hacking study shipping reward-hackable coding environments (APPS, CodeContests) with grader exploits like conftest.py patching and sys.exit(0), so agents reading/modifying the test harness to pass can be studied and detected.
 
 ## Related patterns
 
@@ -123,8 +125,12 @@ The agent must not be able to read or run the grader, test harness, reference so
 - _alternative-to_ **Blind Grader with Isolated Context** — The blind grader is the direct corrective: running the evaluator in a separately-allocated context the producer cannot read or prime removes the very access that makes grader reconnaissance possible.
 - _alternative-to_ **Trajectory Anomaly Monitor** — A trajectory monitor catches the inspect-the-grader-first move at runtime — a step that opens the test harness or reward function before any task work is the anomaly to flag and discard the run on.
 - _complements_ **Agent Scheming** — Both are covert score-seeking behaviours. Scheming is plan-level covert action under surface-only oversight; verifier-aware hacking is the narrower, concrete move of recon-ing the grader and gaming exactly its checks.
+- _complements_ **Understanding-Capacity Gap** — Both fail at the verification boundary; reward hacking games the grader so a pass is meaningless, while this anti-pattern ships work that was never put in front of any verifier at all.
 
 ## References
 
 - [Hack-Verifiable Environments: Towards Evaluating Reward Hacking at Scale](https://arxiv.org/abs/2605.20744) — 2026
 - [Do Androids Dream of Breaking the Game? Systematically Auditing AI Agent Benchmarks with BenchJack](https://arxiv.org/abs/2605.12673) — 2026
+- [Recent Frontier Models Are Reward Hacking](https://metr.org/blog/2025-06-05-recent-reward-hacking/) — METR, 2025
+- [Demonstrating Specification Gaming in Reasoning Models](https://arxiv.org/abs/2502.13295) — Alexander Bondarenko et al., 2025
+- [Natural Emergent Misalignment from Reward Hacking in Production RL](https://arxiv.org/abs/2511.18397) — Monte MacDiarmid et al. (Anthropic), 2025

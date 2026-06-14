@@ -123,6 +123,9 @@ License-gated activities are blocked unless a licensed human is in the loop; the
 
 - **[Illinois WOPR Act (clinical agent compliance)](https://www.elementum.ai/blog/are-ai-agents-deterministic)** _available_ — State law prohibits AI-delivered diagnosis, treatment plans, and dosing advice unless the system operates under licensed-clinician oversight, forcing healthcare agents to gate these acts behind a licensed human rather than the model's own judgment.
 - **[Amazon Bedrock Guardrails (denied topics)](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html)** _available_ — Configurable denied-topics and content policies evaluate requests and responses outside the model so an operator can block reserved-act categories like medical or legal advice deterministically.
+- **[Guardrailed-AMIE (g-AMIE), Google Research / DeepMind](https://research.google/blog/enabling-physician-centered-oversight-for-amie/)** _available_ — A multi-agent diagnostic system where a dedicated guardrail agent verifies each response and rephrases anything that constitutes individualized medical advice, so diagnoses and management plans are only released after a licensed physician signs off in a clinician cockpit.
+- **[Hippocratic AI](https://research.contrary.com/company/hippocratic-ai)** _available_ — Patient-facing healthcare voice agents built on a Polaris safety-constellation of supervising LLMs that are scoped to non-diagnostic tasks (intake, scheduling, chronic-care follow-up) and explicitly do not diagnose or prescribe, reserving those licensed acts for clinicians.
+- **[Harvey (legal AI, attorney-supervised deployment)](https://www.harvey.ai/)** _available_ — Positioned for use inside law firms by licensed attorneys who remain responsible for the output, keeping the tool on the assisted-lawyer side of unauthorized-practice-of-law boundaries rather than giving definitive legal opinions direct to consumers.
 
 ## Related patterns
 
@@ -130,9 +133,13 @@ License-gated activities are blocked unless a licensed human is in the loop; the
 - _uses_ **Policy-as-Code Gate** — The enumerated licensed acts and the allow/block verdict are authored as compliance-owned code evaluated outside the prompt, the mechanism a policy-as-code gate provides.
 - _complements_ **Human-in-the-Loop** — A licensed human attached to the session is what unlocks a gated act; the gate decides which acts require that human and which are general information.
 - _complements_ **Conversation Handoff to Human** — When a request lands on a reserved act and no licensed human is present, the gate hands the conversation off to a credentialed practitioner rather than answering.
+- _complements_ **Enforced Advisory Disclaimer** — The gate blocks reserved license-gated acts outright; this attaches a non-suppressible advisory to the answers the gate does allow through.
 
 ## References
 
 - [Are AI Agents Deterministic? (Illinois WOPR Act and licensed-clinician oversight)](https://www.elementum.ai/blog/are-ai-agents-deterministic) — 2026
 - [Mind The Gap: How The Technical Mechanism Of Agentic AI Outpace Global Legal Frameworks](https://arxiv.org/abs/2603.27075) — 2026
 - [Amazon Bedrock Guardrails — denied topics and content policies](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html) — 2026
+- [Towards Physician-Centered Oversight of Conversational Diagnostic AI (Guardrailed-AMIE)](https://arxiv.org/abs/2507.15743) — Tu et al. (Google DeepMind / Google Research), 2025
+- [Enabling physician-centered oversight for AMIE](https://research.google/blog/enabling-physician-centered-oversight-for-amie/) — Google Research, 2025
+- [InvisibleBench: A Deployment Gate for Caregiving Relationship AI (WOPR Act autofails for diagnosis, treatment planning, dosing)](https://arxiv.org/abs/2511.20733) — 2025

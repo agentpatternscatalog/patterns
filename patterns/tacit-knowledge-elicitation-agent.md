@@ -120,6 +120,9 @@ Downstream task agents may not invent decision criteria from parametric memory; 
 
 - **[KPMG Japan — Tacit-to-explicit knowledge agent](https://kpmg.com/jp/ja/media/press-releases/2026/01/aiagent.html)** _available_ — Orchestrated AI service that elicits veteran staff know-how via interviews, integrates internal and external information into a knowledge database, and reconstructs the experts' judgement to combat work that is locked to single individuals.
 - **[ABKSS — AI tacit-knowledge externalisation method](https://www.abkss.jp/blog/172)** _available_ — Describes auto-summarising and classifying interview and conversation content to extract an expert's specific decision criteria and know-how, framed around the SECI model.
+- **[KNOA](https://www.getknoa.com/)** _available_ — AI agent that runs guided structured interviews to pull tacit team know-how into structured, searchable documents, cross-referencing multiple experts on the same process and flagging contradictions before consolidation.
+- **[Sensay](https://sensay.io/)** _available_ — Offboarding/knowledge-retention platform whose AI interviewer captures role nuances and tacit knowledge from employees before they leave, preserving expertise for later retrieval.
+- **[eGain Knowledge Hub (tacit-knowledge capture)](https://www.egain.com/blog/capturing-tacit-knowledge-from-the-great-retirement-cohort-using-genai/)** _available_ — Guides subject-matter experts through structured knowledge-elicitation sessions using cognitive-science techniques to externalize conditional knowledge and mental models into a queryable knowledge base.
 
 ## Related patterns
 
@@ -127,8 +130,12 @@ Downstream task agents may not invent decision criteria from parametric memory; 
 - _uses_ **Socratic Questioning Agent** — The interview phase drives the expert with strategic open-ended questions to surface latent, unwritten know-how rather than asking them to summarise it directly.
 - _complements_ **Knowledge Graph Memory** — Once externalised, the extracted criteria and cases can be persisted as entities and relations so downstream agents run symbolic queries over them.
 - _alternative-to_ **Dynamic Expert Recruitment** — Expert recruitment spins up synthetic agent personas at run time; elicitation extracts real human experts' tacit knowledge into a reusable base ahead of time.
+- _alternative-to_ **Unstructured Human Capture Layer** — The elicitation agent actively interviews experts and structures the output into a knowledge base; here the human dumps freely and the agent is forbidden to structure the raw layer at all — structuring is confined to a separate derived layer.
 
 ## References
 
 - [KPMGジャパン、AIオーケストレーションを活用した「暗黙知の形式知化エージェント」の提供を開始](https://kpmg.com/jp/ja/media/press-releases/2026/01/aiagent.html) — KPMG Japan, 2026
 - [AIで暗黙知を形式知化し活用する方法｜熟練者のノウハウを継承するには](https://www.abkss.jp/blog/172) — 株式会社エービーケーエスエス, 2025
+- [Leveraging Large Language Models for Tacit Knowledge Discovery in Organizational Contexts](https://arxiv.org/abs/2507.03811) — Gianlucca Zuin, Saulo Mastelini, Tulio Loures, Adriano Veloso, 2025
+- [Data Therapist: Eliciting Domain Knowledge from Subject Matter Experts Using Large Language Models](https://arxiv.org/abs/2505.00455) — Sungbok Shin, Hyeon Jeon, Sanghyun Hong, Niklas Elmqvist, 2025
+- [From human experts to machines: An LLM supported approach to ontology and knowledge graph construction](https://arxiv.org/abs/2403.08345) — Vamsi Krishna Kommineni, Birgitta Konig-Ries, Sheeba Samuel, 2024

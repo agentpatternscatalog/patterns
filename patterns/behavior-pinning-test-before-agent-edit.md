@@ -121,6 +121,9 @@ An agent edit cannot be accepted until the pre-edit characterization suite passe
 
 - **[Yeogi Eottae (GC Company) AI coding-agent harness](https://techblog.gccompany.co.kr/ai-%EC%BD%94%EB%94%A9-%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8%EC%97%90%EA%B2%8C-%EC%82%AC%EA%B3%A0-%EA%B3%BC%EC%A0%95%EC%9D%84-%EC%84%A4%EA%B3%84%ED%95%98%EB%8B%A4-9c7325e4655d)** _available_ — Engineering blog describes capturing existing behaviour as Jest tests before the agent edits, then auto-detecting policy keywords on a /done step to force the tests to run as a gate.
 - **[CloudBro AI-assisted refactoring guidance](https://cloudbro.ai)** _available_ — Korean practitioner write-up advocating pinning legacy behaviour with characterization tests before letting an assistant refactor.
+- **[ApprovalTests](https://approvaltests.com/)** _available_ — Golden-master/characterization-test library family (Java, .NET, C++, Python, JS) that approves the current output as a baseline and fails when subsequent runs diverge, the canonical pin-before-edit mechanism for legacy code.
+- **[Jest snapshot testing](https://jestjs.io/docs/snapshot-testing)** _available_ — Captures a reference snapshot of output and fails on any later run whose output does not match, the snapshot form of pinning existing behaviour before a change.
+- **[Touca](https://github.com/trytouca/trytouca)** _available_ — Continuous regression testing that captures values and runtimes of a workflow and remotely compares them against a trusted baseline version, flagging unintended behaviour drift from code changes.
 
 ## Related patterns
 
@@ -133,3 +136,5 @@ An agent edit cannot be accepted until the pre-edit characterization suite passe
 
 - [Working Effectively with Legacy Code](https://www.oreilly.com/library/view/working-effectively-with/0131177052/) — Michael C. Feathers, 2004
 - [Characterization Tests](https://michaelfeathers.silvrback.com/characterization-testing) — Michael C. Feathers, 2011
+- [Evaluating LLM-Based Test Generation Under Software Evolution](https://arxiv.org/abs/2603.23443) — Sabaat Haroon, Mohammad Taha Khan, Muhammad Ali Gulzar, 2026
+- [Agentic Refactoring: An Empirical Study of AI Coding Agents](https://arxiv.org/abs/2511.04824) — Kosei Horikawa, Hao Li, Yutaro Kashiwa, Bram Adams, Hajimu Iida, Ahmed E. Hassan, 2025

@@ -127,6 +127,9 @@ The service must not be made available to the public before the regulator certif
 
 - **[China generative-AI filing (备案) under the CAC interim measures](https://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm)** _available_ — Public-facing generative services in China must file with the regulator and meet content-safety requirements before launch; the interim measures make prior approval a precondition for serving the public.
 - **[TC260 Basic Safety Requirements for Generative AI Services](https://www.tc260.org.cn/upload/2024-03-01/1709282997087090944.pdf)** _available_ — National standard naming the concrete bar: a keyword-interception library of at least 10000 terms across 17 safety-risk categories, a sensitive-query refusal rate of at least 95%, and a spot-check pass rate of at least 90%.
+- **[Shumei (数美) large-model filing service (大模型备案咨询服务)](https://www.ishumei.com/solution/large-language-model-filing)** _available_ — A commercial compliance platform that delivers the China 备案 gate end-to-end — corpus prep, keyword/content-safety interception, and sensitive-question safety testing — through to regulator review before launch: “提供大模型备案全流程服务，从数据准备到申报审核” and “提供敏感测试题集、提示词注入攻击、目标劫持等方式评测大模型安全能力”.
+- **[DEKRA — first EU AI Act-accredited conformity-assessment body for AI biometric systems](https://www.dekra.us/en/dekra-becomes-the-first-accredited-certification-body-for-ai-biometric-systems-under-the-eu-ai-act/)** _available_ — The EU analogue of the gate: an external, accredited body that must certify a high-risk AI system's conformity before it may be placed on the market — “DEKRA is now authorized to conduct conformity assessment on three of the sensitive AI Biometric Systems”.
+- **[Alibaba Cloud large-model filing guide (大模型备案《通关手册》)](https://developer.aliyun.com/article/1696095)** _available_ — Aliyun's step-by-step 备案 playbook documenting the concrete pre-launch artifacts operators must assemble — corpus annotation rules, a keyword-interception list, and a safety self-assessment report — to clear the filing before serving the public.
 
 ## Related patterns
 
@@ -134,6 +137,8 @@ The service must not be made available to the public before the regulator certif
 - _complements_ **Dual Evaluation (Offline + Online)** — Dual evaluation runs offline-before-deploy plus online-after; the certification gate is the offline-before-deploy obligation made external and legally binding, and online monitoring still backs it after launch.
 - _uses_ **Input/Output Guardrails** — The certified keyword-interception library and refusal capability are the runtime input/output guardrails the gate measures and mandates at build time.
 - _complements_ **Sovereign Inference Stack** — Both are jurisdiction-driven; the sovereign stack keeps data inside a controlled boundary, while this gate certifies the service's content safety to the same jurisdiction's regulator before launch.
+- _conflicts-with_ **Silent Pilot-to-Production Promotion** — The launch gate forbids public serving before a declared, certified go-live and re-certifies on any scope change; silent promotion subverts exactly that gate by never declaring go-live, so the certification it mandates is never triggered.
+- _complements_ **Formal-Proof Compliance Gate** — Launch certification gates whether a system may go live; this gate runs per action at runtime, so a certified system can still prove each individual action compliant before it executes.
 
 ## References
 
@@ -141,3 +146,6 @@ The service must not be made available to the public before the regulator certif
 - [生成式人工智能服务安全基本要求 (TC260 Basic Safety Requirements for Generative AI Services)](https://www.tc260.org.cn/upload/2024-03-01/1709282997087090944.pdf) — 2024
 - [生成式AI必备：大模型备案全流程指南 (Generative AI essentials: the full filing process for large models)](https://developer.aliyun.com/article/1703980) — 2024
 - [《生成式人工智能服务安全基本要求》实务解析 (Practical analysis of the Basic Safety Requirements)](https://www.secrss.com/articles/64276) — 2024
+- [Basic Safety Requirements for Generative Artificial Intelligence Services (TC260) — full English translation and documentation](https://cset.georgetown.edu/publication/china-safety-requirements-for-generative-ai-final/) — Center for Security and Emerging Technology (CSET), Georgetown University, 2024
+- [Navigating China's regulatory approach to generative artificial intelligence and large language models](https://www.cambridge.org/core/journals/cambridge-forum-on-ai-law-and-governance/article/navigating-chinas-regulatory-approach-to-generative-artificial-intelligence-and-large-language-models/969B2055997BF42DE693B7A1A1B4E8BA) — 2024
+- [EU AI Act, Article 43: Conformity Assessment](https://artificialintelligenceact.eu/article/43/) — 2024

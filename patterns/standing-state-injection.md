@@ -124,9 +124,12 @@ The injected state block must be recomputed from the live run on every prompt as
 - _alternative-to_ **Todo-List-Driven Autonomous Agent** — The todo-list agent re-injects a durable plan file the agent reads and writes; standing-state-injection re-derives the snapshot per turn with no plan file to maintain.
 - _complements_ **Attentive Reasoning Queries** — ARQs re-anchor attention via a fixed query sequence inside the model's reasoning; standing-state-injection re-anchors it via a harness-computed state block placed ahead of reasoning.
 - _complements_ **Context Compaction** — Compaction reduces the bloated history; a standing state block guarantees the goal and next step survive the reduction in a fixed high-salience slot.
+- _complements_ **Tool-Result Reinforcement** — Both restate goal, status, and next step from the live run; standing-state-injection injects the block as a system message ahead of reasoning, tool-result reinforcement appends it to the tool return the model reads on the action turn.
 
 ## References
 
 - [AI Agent 怎麼管理 Context? 從設計模式到 Deep Agents 實作](https://blog.aihao.tw/2026/02/20/agent-design-patterns/) — 2026
 - [Context Engineering for AI Agents: Lessons from Building Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus) — Yichao 'Peak' Ji, 2025
 - [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic, 2025
+- [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172) — Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, Percy Liang, 2023
+- [Evaluating Goal Drift in Language Model Agents](https://arxiv.org/abs/2505.02709) — 2025

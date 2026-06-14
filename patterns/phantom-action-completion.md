@@ -117,9 +117,10 @@ A side-effecting action is never reported as complete from the agent's own narra
 
 ## Known uses
 
-- **[Customer-support chatbot ticket incident](https://gaminghq.eu/2026/05/03/ai-customer-support-bot-lying-filed-ticket-video/)** _in-production_ — A support bot confirmed a request had been successfully submitted; no ticket was ever created, and when questioned the bot admitted it had not performed the action it claimed.
-- **[Execution-hallucination reports in production agents](https://dev.to/mrlinuncut/ai-execution-hallucination-when-your-agent-says-done-and-does-nothing-35g6)** _in-production_ — Practitioners report agents that skip a tool call entirely yet report the task done, with no error thrown and nothing logged, because the model infers the action ran.
-- **[Arize field analysis of production agent failures](https://arize.com/blog/common-ai-agent-failures/)** _in-production_ — Field study of real agent deployments documents agents claiming completion without the action's effect being verified against the system it was supposed to change.
+- **[Customer-support chatbot ticket incident](https://gaminghq.eu/2026/05/03/ai-customer-support-bot-lying-filed-ticket-video/)** _available_ — A support bot confirmed a request had been successfully submitted; no ticket was ever created, and when questioned the bot admitted it had not performed the action it claimed.
+- **[Execution-hallucination reports in production agents](https://dev.to/mrlinuncut/ai-execution-hallucination-when-your-agent-says-done-and-does-nothing-35g6)** _available_ — Practitioners report agents that skip a tool call entirely yet report the task done, with no error thrown and nothing logged, because the model infers the action ran.
+- **[Arize field analysis of production agent failures](https://arize.com/blog/common-ai-agent-failures/)** _available_ — Field study of real agent deployments documents agents claiming completion without the action's effect being verified against the system it was supposed to change.
+- **Arize Phoenix** _available_
 
 ## Related patterns
 
@@ -127,9 +128,15 @@ A side-effecting action is never reported as complete from the agent's own narra
 - _complements_ **Deception Manipulation** — Both warn against trusting the agent's self-report; deception-manipulation is the broad oversight principle, phantom action is its narrow side-effect-verification case.
 - _complements_ **Missing Idempotency on Agent Calls** — Sibling tool-call-reliability anti-pattern at the same boundary: missing-idempotency multiplies real effects on retry, phantom action claims an effect that never happened.
 - _complements_ **Dry-Run Harness** — Dry-run previews the projected effect before commit; phantom action is the missing post-commit read-back that confirms the effect actually landed.
+- _complements_ **Workflow-Success vs Business-Validity Gap** — Both are false-success anti-patterns; in phantom completion the side effect never happened, here a real action completed cleanly but the deliverable is business-wrong.
+- _complements_ **Silent Hypotheses in Generated Code** — Phantom completion is about an action that never ran being narrated as done; here the code did run and did pass tests, but rests on an assumption nothing checked.
+- _complements_ **Silent External-Source Rot** — Both end in a falsely-green success report; phantom-action is a side-effect that never happened, source-rot is a read that returned valid-but-empty data.
 
 ## References
 
 - [AI Customer Support Bot Caught Lying About Filed Ticket](https://gaminghq.eu/2026/05/03/ai-customer-support-bot-lying-filed-ticket-video/) — 2026
 - [AI Execution Hallucination: When Your Agent Says "Done" and Does Nothing](https://dev.to/mrlinuncut/ai-execution-hallucination-when-your-agent-says-done-and-does-nothing-35g6) — 2026
 - [Why AI Agents Break: A Field Analysis of Production Failures](https://arize.com/blog/common-ai-agent-failures/) — 2026
+- [$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045) — Shunyu Yao, Noah Shinn, Pedram Razavi, Karthik Narasimhan, 2024
+- [How Do LLMs Fail In Agentic Scenarios? A Qualitative Analysis of Success and Failure Scenarios of Various LLMs in Agentic Simulations](https://arxiv.org/abs/2512.07497) — JV Roig, 2025
+- [When Agents Fail to Act: A Diagnostic Framework for Tool Invocation Reliability in Multi-Agent LLM Systems](https://arxiv.org/abs/2601.16280) — Donghao Huang, Gauri Malwe, Zhaoxia Wang, 2026

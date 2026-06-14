@@ -136,3 +136,5 @@ An action whose committed financial magnitude or velocity would exceed a per-uni
 - [Trustworthy AI Agents: Kill Switches and Circuit Breakers (Missing Primitives, Part 6)](https://www.sakurasky.com/blog/missing-primitives-for-trustworthy-ai-part-6/)
 - [Your FSI AI Needs a Kill Switch. That Should Terrify You.](https://www.cdotrends.com/story/4854/your-fsi-ai-needs-kill-switch-should-terrify-you)
 - [SEC Rule 15c3-5: Risk Management Controls for Brokers or Dealers with Market Access](https://www.sec.gov/rules/final/2010/34-63241.pdf) — 2010
+- [17 CFR 240.15c3-5 - Risk management controls for brokers or dealers with market access (SEC Market Access Rule)](https://www.law.cornell.edu/cfr/text/17/240.15c3-5) — 2010
+- [CME Globex Pre-Trade Risk Management (Velocity Logic, maximum order quantity, and exposure limits)](https://www.cmegroup.com/solutions/market-access/globex/trade-on-globex/pre-trade-risk-management.html)

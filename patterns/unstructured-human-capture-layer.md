@@ -123,6 +123,8 @@ The agent may read but must never edit, tag, reformat, or restructure the human 
 ## Known uses
 
 - **[okikusan two-layer note system (daily/ + knowledge/)](https://qiita.com/okikusan-public/items/e7de5f0abecf4f13c9c8)** _available_ — Personal long-running agent setup described on Qiita: the daily/ tree is the 暗黙考 (tacit-thought) dump layer the agent must not touch — 'AI は触らない（提案のみ、書き換えない）' (the agent does not touch it: proposals only, no rewriting) — while knowledge/ is a derived hub layer (INDEX + theme MOCs) the agent grows by reading the dumps. Rationale given verbatim: '暗黙考は整理した瞬間に死ぬ' (tacit thought dies the moment it is organised).
+- **[VaultForge (Obsidian AI agent skill)](https://github.com/Easonnotsing/VaultForge)** _available_ — Add-only Obsidian agent that derives atomic notes, MOCs and wikilinks from the vault while leaving the user's existing notes untouched: 'new notes are created, existing notes are never modified, and new-to-old wikilinks are suggested (not auto-written)' — the agent grows a derived structured layer and never rewrites the raw human-authored notes.
+- **[Obsidian + AI daily-notes / MOC workflow (ericmjl PKM setup)](https://ericmjl.github.io/blog/2026/3/6/mastering-personal-knowledge-management-with-obsidian-and-ai/)** _available_ — A human keeps rough dated daily notes as the durable raw capture surface and the AI assistant reads them to build a separate structured layer of synthesized/atomic notes and indexes, rather than normalising the day-to-day log in place.
 
 ## Related patterns
 
@@ -134,3 +136,6 @@ The agent may read but must never edit, tag, reformat, or restructure the human 
 ## References
 
 - [コードでは書けない領域に降りる AI エージェント — ロングテール × 暗黙知 × 暗黙考](https://qiita.com/okikusan-public/items/e7de5f0abecf4f13c9c8) — okikusan-public, 2026
+- [Tacit Knowledge Management with Generative AI: Proposal of the GenAI SECI Model](https://arxiv.org/abs/2603.21866) — Naoshi Uchihira, 2026
+- [MemMachine: A Ground-Truth-Preserving Memory System for Personalized AI Agents](https://arxiv.org/abs/2604.04853) — Shu Wang, Edwin Yu, Oscar Love, Tom Zhang, Tom Wong, Steve Scargall, Charles Fan, 2026
+- [Multi-Layered Memory Architectures for LLM Agents: An Experimental Evaluation of Long-Term Context Retention](https://arxiv.org/html/2603.29194) — 2026

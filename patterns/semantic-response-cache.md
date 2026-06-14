@@ -142,3 +142,7 @@ A query is answered from the cache only when its nearest stored neighbour clears
 - [GPTCache — semantic cache for LLM queries](https://github.com/zilliztech/GPTCache) — 2023
 - [Vektornyj kesh: delaem umnye otvety eshche bystree (Raft)](https://habr.com/ru/companies/raft/articles/930788/) — 2025
 - [Semanticheskij obnovlyaemyj kesh na AlloyDB Omni](https://habr.com/ru/articles/995884/) — 2025
+- [GPTCache: An Open-Source Semantic Cache for LLM Applications Enabling Faster Answers and Cost Savings](https://aclanthology.org/2023.nlposs-1.24/) — Fu Bang, 2023
+- [MeanCache: User-Centric Semantic Caching for LLM Web Services](https://arxiv.org/abs/2403.02694) — Waris Gill, Mohamed Elidrisi, Pallavi Kalapatapu, Ammar Ahmed, Ali Anwar, Muhammad Ali Gulzar, 2024
+- [GPT Semantic Cache: Reducing LLM Costs and Latency via Semantic Embedding Caching](https://arxiv.org/abs/2411.05276) — Sajal Regmi, Chetan Phakami Pun, 2024
+- [Semantic Caching for Low-Cost LLM Serving: From Offline Learning to Online Adaptation](https://arxiv.org/abs/2508.07675) — 2025
