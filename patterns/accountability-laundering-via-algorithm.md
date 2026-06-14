@@ -132,6 +132,6 @@ No useful constraint; the missing constraint is named-owner accountability — e
 - [Jak zarzad powinien dzis podejmowac decyzje o AI, zeby nie odpowiadac za nie jutro?](https://www.zig.pl/baza-wiedzy/jak-zarzad-powinien-dzis-podejmowac-decyzje-o-ai-zeby-nie-odpowiadac-za-nie-jutro) — 2025
 - [General Data Protection Regulation (Article 22 — automated individual decision-making)](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation) — 2025
 - [Automation bias](https://en.wikipedia.org/wiki/Automation_bias) — 2025
-- [Moral Crumple Zones: Cautionary Tales in Human-Robot Interaction](https://estsjournal.org/index.php/ests/article/view/260) — Madeleine Clare Elish, 2019
+- [Moral Crumple Zones: Cautionary Tales in Human-Robot Interaction](https://datasociety.net/library/moral-crumple-zones/) — Madeleine Clare Elish, 2019
 - [The responsibility gap: Ascribing responsibility for the actions of learning automata](https://link.springer.com/article/10.1007/s10676-004-3422-1) — Andreas Matthias, 2004
 - [AI Risk Management Framework (AI RMF 1.0) — GOVERN function (accountability and named roles)](https://www.nist.gov/itl/ai-risk-management-framework) — NIST, 2023
