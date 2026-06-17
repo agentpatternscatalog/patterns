@@ -1944,6 +1944,48 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "hint-ladder",
+      "intent": "Pseudo-code: release help from a ladder of increasing specificity, stepping up only after a failed attempt, with the worked solution as the final rung.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Climb the ladder only on repeated failure; the full solution is the last rung, never the first.",
+          "code": "# help levels from least to most specific; worked_solution is the top rung\nLADDER = [nudge, point_to_concept, partial_step, worked_solution]\n\ndef tutor(problem, learner):\n    level = starting_rung(estimate_mastery(learner))    # usually the bottom\n    fails = 0\n    while not learner.solved(problem):\n        give(LADDER[level](problem))                    # least specific that might help\n        attempt = learner.try_again(problem)\n        if attempt.progressing:\n            level = max(0, level - 1)                   # ease off when they are moving\n            fails = 0\n        else:\n            fails += 1\n            if fails >= STEP_AFTER:                     # step up ONLY after a failed attempt\n                level = min(len(LADDER) - 1, level + 1) # worked_solution reached last, not first\n                fails = 0",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "change-freeze-aware-action-gate",
+      "intent": "Pseudo-code: gate every mutating action against the active freeze calendar for its scope and the current time, routing covered actions to logged human re-authorisation.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Reads bypass; a change covered by an active freeze cannot self-authorise and is blocked or held for human re-auth.",
+          "code": "# gate every mutating action against the freeze calendar before it touches production\ndef freeze_gate(action, now, calendar):\n    if action.is_read_only():\n        return action.execute()                        # reads bypass the gate\n\n    freeze = calendar.active_freeze(scope=action.scope, at=now)\n    if not freeze:\n        return action.execute()                        # no covering freeze -> proceed\n\n    # a freeze covers this action's scope right now: the agent may NOT self-authorise\n    approval = request_human_reauth(action, freeze)    # logged: who, why\n    if approval and approval.granted:\n        audit.record(action, freeze, approval)\n        return action.execute()\n    return Blocked(reason=f\"freeze {freeze.id} active for {action.scope} until {freeze.ends}\")",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "deployment-correlated-rollback-gate",
+      "intent": "Pseudo-code: unlock an autonomous rollback only when a deployment to the affected service aligns in time with the failure onset; otherwise escalate.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "The rollback is unlocked by a deploy-to-failure correlation, not by the agent's confidence.",
+          "code": "# the rollback is unlocked by a deploy<->failure correlation, NOT by the agent's confidence\ndef rollback_gate(incident, deploys, policy):\n    onset = incident.failure_onset()                   # when/where the failure began\n    deploy = deploys.most_recent(service=incident.service, before=onset)\n\n    correlated = deploy and (onset - deploy.time) <= policy.window   # aligned in time + scope\n    if correlated:\n        # the change to undo is identified -> agent may act within its bound\n        return agent.execute_rollback(deploy.release, bound=policy.bound)\n\n    # no deploy correlates: do NOT guess the cause -> advise and escalate\n    return escalate_to_human(incident, evidence=agent.gather_evidence(incident))",
+          "verified": false
+        }
+      ]
     }
   ]
 }
