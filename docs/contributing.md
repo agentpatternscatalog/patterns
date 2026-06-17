@@ -75,7 +75,8 @@ Per-pattern code examples live in `examples-src/<category>.json` (mirrors `patte
 Authoring rules:
 
 - The `source_url` must be the canonical upstream doc the example mirrors — usually the same URL that already appears in `compositions-src/<…>.json` as the framework's evidence for this pattern.
-- Keep examples compact. One pattern per example, no composition. Composition belongs in `compositions-src/`.
+- Keep code short. Show only the lines that carry the idea; trim imports, setup, and unrelated error handling. One pattern per example, no composition — composition belongs in `compositions-src/`.
+- For an anti-pattern, use `framework: pseudo` (not a runnable real-framework snippet), label the trap inline (`# ANTI-PATTERN: …`), and pair it with the corrective line(s) in the same snippet — never ship the bad path alone. Skip code entirely when the failure is organizational with no code locus.
 - Do not invent API shapes. If you cannot reach the linked source, do not ship the example.
 - No secrets. Placeholder strings (`"sk-..."`) for keys.
 
@@ -105,6 +106,7 @@ The `last_analysis_date` field at the top of the file should be bumped whenever 
 - One sentence in Intent. If you cannot say it in one sentence, the pattern is probably two patterns.
 - "The model" or "the LLM" — not "the AI."
 - No emoji. No hype words. Plain technical English.
+- Simple language in every section. Write short, direct sentences with one idea each, prefer the common word over the specialist one, and expand or link any term of art on first use. This applies to all reader-facing sections, not only Intent.
 - Anti-patterns are called *anti-patterns*, not "named failures" or "common pitfalls."
 
 ## License
