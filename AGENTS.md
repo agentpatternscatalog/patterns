@@ -41,6 +41,7 @@ Before pushing: run `make check` and validate edited shards against their schema
 - Each entry must validate against its schema. Pattern hard-requirements (lint A16 fails the build): `intent`, `example_scenario`, `context`, `problem`, `applicability.use_when`, `applicability.do_not_use_when`, `diagram.mermaid`, `constrains`, and at least one of `consequences.liabilities` / `failure_modes`.
 - A new pattern needs: the `patterns-src/<category>.json` entry, the `patterns/<id>.md` page, any related-pattern edges in existing entries, and a `verification-todo.json` entry (aspects start `todo`).
 - Code examples live inline as strings in `examples-src/` — there are no separate `.py`/`.ts` files. Use placeholders for secrets (`"sk-..."`); never invent API shapes you can't trace to the example's `source_url`.
+- **Keep code short.** Show only the lines that carry the idea; trim imports, setup, and unrelated error handling. One pattern per example, no composition. For an **anti-pattern**, use `framework: pseudo` (never a runnable real-framework snippet), label the trap inline (`# ANTI-PATTERN: …`), and pair it with the corrective line(s) in the same snippet — never ship the bad path alone, and skip code entirely when the failure is organizational with no code locus.
 
 ## Local tooling convention
 
@@ -51,6 +52,7 @@ Repo-root `*.py` files (e.g. `_lint.py`, `_build_training.py`) are **gitignored,
 - Sentences over bullet lists in prose slots (Intent, Context, Problem, Solution). Intent is exactly one sentence.
 - Write "the model" or "the LLM" — never "the AI."
 - No emoji, no hype words. Plain technical English.
+- **Simple language in every section.** Write short, direct sentences — one idea each — and prefer the common word over the specialist one; expand or link any term of art on first use. This is a hard expectation for *all* reader-facing sections, not only Intent. When drafting or revising reader-facing prose, run the `makemytone` skill over it to strip AI slop and slang and land on plain, simple language. Lint rule **A17** enforces this: it fails the build on AI-slop and overcomplex wording (`utilize`, `holistic`, `delve`, `streamline`, `synergies`, `it's not just X, it's Y`, `in today's …`, sentence-initial `Moreover`/`Furthermore`, etc.).
 - Call them **anti-patterns** — never "named failures" or "common pitfalls."
 - Reader-facing fields stay plain English; technical rigour goes in the schema-backed `deep_dive` field where one exists.
 - Word substitutions in prose: use "step" (not "rung"), "competitive advantage" (not "moat").

@@ -12,6 +12,7 @@ Rules are grouped to match the README's framing:
   A7  Prose shape            intent is one sentence, prose slots are not bullets
   A8  Vocabulary             "the model"/"the LLM", never "the AI"
   A9  Tone                   no emoji, no hype words, neutral voice
+  A17 Plain language          no AI-slop or overcomplex wording (makemytone)
   A10 Naming                 no duplicate names or alias collisions
   A16 Reader-view template   5 sections (Summary, Problem, When-to-Use,
                              When-Not-to-Use, Architecture Diagram) all renderable
@@ -173,6 +174,58 @@ HYPE_WORDS = (
     "unleash",
     "blazing-fast",
 )
+
+# A17 Plain language. AI-slop / overcomplex words with no legitimate technical
+# meaning in this catalog, mapped to the plain replacement shown in the message.
+# This list mirrors the `makemytone` skill's banned-word list. It is deliberately
+# curated to terms that do NOT occur in current prose, so the rule fires only on
+# new slop; technical homographs (ecosystem, unlock, navigate, paradigm,
+# utilization, summarize) are intentionally excluded to avoid false positives.
+SLOP_WORDS = {
+    "utilize": "use",
+    "utilise": "use",
+    "utilizes": "uses",
+    "utilises": "uses",
+    "utilizing": "using",
+    "utilising": "using",
+    "holistic": "drop it, or name the specific scope",
+    "tapestry": "drop it",
+    "delve": "look at / go into",
+    "delves": "looks at",
+    "delving": "looking at",
+    "empower": "let / enable",
+    "empowers": "lets / enables",
+    "empowering": "letting / enabling",
+    "innovative": "say what is actually new",
+    "innovation": "say what is actually new",
+    "streamline": "simplify / speed up",
+    "streamlines": "simplifies",
+    "streamlined": "simplified",
+    "streamlining": "simplifying",
+    "synergies": "describe the actual interaction",
+    "transformative": "say what concretely changes",
+    "evidentiary": "about the evidence",
+    "hyperscaler": "big cloud provider",
+    "myriad": "many",
+    "plethora": "many",
+}
+
+# Sentence-level AI tics: (regex, advice). Matched case-insensitively over prose.
+APOS = r"(?:'|’)"
+SLOP_PHRASES = (
+    (rf"\bit(?:{APOS}s| is) not (?:just|only)\b", "antithesis tic — state the positive claim plainly"),
+    (rf"\bin today{APOS}?s\b", "drop the throat-clearing; open with the claim"),
+    (r"\bin a world where\b", "drop it; open with the claim"),
+    (rf"\bit(?:{APOS}s| is) worth noting\b", "drop it; just note the thing"),
+    (r"\bat its core\b", "drop it"),
+    (r"\bin essence\b", "drop it"),
+    (r"\bin conclusion\b", "drop it; the last sentence is the conclusion"),
+    (rf"\bwhether you(?:{APOS}re| are)\b", "pick one reader; drop the whether-you cadence"),
+    (r"\b(?:deep dive|dive into|dives into|diving into|delve into)\b", "say 'look at' / 'go into', or be specific"),
+)
+
+# Sentence-initial additive connectors: the link is implicit, so just start the sentence.
+SLOP_SENTENCE_INITIAL = re.compile(r"(?:^|[.!?]\s+)(Moreover|Furthermore|Additionally)\b")
 
 NEUTRAL_VOICE_FORBIDDEN = (
     r"\bwe\b",
@@ -727,6 +780,26 @@ def rule_a9(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+def rule_a17(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A17 Plain language: no AI-slop or overcomplex wording (see the makemytone skill)."""
+    out: list[Violation] = []
+    word_pat = re.compile(r"\b(" + "|".join(re.escape(w) for w in SLOP_WORDS) + r")\b", re.IGNORECASE)
+    phrase_pats = [(re.compile(rx, re.IGNORECASE), advice) for rx, advice in SLOP_PHRASES]
+    for p in patterns:
+        loc = f"{where.get(p['id'], '?')}::{p['id']}"
+        for slot, text in text_fields(p).items():
+            for m in word_pat.finditer(text):
+                w = m.group(1).lower()
+                out.append(Violation("A17.1", f"{loc}#{slot}", f"AI-slop/overcomplex word {m.group(1)!r} (use: {SLOP_WORDS[w]})"))
+            for rx, advice in phrase_pats:
+                m = rx.search(text)
+                if m:
+                    out.append(Violation("A17.2", f"{loc}#{slot}", f"AI-slop phrasing {m.group(0)!r} — {advice}"))
+            for m in SLOP_SENTENCE_INITIAL.finditer(text):
+                out.append(Violation("A17.3", f"{loc}#{slot}", f"sentence-initial {m.group(1)!r}: start the sentence plainly; the additive link is implicit"))
+    return out
+
+
 def rule_a10(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     """A10 Naming: unique names, no alias collisions."""
     out: list[Violation] = []
@@ -1089,6 +1162,7 @@ RULES = {
     "A14": ("variant sanity", lambda P, W, N: rule_a14(P, W)),
     "A15": ("verification-todo refs", lambda P, W, N: rule_a15(P, W)),
     "A16": ("reader-view template", lambda P, W, N: rule_a16(P, W)),
+    "A17": ("plain language (no AI slop)", lambda P, W, N: rule_a17(P, W)),
 }
 
 
