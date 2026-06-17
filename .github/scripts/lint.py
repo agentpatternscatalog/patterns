@@ -384,6 +384,8 @@ def rule_a2() -> list[Violation]:
         "patterns.graph.schema.json",
         "patterns.compositions.schema.json",
         "compositions.schema.json",
+        "compositions-todo.json",
+        "compositions-todo.schema.json",
         "examples.schema.json",
         "methodologies.schema.json",
         "pattern-todo.json",
@@ -1145,6 +1147,69 @@ def rule_a16(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
     return out
 
 
+def _load_compositions_for_lint() -> list[dict]:
+    src = ROOT / "compositions-src"
+    comps: list[dict] = []
+    if not src.exists():
+        return comps
+    for f in sorted(src.glob("*.json")):
+        try:
+            d = json.loads(f.read_text())
+        except json.JSONDecodeError:
+            continue
+        for c in d.get("compositions", []):
+            c = dict(c)
+            c["_shard"] = f.name
+            comps.append(c)
+    return comps
+
+
+# Reader-facing rich sections every kind=framework composition must carry. These
+# are near-universal on established entries; the rule keeps new entries from
+# shipping thin. Situational fields (alternatives, instantiates,
+# anti_patterns_avoided, aliases) stay optional and are not enforced here.
+REQUIRED_FRAMEWORK_SECTIONS = [
+    "primary_use_cases",
+    "agent_loop_shape",
+    "key_concepts",
+    "pattern_composition",
+    "references",
+    "tags",
+]
+
+
+def rule_a18(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
+    """A18 Composition completeness: every kind=framework composition carries the
+    reader-facing rich sections, and every member is backed by evidence
+    (url + verbatim quote). Recipes (kind=recipe) are abstract and exempt.
+
+    A18.1 framework missing/empty rich section
+    A18.2 framework member has no evidence (no documented usage proof)
+    """
+    out: list[Violation] = []
+    for c in _load_compositions_for_lint():
+        if c.get("kind") != "framework":
+            continue
+        loc = f"compositions-src/{c.get('_shard', '?')}::{c.get('id', '?')}"
+        for sect in REQUIRED_FRAMEWORK_SECTIONS:
+            v = c.get(sect)
+            if v is None or (isinstance(v, (list, str)) and len(v) == 0):
+                out.append(Violation("A18.1", loc, f"missing/empty section {sect!r}"))
+        # Member-evidence is required only on entries that claim every member is
+        # cited. Per the schema's verification_status semantics: 'verified' = every
+        # member carries a citation (enforce here); 'partial' = some members
+        # verified, some missing (allowed); 'stub' = no per-member evidence yet.
+        if c.get("verification_status") == "verified":
+            for m in c.get("members", []):
+                ev = m.get("evidence") or []
+                if not ev or not all(e.get("url") and e.get("quote") for e in ev):
+                    out.append(Violation(
+                        "A18.2", loc,
+                        f"member {m.get('pattern')!r} lacks evidence (url + verbatim quote)",
+                    ))
+    return out
+
+
 RULES = {
     "A1": ("schema/structure", lambda P, W, N: rule_a1(P, W)),
     "A2": ("repo hygiene", lambda P, W, N: rule_a2()),
@@ -1163,6 +1228,7 @@ RULES = {
     "A15": ("verification-todo refs", lambda P, W, N: rule_a15(P, W)),
     "A16": ("reader-view template", lambda P, W, N: rule_a16(P, W)),
     "A17": ("plain language (no AI slop)", lambda P, W, N: rule_a17(P, W)),
+    "A18": ("composition completeness", lambda P, W, N: rule_a18(P, W)),
 }
 
 
