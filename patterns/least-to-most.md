@@ -23,20 +23,6 @@ Even with chain-of-thought, the model is still trying to span the whole problem 
 - Two stages double minimum cost.
 - Errors in the decomposition cascade.
 
-## Applicability
-
-**Use when**
-
-- Hard problems benefit from explicit decomposition into ordered easier subproblems.
-- Each subproblem's answer is genuinely useful as input to the next.
-- Plain chain-of-thought generalises poorly to the target distribution.
-
-**Do not use when**
-
-- The model already solves the task with chain-of-thought alone.
-- Subproblems cannot be ordered easiest-to-hardest reliably.
-- Sequential prompting cost is prohibitive for the workload.
-
 ## Therefore
 
 Therefore: decompose the problem into an ordered list of easier subproblems and solve them sequentially with each answer feeding the next, so that the model never has to leap from problem to answer in one step.
@@ -44,12 +30,6 @@ Therefore: decompose the problem into an ordered list of easier subproblems and 
 ## Solution
 
 Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.
-
-## Variants
-
-- **Static decomposition L2M** — Subproblems are produced once up front and then solved in order without revisiting the plan.
-- **Dynamic decomposition L2M** — After each subproblem is answered, the model may revise the remaining subproblem list before continuing.
-- **Tool-augmented L2M** — Each subproblem step may call a tool (calculator, search) instead of being answered by the model alone.
 
 ## Diagram
 
@@ -84,19 +64,53 @@ A maths-tutoring agent is asked a multi-step word problem that combines unit con
 
 Subproblems must be solved in the listed order; out-of-order solving is forbidden.
 
+## Applicability
+
+**Use when**
+
+- Hard problems benefit from explicit decomposition into ordered easier subproblems.
+- Each subproblem's answer is genuinely useful as input to the next.
+- Plain chain-of-thought generalises poorly to the target distribution.
+
+**Do not use when**
+
+- The model already solves the task with chain-of-thought alone.
+- Subproblems cannot be ordered easiest-to-hardest reliably.
+- Sequential prompting cost is prohibitive for the workload.
+
+## Components
+
+- Decomposer LLM call — stage-one prompt that lists subproblems from easiest to hardest
+- Sequential solver LLM call — stage-two prompt that solves the next subproblem given the original question and prior answers
+- Subproblem queue — ordered list of subproblems with their resolved answers
+- Answer composer — assembles the final answer from the last subproblem result
+
+## Tools
+
+- LLM API — at least one decomposition call plus one call per subproblem
+- Optional tool runtime — calculator, search, or domain solver invoked inside a subproblem step
+
+## Evaluation metrics
+
+- Length-generalisation accuracy — solve rate on instances longer than the training distribution
+- Decomposition validity rate — fraction of stage-one plans whose subproblems are well-ordered and complete
+- Stage-one error cascade rate — share of failures whose root cause is a bad decomposition rather than a bad solve
+- Subproblem count distribution — typical depth required per task class
+- Cost vs single-stage CoT — total token spend across both stages relative to one-shot reasoning
+
 ## Known uses
 
-- **L2M paper benchmarks (last letter, SCAN, math)** — *Available*
+- **L2M paper benchmarks (last letter, SCAN, math)** _available_
+- **[LLM Reasoners (maitrix-org)](https://github.com/maitrix-org/llm-reasoners)** _available_ — Ships a Least-to-most prompting algorithm/example among its reasoning methods.
 
 ## Related patterns
 
-- *alternative-to* → [chain-of-thought](chain-of-thought.md)
-- *complements* → [self-ask](self-ask.md)
-- *complements* → [plan-and-execute](plan-and-execute.md)
-- *complements* → [goal-decomposition](goal-decomposition.md) — least-to-most is the prompting tactic; goal-decomposition is the planner architecture. Both can be used together.
+- _alternative-to_ **Chain of Thought**
+- _complements_ **Self-Ask**
+- _complements_ **Plan-and-Execute**
+- _complements_ **Goal Decomposition**
+- _alternative-to_ **Query-Decomposition Agent**
 
 ## References
 
-- (paper) Zhou, Schärli, Hou, Wei, Scales, Wang, Schuurmans, Cui, Bousquet, Le, Chi, *Least-to-Most Prompting Enables Complex Reasoning in Large Language Models*, 2022, <https://arxiv.org/abs/2205.10625>
-
-**Tags:** reasoning, decomposition
+- [Least-to-Most Prompting Enables Complex Reasoning in Large Language Models](https://arxiv.org/abs/2205.10625) — Zhou, Schärli, Hou, Wei, Scales, Wang, Schuurmans, Cui, Bousquet, Le, Chi, 2022

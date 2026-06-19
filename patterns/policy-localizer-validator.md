@@ -2,12 +2,12 @@
 
 **Also known as:** Three-Way GUI Agent, Surfer-H Architecture, Validator-Gated Browser Agent
 
-**Category:** Tool Use & Environment
+**Category:** Tool Use & Environment  
 **Status in practice:** emerging
 
 ## Intent
 
-Split a GUI or browser agent into three specialist models — a Policy LLM that plans the next action, a Localizer VLM that grounds described UI elements to pixel coordinates, and a Validator VLM that judges whether the task is complete — so each role uses the smallest sufficient model and grounding errors are caught before commit.
+Split a GUI agent into three specialist models — a Policy that plans, a Localizer that grounds elements to pixels, and a Validator that judges completion — so each role uses the smallest sufficient model.
 
 ## Context
 
@@ -109,22 +109,43 @@ The Policy model must not emit pixel coordinates directly — grounding is the L
 - Single capable multimodal model is cheap enough that splitting wastes engineering effort.
 - Latency budget cannot absorb sequential three-model passes per step.
 
+## Components
+
+- Policy LLM — reads screenshot and task state and emits a textual action description
+- Localizer VLM — grounds the textual action plus screenshot into pixel coordinates
+- Validator VLM — judges whether the resulting state advances or completes the task
+- Action Executor — carries the grounded action to the environment
+- Step Coordinator — sequences policy, localizer, executor, and validator each step
+
+## Tools
+
+- UI grounding VLM (SeeClick, OS-Atlas, or similar) — plays the localizer role
+- Completion-judgment VLM — plays the validator role, trained on success and failure traces
+- GUI driver (mobile or desktop) — executes the grounded action against the environment
+
+## Evaluation metrics
+
+- Per-role attribution of failures — share of errors traced to policy, localizer, or validator
+- Click grounding accuracy — localizer-specific metric on UI-grounding benchmarks
+- Validator precision and recall — how reliably the validator catches premature stops and missed completions
+- Cost split across three models — how much budget each specialist consumes
+- End-to-end task success versus single-model baseline — headline value of the three-role split
+
 ## Known uses
 
-- **[H Company Surfer-H + Holo1 (Paris)](https://arxiv.org/abs/2506.02865)** — *Available* — Three-model browser agent with explicit Policy / Localizer / Validator roles; open-weights VLMs.
+- **[H Company Surfer-H + Holo1 (Paris)](https://arxiv.org/abs/2506.02865)** _available_ — Three-model browser agent with explicit Policy / Localizer / Validator roles; open-weights VLMs.
+- **[Surfer-H / Holo1 (H Company)](https://github.com/hcompai/surfer-h-cli)** _available_ — Web agent built from three components named policy, localizer, and validator.
 
 ## Related patterns
 
-- *specialises* → [dual-system-gui-agent](dual-system-gui-agent.md) — Adds a third specialist (Validator) on top of the planner+vision split.
-- *specialises* → [browser-agent](browser-agent.md) — A specific architecture for browser-based agents.
-- *specialises* → [computer-use](computer-use.md) — Same decomposition applied to desktop GUIs.
-- *alternative-to* → [evaluator-optimizer](evaluator-optimizer.md) — Evaluator-Optimizer is a rewrite loop on text drafts; Validator here is a per-step gate on commit, not a critic of artifacts.
-- *alternative-to* → [critic](critic.md) — Critic patterns judge a model's draft; Validator judges environment state, not text.
+- _specialises_ **Dual-System GUI Agent** — Adds a third specialist (Validator) on top of the planner+vision split.
+- _specialises_ **Browser Agent** — A specific architecture for browser-based agents.
+- _specialises_ **Computer Use** — Same decomposition applied to desktop GUIs.
+- _alternative-to_ **Evaluator-Optimizer** — Evaluator-Optimizer is a rewrite loop on text drafts; Validator here is a per-step gate on commit, not a critic of artifacts.
+- _alternative-to_ **Tool-Augmented Self-Correction** — Critic patterns judge a model's draft; Validator judges environment state, not text.
 
 ## References
 
-- (paper) H Company, *Surfer-H Meets Holo1: Cost-Efficient Web Agent Powered by Open-Weights*, 2025, <https://arxiv.org/abs/2506.02865>
-- (repo) H Company, *Holo1 collection*, 2025, <https://huggingface.co/Hcompany>
-- (repo) H Company, *Surfer-H CLI*, 2025, <https://github.com/hcompai/surfer-h-cli>
-
-**Tags:** gui-agent, browser-agent, multimodal, decomposition, cost-efficiency
+- [Surfer-H Meets Holo1: Cost-Efficient Web Agent Powered by Open-Weights](https://arxiv.org/abs/2506.02865) — H Company, 2025
+- [Holo1 collection](https://huggingface.co/Hcompany) — H Company, 2025
+- [Surfer-H CLI](https://github.com/hcompai/surfer-h-cli) — H Company, 2025

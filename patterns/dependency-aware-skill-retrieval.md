@@ -121,6 +121,7 @@ A skill is never returned in isolation when its execution depends on skills not 
 - **[Graph-of-Skills](https://arxiv.org/abs/2604.05333)** _pure-future_ — Models a massive agent-skill library as a dependency graph and retrieves the prerequisite closure as a structured subgraph rather than top-k semantic matches.
 - **[SkillGraph](https://arxiv.org/abs/2605.12039)** _pure-future_ — Skill-augmented RL agent that, for a new task, retrieves an ordered skill subgraph to guide multi-step decision making instead of isolated skills.
 - **Group-of-Skills** _pure-future_ — Retrieves dependency-linked groups of skills together so a compositional task receives an execution-complete bundle.
+- **[Graph of Skills (GoS)](https://github.com/davidliuk/graph-of-skills)** _available_ — Builds a skill graph from SKILL.md docs and retrieves a ranked set together with prerequisites and related capabilities.
 
 ## Related patterns
 

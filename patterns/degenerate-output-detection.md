@@ -2,7 +2,7 @@
 
 **Also known as:** Anti-Parrot Guard, Self-Repeat Circuit Breaker, Loop-Output Detector
 
-**Category:** Safety & Control
+**Category:** Safety & Control  
 **Status in practice:** emerging
 
 ## Intent
@@ -44,6 +44,10 @@ flowchart TD
   P --> RB
 ```
 
+## Example scenario
+
+A small voice-assistant model gets stuck and replies 'How can I help today?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.
+
 ## Consequences
 
 **Benefits**
@@ -76,52 +80,45 @@ Identical or near-identical consecutive outputs are forbidden; detected loops mu
 - The agent has only single-turn interactions with no comparison baseline.
 - False positives on near-duplicate detection would be more disruptive than the loop itself.
 
-## Variants
+## Components
 
-### String-similarity check
+- Ring buffer — small fixed-size store of recent outgoing replies for comparison
+- Normaliser — lowercase, punctuation-strip step that stabilises lexical comparison
+- Similarity scorer — Jaccard or embedding comparator that decides duplicate-or-novel
+- Escalation router — provider-swap path triggered on detected loop
+- Self-correction note — SYSTEM message appended to history to break the model out
 
-Compare the candidate output to the previous N outputs by Levenshtein or token-set ratio; reject above threshold.
+## Tools
 
-*Distinguishing factor:* lexical comparison
+- Token-set hash — cheap fingerprint for exact and near-exact match
+- Multi-provider client — second LLM endpoint used as the escalation target
+- Embedding model — semantic-similarity backup for paraphrased loops
 
-*When to use:* Default. Cheap and good enough for most loops.
+## Evaluation metrics
 
-### Embedding-similarity check
-
-Embed candidate and previous outputs; reject if cosine similarity exceeds a threshold.
-
-*Distinguishing factor:* semantic comparison
-
-*When to use:* When paraphrased loops slip past lexical checks.
-
-### Detect-and-escalate
-
-On detected loop, retry with a stronger model or a different decoding strategy (higher temperature, nucleus sampling) instead of dropping.
-
-*Distinguishing factor:* recover, not just reject
-
-*When to use:* When the agent must produce *some* output and silence is not acceptable.
-
-## Example scenario
-
-A small voice-assistant model gets stuck and replies 'How can I help today?' five turns in a row regardless of what the user says. Each generation is independent, so the model has no way to notice it's looping. The team adds Degenerate Output Detection: each candidate reply is hashed and fingerprinted against the last few replies, and near-duplicates trigger either a drop, a different sampling, or escalation to a stronger model. The user no longer has to watch the agent talk itself in circles.
+- Loop-detection precision — fraction of triggers that were actually repeats
+- Loop-detection recall — fraction of human-spotted loops the detector caught
+- Escalation cost per trigger — added spend when a loop forces a stronger provider
+- Post-escalation self-correction rate — share of follow-up turns that broke the loop
 
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **[Hugging Face Transformers (no_repeat_ngram_size)](https://huggingface.co/docs/transformers.js/en/api/generation/logits_process)** _available_ — NoRepeatNGramLogitsProcessor disallows ngrams of a given size from being repeated, detecting and blocking degenerate loops at decode time.
 
 ## Related patterns
 
-- *complements* → [provider-fallback](provider-fallback.md)
-- *alternative-to* → [same-model-self-critique](same-model-self-critique.md)
-- *specialises* → [circuit-breaker](circuit-breaker.md)
-- *complements* → [echo-recognition](echo-recognition.md)
-- *complements* → [salience-triggered-output](salience-triggered-output.md)
-- *uses* → [multi-model-routing](multi-model-routing.md)
+- _complements_ **Provider Fallback**
+- _alternative-to_ **Same-Model Self-Critique**
+- _specialises_ **Circuit Breaker**
+- _complements_ **Echo Recognition**
+- _complements_ **Salience-Triggered Output**
+- _uses_ **Multi-Model Routing**
+- _complements_ **Pre-Generative Loop Gate**
+- _complements_ **Agentic Behavior Tree**
+- _complements_ **Composable Termination Conditions**
 
 ## References
 
-- (doc) *Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)*, 2024, <https://huggingface.co/docs/transformers/generation_strategies>
-- (paper) Holtzman, Buys, Du, Forbes, Choi, *The Curious Case of Neural Text Degeneration*, 2020, <https://arxiv.org/abs/1904.09751>
-
-**Tags:** safety, anti-loop, provider-routing, self-monitoring
+- [Hugging Face — Text generation strategies (repetition penalty, no-repeat-ngram)](https://huggingface.co/docs/transformers/generation_strategies) — 2024
+- [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751) — Holtzman, Buys, Du, Forbes, Choi, 2020

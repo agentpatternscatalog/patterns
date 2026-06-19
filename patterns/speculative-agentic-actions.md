@@ -121,6 +121,7 @@ Only read-only, idempotent, side-effect-free tool calls may be executed speculat
 ## Known uses
 
 - **[Aegis](https://arxiv.org/abs/2508.19504)** _pure-future_ — Taxonomy of agent-environment failures that names Speculative Agentic Actions as an optimisation against resource exhaustion, preemptively bundling related tool calls so the trajectory collapses fewer turns.
+- **[Hail Hydra](https://github.com/AR6420/Hail_Hydra)** _available_ — Speculative pre-dispatch: a scout action launches in parallel with task classification to cut latency.
 
 ## Related patterns
 

@@ -122,6 +122,8 @@ A synthesized tool may not be called until it has passed a validation check; unt
 - **[Evolution of Tool Use in LLM Agents (survey)](https://arxiv.org/abs/2603.22862)** _available_ — Treats 'Autonomous Tool Expansion' (LATM, CREATOR, ToolMaker, RestGPT) as a distinct branch of the tool-use literature.
 - **[ToolMaker](https://arxiv.org/abs/2502.11705)** _available_ — Agentic framework that autonomously transforms papers-with-code repositories into LLM-compatible tools, installing dependencies and using a closed-loop self-correction mechanism with unit tests before the tool is exposed for use.
 - **[CRAFT](https://arxiv.org/abs/2309.17428)** _available_ — Creates a toolset of diverse, reusable, validated code-snippet tools and retrieves from it at inference, separating tool creation from tool use.
+- **[Voyager](https://github.com/MineDojo/Voyager)** _available_ — Maintains an ever-growing skill library of executable code synthesized on demand as tools.
+- **[ToolMaker (KatherLab/ToolMaker)](https://github.com/KatherLab/ToolMaker)** _available_ — Shipping implementation that autonomously generates and self-corrects executable tool code from a task description and repo URL.
 
 ## Related patterns
 
