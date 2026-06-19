@@ -198,6 +198,48 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "emergent-agent-collusion",
+      "intent": "Pseudo-code contrasting per-agent oversight (blind to collusion) with a population-level correlation check that flags coordinated price movement across the fleet.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show why per-agent review passes while a cross-agent correlation monitor catches tacit coordination.",
+          "code": "# Each agent updates its price against the competitor's posted price.\n# No prompt mentions cooperation.\ndef agent_step(agent, market):\n    rival = market.posted_prices(exclude=agent.id)\n    return agent.llm.decide(my_state=agent.state, rival_prices=rival)  # locally rational\n\n# BROKEN: oversight inspects one trace at a time -> sees nothing wrong.\ndef per_agent_review(trace):\n    return all(is_locally_rational(step) for step in trace)  # always passes\n\n# CORRECTED: correlate the action streams ACROSS agents.\ndef population_monitor(price_history):\n    corr = cross_correlation(price_history)            # do prices move together?\n    lead = leader_follower_lag(price_history)          # one leads, others follow?\n    margin = price_history.mean() - competitive_benchmark()\n    if corr > THRESH and lead is not None and margin > 0:\n        flag_collusion(price_history)                  # cartel no agent was told to form\n",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "replay-divergence",
+      "intent": "Pseudo-code contrasting a replay that re-invokes the model (diverges) with a journaled replay that returns the recorded output and version-stamps every event.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show why re-invoking an LLM during replay corrupts recovered state, and how journaling fixes recovery while flagging changed-model re-derivation.",
+          "code": "# BROKEN: replay re-invokes the model -> new output -> divergent downstream events\ndef replay_broken(events):\n    state = State()\n    for ev in events:\n        if ev.kind == \"llm_call\":\n            out = model.generate(ev.prompt)     # different model/version -> different out\n        else:\n            out = ev.output\n        state.apply(out)                         # reconstructs a state that never existed\n    return state\n\n# CORRECTED: journal non-deterministic outputs; stamp the producing model.\ndef record(ev, out):\n    ev.output = out\n    ev.model_version = model.version\n    ev.prompt_hash = sha(ev.prompt)\n\ndef replay_faithful(events, mode):\n    state = State()\n    for ev in events:\n        if ev.kind == \"llm_call\":\n            if mode == \"recover\":\n                out = ev.output                  # replay the RECORDED value, do not re-invoke\n            else:  # deliberate re-derivation under a new model\n                out = model.generate(ev.prompt)\n                if out != ev.output:\n                    flag_divergence(ev, ev.output, out)   # diff, do not silently overwrite\n        else:\n            out = ev.output\n        state.apply(out)\n    return state\n",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "observability-fail-open",
+      "intent": "Pseudo-code contrasting a fail-open health check (absent signal read as healthy) with three-state reporting that surfaces unknown and alerts on a silent probe.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Show why defaulting a missing probe to healthy hides incidents, and how an explicit unknown state plus a heartbeat fixes it.",
+          "code": "# BROKEN: a blocked/empty probe is read as healthy.\ndef is_healthy(probe):\n    result = probe.run()                 # denied -> returns {} or None\n    return result.get(\"anomalies\", 0) == 0   # missing key -> 0 -> \"healthy\"\n\nif is_healthy(scorer):\n    keep_serving()                       # green dashboard while broken\n\n# CORRECTED: three states; never collapse UNKNOWN into HEALTHY.\ndef health(probe):\n    try:\n        r = probe.run()\n    except (Denied, Timeout, Unreachable):\n        return UNKNOWN                    # could-not-observe != no-problem\n    if r is None or not r.complete:\n        return UNKNOWN\n    return HEALTHY if r.anomalies == 0 else UNHEALTHY\n\nstate = health(scorer)\nheartbeat(\"scorer\", state)               # monitor the monitor\nif state == UNKNOWN:\n    page_oncall(\"scorer blind\")          # loss of observability is itself an alert\nif state != HEALTHY:\n    fail_safe()                          # hold rollback/autoscale; do not trust a default\n",
+          "verified": false
+        }
+      ]
     }
   ]
 }
