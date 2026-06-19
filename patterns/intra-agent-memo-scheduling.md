@@ -2,7 +2,7 @@
 
 **Also known as:** Self-Scheduled Future Thought, Past-Self-To-Future-Self Note, Personal Cron
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -31,6 +31,21 @@ Therefore: give the agent a tool to drop a note for its own future self into a p
 ## Solution
 
 Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant A1 as Agent (now)
+  participant F as Scheduled-thoughts queue
+  participant A2 as Agent (later tick)
+  A1->>F: schedule_future_thought(when, content, intent)
+  Note over F: persisted note
+  A2->>F: drain due entries
+  F-->>A2: matured notes
+  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]
+  A2->>F: mark fired
+```
 
 ## Example scenario
 
@@ -68,61 +83,39 @@ Future thoughts must surface at or after their fire time; failures to drain are 
 - Memos must survive the agent process being deleted; intra-agent storage is too fragile.
 - Memo volume is high enough that an external scheduler is required for performance.
 
-## Variants
+## Components
 
-### Append-and-scan
+- Schedule Tool — appends a future-fire entry to the queue with when, content, intent
+- Scheduled-Thoughts Queue — persistent store keyed or sorted by fire time
+- Drain Step — runs each tick, pops due entries, marks them fired
+- System-Prefix Injector — prepends matured notes as SYSTEM lines into the next prompt
+- Fire-Once Marker — prevents the same memo from re-firing on subsequent ticks
 
-Memos are appended to a single file; every tick scans for entries whose fire-time has passed.
+## Tools
 
-*Distinguishing factor:* no index
+- Structured JSON store — persistent queue surviving process restarts
+- Tick scheduler — drains due entries at the agent's loop cadence
 
-*When to use:* Default for small memo volumes.
+## Evaluation metrics
 
-### Indexed by fire-time
-
-Memos are stored in a min-heap or sorted index keyed by fire-time; tick pops only what is due.
-
-*Distinguishing factor:* O(log n) drain
-
-*When to use:* When memo volume is large enough that linear scan is wasteful.
-
-### Recurring memo
-
-Each memo carries a recurrence rule (e.g. 'every Monday 09:00') and is re-scheduled after firing.
-
-*Distinguishing factor:* self-rescheduling
-
-*When to use:* When the agent needs cron-like behaviour without an external scheduler.
-
-## Diagram
-
-```mermaid
-sequenceDiagram
-  participant A1 as Agent (now)
-  participant F as Scheduled-thoughts queue
-  participant A2 as Agent (later tick)
-  A1->>F: schedule_future_thought(when, content, intent)
-  Note over F: persisted note
-  A2->>F: drain due entries
-  F-->>A2: matured notes
-  A2->>A2: prepend as [SYSTEM: scheduled note from past-self]
-  A2->>F: mark fired
-```
+- Fire-time drift — gap between scheduled fire time and actual injection time
+- Stale-memo backlog — unfired entries past a reasonable age, surfacing forgotten cron entries
+- Double-fire count — memos that fired more than once, which must stay zero
+- Memo-to-action conversion — share of fired memos that produced a downstream move rather than being ignored
 
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **[pi-schedule-prompt (Pi Heartbeat)](https://github.com/tintinweb/pi-schedule-prompt)** _available_ — Schedules a prompt to be re-sent to the agent after a relative delay (+5m/+1h/+2d) or at an ISO time, optionally waking the parent agent.
 
 ## Related patterns
 
-- *specialises* → [scheduled-agent](scheduled-agent.md)
-- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [salience-triggered-output](salience-triggered-output.md)
+- _specialises_ **Scheduled Agent**
+- _complements_ **Append-Only Thought Stream**
+- _complements_ **Decision Log**
+- _complements_ **Salience-Triggered Output**
 
 ## References
 
-- (doc) *LangGraph — durable execution and scheduled tasks*, 2025, <https://langchain-ai.github.io/langgraph/concepts/durable_execution/>
-- (paper) Park et al., *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
-
-**Tags:** self-scheduling, future-self, memory, tick-loop
+- [LangGraph — durable execution and scheduled tasks](https://docs.langchain.com/oss/python/langgraph/durable-execution) — 2025
+- [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442) — Park et al., 2023

@@ -23,20 +23,6 @@ In a tree-shaped search, each branch is explored in isolation and the model cann
 - Cross-branch reuse vs aggregation prompt cost.
 - DAG expressiveness vs cycle-safety enforcement.
 
-## Applicability
-
-**Use when**
-
-- Reasoning benefits from merging or refining partial solutions across branches.
-- Intermediate thoughts can be reused or aggregated rather than discarded.
-- Problems have a DAG-shaped structure rather than a single linear chain.
-
-**Do not use when**
-
-- A simple chain-of-thought or tree-of-thoughts already solves the task at lower cost.
-- Operations to score, aggregate, or refine thoughts cannot be defined for the domain.
-- Latency budgets cannot absorb multi-node graph traversal.
-
 ## Therefore
 
 Therefore: represent reasoning as an arbitrary DAG of thoughts that can be generated, refined, aggregated, and scored, so that branches share work instead of recomputing the same intermediates.
@@ -44,12 +30,6 @@ Therefore: represent reasoning as an arbitrary DAG of thoughts that can be gener
 ## Solution
 
 Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.
-
-## Variants
-
-- **Generate-only GoT** — Only the generate operator is used, but multiple thoughts per node give a tree-like shape inside the DAG.
-- **Aggregate-heavy GoT** — Aggregate operator merges sibling thoughts repeatedly, ideal for sort/merge or set-union style problems.
-- **Refine-loop GoT** — A single thought is refined in a self-loop until a score plateau, with periodic aggregation against earlier versions.
 
 ## Diagram
 
@@ -86,19 +66,54 @@ A research agent comparing five drug candidates across efficacy, safety, and cos
 
 Thought operations must be composed via the named operators; ad-hoc reasoning outside the operator vocabulary is forbidden.
 
+## Applicability
+
+**Use when**
+
+- Reasoning benefits from merging or refining partial solutions across branches.
+- Intermediate thoughts can be reused or aggregated rather than discarded.
+- Problems have a DAG-shaped structure rather than a single linear chain.
+
+**Do not use when**
+
+- A simple chain-of-thought or tree-of-thoughts already solves the task at lower cost.
+- Operations to score, aggregate, or refine thoughts cannot be defined for the domain.
+- Latency budgets cannot absorb multi-node graph traversal.
+
+## Components
+
+- Thought graph — DAG store holding nodes for partial thoughts and edges for dependencies
+- Generate operator — CoT-style expansion that produces new thoughts from a parent node
+- Aggregate operator — merges several thoughts into a combined thought
+- Refine operator — rewrites a single thought into an improved version
+- Score operator — assigns a value to a thought used for ranking and selection
+- Orchestrator — composes operators into a graph traversal and returns the final thought
+
+## Tools
+
+- LLM API — invoked once per operator application on graph nodes
+- Graph engine — DAG data structure with cycle-safety enforcement and node reuse lookup
+
+## Evaluation metrics
+
+- Solve rate on aggregation-shaped problems — wins on sort, set-union, and document-merge tasks vs CoT and ToT
+- Node reuse ratio — share of thoughts referenced by more than one downstream node
+- Operator-call count per solve — orchestration overhead relative to a tree baseline
+- Aggregate-prompt cost share — fraction of total tokens spent inside aggregate operations
+- DAG depth and width at solve — structural signature of successful runs for debug
+
 ## Known uses
 
-- **GoT paper benchmarks (sorting, set intersection, document merge)** — *Available*
+- **GoT paper benchmarks (sorting, set intersection, document merge)** _available_
+- **[Graph of Thoughts (spcl/graph-of-thoughts)](https://github.com/spcl/graph-of-thoughts)** _available_ — Framework that models a problem as a Graph of Operations (Generate/Aggregate/Score/Improve) executed with an LLM as the engine.
 
 ## Related patterns
 
-- *generalises* → [tree-of-thoughts](tree-of-thoughts.md)
-- *complements* → [lats](lats.md)
-- *composes-with* → [blackboard](blackboard.md)
-- *complements* → [llm-compiler](llm-compiler.md)
+- _generalises_ **Tree of Thoughts**
+- _complements_ **Language Agent Tree Search**
+- _composes-with_ **Blackboard**
+- _complements_ **LLMCompiler**
 
 ## References
 
-- (paper) Besta, Blach, Kubicek, Gerstenberger, Podstawski, Gianinazzi, Gajda, Lehmann, Niewiadomski, Nyczyk, Hoefler, *Graph of Thoughts: Solving Elaborate Problems with Large Language Models*, 2023, <https://arxiv.org/abs/2308.09687>
-
-**Tags:** reasoning, graph, dag
+- [Graph of Thoughts: Solving Elaborate Problems with Large Language Models](https://arxiv.org/abs/2308.09687) — Besta, Blach, Kubicek, Gerstenberger, Podstawski, Gianinazzi, Gajda, Lehmann, Niewiadomski, Nyczyk, Hoefler, 2023

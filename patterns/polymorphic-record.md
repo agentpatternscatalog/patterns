@@ -23,21 +23,6 @@ Two naive choices both go wrong. One schema per sub-type duplicates the common f
 - Type-specific fields need a clean place to live.
 - Validation must be per-sub-type, not just per-record.
 
-
-## Applicability
-
-**Use when**
-
-- A family of related entities shares a core schema with type-specific extensions.
-- Clients should round-trip unknown sub-types without losing data.
-- A discriminator field can flag the sub-type cleanly.
-
-**Do not use when**
-
-- Sub-types share so few fields that separate schemas are clearer.
-- All clients understand all sub-types and a flat schema is simpler.
-- Sub-type extension blocks would proliferate unboundedly without governance.
-
 ## Therefore
 
 Therefore: factor the family into a core schema with a discriminator plus namespaced extension blocks, so that common fields stay common and sub-types extend without breaking older clients.
@@ -45,16 +30,6 @@ Therefore: factor the family into a core schema with a discriminator plus namesp
 ## Solution
 
 Define a core schema with the common fields and a discriminator (e.g. `material_type`). Sub-type fields live in a namespaced extension block (e.g. `yarn: {...}` for yarn-specific). Clients that do not understand a sub-type still read the core fields and round-trip the rest without data loss.
-
-## Variants
-
-- **Discriminator + per-type extension block** — Core record carries `type`; sub-type fields live under a namespaced extension (`yarn: {...}`).
-- **oneOf / discriminator (OpenAPI)** — Sub-types are full schemas in a `oneOf`, keyed by a discriminator field; validators enforce the right schema per record.
-- **Inline polymorphism (FHIR `value[x]`)** — Sub-type information is encoded in the field name itself (`valueQuantity`, `valueString`); no separate discriminator needed.
-
-## Example scenario
-
-A textile-trading platform has yarn, fabric, and trim records, each with shared fields (sku, supplier, lead-time) plus type-specific ones (yarn count, fabric weave, trim attachment). Three separate schemas duplicate code; one bloated 'material' schema with every field is unenforceable. The team adopts a polymorphic-record: a core schema with the shared fields and a `material_type` discriminator, plus namespaced extension blocks (yarn:{}, fabric:{}, trim:{}). Clients that don't understand a sub-type still read the core fields and round-trip the rest losslessly.
 
 ## Diagram
 
@@ -77,6 +52,10 @@ classDiagram
   Record o-- FabricExt : fabric
 ```
 
+## Example scenario
+
+A textile-trading platform has yarn, fabric, and trim records, each with shared fields (sku, supplier, lead-time) plus type-specific ones (yarn count, fabric weave, trim attachment). Three separate schemas duplicate code; one bloated 'material' schema with every field is unenforceable. The team adopts a polymorphic-record: a core schema with the shared fields and a `material_type` discriminator, plus namespaced extension blocks (yarn:{}, fabric:{}, trim:{}). Clients that don't understand a sub-type still read the core fields and round-trip the rest losslessly.
+
 ## Consequences
 
 **Benefits**
@@ -93,21 +72,57 @@ classDiagram
 
 Sub-type fields must live under their namespaced extension; they cannot pollute the core.
 
+## Applicability
+
+**Use when**
+
+- A family of related entities shares a core schema with type-specific extensions.
+- Clients should round-trip unknown sub-types without losing data.
+- A discriminator field can flag the sub-type cleanly.
+
+**Do not use when**
+
+- Sub-types share so few fields that separate schemas are clearer.
+- All clients understand all sub-types and a flat schema is simpler.
+- Sub-type extension blocks would proliferate unboundedly without governance.
+
+## Components
+
+- Core schema — common fields shared by every sub-type, readable by clients that do not know any sub-type
+- Discriminator field — names the sub-type (e.g. material_type) and drives per-sub-type validation
+- Namespaced extension block — holds the sub-type-specific fields under a key (e.g. yarn: {...}) so they cannot pollute the core
+- Per-sub-type validator — checks that the extension block matches the discriminator value
+- Round-trip preserver — keeps unknown extension blocks intact when a client reads and rewrites a record
+
+## Tools
+
+- JSON Schema with oneOf + discriminator — standard mechanism for declaring polymorphic records
+- OpenAPI discriminator — language-neutral way to expose the pattern in an API contract
+- Tagged-union type (Pydantic discriminated union, TypeScript discriminated union, Rust enum) — language-level enforcement of the pattern in code
+
+## Evaluation metrics
+
+- Per-sub-type validation pass rate — how often records actually conform to their declared discriminator
+- Forward-compatibility round-trip rate — fraction of unknown-sub-type records that old clients read and write back without data loss
+- Discriminator mismatch rate — records whose extension block does not match the declared sub-type
+- Core-field pollution count — sub-type-specific fields that leaked into the core schema and need to be moved
+- Sub-type proliferation rate — new sub-types added per release; flags governance drift
+
 ## Known uses
 
-- **Weft** — *Available*. Material with material_type=yarn / fabric / thread / etc.; Pattern across knitting / crochet / weaving / etc.
-- **FHIR resource polymorphism** — *Available*
-- **Stripe API discriminated objects** — *Available*
-- **JSON-LD @type** — *Available*
-- **OpenAPI discriminator/oneOf** — *Available*
+- **Weft** _available_ — Material with material_type=yarn / fabric / thread / etc.; Pattern across knitting / crochet / weaving / etc.
+- **FHIR resource polymorphism** _available_
+- **Stripe API discriminated objects** _available_
+- **JSON-LD @type** _available_
+- **OpenAPI discriminator/oneOf** _available_
+- **[Stripe API (PaymentMethod object)](https://docs.stripe.com/api/payment_methods/object)** _available_ — A single PaymentMethod record carries a type field plus a matching nested hash with type-specific fields.
+- **[HL7 FHIR (choice[x] elements)](https://build.fhir.org/formats.html)** _available_ — Polymorphic elements named nnn[x] where [x] is replaced by the title-cased name of the type actually used.
 
 ## Related patterns
 
-- *complements* → [schema-extensibility](schema-extensibility.md)
-- *complements* → [translation-layer](translation-layer.md)
+- _complements_ **Schema Extensibility**
+- _complements_ **Translation Layer**
 
 ## References
 
-- (book) Martin Kleppmann, *Designing Data-Intensive Applications*, 2017
-
-**Tags:** schema, polymorphism, data
+- [Designing Data-Intensive Applications](https://dataintensive.net/) — Martin Kleppmann, 2017
