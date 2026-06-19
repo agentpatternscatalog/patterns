@@ -1,6 +1,6 @@
 # Pattern Index
 
-518 patterns across 14 categories.
+520 patterns across 14 categories.
 
 ## Reasoning
 
@@ -385,6 +385,7 @@
 - [Multi-Principal Welfare Aggregation](patterns/multi-principal-welfare-aggregation.md) *(a.k.a. Multi-Principal Assistance Game, Social-Choice Aggregation for Agents)* — When an agent serves multiple humans with conflicting preferences, declare the aggregation rule explicitly rather than letting it be implicit in the prompt or fine-tune.
 - [Own Your Prompts (12-Factor Agents)](patterns/own-your-prompts.md) *(a.k.a. 12-Factor Prompts, Production-Owned Prompts)* — Every prompt in a production agent is versioned, tested, and owned by the team in the application repo — never inherited as a framework default.
 - [Postmortem Pattern Mining](patterns/postmortem-pattern-mining.md) *(a.k.a. Incident Corpus Mining, Retrospective Map-Fold)* — Mine a corpus of thousands of written postmortems through a staged model pipeline that summarises, classifies, analyses, and aggregates so that recurring incident causes surface as one short report.
+- [Production Failure Triage Loop](patterns/production-failure-triage-loop.md) *(a.k.a. Failure-Class Routed Remediation, Post-Launch Triage Loop)* — Sort every production agent failure into a small fixed taxonomy and bind each class to a set remediation path, so fixes are dispatched mechanically and the monitor-to-fix loop stays fast enough to gate scaling.
 - [Prompt Versioning](patterns/prompt-versioning.md) *(a.k.a. Prompt-as-Artifact, Prompt Registry, Versioned Prompts)* — Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.
 - [Provenance Ledger](patterns/provenance-ledger.md) *(a.k.a. Audit Trail, Action Log)* — Log every agent decision and state change with enough metadata to explain or reverse it later.
 - [Re-Contact-Subtracted Resolution Gate](patterns/re-contact-subtracted-resolution.md) *(a.k.a. Deflection-Minus-Re-Contact Resolution, True Resolution Rate Gate)* — Gate a support agent on a re-contact-subtracted resolution rate so an interaction that merely ends the session is never reported as a resolved one.
@@ -400,6 +401,7 @@
 ## Structure & Data
 
 - [Business + LLM Microservice Split](patterns/business-llm-microservice-split.md) *(a.k.a. CPU/GPU Tier Split, Inference-Service Decoupling)* — Split an LLM application into a CPU-bound business microservice (retrieval, prompt assembly, orchestration) and a GPU-bound LLM microservice (only model.generate behind REST), so each tier scales on its own hardware budget.
+- [Channel-Decoupled Agent Core](patterns/channel-decoupled-agent-core.md) *(a.k.a. Channel-Agnostic Agent Core, Delivery-Channel Adapter, Ports-and-Adapters Agent)* — Put the agent's reasoning, tools, and session state behind channel-agnostic ports, and make each delivery surface (web, voice, email, Slack, background jobs) an adapter, so one core serves every channel.
 - [Code-Switching-Aware Agent](patterns/code-switching-aware-agent.md) *(a.k.a. Mixed-Language Input Handling, Hinglish-Tolerant Agent, Romanised-Indic Agent)* — Treat mixed-language input (e.g. Hinglish in Roman script) as the expected shape, and design tokenisation, language tagging, and tool routing to handle it natively without forcing the user to commit to one language.
 - [DSPy Signatures](patterns/dspy-signatures.md) *(a.k.a. Prompt Programs, Compiled Prompts)* — Specify agent behaviour as declarative typed signatures and modules; compile prompts and few-shot examples automatically against a metric.
 - [FTI LLM Pipeline Split](patterns/fti-llm-pipeline-split.md) *(a.k.a. Feature-Training-Inference Split, FTI Architecture for LLMs)* — Decompose an LLM/RAG system into three independently-deployable pipelines — feature, training, inference — communicating only via a feature store and a model registry.

@@ -4049,6 +4049,11 @@
         {
           "pattern": "agent-resumption",
           "relation": "complements"
+        },
+        {
+          "pattern": "channel-decoupled-agent-core",
+          "relation": "uses",
+          "note": "A managed runtime that fronts chat, voice, email, and webhooks is a hosted realization of this decoupling; the runtime uses channel adapters over a shared agent core."
         }
       ],
       "references": [
@@ -4658,6 +4663,11 @@
           "pattern": "false-resolution",
           "relation": "complements",
           "note": "Both refuse to accept a surface-level success claim; False Resolution catches a compromise that violates a constraint in joint interpretation, this catches a session-end that the user never actually had solved."
+        },
+        {
+          "pattern": "production-failure-triage-loop",
+          "relation": "complements",
+          "note": "The gated resolution metric this loop optimises toward; a failure class that keeps re-contacting points the loop at the fix that is not sticking."
         }
       ],
       "references": [
@@ -5180,6 +5190,11 @@
           "pattern": "agent-confession-as-forensics",
           "relation": "conflicts-with",
           "note": "That anti-pattern trusts a model's generated self-narrative as the root-cause record; this pattern instead mines human-authored postmortems and gates the aggregate on a human sampling check rather than on any single generated account."
+        },
+        {
+          "pattern": "production-failure-triage-loop",
+          "relation": "complements",
+          "note": "Pattern mining is a batch, corpus-level map-fold over thousands of written postmortems that surfaces recurring causes; this loop is the live, per-failure classify-and-route complement — mining finds and validates the buckets, this routes each new failure into them."
         }
       ],
       "references": [
@@ -5599,6 +5614,172 @@
         "Held-out vs live decision-flip gap — how much the sampled tier overstates reproducibility on production inputs"
       ],
       "last_updated": "2026-06-14"
+    },
+    {
+      "id": "production-failure-triage-loop",
+      "name": "Production Failure Triage Loop",
+      "aliases": [
+        "Failure-Class Routed Remediation",
+        "Post-Launch Triage Loop"
+      ],
+      "category": "governance-observability",
+      "intent": "Sort every production agent failure into a small fixed taxonomy and bind each class to a set remediation path, so fixes are dispatched mechanically and the monitor-to-fix loop stays fast enough to gate scaling.",
+      "context": "An agent runs in production and failures arrive continuously from real traffic — wrong answers, broken tool calls, off-brand tone, and requests it was never scoped to handle. Most of the work now sits after go-live, not before it. When each failure is investigated from scratch, remediation is slow and the team cannot tell whether the agent is improving or drifting.",
+      "problem": "Production failures have different causes that need different fixes, but an undifferentiated incident stream hides that. A tone complaint, a tool misconfiguration, a stale data source, and a genuine coverage gap all look like 'the agent got it wrong', so each is debugged by hand and routed ad hoc. The link between a live failure and the design change that would fix it stays broken, the monitor-to-fix loop runs slow, and a slow loop caps how fast the agent can safely take on more use cases.",
+      "forces": [
+        "A small fixed taxonomy makes failures comparable and routable, but too coarse a scheme lumps unlike causes together while too fine a scheme is unstable and hard to classify.",
+        "Automatic classification scales with volume, but a misclassified failure is routed to the wrong fix-path; human triage is accurate but does not keep up with traffic.",
+        "Each failure class wants a different remediation surface — prompt, code, data, or scope — and routing to the wrong surface produces a fix that masks the cause instead of removing it.",
+        "The speed of the loop, not the cleverness of any single fix, is what gates scaling, so triage overhead competes directly with throughput."
+      ],
+      "therefore": "Therefore: classify every production failure into one class of a small fixed taxonomy, bind each class to a predetermined remediation path, and track the latency of the whole loop as the metric that decides when to scale.",
+      "solution": "Define a small, stable taxonomy of failure classes up front — for example tone and brand alignment, logic and tool errors, data quality, and coverage gaps, or a research taxonomy such as MAST (specification flaws, agent misalignment, termination gaps). Every production failure is classified into exactly one class, by an automatic classifier over traces, by human triage, or by both. Each class is wired to a fixed remediation path so the fix is dispatched mechanically rather than re-decided each time: tone goes to a system-prompt or few-shot edit, a logic error goes to a tool or config fix or to converting the step into deterministic code, a data-quality failure routes back to the data owner, and a coverage gap opens scope work or an escalation hand-off. The latency of the loop — failure observed to fix shipped — is tracked as a first-class metric, because that speed, not any individual fix, is what gates how fast the agent can take on more use cases.",
+      "structure": "Production traces -> failure detector -> classifier (fixed taxonomy) -> per-class remediation router -> {prompt edit | code/config fix | data-owner ticket | scope/escalation work} -> redeploy -> loop-latency metric -> back to traces",
+      "consequences": {
+        "benefits": [
+          "Failures of unlike cause stop competing for one debugging queue; each lands on the surface that can actually fix it.",
+          "The monitor-to-fix loop has a measured latency, so the team can see whether it is fast enough to support taking on the next use case.",
+          "Recurring classes expose where to invest — a class that keeps firing signals a structural fix (deterministic code, a policy, a data-owner process) rather than another one-off patch."
+        ],
+        "liabilities": [
+          "A misclassified failure is routed to the wrong remediation path and the real cause survives.",
+          "A taxonomy that does not fit the domain forces failures into ill-fitting classes or a catch-all bucket that defeats routing.",
+          "Mechanical routing can entrench symptom-level fixes if a class's bound path treats symptoms rather than causes."
+        ]
+      },
+      "failure_modes": [
+        "Catch-all bucket — most failures fall into an 'other' class because the taxonomy is too coarse, and routing collapses back to ad-hoc debugging.",
+        "Misrouting — the classifier sends a failure to the wrong fix-path, so the team edits a prompt for what was actually a data or tool fault.",
+        "Loop-latency neglect — classes get rich but nobody measures observe-to-ship time, so the loop silently slows and caps scaling without anyone noticing.",
+        "Symptom routing — a class is bound to a quick masking fix, so the bound path produces repeat incidents instead of removing the cause."
+      ],
+      "constrains": "Every production failure must be assigned exactly one taxonomy class before remediation; a failure that cannot be classified must not be silently dropped, and no fix may be dispatched outside its class's bound remediation path.",
+      "known_uses": [
+        {
+          "system": "Salesforce Agentforce post-launch triage",
+          "status": "available",
+          "note": "Across 20,000+ deployments Salesforce reports sorting production agent failures into four buckets — tone/brand, logic errors, data quality, coverage gaps — each routed to its own fix path, with feedback-loop speed treated as the gate to scaling.",
+          "url": "https://blog.bytebytego.com/p/what-salesforce-learned-from-20000"
+        },
+        {
+          "system": "TRAIL trace-based failure localization",
+          "status": "pure-future",
+          "note": "Automatically classifies and localizes agent failures from execution traces against a fixed error taxonomy, the classification step this loop depends on.",
+          "url": "https://arxiv.org/abs/2505.08638"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "postmortem-pattern-mining",
+          "relation": "complements",
+          "note": "Pattern mining is a batch, corpus-level map-fold over thousands of written postmortems that surfaces recurring causes; this loop is the live, per-failure classify-and-route complement — mining finds and validates the buckets, this routes each new failure into them."
+        },
+        {
+          "pattern": "routing",
+          "relation": "uses",
+          "note": "Reuses classify-then-dispatch, but applied to failures feeding remediation rather than to incoming user requests."
+        },
+        {
+          "pattern": "re-contact-subtracted-resolution",
+          "relation": "complements",
+          "note": "The gated resolution metric this loop optimises toward; a failure class that keeps re-contacting points the loop at the fix that is not sticking."
+        },
+        {
+          "pattern": "typed-refusal-codes",
+          "relation": "complements",
+          "note": "Machine-readable categories are what make mechanical triage possible; typed codes feed the classifier directly instead of string-grepping human-readable messages."
+        },
+        {
+          "pattern": "deterministic-control-flow-not-prompt",
+          "relation": "complements",
+          "note": "The remediation target for the logic/tool failure class — repeat logic failures are converted into deterministic code rather than re-prompted."
+        },
+        {
+          "pattern": "policy-as-code-gate",
+          "relation": "complements",
+          "note": "The remediation target for policy-violation failures — the fix encodes the rule as a policy outside the prompt rather than prompting harder."
+        },
+        {
+          "pattern": "symptom-remediation-thrashing",
+          "relation": "complements",
+          "note": "The anti-pattern this guards against: binding a class to a root-cause-appropriate surface (code, policy, data owner) is the discipline that stops the masking-fix loop."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Evaluation-Driven Development and Operations of LLM Agents: A Process Model and Reference Architecture",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2411.13768"
+        },
+        {
+          "type": "paper",
+          "title": "Why Do Multi-Agent LLM Systems Fail?",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2503.13657"
+        },
+        {
+          "type": "paper",
+          "title": "TRAIL: Trace Reasoning and Agentic Issue Localization",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2505.08638"
+        },
+        {
+          "type": "blog",
+          "title": "What Salesforce learned from 20,000+ AI agent deployments",
+          "year": 2026,
+          "url": "https://blog.bytebytego.com/p/what-salesforce-learned-from-20000"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "agentops",
+        "observability",
+        "evaluation",
+        "incident-response",
+        "feedback-loop",
+        "governance"
+      ],
+      "example_scenario": "A support agent handling thousands of cases a day starts producing more escalations. Instead of debugging each ticket on its own, the team tags every failed case with one label — tone, logic, data, or coverage. Tone cases go to a prompt tweak, logic cases to a tool fix, data cases back to the data team, and coverage cases to a new sub-flow. Within a week they can see which bucket is growing and how long each fix takes to ship.",
+      "applicability": {
+        "use_when": [
+          "The agent is live and producing a steady stream of real-world failures that need continual fixing.",
+          "Failures have distinct causes that map to distinct fix surfaces — prompt, code, data, or scope.",
+          "The team needs to know whether its fix loop is fast enough to justify scaling to more use cases."
+        ],
+        "do_not_use_when": [
+          "The agent is pre-launch or handling so little traffic that failures can be addressed one by one.",
+          "Failures are dominated by a single cause, so a routing taxonomy adds overhead without separating anything.",
+          "There is no capacity to act on any class of failure, so classifying them only grows an unworked backlog."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  T[Production traces] --> D{Failure detector}\n  D -->|failure| C[Classify into fixed taxonomy]\n  C -->|tone/brand| P[Prompt or few-shot edit]\n  C -->|logic/tool| K[Tool/config fix or deterministic code]\n  C -->|data quality| O[Route to data owner]\n  C -->|coverage gap| S[Scope work or escalation]\n  P --> R[Redeploy]\n  K --> R\n  O --> R\n  S --> R\n  R --> M[Track loop latency]\n  M --> T",
+        "caption": "Each production failure is classified once and routed to the remediation surface bound to its class; loop latency is tracked as the scaling gate."
+      },
+      "components": [
+        "Failure detector — surfaces failing or low-quality runs from production traces and user signals",
+        "Failure taxonomy — the small, fixed set of classes every failure is sorted into",
+        "Classifier — assigns each failure to exactly one class, by automatic model, human triage, or both",
+        "Remediation router — dispatches each class to its bound fix surface: prompt, code, data, or scope",
+        "Fix surfaces — the prompt store, tool/code config, data-owner process, and scope/escalation backlog that fixes land on",
+        "Loop-latency monitor — measures observe-to-ship time and reports it as the scaling gate"
+      ],
+      "tools": [
+        "Tracing and observability platform — captures the production runs that failures are detected and classified from",
+        "Failure-classification model or rubric — snaps free-text failures onto the fixed taxonomy",
+        "Issue tracker and deploy pipeline — carries each routed fix from ticket to redeploy",
+        "Evaluation or regression suite — confirms a shipped fix removed the failure without regressing others"
+      ],
+      "evaluation_metrics": [
+        "Loop latency, failure observed to fix shipped — whether the feedback loop is fast enough to support scaling",
+        "Per-class failure volume and trend — which causes dominate and whether fixes are reducing them",
+        "Misclassification rate — how often failures are routed to the wrong fix-path",
+        "Catch-all bucket share — how much of the stream the taxonomy fails to separate",
+        "Repeat-incident rate per class — whether a class's bound fix-path removes causes or just masks symptoms"
+      ],
+      "last_updated": "2026-06-19"
     }
   ]
 }
