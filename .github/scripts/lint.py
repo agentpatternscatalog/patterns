@@ -390,6 +390,8 @@ def rule_a2() -> list[Violation]:
         "methodologies.schema.json",
         "pattern-todo.json",
         "pattern-todo.schema.json",
+        "composition-candidates.json",
+        "composition-candidates.schema.json",
         "training.json",
         "training.schema.json",
         "training-todo.json",
