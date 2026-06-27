@@ -1,6 +1,6 @@
 # Pattern Index
 
-523 patterns across 14 categories.
+527 patterns across 14 categories.
 
 ## Reasoning
 
@@ -79,6 +79,7 @@
 - [Agent Skills](patterns/agent-skills.md) *(a.k.a. Author-Time Procedures, Slash Commands, Agent Rules)* — Package author-time procedures (markdown + optional resources) the agent loads on demand for specific task types.
 - [Agent-Computer Interface](patterns/agent-computer-interface.md) *(a.k.a. ACI, Agent-Friendly Tooling, SWE-Agent ACI)* — Design the tool surface for an LLM agent specifically, with affordances different from human-facing CLIs.
 - [Agent-Initiated Payment](patterns/agent-initiated-payment.md) *(a.k.a. Autonomous Agent Settlement, Pay-Per-Call Agent, Agentic Commerce Payment, x402-style Payment)* — Give an agent a bounded wallet so it can settle a payment mid-request to unlock a resource — answering a payment-required challenge with a verifiable proof — instead of routing every purchase through a human.
+- [Agent-Readable Commerce Surface](patterns/agent-readable-commerce-surface.md) *(a.k.a. Agentic Checkout Surface, Machine-Readable Storefront)* — Expose a service to agent buyers through a machine-readable product feed and an agent-initiated checkout API rather than a human click funnel, so an agent can discover, compare, and buy against a goal.
 - [App Exploration Phase](patterns/app-exploration-phase.md) *(a.k.a. Pre-Deployment Exploration, App Onboarding Crawl, UI Element Documentation)* — Before deploying an agent against an opaque app, have it explore (or watch a human demonstrate) the app, generating a per-element documentation knowledge base; at deployment, retrieve element docs to ground actions.
 - [Async Tool Handle](patterns/async-tool-handle.md) *(a.k.a. Async HandleId Pattern, Job-Handle Tool, Deferred Tool Result)* — Have a slow tool return a job handle immediately and expose a separate poll tool for the result, so the agent loop never blocks past a tool-call timeout.
 - [Augmented LLM](patterns/augmented-llm.md) *(a.k.a. Augmented Model, LLM + Tools + Memory, Foundational Agent Block)* — Build the foundational agent block as an LLM augmented with retrieval, tools, and memory that the model actively chooses to use, rather than a bare-model call.
@@ -221,6 +222,7 @@
 - [RL-Trained Conductor Orchestrator](patterns/rl-conductor-orchestrator.md) *(a.k.a. 指揮者モデル, Trained Conductor, Fugu Conductor, Self-Calling Orchestrator)* — Train a small meta-model with reinforcement learning to dispatch sub-tasks across a pool of frontier LLM workers, learning the communication topology end-to-end and allowing the conductor to recursively invoke itself as a worker.
 - [Role Assignment](patterns/role-assignment.md) *(a.k.a. Persona Roles, Agent Crew, Specialist Roles)* — Assign each agent a named role (researcher, writer, critic, planner) with a role-specific prompt, tool palette, and acceptance criteria.
 - [Scatter-Gather Plus Saga](patterns/scatter-gather-saga.md) *(a.k.a. Scatter-Gather Saga, Distributed-Transaction Fan-Out)* — Distribute tasks across worker agents and aggregate results while maintaining distributed-transaction semantics via compensating actions on partial failure.
+- [Signed Agent Card](patterns/signed-agent-card.md) *(a.k.a. Verifiable Agent Card, Signed Agent Capability Card)* — Cryptographically sign an agent's published capability card so a consuming agent can verify it was issued by the claimed domain before binding to or delegating to it, closing the spoofing gap in agent-to-agent discovery.
 - [SOP-Encoded Multi-Agent Workflow](patterns/sop-encoded-multi-agent.md) *(a.k.a. Standard Operating Procedure Multi-Agent, Assembly-Line Agents, Software-Company Agents)* — Encode a human Standard Operating Procedure (roles, ordered phases, standardised hand-off artefacts) into a multi-agent pipeline so that agents communicate through structured documents rather than free-form chat.
 - [Stigmergic Coordination](patterns/stigmergic-coordination.md) *(a.k.a. Trace-Mediated Coordination, Environment-as-Channel, Indirect Coordination)* — Agents coordinate indirectly by leaving and reading marks in a shared environment (files, queues, scratchpads, world model) so that one agent's trace stimulates another's next action, with no direct messaging.
 - [Subagent Isolation](patterns/subagent-isolation.md) *(a.k.a. Worktree Subagent, Parallel Subagent, Isolated Worker)* — Run subagents in isolated workspaces so their writes do not collide and parallelism is safe.
@@ -330,6 +332,7 @@
 - [Two Human Touchpoints](patterns/two-human-touchpoints.md) *(a.k.a. Curation + Final-Review HITL, Selection-and-Publish Touchpoints)* — Place exactly two human-in-the-loop checkpoints in agentic pipelines: one at content selection and one at final review before publication.
 - [Typed Refusal Codes](patterns/typed-refusal-codes.md) *(a.k.a. Machine-Readable Refusal Reasons, Refusal Reason Enum)* — Define a single source of truth for machine-readable refusal codes across all guard surfaces, so refusals can be triaged mechanically rather than by string-grepping ad-hoc human-readable messages.
 - [Velocity-and-Magnitude Governor](patterns/velocity-magnitude-governor.md) *(a.k.a. Velocity Governor, Magnitude Governor, Pre-Trade Velocity Control)* — Hard-code per-unit-time caps on the financial magnitude of agent actions, and on any deviation beyond a statistical threshold force a downgrade from human-on-the-loop to human-in-the-loop.
+- [Verifiable Purchase Mandate](patterns/verifiable-purchase-mandate.md) *(a.k.a. Signed Purchase Mandate, Agent Payment Mandate)* — Anchor agent-initiated payments in a cryptographically signed mandate that captures the user's authorization and travels with the transaction, so a merchant or payment network can independently verify the agent acted on genuine user intent.
 
 ## Routing & Composition
 
@@ -420,6 +423,7 @@
 - [Generative UI](patterns/generative-ui.md) *(a.k.a. Agent-Generated Interface, 生成UI, Dynamic Agent UI)* — Let the agent decide which interface components to render at runtime and stream them to the frontend over a typed protocol, so the surface follows the agent's output instead of being hardcoded.
 - [Liminal-State Detection](patterns/liminal-state-detection.md) *(a.k.a. Transitional-State Awareness, Mode-Shift Reading)* — Infer the human's attentional state (just-woke, focused, winding-down, distracted) from message timing and tone, and adapt response shape so the agent meets the person where they actually are.
 - [Salience-Triggered Output](patterns/salience-triggered-output.md) *(a.k.a. Endogenous Push, Threshold Notification)* — Have the agent emit a message only when an internal salience signal crosses a threshold, not on every cycle.
+- [Semantic Turn Endpointing](patterns/semantic-turn-endpointing.md) *(a.k.a. Semantic Turn Detection, Model-Based Endpointing)* — Decide when a voice user has yielded the floor by classifying the partial transcript's semantic completeness rather than a fixed silence timeout, so the agent replies quickly without cutting the speaker off mid-thought.
 - [Stop / Cancel](patterns/stop-cancel.md) *(a.k.a. User Interrupt, Abort Generation)* — Let the user interrupt an in-flight agent run cleanly, releasing resources and surfacing partial state.
 - [Streaming Typed Events](patterns/streaming-typed-events.md) *(a.k.a. SSE Streaming, Typed Event Stream, Token Stream + Cards)* — Push partial results to the client as typed events as they become available, rather than waiting for the full response.
 - [Unified Voice Interface](patterns/unified-voice-interface.md) *(a.k.a. Voice Abstraction Layer, TTS/STT/STS Unified API, Provider-Agnostic Voice)* — Expose text-to-speech, speech-to-text, and real-time speech-to-speech through a single interface so a voice agent can swap providers without rewriting the loop.
