@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guidance for AI coding agents working in this repository. Format per [agents.md](https://agents.md).
-For human-facing orientation, read [`README.md`](README.md) first; for the rules a pattern must clear, read [`docs/contributing.md`](docs/contributing.md).
+For human-facing orientation, read [`README.md`](README.md) first; for the rules a pattern must clear, read [`CONTRIBUTING.md`](CONTRIBUTING.md) and then [`docs/contributing.md`](docs/contributing.md).
 
 ## What this repo is
 
