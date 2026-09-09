@@ -1717,6 +1717,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "epistemic-fault-domain-quorum",
+      "intent": "The same five-member approval scored two ways: by counting voters, and by counting the distinct upstream roots those voters descend from.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace headcount with a minimum root-fault cut at the admission gate.",
+          "code": "# BEFORE - resilience is credited from the headcount\nvotes = [m.review(change) for m in members]      # 5 members, 5 approvals\nif sum(v.approve for v in votes) >= 4:\n    approve(change, note=\"4-of-5 quorum\")        # reads as 4 independent checks\n\n\n# AFTER - resilience is credited from distinct upstream roots\n\nROOT_KINDS = [\"document\", \"corpus\", \"telemetry\", \"tool_backend\",\n              \"base_model\", \"generative_process\"]\n\ndef exposure(member, run_trace):\n    # built from what actually ran, not from declared config\n    return {\n        \"document\":           run_trace.documents_read(member),\n        \"corpus\":             run_trace.retrieval_index(member),\n        \"telemetry\":          run_trace.feeds_queried(member),\n        \"tool_backend\":       run_trace.tool_endpoints(member),\n        \"base_model\":         resolve_base_model(member),        # not the vendor label\n        \"generative_process\": diversity_estimator.cluster(member),\n    }\n\ndef epistemic_cut(members, run_trace, threshold_votes):\n    # smallest set of root faults that removes enough approvals to flip the outcome\n    maps  = {m: exposure(m, run_trace) for m in members}\n    roots = distinct_roots(maps)                 # dedup across ROOT_KINDS\n    return min_hitting_set(\n        roots,\n        flips=lambda faulty: surviving_approvals(maps, faulty) < threshold_votes,\n    )\n\ncut = epistemic_cut(members, run_trace, threshold_votes=4)\n\nif cut >= DECLARED_MIN_CUT[change.risk_class]:\n    approve(change, credited_resilience=cut, exposure_map=maps)\nelse:\n    # adding a sixth member at a fixed threshold cannot raise the cut\n    reject(change, reason=f\"epistemic cut {cut} < required \"\n                          f\"{DECLARED_MIN_CUT[change.risk_class]}\",\n                   remedy=\"add a distinct corpus / tool backend / model lineage,\"\n                          \" or downgrade the claim\")\n\n# 5 approvals, 4 of them reading one nightly risk report -> cut = 1",
+          "verified": false
+        }
+      ]
     }
   ]
 }

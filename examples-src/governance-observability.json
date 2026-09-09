@@ -1157,6 +1157,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "serving-stack-attestation",
+      "intent": "Establish which backbone and serving stack answered, on the action channel that survives an agentic request, instead of trusting the configured model name.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Probe a hosted endpoint on the tool-call channel, compare against the claimed checkpoint, and record the serving stack with every result.",
+          "code": "# BEFORE — the model name is copied from config into the record\nresp   = call(endpoint, prompt)\nrecord = {\"model\": CONFIG.model_name,      # a claim, never checked\n          \"output\": resp.text}\n# nothing here says which checkpoint, which precision,\n# which framework or which decoding defaults produced it\n\n\n# AFTER — identity is measured, then recorded\n\n# 1. a battery whose TOOL CHOICE is genuinely policy-dependent.\n#    text is discarded by the serving stack on these requests;\n#    the structured action is not.\nBATTERY = load_probe_prompts(n=200, require=\"tool_choice_varies_by_backbone\")\n\ndef action_distribution(target):\n    counts = {}\n    for p in BATTERY:\n        r = target.call(p, tools=TOOLS, temperature=0, seed=0)\n        key = (r.tool_name, canonicalise(r.tool_args))   # NOT r.text\n        counts[key] = counts.get(key, 0) + 1\n    return normalise(counts)\n\n# 2. reference from the checkpoint we can actually inspect\nreference = action_distribution(self_hosted(CONFIG.model_name))\n\ndef attest(endpoint):\n    observed = action_distribution(endpoint)\n    stat, p_value = two_sample_test(observed, reference)   # no logprobs needed\n    return {\"separated\": p_value < ALPHA,                  # ALPHA fixes the FPR\n            \"statistic\": stat,\n            \"probed_at\": now(),\n            \"route\": endpoint.route_id}\n\n# 3. per ROUTE SNAPSHOT, not once at onboarding:\n#    a pooled endpoint can change backbone with no version string moving\non_route_change(endpoint) -> verdict = attest(endpoint)\nevery(PROBE_INTERVAL)     -> verdict = attest(endpoint)\n\nif verdict.separated:\n    # separation means DIFFERENT, not dishonest: quantization,\n    # a framework upgrade and a swap all look the same from outside\n    escalate(verdict)          # pin provider / fall back / raise with provider\n\n# 4. every result carries the stack it was produced on, so two\n#    numbers are only ever compared when they are comparable\nrecord = {\"output\":      resp.text,\n          \"route\":       endpoint.route_id,\n          \"backend\":     endpoint.reported_framework,   # e.g. vllm 0.x\n          \"precision\":   endpoint.reported_quantization,\n          \"gen_config\":  effective_generation_config(endpoint),\n          \"attested\":    verdict}",
+          "verified": false
+        }
+      ]
     }
   ]
 }

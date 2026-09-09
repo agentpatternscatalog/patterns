@@ -1224,6 +1224,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "execution-state-ledger",
+      "intent": "The same long-horizon step taken twice: once with the raw trajectory as the account of the situation, once with a runtime-maintained execution state gating the call.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Derive execution state from the action stream, render it instead of the trajectory, and gate each proposed command on it.",
+          "code": "# BEFORE - the trajectory is the account of the situation\nprompt = system_prompt + trajectory        # 300+ actions and observations\ncmd    = model(prompt)                     # must infer, per step, what is still true\nrun(cmd)                                   # step 41 patches the file read at step 3\n                                           # step 60 re-runs the test suite from step 52\n# nothing in the trajectory says which observations still hold\n\n\n# AFTER - a runtime-maintained execution state, consulted at both boundaries\nstate = {\n    \"observed\": {},   # resource -> {value_hash, at_step, valid}\n    \"modified\": {},   # resource -> last_write_step\n    \"attempts\": {},   # command_key -> {result, at_step, depends_on:[resources]}\n}\n\ndef on_action(action, observation):        # deterministic, no model call\n    for r in action.reads:\n        state[\"observed\"][r] = {\"hash\": hash_of(r), \"at_step\": step, \"valid\": True}\n    for r in action.writes:                # the run's own write supersedes earlier reads\n        state[\"modified\"][r] = step\n        if r in state[\"observed\"]:\n            state[\"observed\"][r][\"valid\"] = False\n        for key, a in state[\"attempts\"].items():\n            if r in a[\"depends_on\"]:\n                a[\"result\"] = STALE\n    state[\"attempts\"][key_of(action)] = {\n        \"result\": observation, \"at_step\": step, \"depends_on\": action.reads\n    }\n\n# step in: what is true now, not what happened\nprompt = system_prompt + render(state) + latest_observation\ncmd    = model(prompt)\n\n# step out: the gate\nkey = key_of(cmd)\nprior = state[\"attempts\"].get(key)\nif prior and prior[\"result\"] is not STALE and is_deterministic(cmd):\n    observation = prior[\"result\"]              # reuse; do not re-execute\nelif any(not state[\"observed\"][r][\"valid\"] for r in cmd.premises):\n    observation = block(cmd, reason=\"premised on a superseded observation\")\n    force_reobserve(cmd.premises)              # re-read before acting\nelse:\n    observation = run(cmd)\n\non_action(cmd, observation)",
+          "verified": false
+        }
+      ]
     }
   ]
 }

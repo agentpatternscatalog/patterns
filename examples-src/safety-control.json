@@ -2000,6 +2000,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "action-admissibility-tiering",
+      "intent": "An ordered ladder of hard gates where a failure yields no score at all, and ranking touches only the survivors.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Judge the proposed action, not the diagnosis, and refuse to let usefulness compensate for a failed gate.",
+          "code": "# WRONG — one weighted score over everything\nscore = 0.2*evidence_ok + 0.2*authority_ok + 0.3*consequence_ok + 0.3*usefulness\nbest  = argmax(score for a in candidate_actions)\n# an action with authority_ok = 0 and usefulness = 1.0 can still win\n\n\n# RIGHT — non-compensatory hard gates, then rank the survivors\nHARD_TIERS = [\n    (\"T0\", check_record_integrity),      # fields, ids, compiles against profile\n    (\"T1\", check_evidence_and_state),    # available, in date, state-consistent\n    (\"T2\", check_hazard_understanding),  # hazard seen; causal story justifies acting\n    (\"T3\", check_admissibility),         # authority, procedure, preconditions,\n                                         #   reversibility, recovery, escalation duty\n    (\"T4\", check_physical_consequence),  # envelope over profile-fixed horizon\n]\n\ndef evaluate(action, profile):\n    failed = []                          # keep ALL failures, not just the first\n    for tier, check in HARD_TIERS:\n        if not check(action, profile):   # deterministic rules; no model judge here\n            failed.append(tier)\n    if failed:\n        return {\n            \"eligible\":    False,\n            \"aggregate\":   None,         # not 0.0 — an ineligible action has NO score\n            \"first_failed\": failed[0],   # what to tell the operator\n            \"all_failed\":  failed,       # several independent defects stay visible\n        }\n    return {\"eligible\": True, \"aggregate\": tier_vector(action, profile)}\n\n# the horizon is the profile's, never the proposer's\nassert profile.horizon_s is not None and not proposer.may_set(\"horizon_s\")\n\nverdicts = {a: evaluate(a, profile) for a in candidate_actions}\neligible = [a for a, v in verdicts.items() if v[\"eligible\"]]\n\nif not eligible:\n    escalate(reason=verdicts, tier=first_failed_tiers(verdicts))\nelse:\n    chosen = rank_by_utility(eligible)   # T5 sees survivors ONLY\n    commit(chosen)\n\naudit.write(verdicts, profile.version, gate_explanations)  # T6: replayable",
+          "verified": false
+        }
+      ]
     }
   ]
 }
