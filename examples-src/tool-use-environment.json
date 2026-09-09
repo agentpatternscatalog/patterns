@@ -1483,6 +1483,34 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "mirrored-tool-environment",
+      "intent": "The same training loop run against a live search API and against a mirrored tool environment with a cache and a noise curriculum.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Swap the live tool for a fine-tuned mirror during training, schedule response quality, and gate any production claim on a live holdout.",
+          "code": "# BEFORE — every rollout hits the paid, drifting live service\nfor step in range(200_000):                 # ~200k billed search calls\n    query  = agent.propose_query(task)\n    docs   = live_search_api(query)         # cost per call; content varies daily\n    reward = score(agent.answer(docs), task)\n    agent.update(reward)\n# same agent, same task, different score tomorrow;\n# a bad-retrieval day penalises correct reasoning\n\n\n# AFTER — a mirror occupies the tool slot, cache first, noise scheduled\nmirror = finetune(\n    base_model = \"open-8b\",\n    data       = harvested_pairs,           # real (request, response) from the tool\n    objective  = \"emit a same-shaped response for an unseen request\",\n)\n\ndef tool_slot(query, noise_ratio):\n    hit = cache.get(query)                  # really observed response, if any\n    if hit:\n        return hit                          # fidelity where evidence exists\n    return mirror.generate(query, noise=noise_ratio)\n\nfor step in range(200_000):\n    noise  = curriculum(step)               # clean early, rising noise later\n    query  = agent.propose_query(task)\n    docs   = tool_slot(query, noise)        # no external call, reproducible\n    reward = score(agent.answer(docs), task)\n    agent.update(reward)\n\n# the mirror is a training/benchmark device only\nassert env.mode in (\"train\", \"benchmark\")   # never serves a user request\n\n# a mirror-only number is not a claim about production\nsim_score  = benchmark(agent, tool=tool_slot)\nlive_score = benchmark(agent, tool=live_search_api, n=200)   # small holdout\nif abs(sim_score - live_score) > TOLERANCE:\n    refit(mirror, harvest_more_pairs())     # do not publish the sim number\nelse:\n    report(sim_score, holdout=live_score)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "foveated-perception-escalation",
+      "intent": "One fixed downscale for every observation, then the same task with fidelity treated as an allocated budget on both the spatial and the temporal axis.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace a uniform downscale with a coarse pass, a nominated region, a capped escalation budget, and a mapping back to the original frame.",
+          "code": "# BEFORE - one fixed downscale, applied to everything\nscreen = capture()                      # 2560 x 1440\nobs    = downscale(screen, width=1024)  # every pixel loses acuity equally\nanswer = model(obs, question)           # the small toggle is unreadable\nact(answer.point)                       # confident click, lands on nothing\n\n\n# AFTER - fidelity is a budget the loop allocates\nBUDGET = 3                              # at most 3 high-fidelity looks per task\n\nview  = downscale(capture(), width=1024)\nframe = Transform.identity()            # crop coords -> original coords\nrefs  = ocr_and_element_boxes(view)     # anchors so a coarse view can point\n\nfor _ in range(BUDGET):\n    step = model(view, refs, question)\n\n    if step.kind == \"answer\":\n        # never act on crop coordinates directly\n        return step.text, frame.to_original(step.point)\n\n    # step.kind == \"zoom\": the reasoning names WHERE acuity is needed\n    region = step.region                          # in current view coords\n    if area(region) > 0.6 * area(view):\n        return abstain(\"view is not narrowing\")   # no drift, no oscillation\n    if scale_of(region) > native_resolution(region):\n        return abstain(\"would upsample past the stored original\")\n\n    view, t = crop_and_enlarge(capture(), frame.to_original(region))\n    frame   = frame.compose(t)\n    refs    = ocr_and_element_boxes(view)\n\nreturn abstain(\"budget spent; the deciding detail never became legible\")\n\n\n# The same budget on the TIME axis, for a long-horizon screen agent.\n# Every past event stays as compact text; only B of them regain pixels.\nB = 4\nrecency_default = history[-B:]                       # cheap, often fine\nrestored        = top_k(history, k=B,\n                        key=lambda e: predicted_utility(e, question))\n# Scoring the whole history beat pure recency where the answer depended on an\n# older screen (36.8% vs 30.2% across 117 mobile tasks); where it did not, the\n# two were indistinguishable - so measure before paying for the selector.",
+          "verified": false
+        }
+      ]
     }
   ]
 }

@@ -1731,6 +1731,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "control-loop-mapped-agent-chain",
+      "intent": "Build the agent team from the control chain, then arbitrate the proposals with the chain's own selector logic instead of a coordinating model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "One agent per feedback loop, deterministic selector arbitration, fallback to the base controller.",
+          "code": "# The chain diagram is the specification for the team.\n# Each loop becomes exactly one agent; the prompt carries the loop, not the plant.\nchain = [\n  loop(\"temperature\", cv=\"T_air\", mv=\"fan_speed\", setpoint=18.0,\n       limits=(14.0, 22.0), priority=1, selector=\"MAX\"),\n  loop(\"humidity\",    cv=\"RH_air\", mv=\"fan_speed\", setpoint=70.0,\n       limits=(0.0, 80.0),  priority=2, selector=\"MAX\"),\n  loop(\"air_change\",  cv=\"ACH\",    mv=\"fan_speed\", setpoint=4.0,\n       limits=(2.0, 8.0),   priority=3, selector=\"MIN\"),\n]\n\nagents = {L.name: Agent(prompt=render(L, measurements_of=L.cv)) for L in chain}\n\nwhile plant.running:                       # one control sample, e.g. every 5 minutes\n    proposals = {}\n    for L in chain:\n        try:\n            p = agents[L.name].propose(deadline=sample_interval,\n                                       reading=historian.read(L.cv))\n            assert L.limits[0] <= p.u_request <= L.limits[1]   # own loop only\n            proposals[L.name] = p\n        except (Timeout, AssertionError, ParseError):\n            proposals[L.name] = None                            # fallback below\n\n    # ARBITRATION: no model call here. The chain decides, exactly as commissioned.\n    live = {n: p.u_request for n, p in proposals.items() if p is not None}\n    if live:\n        u = apply_selectors(live, chain)      # MIN/MAX between competing CVs\n        u = apply_split_range(u, chain)       # one MV divided between loops\n        u = apply_override_layer(u, chain)    # override paths win outright\n    else:\n        u = base_controller.output()          # nothing usable this sample\n\n    # A dropped proposal never blocks the sample: the regulatory layer holds.\n    for name, p in proposals.items():\n        if p is None:\n            u = base_controller.hold(name, u)\n\n    plant.write(mv=\"fan_speed\", value=u)\n\n    # One record per agent per sample -> auditable trajectory + operator logbook.\n    for L in chain:\n        p = proposals[L.name]\n        log.append({\n            \"t\": now(), \"loop\": L.name,\n            \"measurement\": historian.read(L.cv), \"setpoint\": L.setpoint,\n            \"u_request\": p.u_request if p else None,\n            \"mode\": p.mode if p else \"fallback\",\n            \"rationale\": p.rationale if p else \"no usable proposal\",\n            \"fallback\": p is None,\n            \"u_applied\": u,\n        })\n\n# WRONG: an LLM orchestrator at the arbitration step.\n#   u = supervisor_model.decide(proposals)   # slower tier, no safety property,\n#                                            # and it can overrule the override layer",
+          "verified": false
+        }
+      ]
     }
   ]
 }

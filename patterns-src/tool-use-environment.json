@@ -1119,6 +1119,11 @@
         {
           "pattern": "full-desktop-computer-use",
           "relation": "generalises"
+        },
+        {
+          "pattern": "foveated-perception-escalation",
+          "relation": "uses",
+          "note": "Screen control is where the cost of full-acuity observation bites hardest, because every step produces another dense screenshot."
         }
       ],
       "references": [
@@ -1378,6 +1383,11 @@
           "pattern": "two-rate-brain-controller-split",
           "relation": "alternative-to",
           "note": "The GUI split routes by subproblem (planning vs pixel grounding) with no timing invariant; here the split is by clock rate and the fast loop must hold its control deadline."
+        },
+        {
+          "pattern": "foveated-perception-escalation",
+          "relation": "complements",
+          "note": "That splits planning from grounding across two models; this iterates observation scale inside whichever component perceives, and fits on either side of that split."
         }
       ],
       "references": [
@@ -2212,6 +2222,11 @@
         {
           "pattern": "dual-system-gui-agent",
           "relation": "complements"
+        },
+        {
+          "pattern": "foveated-perception-escalation",
+          "relation": "uses",
+          "note": "Small screens with dense controls are the case where a coarse view locates a target that it cannot resolve precisely enough to touch."
         }
       ],
       "references": [
@@ -2505,6 +2520,11 @@
           "pattern": "critic",
           "relation": "alternative-to",
           "note": "Critic patterns judge a model's draft; Validator judges environment state, not text."
+        },
+        {
+          "pattern": "foveated-perception-escalation",
+          "relation": "complements",
+          "note": "The Localizer is the natural place for the escalation loop to run, and the Validator is the natural place to check that a proposed crop still matches the instruction."
         }
       ],
       "references": [
@@ -5210,6 +5230,11 @@
           "pattern": "adaptive-memory-decay",
           "relation": "alternative-to",
           "note": "Tool-result eviction trims the live context; adaptive decay governs the long-term store."
+        },
+        {
+          "pattern": "foveated-perception-escalation",
+          "relation": "complements",
+          "note": "Eviction prunes consumed observations to reclaim context; foveation decides fidelity before and during perception, and lets an archived observation regain its pixels rather than only lose them."
         }
       ],
       "references": [
@@ -6873,6 +6898,11 @@
           "pattern": "solver-ready-formulation-handoff",
           "relation": "complements",
           "note": "The same discipline on the analytics side — the model parameterises a vetted structure and a deterministic compiler produces the executable artefact."
+        },
+        {
+          "pattern": "cumulative-disclosure-accounting",
+          "relation": "complements",
+          "note": "Constrains which query may be issued at all; the account constrains how many permitted queries may be answered before their results compose."
         }
       ],
       "references": [
@@ -7730,6 +7760,447 @@
         "Constraint fidelity — share of constraints in the source statement present, and correctly typed, in the model",
         "Model calls per re-solve — should fall to zero once the representation exists and only the data changed",
         "Solver runtime at operating scale — whether an exact answer arrives inside the decision window"
+      ],
+      "last_updated": "2026-09-09"
+    },
+    {
+      "id": "mirrored-tool-environment",
+      "name": "Mirrored Tool Environment",
+      "aliases": [
+        "Simulated Tool Environment",
+        "Virtual API Server",
+        "Mirror API",
+        "LLM-as-Search-Engine Simulator"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Replace the live external tool during agent training and benchmarking with a fine-tuned model that emits responses in that tool's shape, so runs stay cheap, reproducible and controllable in difficulty.",
+      "context": "A team trains or benchmarks an agent that calls an external service: a web search engine, a public REST API, a commercial data provider. Every rollout of a reinforcement-learning run and every replay of a benchmark issues real calls against that service. A single training run can require hundreds of thousands of requests. The service charges per call, returns different content between runs, goes down, rate-limits bulk traffic and deprecates endpoints over the life of the benchmark.",
+      "problem": "The live service is the wrong thing to train or measure against, for two independent reasons. Per-call pricing on frequent rollouts bounds how much training is affordable at all. And the content that comes back is outside anyone's control: response quality varies unpredictably between runs, so the same agent scores differently on the same task, and a misaligned response corrupts the reward signal by penalising correct reasoning or rewarding a fabricated answer. Freezing a static snapshot of the service removes the cost and the variance but introduces its own misalignment, because the snapshot stops answering the queries the agent learns to ask.",
+      "forces": [
+        "Reinforcement-learning rollouts can run to hundreds of thousands of requests per training run, so per-call pricing decides how much training is affordable rather than how much is useful.",
+        "Live responses vary between runs in ways nobody controls, so the same task returns a different reward and the signal becomes noisy rather than merely hard.",
+        "A static snapshot removes cost and variance but drifts out of alignment with the queries the agent learns to ask, and that misalignment corrupts the reward by penalising correct reasoning or rewarding hallucination.",
+        "A generated response is useful only if behaviour learned against it transfers, so fidelity traded away for cost reappears later as a gap between measured and live performance.",
+        "Difficulty under local control is a training asset because noise can be scheduled, but the same control makes it easy to train against an environment that is systematically gentler than production."
+      ],
+      "therefore": "Therefore: fine-tune a model on real request and response pairs from the tool, put it in the tool slot for training and benchmark runs, and schedule the quality of what it returns instead of accepting whatever the live service happens to give.",
+      "solution": "Harvest real request and response pairs from the tool being mirrored, then fine-tune a model to produce a same-shaped response for a request it has not seen. During training or benchmark runs the mirror occupies the tool slot: the agent issues an ordinary call and receives an ordinary-looking result, with no signal that the responder generated it rather than fetched it. Because the responder is a local model, response quality becomes a scheduled variable instead of an accident, so a curriculum can begin with clean, useful results and mix in a rising proportion of noise as training proceeds, forcing the agent to reason through bad retrieval rather than memorise one retrieval distribution. A cache of genuinely observed responses sits in front of the mirror and serves whatever it can, handing the mirror only the requests real data cannot cover, which keeps fidelity high where evidence exists. The mirror stands in for the tool's response channel only; it never substitutes for the agent's own reasoning, and any number measured against it is checked against a smaller holdout run on the live service before it is reported as a claim about production.",
+      "structure": "Harvested request/response pairs --fine-tune--> mirror model. Run harness tool slot = cache (observed responses) else mirror (generated). Curriculum controller sets the noise ratio per training stage. Periodic live-service holdout measures the gap between mirrored and real performance.",
+      "consequences": {
+        "benefits": [
+          "Training and benchmark runs stop paying per-call fees to a commercial provider, so run cost no longer scales with the provider's price list; TRUSTEE reports task generation, user simulation, tool simulation and trajectory evaluation all covered by a free open model as small as 8B.",
+          "Runs are reproducible, because the responder does not change between them the way a live service does.",
+          "Response quality becomes a schedulable curriculum, so an agent can be trained deliberately against degrading retrieval instead of whatever noise the live service happened to emit that day.",
+          "A tool whose live endpoint is down, deprecated or rate-limited still has a benchmark presence, so scores stay comparable across time.",
+          "Behaviour learned in the mirror can transfer: SearchGym reports a Qwen2.5-7B agent trained purely in simulation beating a web-enhanced baseline by 10.6% relative across nine benchmarks."
+        ],
+        "liabilities": [
+          "The mirror is a model, so it can emit a plausible response the real service would never return, and an agent that learns against that fabrication carries the error into production.",
+          "Fidelity has to be measured rather than assumed; without a periodic holdout against the live service the gap between mirrored and real performance stays invisible.",
+          "Building the mirror needs a corpus of real request and response pairs, so the live service must first be called enough to harvest one — MirrorAPI's corpus spans more than 7,000 APIs.",
+          "A curriculum degrades responses only in the ways the mirror knows how to degrade them, which trains resilience against a narrow slice of the real failure distribution.",
+          "The mirror inherits the licensing and terms of service of the provider whose responses it was fitted to, and redistributing it can redistribute that provider's data."
+        ]
+      },
+      "failure_modes": [
+        "The mirror is never checked against the live service, and a benchmark number that describes only the mirror is reported as a claim about production behaviour.",
+        "Curriculum noise is scheduled but never validated, so the hard end of the curriculum is gentler than an ordinary bad day on the real service.",
+        "The agent overfits to the mirror's stylistic tells — formatting, phrasing, result ordering — and loses accuracy the moment it meets real responses.",
+        "The mirror is quietly left in the tool slot outside training, so a live run answers an end user from generated data.",
+        "The harvested pairs go stale and the mirror keeps reproducing an interface the provider has since changed."
+      ],
+      "constrains": "A mirrored responder may occupy the tool slot only during training and benchmark runs; it must never serve a production request, and no claim about live behaviour may be made from mirror-only results without a holdout run against the real service.",
+      "known_uses": [
+        {
+          "system": "ZeroSearch (Alibaba Tongyi Lab and Peking University)",
+          "status": "available",
+          "note": "Fine-tunes an LLM into a retrieval module that generates both useful and noisy documents for a query, then degrades document quality along a curriculum during reinforcement-learning rollouts, so search capability is trained without calling a search API. Motivated explicitly by unpredictable document quality and per-request API cost.",
+          "url": "https://github.com/Alibaba-NLP/ZeroSearch"
+        },
+        {
+          "system": "StableToolBench (Tsinghua)",
+          "status": "available",
+          "note": "Replaces the unstable live-API backend of ToolBench with a virtual API server that combines a caching system and API simulators, so benchmark scores stop moving with third-party API status.",
+          "url": "https://github.com/THUNLP-MT/StableToolBench"
+        },
+        {
+          "system": "MirrorAPI",
+          "status": "available",
+          "note": "Trains specialised models on request and response pairs harvested from more than 7,000 real APIs, using supervised fine-tuning and chain-of-thought reasoning to raise simulation fidelity, and serves them as mirrors of the tool environment.",
+          "url": "https://arxiv.org/abs/2503.20527"
+        },
+        {
+          "system": "SearchGym",
+          "status": "pure-future",
+          "note": "Research framework that names the three-way trade-off between live-API cost, static-snapshot misalignment and simulation fidelity, and reports that an agent trained only in simulation transfers to real search benchmarks.",
+          "url": "https://arxiv.org/abs/2601.14615"
+        },
+        {
+          "system": "TRUSTEE",
+          "status": "pure-future",
+          "note": "Research method that simulates the whole tool-learning environment — task generation, user simulation, tool simulation and trajectory evaluation — with a free open model as small as 8B, putting the approach within reach of teams without commercial API budgets.",
+          "url": "https://arxiv.org/abs/2604.17739"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "world-model-as-tool",
+          "relation": "complements",
+          "note": "There a running agent knowingly calls a simulator to look ahead over world state before committing; here the simulator silently occupies the tool slot during training and the agent behaves as though it called the real service."
+        },
+        {
+          "pattern": "mental-model-in-the-loop-simulator",
+          "relation": "complements",
+          "note": "That simulator scores a candidate strategy the agent is about to execute for real; this one replaces the environment the agent is being trained or measured in."
+        },
+        {
+          "pattern": "semantic-response-cache",
+          "relation": "alternative-to",
+          "note": "A cache replays responses that were really observed and returns nothing below its threshold; a mirror generates unseen responses and is steered to degrade them on purpose. Virtual API servers usually run both, cache first."
+        },
+        {
+          "pattern": "dimensional-synthetic-eval-set",
+          "relation": "complements",
+          "note": "That pattern synthesises the evaluation inputs; this one synthesises the environment's outputs, and a self-contained benchmark generally needs both."
+        },
+        {
+          "pattern": "eval-harness",
+          "relation": "used-by",
+          "note": "A regression harness needs a responder that does not change between runs; the mirror supplies one for tools whose live endpoint would."
+        },
+        {
+          "pattern": "dual-evaluation-offline-online",
+          "relation": "complements",
+          "note": "Mirror results are the offline track; the live-service holdout and production monitoring are what keep a mirror score honest."
+        },
+        {
+          "pattern": "demo-to-production-cliff",
+          "relation": "complements",
+          "note": "Shipping on a mirror-only score, with no holdout against the live service, is one route onto that cliff."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "ZeroSearch: Incentivize the Search Capability of LLMs without Searching",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2505.04588"
+        },
+        {
+          "type": "paper",
+          "title": "StableToolBench: Towards Stable Large-Scale Benchmarking on Tool Learning of Large Language Models",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2403.07714"
+        },
+        {
+          "type": "paper",
+          "title": "StableToolBench-MirrorAPI: Modeling Tool Environments as Mirrors of 7,000+ Real-World APIs",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2503.20527"
+        },
+        {
+          "type": "paper",
+          "title": "SearchGym: Bootstrapping Real-World Search Agents via Cost-Effective and High-Fidelity Environment Simulation",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2601.14615"
+        },
+        {
+          "type": "paper",
+          "title": "Democratizing Tool Learning with Environments Fully Simulated by a Free 8B Language Model",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.17739"
+        },
+        {
+          "type": "repo",
+          "title": "StableToolBench virtual API server",
+          "url": "https://github.com/THUNLP-MT/StableToolBench"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "tool-use",
+        "simulation",
+        "training",
+        "benchmarking",
+        "evaluation",
+        "reproducibility",
+        "cost"
+      ],
+      "example_scenario": "A small team wants to train an agent to search well, but each training run would send several hundred thousand queries to a paid search API, and the results come back different every day. They fine-tune a model on real query-and-result pairs, drop it into the search slot, and start each run with clean results before mixing in more and more junk. Training now costs nothing per query and gives the same numbers twice. Once a week they run a short check against the real search engine, to make sure the agent has not learned to trust a mirror that flatters it.",
+      "applicability": {
+        "use_when": [
+          "Reinforcement-learning or benchmark runs would issue enough calls to an external service that per-call cost or rate limits decide the size of the experiment.",
+          "Benchmark scores must stay comparable over time, but the live service changes its results, goes down or deprecates endpoints between runs.",
+          "Training benefits from controlling how good the tool's answers are, for example scheduling retrieval quality from clean to noisy.",
+          "Enough real request and response pairs exist, or can be harvested once, to fit a responder that is faithful in shape and content."
+        ],
+        "do_not_use_when": [
+          "The run serves an end user, where a generated response would be presented as a real result.",
+          "No corpus of real request and response pairs exists, so the mirror would be fitted to guesses about the interface.",
+          "The measurement is specifically about live-service behaviour such as latency, uptime, freshness or rate-limit handling.",
+          "The tool is already cheap, stable and deterministic, in which case calling it directly is simpler and more faithful."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Harvested request/response pairs\"] --> B[\"Fine-tune mirror model\"]\n  C[\"Agent issues tool call\"] --> D{\"Observed response cached?\"}\n  D -- \"yes\" --> E[\"Replay cached real response\"]\n  D -- \"no\" --> F[\"Mirror generates response\"]\n  B --> F\n  G[\"Curriculum controller: noise ratio\"] --> F\n  E --> H[\"Agent continues rollout\"]\n  F --> H\n  H --> I[\"Training or benchmark score\"]\n  I --> J{\"Holdout run on live service\"}\n  J -- \"gap small\" --> K[\"Report as claim about production\"]\n  J -- \"gap large\" --> L[\"Refit mirror, do not report\"]",
+        "caption": "The mirror occupies the tool slot behind a cache of really observed responses, with a curriculum controlling response quality; a periodic holdout on the live service is what licenses any claim about production."
+      },
+      "components": [
+        "Request and response corpus — real calls harvested from the tool being mirrored, and the training data for the responder",
+        "Mirror model — fine-tuned responder that emits a result in the tool's shape for a request it has not seen",
+        "Response cache — serves genuinely observed responses first, so the mirror only handles what real data cannot cover",
+        "Curriculum controller — schedules how much noise the mirror mixes into its responses as training proceeds",
+        "Tool slot adapter — presents the mirror behind the same interface the live tool exposes, so the agent's call path is unchanged",
+        "Live-service holdout — a small periodic run against the real tool that measures the gap between mirrored and real performance"
+      ],
+      "tools": [
+        "Supervised fine-tuning stack — fits the mirror model to harvested request and response pairs",
+        "Reinforcement-learning rollout framework — drives the training runs whose tool calls the mirror answers",
+        "Recorded-interaction store — holds harvested pairs and backs the cache layer in front of the mirror",
+        "Benchmark runner — replays a fixed task set against the mirror so scores stay comparable between runs",
+        "Response-fidelity scorer — compares mirrored responses against held-out real ones"
+      ],
+      "evaluation_metrics": [
+        "Simulation fidelity — how closely mirrored responses match the real service on held-out requests",
+        "Mirror-to-live gap — difference in agent score between the mirrored environment and a live-service holdout",
+        "External call cost per run — provider spend displaced by the mirror",
+        "Run-to-run score variance — spread of the same agent's score across repeated benchmark runs",
+        "Curriculum coverage — range of response-quality levels the agent was actually exposed to during training",
+        "Cache hit share — fraction of tool calls answered from really observed responses rather than generated ones"
+      ],
+      "last_updated": "2026-09-09"
+    },
+    {
+      "id": "foveated-perception-escalation",
+      "name": "Foveated Perception Escalation",
+      "aliases": [
+        "Global-to-Local Visual Allocation",
+        "Coarse-to-Fine Zoom",
+        "Budgeted Fidelity Restoration",
+        "Adaptive Resolution Perception"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Treat observation fidelity as a budget the agent allocates: perceive the whole surface coarsely, let the reasoning name the region that decides the answer, then re-observe only that region at full resolution.",
+      "context": "An agent works from rendered surfaces — a scanned page, a dense screenshot, a history of past screens. The cost of such an observation grows with pixel area, because a vision-language model turns image area into tokens, so a full-acuity rendering of every page or every archived frame either does not fit the active window or costs more than the task is worth. The usual response is a single fixed downscale applied uniformly before the model ever sees the image, and a rule that only the most recent few frames keep their pixels at all.",
+      "problem": "A uniformly downscaled observation loses exactly the detail some questions depend on — a figure caption, a small toggle, the state of a control that was clicked twenty steps earlier — and it loses it silently. The model still answers, in the same fluent register it would use at full acuity, and nothing in the output marks resolution as the limiting factor, so the trace shows a confident wrong answer rather than a legibility failure. Raising the global resolution to cover the worst case pays the full price on every observation, and almost none of them needed it.",
+      "forces": [
+        "Vision token cost grows with pixel area, so full acuity over a whole page, screen or screenshot history is unaffordable at long horizons, while the area that decides the answer is usually a small fraction of the surface.",
+        "A coarse observation yields a confident answer rather than an abstention, so an acuity failure leaves no signal at the point where it happens.",
+        "Which region needs acuity is question-dependent and cannot be fixed in advance; only reasoning over the coarse view can name it.",
+        "Every escalation is another observation round trip, so an agent that zooms at every step spends the latency the coarse pass was meant to save.",
+        "Restoring fidelity to an archived observation competes with the newest one for the same budget, and recency is the cheap default that is often, but not always, the right allocation.",
+        "A finding read off a crop is expressed in crop coordinates, so the escalation only pays off if the transform back to the original frame is kept and applied."
+      ],
+      "therefore": "Therefore: observe the whole surface once at low fidelity, have the reasoning nominate the region or past event whose detail decides the answer, spend a capped fidelity budget only there, and map every finding back to the original coordinate frame before acting on it.",
+      "solution": "Split perception into a cheap global pass and a small number of expensive local ones. The first pass renders the entire surface at low resolution, enough to see layout, structure and rough positions but not enough to read fine detail; optional coordinate anchors such as detected text boxes and interface elements make that coarse view good enough to point with. The reasoning then either answers, or declares the deciding detail illegible and nominates a target: a region and scale on the current screen, a page in a document, or an archived frame whose pixels should come back. A budget caps how many such escalations a task may spend, on the spatial axis and on the temporal one, and each new view has to be strictly finer than the one it came from so the loop narrows instead of drifting. The nominated area is re-rendered at full resolution, the composed crop transform is kept, and any coordinate the model returns is mapped back to the original frame before an action uses it. When the budget runs out and the detail is still not legible, the loop abstains or escalates rather than answering from the coarse view.",
+      "structure": "Coarse whole-surface observation -> reasoning nominates region, scale or archived event -> budget check (at most B escalations) -> high-fidelity re-render of the nominated area only -> finding mapped back through the composed crop transform -> answer, act, or nominate again.",
+      "consequences": {
+        "benefits": [
+          "The expensive rendering is paid only for the area the question depends on: coarse-to-fine cropping raised interface grounding accuracy by up to 24.9 percentage points, and a document agent that treats resolution as a reasoning-time resource gained 4.3 to 16.4 accuracy points while cutting inference latency by 41 to 68 percent.",
+          "The loop gains an explicit way to say that a detail is not legible at this scale, which turns a silent acuity failure into a further observation; the same document agent reduced hallucination on long documents by more than 40 percent.",
+          "Applying the budget along the time axis lets an older observation outbid a recent one: restoring archived screenshots by predicted utility beat spending the whole visual budget on recency, 36.8 percent against 30.2 percent across 117 mobile tasks.",
+          "Fidelity becomes an accountable line item, so observation cost per solved task can be measured and capped instead of being fixed at authoring time."
+        ],
+        "liabilities": [
+          "The nomination step can name the wrong region, and a confident answer read off a sharp crop of the wrong area is harder to catch than an obviously blurry one.",
+          "Each escalation costs a round trip, and on short horizons the selector does not earn it: under a 15-step limit, utility-scored fidelity restoration and plain recency were statistically indistinguishable.",
+          "The gain concentrates where the answer really depends on a distant region or event; on single-application control tasks the same machinery showed no detectable difference, 43.6 percent against 42.4 percent.",
+          "Coordinates from a crop must be mapped back through the composed transform, and an off-by-scale mapping produces a click that lands near the target but not on it.",
+          "Teaching an agent to zoom well is its own cost: the document agent needed 17.9K supervised zoom trajectories plus 19.2K reinforcement examples before the behaviour was reliable."
+        ]
+      },
+      "failure_modes": [
+        "The coarse view is answered directly and confidently and no escalation is ever requested, so the acuity limit never appears anywhere in the trace.",
+        "The agent zooms at every step regardless of need, spends the whole escalation budget on early screens, and reaches the deciding region with nothing left.",
+        "The high-fidelity crop is read correctly but its coordinates are mapped back at the wrong scale or offset, so the action misses the control it identified.",
+        "The fidelity budget is spent entirely on the newest observations, and the one archived screenshot carrying the needed state is never restored.",
+        "Escalation oscillates between two adjacent regions without narrowing, because nothing requires each new view to be strictly finer than the last.",
+        "The nominated region is enlarged past the resolution of the stored original, so the crop is upsampled noise and the model reads detail that is not there."
+      ],
+      "constrains": "The agent must not render the whole surface at full fidelity: a high-resolution observation is permitted only for a region the reasoning nominated from a coarse view, at most a fixed budget of such escalations per task, each view strictly finer than the one before it, and a finding taken from a crop cannot be acted on before its coordinates are mapped back to the original frame.",
+      "known_uses": [
+        {
+          "system": "InSight-doc",
+          "status": "pure-future",
+          "note": "Document agent that treats visual resolution as an adaptive reasoning-time resource, starting at low resolution and zooming selectively into high-resolution regions with no external retriever; reported 4.3 to 16.4 accuracy points over document question-answering benchmarks, more than 40 percent less hallucination on long documents, and 41 to 68 percent lower inference latency.",
+          "url": "https://github.com/m-Just/InSight-doc"
+        },
+        {
+          "system": "GUI-Lens",
+          "status": "pure-future",
+          "note": "Coarse-to-fine grounding loop in which a general-purpose vision-language model picks the region and scale of the next view, the crop is enlarged for finer detail, proposed crops and clicks are checked against the instruction, and the final local position is mapped back to the original screen coordinates; up to 24.9 percentage points of grounding accuracy.",
+          "url": "https://arxiv.org/abs/2608.03270"
+        },
+        {
+          "system": "CausalCache",
+          "status": "pure-future",
+          "note": "Applies the same budget to the time axis for long-horizon interface agents: every past event stays summarized as text while a fixed budget decides which events regain their archived screenshots, scored by predicted utility rather than by recency.",
+          "url": "https://arxiv.org/abs/2608.22577"
+        },
+        {
+          "system": "Mobile-Agent / GUI-Owl",
+          "status": "available",
+          "note": "Detects interface elements on the screenshot and crops and enlarges the detected regions before they are described, which is the spatial half of the loop in a shipping open-source agent stack.",
+          "url": "https://github.com/X-PLUG/MobileAgent"
+        },
+        {
+          "system": "OpenAI vision image detail parameter",
+          "status": "available",
+          "note": "Exposes fidelity as a caller-chosen cost, with a low-detail mode that spends a fixed small token count per image and a high-detail mode that tiles the image into crops; the escalation policy itself is left to the calling agent.",
+          "url": "https://platform.openai.com/docs/guides/images-vision"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "dual-system-gui-agent",
+          "relation": "complements",
+          "note": "That splits planning from grounding across two models; this iterates observation scale inside whichever component perceives, and fits on either side of that split."
+        },
+        {
+          "pattern": "policy-localizer-validator",
+          "relation": "complements",
+          "note": "The Localizer is the natural place for the escalation loop to run, and the Validator is the natural place to check that a proposed crop still matches the instruction."
+        },
+        {
+          "pattern": "adaptive-compute-allocation",
+          "relation": "complements",
+          "note": "That allocates inference-time thinking budget per query; this allocates input-side observation fidelity, so the two budgets are spent on different axes and can be tuned separately."
+        },
+        {
+          "pattern": "hierarchical-retrieval",
+          "relation": "complements",
+          "note": "There a coarse index narrows to candidates across a corpus; here a single observation is already in hand and the descent is a re-observation of the same surface at a finer scale, with no index and no retrieval step."
+        },
+        {
+          "pattern": "tool-result-eviction",
+          "relation": "complements",
+          "note": "Eviction prunes consumed observations to reclaim context; foveation decides fidelity before and during perception, and lets an archived observation regain its pixels rather than only lose them."
+        },
+        {
+          "pattern": "modality-conflict-arbitration",
+          "relation": "complements",
+          "note": "When channels disagree about a claim, re-observing the disputed region at higher fidelity is one way to settle it without falling back on an implicit modality preference."
+        },
+        {
+          "pattern": "computer-use",
+          "relation": "used-by",
+          "note": "Screen control is where the cost of full-acuity observation bites hardest, because every step produces another dense screenshot."
+        },
+        {
+          "pattern": "mobile-ui-agent",
+          "relation": "used-by",
+          "note": "Small screens with dense controls are the case where a coarse view locates a target that it cannot resolve precisely enough to touch."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "InSight-doc: Agentic Visual Perception for Long-Document Understanding",
+          "authors": "Kaican Li, Weiyan Xie, Lewei Yao, Jiannan Wu, Lanqing Hong, Yongxiang Huang, Nevin L. Zhang",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.10628"
+        },
+        {
+          "type": "paper",
+          "title": "GUI-Lens: Coarse-to-Fine Cropping for GUI Grounding with General-Purpose VLMs",
+          "authors": "Zichuan Fu, Shirong Wang, Wenlin Zhang, Guojing Li, Yimin Deng, Jingtong Gao, Xiangyu Zhao",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.03270"
+        },
+        {
+          "type": "paper",
+          "title": "CausalCache: Conditional High-Fidelity Restoration for Long-Horizon GUI Agents",
+          "authors": "Jiaxuan Luo, Zhanfeng Liao, Jiayao Teng, Yuan Wang",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.22577"
+        },
+        {
+          "type": "paper",
+          "title": "Efficient GUI Agents: A Systems Survey of Observation, Memory, Action, and Runtime Optimization",
+          "authors": "Bizhe Bai, Jiakang Yuan, Hongming Wu, Xinyue Wang, Jie Ren, Tao Chen",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2609.02309"
+        },
+        {
+          "type": "paper",
+          "title": "V*: Guided Visual Search as a Core Mechanism in Multimodal LLMs",
+          "authors": "Penghao Wu, Saining Xie",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2312.14135"
+        },
+        {
+          "type": "paper",
+          "title": "Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any Resolution",
+          "authors": "Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2409.12191"
+        },
+        {
+          "type": "doc",
+          "title": "OpenAI Platform: Images and vision",
+          "url": "https://platform.openai.com/docs/guides/images-vision"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multimodal",
+        "vision",
+        "gui",
+        "perception",
+        "tool-use",
+        "cost",
+        "budget",
+        "latency",
+        "context-management",
+        "long-horizon"
+      ],
+      "example_scenario": "An assistant is asked which lab value in a 60-page scanned report is marked abnormal. Rendering every page at full resolution would not fit its window, so it reads all the pages at low resolution and finds the one table that carries flags. It then re-renders just that table at full resolution, reads the flagged row, and reports the value together with the page it came from.",
+      "applicability": {
+        "use_when": [
+          "The observation is a rendered surface whose token cost scales with area, such as a document page, a dense screenshot, or a history of past screenshots.",
+          "The detail that decides the answer occupies a small fraction of the surface, and which fraction depends on the question.",
+          "A coarse view is enough to locate the region even when it is not enough to read it.",
+          "The surface can be re-rendered on demand at a chosen scale, and the crop transform can be inverted to recover original coordinates.",
+          "The task runs long enough that observation cost, not reasoning cost, is what limits the horizon."
+        ],
+        "do_not_use_when": [
+          "The whole surface fits the budget at full acuity, so a second look only adds round trips.",
+          "The answer depends on the surface as a whole, such as an overall layout or style judgement, and no single region can be nominated.",
+          "The source cannot be re-observed because the image arrived once at a fixed resolution and no higher-fidelity original is stored.",
+          "The latency budget leaves no room for a second observation round trip before the action must be taken.",
+          "Interface state is available as structured accessibility data, which gives exact targets without any pixel budget at all."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Observe whole surface at low fidelity\"] --> B[\"Reason over the coarse view\"]\n  B --> C{\"Deciding detail legible?\"}\n  C -- \"yes\" --> H[\"Answer or act\"]\n  C -- \"no\" --> D[\"Nominate region, scale, or archived event\"]\n  D --> E{\"Fidelity budget left?\"}\n  E -- \"no\" --> G[\"Abstain or escalate to a human\"]\n  E -- \"yes\" --> F[\"Re-render only the nominated area at full resolution\"]\n  F --> I[\"Compose crop transform; map findings back to the original frame\"]\n  I --> B",
+        "caption": "A cheap global pass locates the deciding region; a capped number of expensive local passes read it, and every finding is mapped back to the original coordinate frame."
+      },
+      "components": [
+        "Coarse observer — renders the whole surface at low fidelity so the reasoning can see all of it cheaply",
+        "Region nominator — reads the coarse view and names the region, scale or archived event whose detail decides the answer",
+        "Fidelity budget — caps how many high-resolution re-observations a task may spend, on the spatial axis and the temporal one",
+        "High-fidelity renderer — re-observes only the nominated area at full resolution instead of the whole surface",
+        "Coordinate mapper — keeps the composed crop transform and translates a finding back to the original frame before any action uses it",
+        "Escalation controller — stops the loop when the budget is spent, when views stop narrowing, or when the detail becomes legible",
+        "Archived observation store — holds full-resolution past frames so a selected event can regain its pixels within budget"
+      ],
+      "tools": [
+        "Variable-resolution vision-language model — accepts an image at a caller-chosen scale, so fidelity becomes a cost the loop can trade",
+        "Image crop and resample library — produces the nominated sub-view and records the transform needed to invert it",
+        "Optical character recognition and interface element detector — supplies coordinate anchors that make a coarse view good enough to nominate from",
+        "Screenshot archive with per-frame retention policy — stores originals at full resolution so restoration is possible at all",
+        "Trajectory evaluation harness — replays tasks at different budgets to find where escalation stops paying for itself"
+      ],
+      "evaluation_metrics": [
+        "Vision tokens per solved task — whether the budget actually fell against uniform full-resolution observation",
+        "Escalations per task — how often the loop pays for a second look, and whether it terminates within the cap",
+        "Nomination precision — share of escalations that landed on a region actually containing the answer",
+        "Coordinate mapping error — pixel distance between the mapped-back point and the true target in the original frame",
+        "Accuracy at the deciding detail against a fixed-downscale baseline, split by whether the task needed acuity at all",
+        "Silent acuity failure rate — confident answers produced from a coarse view that the full-resolution view contradicts",
+        "Restoration hit rate — share of restored archived frames that the answer actually depended on"
       ],
       "last_updated": "2026-09-09"
     }

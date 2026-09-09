@@ -1199,6 +1199,48 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "chance-corrected-judge-validation",
+      "intent": "Validate a judge on a human-labelled meta-evaluation set before letting it gate, and refuse the gate when the corrected agreement is near chance.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Compare raw agreement with a chance-corrected statistic and attach the licence to every score.",
+          "code": "# BEFORE - the judge gates on raw agreement\nsample      = draw(production_traces, n=400)\nhuman       = human_labels(sample)          # one annotator, no reliability check\njudge       = judge_v3.label(sample)\n\nagreement   = mean(judge[i] == human[i] for i in sample)   # 0.88\nif agreement > 0.80:\n    gate.enable(judge_v3)                   # ships; 85% of items are \"pass\" anyway\n\n\n# AFTER - a versioned meta-eval set and a corrected statistic\nmeta_eval = MetaEvalSet(\n    version      = \"support-replies-2026-09\",\n    items        = stratified_holdout(production_traces, n=400),\n    labels       = adjudicated_labels(annotators=3),\n    annotator_alpha = krippendorff_alpha(annotators=3),   # 0.78 - labels are usable\n)\nassert meta_eval.annotator_alpha >= 0.70   # no ceiling, no measurement\n\njudge_labels = judge_v3.label(meta_eval.items)            # model + rubric pinned\n\nraw   = exact_match_agreement(judge_labels, meta_eval.labels)   # 0.88\nkappa = cohen_kappa(judge_labels, meta_eval.labels)             # 0.07 - near chance\n\nlicence = {\n    \"set_version\":     meta_eval.version,\n    \"judge_model\":     judge_v3.model,\n    \"rubric_version\":  judge_v3.rubric_version,\n    \"kappa\":           kappa,\n    \"raw_agreement\":   raw,        # reported beside kappa, never instead of it\n    \"measured_at\":     today(),\n}\n\nTHRESHOLDS = {\"flag_for_review\": 0.40, \"block_release\": 0.60}\n\nif kappa >= THRESHOLDS[\"block_release\"]:\n    gate.enable(judge_v3, licence)\nelif kappa >= THRESHOLDS[\"flag_for_review\"]:\n    review_queue.enable(judge_v3, licence)   # weaker decision, weaker bar\nelse:\n    advisory_only(judge_v3, licence)         # scores still emitted, gate withheld\n\n# every score the judge emits carries the licence with it\ndef score(item):\n    return {\"value\": judge_v3.label(item), \"licence\": licence}\n\n# the licence lapses on any of these\non_change(judge_v3.model)          -> remeasure(meta_eval)\non_change(judge_v3.rubric_version) -> remeasure(meta_eval)\non_drift(task_distribution)        -> rebuild(meta_eval); remeasure(meta_eval)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "harness-native-rollout-capture",
+      "intent": "The same rollout collected twice: once rebuilt from the transcript after the harness compacted it, once captured as token ids at the model-call boundary.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace transcript reconstruction with an in-process proxy that records exact token ids per step.",
+          "code": "# BEFORE - the trainer rebuilds the prompt from what it can read afterwards\nepisode = harness.run(task)              # harness compacts turns 1..8 at step 9\ntranscript = episode.messages            # post-compaction rendering, not what was sent\n\nfor step in episode.steps:\n    prompt = render_chat_template(transcript[:step.index])   # a guess\n    tokens = tokenizer.encode(prompt)                        # may not match at all\n    logp   = trainer.log_prob(tokens, step.response_text)\n    update(logp, step.reward)\n# turns 1..8 are still in `transcript` but were absent from the real prompt,\n# so every gradient after step 9 is computed off-policy and nothing reports it.\n\n\n# AFTER - a proxy at the model-call boundary records what was actually sent\nclass RolloutProxy:\n    \"\"\"Forwards the request unchanged; the harness keeps its own control flow.\"\"\"\n    def complete(self, request, episode_id, step_index):\n        response = inference_engine.generate(request)   # unchanged pass-through\n        pool.append({\n            \"episode_id\":     episode_id,\n            \"step_index\":     step_index,\n            \"prompt_ids\":     response.prompt_token_ids,     # exact, post-compaction\n            \"response_ids\":   response.token_ids,            # exact, as sampled\n            \"rollout_logp\":   response.logprobs,             # generation-time values\n            \"metadata\":       {\"model\": response.model, \"sampling\": request.sampling},\n            \"reward\":         None,                          # filled in at episode end\n        })\n        return response\n\nharness.inference_endpoint = RolloutProxy()   # the only change to the harness\nepisode = harness.run(task)\npool.attach_reward(episode.id, score(episode), crashed=episode.crashed)\n\n# the trainer never rebuilds a prompt\nfor rec in pool.episodes(exclude_crashed=True, exclude_reward_hacked=True):\n    trainer_logp = trainer.log_prob(rec[\"prompt_ids\"], rec[\"response_ids\"])\n    # health metric for the capture itself - drops when something re-tokenises\n    assert correlation(trainer_logp, rec[\"rollout_logp\"]) > 0.99\n    update(trainer_logp, rec[\"reward\"])",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "simulated-user-rollout-eval",
+      "intent": "A rollout harness that pairs the agent under test with a persona-driven user simulator and scores the environment state, not the transcript.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Run one task as k repeated episodes and grade each on final environment state.",
+          "code": "# --- task definition -------------------------------------------------\ntask = {\n  \"fixture\":   \"retail_db_snapshot_042\",          # disposable copy per episode\n  \"persona\":   {                                   # structured, not free prose\n     \"name\":       \"mia_li_3668\",\n     \"style\":      \"terse; answers only what is asked\",\n     \"volunteers\": [],                             # nothing unprompted\n     \"withholds\":  [\"second_bag\", \"birthday\"],     # only if the agent asks\n  },\n  \"scenario\":  \"Move the 20 May JFK->SEA booking to a later flight,\n                economy, no flights before 11:00, pay the difference\n                with the larger of two vouchers, then the 7447 card.\",\n  \"user_tools\": [\"open_app\", \"confirm_on_device\"], # dual control\n  \"goal_state\": {                                  # the answer key\n     \"booking.flight_id\":   \"UA-482\",\n     \"booking.cabin\":       \"economy\",\n     \"payment.voucher_ids\": [\"V-2200\"],\n     \"payment.card_last4\":  \"7447\",\n  },\n  \"max_turns\": 20,\n}\n\n# --- one episode -----------------------------------------------------\ndef run_episode(agent, user_model, task):\n    env  = Environment(task[\"fixture\"])            # fresh state, never shared\n    user = UserSimulator(\n        model  = user_model,\n        persona= task[\"persona\"],\n        goal   = task[\"scenario\"],                 # NOT task[\"goal_state\"]\n        tools  = task[\"user_tools\"],\n        view   = env.user_view(),                  # bounded by observable state\n    )\n    # the agent is NOT told its counterpart is simulated\n    convo = []\n    for _ in range(task[\"max_turns\"]):\n        msg = user.next_turn(convo)\n        if msg is STOP: break\n        reply = agent.respond(msg, env=env)        # agent acts on env\n        convo += [msg, reply]\n        user.act(env)                              # user may act too\n        if user.goal_met(convo): break\n    return env, convo\n\n# --- grading ---------------------------------------------------------\ndef grade(env, convo, task):\n    # PRIMARY: objective, on world state\n    passed = env.matches(task[\"goal_state\"])\n    # SECONDARY: judge only for what state cannot see\n    tone   = judge(convo, rubric=[\"policy_leak\", \"needless_escalation\"])\n    return {\"passed\": passed, \"transcript_flags\": tone,\n            \"turns\": len(convo), \"cut_off\": len(convo) >= 2*task[\"max_turns\"]}\n\n# --- k repeats: one run is not a result -------------------------------\nK = 8\nruns = [grade(*run_episode(agent, USER_MODEL, task), task) for _ in range(K)]\nreport = {\n  \"pass_rate\":   mean(r[\"passed\"] for r in runs),\n  \"pass_pow_k\":  all(r[\"passed\"] for r in runs),   # consistency, not average\n  \"cut_off_rate\": mean(r[\"cut_off\"] for r in runs),\n}\n\n# --- the simulator is an instrument; measure it too --------------------\n# swap only the user model and re-run: spread here is measurement error,\n# not agent quality (reported up to 9 points on published retail tasks).\nsensitivity = {m: rollout(task, user_model=m) for m in USER_MODELS}\n# and periodically re-run the same tasks with real people to get the\n# calibration gap, broken out by dialect and demographic group.",
+          "verified": false
+        }
+      ]
     }
   ]
 }
