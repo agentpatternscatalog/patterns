@@ -417,6 +417,11 @@
           "pattern": "judge-channel-injection",
           "relation": "complements",
           "note": "The blind grader isolates the judge from the producer's reasoning trace, but the injection rides in the artifact the grader must still read, so the isolation is orthogonal to this failure and insufficient against it."
+        },
+        {
+          "pattern": "checklist-partial-credit-scoring",
+          "relation": "complements",
+          "note": "Isolating the grader's context keeps the checkpoint judge from being primed by the producing agent's framing of its own progress."
         }
       ],
       "references": [
@@ -706,6 +711,11 @@
           "pattern": "confident-inconsistency",
           "relation": "complements",
           "note": "Confidence-reporting surfaces per-answer uncertainty; confident inconsistency is invisible to it because each individual output looks confident and correct — only cross-time comparison reveals the variance."
+        },
+        {
+          "pattern": "modality-conflict-arbitration",
+          "relation": "complements",
+          "note": "Supplies the surface for the uncertainty this pattern computes, turning an inter-channel disagreement into a stated confidence rather than an introspective guess."
         }
       ],
       "references": [
@@ -1685,6 +1695,11 @@
         {
           "pattern": "prompt-variant-evaluation",
           "relation": "used-by"
+        },
+        {
+          "pattern": "checklist-partial-credit-scoring",
+          "relation": "complements",
+          "note": "A frozen rubric fixes the categories one reviewer may use across all outputs; here each task carries its own ordered checkpoint list and the output is a graded progress score, not a review."
         }
       ],
       "references": [
@@ -1949,6 +1964,11 @@
         {
           "pattern": "reward-hacking",
           "relation": "alternative-to"
+        },
+        {
+          "pattern": "checklist-partial-credit-scoring",
+          "relation": "complements",
+          "note": "A process reward model is a learned step-level verifier steering search or training inside the agent loop; this is a scoring rule for an evaluation report, authored per task rather than trained."
         }
       ],
       "references": [
@@ -2545,6 +2565,11 @@
           "pattern": "prior-estimate-anchoring",
           "relation": "complements",
           "note": "Sampling and aggregating helps only while the samples are independent; a shared prior score correlates them and the vote inherits the anchor."
+        },
+        {
+          "pattern": "modality-conflict-arbitration",
+          "relation": "alternative-to",
+          "note": "Both derive a signal from repeated answers, but sampling one channel several times cannot surface a contradiction that only exists between channels, and a majority vote has no notion of which channel is authoritative."
         }
       ],
       "references": [
@@ -3093,6 +3118,11 @@
         {
           "pattern": "generator-critic-separation",
           "relation": "complements"
+        },
+        {
+          "pattern": "modality-conflict-arbitration",
+          "relation": "complements",
+          "note": "There a different model critiques the same input to decorrelate critique error from generation error; here one reasoner compares observations of different physical channels and the resolution rule is modality-typed rather than vote-based."
         }
       ],
       "references": [
@@ -4082,6 +4112,388 @@
         "Baseline-update frequency — how often golden values are deliberately changed by a human, signalling intended rule changes versus accidental drift"
       ],
       "last_updated": "2026-06-14"
+    },
+    {
+      "id": "modality-conflict-arbitration",
+      "name": "Modality-Conflict Arbitration",
+      "aliases": [
+        "Cross-Modal Arbitration",
+        "Cross-Modal Disagreement Detection",
+        "Per-Channel Claim Reconciliation"
+      ],
+      "category": "verification-reflection",
+      "intent": "Have each observation channel emit its own recorded claim, treat disagreement between channels as a detected event, and resolve it against a pre-declared per-claim-type modality authority rather than an implicit fused guess.",
+      "context": "An agent observes one situation through more than one channel at the same time: a call arrives as both an audio stream and a transcript, a web page arrives as both an accessibility tree and a screenshot, a clip arrives as both a caption and its frames, a clinical intake arrives as text, voice and video together. Each channel carries something the others do not. Standard practice fuses them early — the channels are encoded into one representation, or the cheapest channel is rendered into text and the rest are dropped — and a single generation pass produces one answer. Nothing in that pass records what each channel said on its own.",
+      "problem": "Channels do not always agree, and a fused pass has no way to report that they disagreed. The measurements are consistent across modalities. On audio-grounded dialogue, text-only reasoning exceeds 90 percent accuracy when transcript and acoustics agree but falls to 33-48 percent when they conflict, and audio-native models still pick the transcript-biased answer in roughly 30 to 40 percent of conflict cases. Attention-level analysis shows the bias is structural rather than incidental: a distributed set of heads drives generation toward the textual premise while only a small localised set resists it, so the erroneous premise wins by routing. Benchmarks over long audio-visual material find that omni-modal models caption and answer questions on temporally aligned content yet cannot reliably perceive that the two tracks contradict each other. The output is not a hedged answer but a confident one, and the contradiction that was present and detectable in the inputs leaves no trace.",
+      "forces": [
+        "Early fusion is cheaper and usually more accurate than keeping the channels apart, because most observations are consistent and one representation exploits their overlap.",
+        "The textual channel is the cheapest to produce and the one models see most in training, so the prior toward it is strong, systematic and invisible from the output alone.",
+        "Disagreement between channels is itself information about the world — sarcasm, a dubbed clip, a mislabelled screenshot, an edited document — so collapsing it removes the only evidence that the situation is unusual.",
+        "Which channel deserves to win depends on the kind of claim being made rather than on any fixed ranking, so a single global modality preference is wrong in a large share of the cases where it matters.",
+        "Recording a claim per channel costs an extra pass and adds new places to be wrong, and a conflict nobody can resolve leaves the agent with no answer to give."
+      ],
+      "therefore": "Therefore: keep each channel's claim separate and recorded, raise disagreement between channels as a detected event, and settle it with an authority declared in advance for that claim type, abstaining or escalating when no declared authority applies.",
+      "solution": "Split the observation into per-channel claims before anything is fused. Each channel — transcript, acoustics, frames, accessibility tree, document text — answers the question in its own right and records a typed claim with its own confidence and the span of evidence it rests on. A comparison step then checks the claims slot by slot and marks agreement or disagreement explicitly, so a contradiction becomes a named event instead of a difference that dissolves inside a fused representation. Resolution runs against a table declared in advance and indexed by claim type, not by channel alone: what was literally said is settled by the transcript, how it was said by the acoustics, what was physically present by the frames, what an interface element is called by the accessibility tree. Where the table has an entry, the authoritative channel is applied and the losing claim is kept next to the decision as the reason the answer is uncertain. Where it has no entry, or where the authoritative channel is itself low-confidence, the agent abstains or escalates instead of picking. A reflection step revisits only the disagreeing slots, which keeps the extra reasoning proportional to the conflict rather than to the whole observation.",
+      "structure": "Observation -> per-channel claim extractors (claim, confidence, evidence span) -> claim comparator (agree/disagree per slot) -> authority table indexed by claim type -> resolved answer with the losing claim retained, or abstain/escalate. Conflict reflection revisits only the disagreeing slots.",
+      "consequences": {
+        "benefits": [
+          "A contradiction between channels leaves the system as a recorded event rather than as a confident single answer, so a reviewer can see that the observation was in tension.",
+          "The uncertainty signal comes from a comparison the agent can actually compute, instead of being asked of the model as an introspective confidence estimate.",
+          "The per-claim-type authority table is inspectable, can be argued about by domain experts, and does not shift with prompt wording the way an implicit preference does.",
+          "The losing claim is retained beside the decision, so a case can be re-decided later without re-running perception."
+        ],
+        "liabilities": [
+          "Running a claim extractor per channel multiplies inference cost and adds a channel's worth of new error sources, including disagreements that are extraction artefacts rather than real conflicts.",
+          "The authority table has to be authored per domain and goes stale; an entry naming the wrong channel converts a detectable conflict into a confidently wrong resolution with an audit trail attached.",
+          "Abstention has a price: where the conflict is genuine but a decision is still needed, the agent hands back nothing.",
+          "Per-channel claims can be correlated through a shared encoder or through an acoustic branch conditioned on the transcript, so apparent agreement may be one channel counted twice."
+        ]
+      },
+      "failure_modes": [
+        "Channels are fused before any claim is recorded, so the disagreement never exists as an event and the answer inherits the textual prior silently.",
+        "The comparison step runs but every conflict is settled by one global preference such as trusting the transcript, which reproduces the text-dominance bias with extra steps.",
+        "The extractor for a non-textual channel is itself conditioned on the transcript, so it agrees by construction and the measured conflict rate reads as near zero.",
+        "Conflicts are detected and logged but nothing downstream consumes the flag, so the abstention path is never taken and the recorded disagreement is decoration.",
+        "The authority table accumulates an entry for every observed conflict until it encodes dataset idiosyncrasies instead of a rule anyone would defend."
+      ],
+      "constrains": "An answer may not be emitted from a fused representation while the channels disagree: each channel must record its own claim before fusion, a detected conflict cannot be settled by an implicit or global modality preference, and only the authority declared in advance for that claim type — or abstention and escalation — may resolve it.",
+      "known_uses": [
+        {
+          "system": "DepressionAgent (multimodal depression risk assessment)",
+          "status": "pure-future",
+          "note": "Its stated contribution is an explicit cross-modal arbitration stage that examines agreement and disagreement between branches, plus a conflict-reflection step that revisits inconsistent assessments before the decision, in place of implicit feature fusion.",
+          "url": "https://arxiv.org/abs/2608.13891"
+        },
+        {
+          "system": "Inconsistency-aware reasoning for audio-grounded dialogue",
+          "status": "pure-future",
+          "note": "Formalises cross-modal disagreement as a failure mode and measures it: text-only reasoning above 90 percent accuracy on consistent cases falls to 33-48 percent on conflict cases, and audio-native models still take the transcript-biased trap in roughly 30 to 40 percent of them.",
+          "url": "https://arxiv.org/abs/2608.27176"
+        },
+        {
+          "system": "AVID audio-visual inconsistency benchmark",
+          "status": "pure-future",
+          "note": "A measurement harness for whether omni-modal models perceive a cross-modal conflict at all; models strong on temporally aligned captioning and question answering do poorly at noticing that the two tracks contradict each other.",
+          "url": "https://arxiv.org/abs/2604.13593"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "multimodal-guardrails",
+          "relation": "complements",
+          "note": "That pattern filters each modality for attacks and disallowed content; this one arbitrates between two honest channels of the same observation that report different facts, with no adversary required."
+        },
+        {
+          "pattern": "priority-matrix-conflict-resolution",
+          "relation": "complements",
+          "note": "The same discipline of a pre-declared table, applied to a different conflict: there the rows are classes of goal conflict, here they are claim types and the winner is a modality."
+        },
+        {
+          "pattern": "self-consistency",
+          "relation": "alternative-to",
+          "note": "Both derive a signal from repeated answers, but sampling one channel several times cannot surface a contradiction that only exists between channels, and a majority vote has no notion of which channel is authoritative."
+        },
+        {
+          "pattern": "cross-reflection",
+          "relation": "complements",
+          "note": "There a different model critiques the same input to decorrelate critique error from generation error; here one reasoner compares observations of different physical channels and the resolution rule is modality-typed rather than vote-based."
+        },
+        {
+          "pattern": "epistemic-fault-domain-quorum",
+          "relation": "complements",
+          "note": "Counts how many independent roots a coalition really rests on; a shared encoder or a transcript-conditioned acoustic branch is exactly the collapsed root that makes cross-channel agreement worthless."
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements",
+          "note": "Supplies the surface for the uncertainty this pattern computes, turning an inter-channel disagreement into a stated confidence rather than an introspective guess."
+        },
+        {
+          "pattern": "mandatory-red-flag-escalation",
+          "relation": "complements",
+          "note": "Gives the handoff route for a conflict the authority table cannot resolve, so abstention has somewhere to go."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "When Text Misleads: Inconsistent-Aware Reasoning for Audio-Grounded Dialogue",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.27176"
+        },
+        {
+          "type": "paper",
+          "title": "Causal Evidence for Attention Head Imbalance in Modality Conflict Hallucination",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.19250"
+        },
+        {
+          "type": "paper",
+          "title": "DepressionAgent: Reading, Listening, Seeing, and Deliberating Multimodal Evidence for Depression Risk Assessment",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.13891"
+        },
+        {
+          "type": "paper",
+          "title": "AVID: A Benchmark for Omni-Modal Audio-Visual Inconsistency Understanding via Agent-Driven Construction",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.13593"
+        },
+        {
+          "type": "paper",
+          "title": "HumDial-EIBench: A Human-Recorded Multi-Turn Emotional Intelligence Benchmark for Audio Language Models",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.11594"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "multimodal",
+        "verification",
+        "conflict-resolution",
+        "grounding",
+        "uncertainty",
+        "perception"
+      ],
+      "example_scenario": "A support agent processes a recorded call. The transcript reads \"that is exactly what I needed, thanks\", so the text branch marks the caller satisfied and closes the ticket. The audio branch heard a flat, clipped delivery and marks the caller annoyed. Because the two claims were recorded separately, the disagreement is caught, the declared authority for tone is the acoustic channel, and the call goes to a human instead of being closed.",
+      "applicability": {
+        "use_when": [
+          "One situation is observed through two or more channels that can each support a claim independently, such as transcript and acoustics, screenshot and accessibility tree, or caption and frames.",
+          "Disagreement between the channels is itself informative — sarcasm, dubbing, editing, mislabelled interface elements, stale document text.",
+          "A wrong answer costs more than a late one, so abstaining or escalating on an unresolvable conflict is acceptable.",
+          "Domain experts can state in advance which channel is authoritative for which kind of claim."
+        ],
+        "do_not_use_when": [
+          "Only one channel carries the information at issue, so there is nothing to compare a claim against.",
+          "The channels are derived from each other, such as an acoustic branch conditioned on the transcript, so agreement is guaranteed by construction and carries no information.",
+          "Latency or cost budgets rule out a claim extraction pass per channel and the task tolerates the error rate of the fused answer.",
+          "No defensible authority per claim type can be stated, so the resolution would collapse into a fixed global preference for one modality."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Observation: one situation, several channels\"] --> B[\"Transcript claim\"]\n  A --> C[\"Acoustic claim\"]\n  A --> D[\"Visual claim\"]\n  B --> E{\"Claims agree?\"}\n  C --> E\n  D --> E\n  E -- \"yes\" --> F[\"Answer, agreement recorded\"]\n  E -- \"no\" --> G[\"Conflict recorded as an event\"]\n  G --> H{\"Authority declared for this claim type?\"}\n  H -- \"yes\" --> I[\"Apply authoritative channel, keep losing claim\"]\n  H -- \"no\" --> J[\"Abstain or escalate to a human\"]",
+        "caption": "Each channel commits to its own claim first; a disagreement becomes an event that a pre-declared per-claim-type authority resolves, or that sends the case to abstention."
+      },
+      "components": [
+        "Per-channel claim extractor — answers the question from one channel alone and records the claim, its confidence and the evidence span it rests on",
+        "Shared claim schema — fixes the slots every channel must fill so two claims about the same slot can be compared at all",
+        "Claim comparator — checks per-slot agreement across channels and raises a disagreement as a named event rather than a numeric difference",
+        "Modality authority table — declares in advance which channel is authoritative for which claim type, and which claim types have no declared winner",
+        "Conflict reflection step — revisits only the disagreeing slots before a decision, keeping the extra reasoning proportional to the conflict",
+        "Abstention and escalation path — the required outcome when no declared authority applies or the authoritative channel is itself low-confidence",
+        "Conflict record — stores the losing claim beside the decision so a reviewer can re-decide without re-running perception"
+      ],
+      "tools": [
+        "Speech recognition plus acoustic feature models — produce the transcript claim and the prosody claim as separate outputs instead of one fused caption",
+        "Vision-language models with region grounding — produce a visual claim tied to an evidence span that can be compared against the text claim",
+        "Accessibility tree readers and screen parsers — supply a second, non-pixel channel for interface claims in computer-use agents",
+        "Structured-output validators — force each channel's claim into the shared slot schema so the comparison is mechanical",
+        "Cross-modal conflict benchmarks such as AVID and HumDial-EIBench — measure whether a model perceives conflict at all before arbitration is added"
+      ],
+      "evaluation_metrics": [
+        "Conflict-case accuracy against consistent-case accuracy — the size of the gap is the text-dominance bias the arbitration is meant to remove",
+        "Conflict detection rate on labelled conflicting inputs — whether disagreements are seen rather than fused away",
+        "False-conflict rate — how often a flagged disagreement is an extraction artefact rather than a real contradiction in the observation",
+        "Authority-table coverage — share of detected conflicts a declared entry could resolve, the remainder going to abstention",
+        "Abstention precision — share of abstentions where the fused answer would in fact have been wrong",
+        "Added latency and cost per observation — the price of running one claim extractor per channel"
+      ],
+      "last_updated": "2026-09-09"
+    },
+    {
+      "id": "checklist-partial-credit-scoring",
+      "name": "Checklist Partial-Credit Scoring",
+      "aliases": [
+        "Graded Checkpoint Scoring",
+        "Dense-Reward Task Grading",
+        "Partial-Credit Eval Rubric"
+      ],
+      "category": "verification-reflection",
+      "intent": "Score each long-horizon task against task-specific graded checkpoints instead of a single pass/fail bit, so progress and regression that leave the binary outcome unchanged still show up in the report.",
+      "context": "A team measures an agent on long-horizon tasks — repairing a repository, driving a multi-step terminal workflow, working through a capture-the-flag exercise — where one official verifier decides at the end whether the task was solved. That verifier returns a single bit per task, it is cheap to run, and its verdict is hard to dispute, which is why it is the number of record. The suite is then reused to compare agent versions, prompt edits and new skills against each other, and the headline result is the fraction of tasks whose bit came back true.",
+      "problem": "On long-horizon tasks most runs fail somewhere in the middle, so the bit is nearly always the same bit and the comparison has very little power. A change that carries the agent three steps further on forty tasks and stalls it two steps earlier on thirty others moves the pass rate by roughly nothing, and the report concludes that the change did nothing. Measurement bears this out: across 879 matched task pairs whose binary outcome did not change, 20.9 percent improved by more than 0.10 of graded progress while 18.7 percent regressed by the same margin, and a pass-rate harness discards all of it. The team is left tuning against a signal that only registers when a task crosses the finish line.",
+      "forces": [
+        "One bit per task is cheap to compute and hard to argue with, which is why it is the official verdict and also why it carries so little information about tasks that mostly fail partway through.",
+        "Checkpoints only mean anything when they are specific to the task, so they cannot be written once for the whole suite; every task takes on an authoring and maintenance cost that the single verifier never had.",
+        "A graded score is something an agent can farm: credit for reaching intermediate states rewards trajectories that collect checkpoints without ever solving the task.",
+        "Denser grading costs more to run — a step-rubric judge reaches 77 percent recall on silent faults with no false alarms but at about three times the cost of an outcome-only judge, and running the judge with self-consistency triples the cost again while improving nothing.",
+        "A trajectory can satisfy every observable checkpoint and still end in a fabricated claim; an invented promise appended to an otherwise clean trajectory escapes even a step-level judge 82 percent of the time."
+      ],
+      "therefore": "Therefore: decompose each task into its own ordered, checkable checkpoints, score a run as the graded fraction of checkpoints its recorded trace actually reached, and report that score beside the official binary verdict rather than in place of it.",
+      "solution": "Each task is decomposed at authoring time into an ordered list of checkpoints naming the intermediate states a solution has to pass through. Every checkpoint carries a check: a scripted assertion against the final environment or the recorded trace wherever the check can be made deterministic, and a short rubric graded by a judge model only where it cannot. A run is scored as the weighted fraction of checkpoints whose check passed. The ordering is a gate — credit for a later checkpoint requires the earlier ones — so a run cannot harvest scattered intermediate states it never built on. One checkpoint is reserved for comparing the final report against the trace: a substantive claim with no matching entry in the recorded trace costs the run credit instead of earning it. The official binary verdict is computed exactly as before and reported alongside the graded score, so the auditable number survives and the two can disagree in the open. Version comparisons are then made on matched pairs of runs over the same tasks, which is where the graded score has power the bit does not: it separates the pairs that improved from the pairs that regressed instead of averaging them into a flat delta.",
+      "structure": "Task --authored-with--> ordered checkpoint list (scripted assert | rubric judge) + claim-vs-trace check. Run --> recorded trace + final environment --> per-checkpoint verdicts --ordering gate--> weighted graded score. Official verifier --> pass/fail bit. Both reported; version A vs B compared on matched pairs.",
+      "consequences": {
+        "benefits": [
+          "Changes that move progress without moving the outcome become visible; among matched pairs whose binary outcome was unchanged, about a fifth improved and about a fifth regressed by a measurable margin.",
+          "Regressions surface earlier, because a change that breaks a mid-task step is caught before it degrades enough to flip the final bit.",
+          "Failure acquires a location: the first failed checkpoint says where the run stopped, turning a pass rate into a per-step profile of the suite.",
+          "The official binary verdict is retained rather than replaced, so the graded score adds resolution without costing the suite its unarguable number."
+        ],
+        "liabilities": [
+          "Every task needs its own checkpoint list, and those lists go stale as the task environment changes, so the suite takes on a maintenance surface the single verifier did not have.",
+          "Graded scoring costs more per task: a step-rubric judge runs at roughly three times the cost of an outcome-only judge, and wrapping that judge in self-consistency triples the cost again for no measured gain.",
+          "Checkpoint credit can be optimised directly, so a graded suite is a larger target for verifier-aware gaming than a single bit.",
+          "Scores are not comparable across tasks with different checkpoint counts unless the weighting is stated, and a mean taken over unequal lists is easy to misread as a capability number.",
+          "Observable checkpoints do not cover fabrication: an invented claim appended to a clean trajectory evades a step-level judge 82 percent of the time unless a claim-versus-trace check is part of the list."
+        ]
+      },
+      "failure_modes": [
+        "The checklist is written from one reference solution, so a correct run that takes a different route scores near zero and the suite penalises novelty.",
+        "Checkpoints are left unordered, and a run collects credit for scattered intermediate states it never built on.",
+        "The graded score quietly becomes the headline number and the binary verdict is dropped, so the suite stops reporting whether any task was actually solved.",
+        "The claim-versus-trace checkpoint is omitted, and a run that fabricates its final summary keeps full credit for the trajectory beneath it.",
+        "Rubric checkpoints are graded by a judge model that is never calibrated against human labels, so the score drifts with the judge version rather than with the agent."
+      ],
+      "constrains": "A task result cannot be reduced to the official verifier's single pass/fail bit: every task must carry its own ordered checkpoint list, a later checkpoint must not be credited without the earlier ones, and no checkpoint may be credited from the agent's own summary without a matching entry in the recorded trace.",
+      "known_uses": [
+        {
+          "system": "Cybench",
+          "status": "available",
+          "note": "Each capture-the-flag task is broken into subtasks that split the task into intermediary steps, so a run that gets part of the way through an exercise is measured rather than recorded as a plain failure.",
+          "url": "https://cybench.github.io/"
+        },
+        {
+          "system": "Long-Horizon-Terminal-Bench",
+          "status": "available",
+          "note": "Grades long terminal workflows with dense intermediate rewards and partial credit so the evaluation captures not only whether the final goal was reached but how far the run progressed.",
+          "url": "https://arxiv.org/abs/2607.08964"
+        },
+        {
+          "system": "Grounded Checklist Partial Credit (GCPC)",
+          "status": "pure-future",
+          "note": "A checklist scoring rule applied to 1,946 matched with-skill and without-skill trajectory pairs; among the 879 pairs whose binary outcome did not change, 20.9 percent improved by more than 0.10 and 18.7 percent regressed by the same margin.",
+          "url": "https://arxiv.org/abs/2608.27487"
+        },
+        {
+          "system": "Step-rubric trajectory judging (support-desk study)",
+          "status": "pure-future",
+          "note": "A controlled study over 400 trajectories in a deterministic support-desk environment found a step-rubric judge reached 77 percent recall on silent faults with no false alarms, against 45 percent for an outcome-only judge, at three times the cost.",
+          "url": "https://arxiv.org/abs/2609.00038"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-as-judge",
+          "relation": "alternative-to",
+          "note": "Holistic trajectory judgement is the baseline this pattern replaces: checklist partial credit was measured against it and separated skill effects better (AUC 0.689 against 0.619)."
+        },
+        {
+          "pattern": "process-reward-model",
+          "relation": "complements",
+          "note": "A process reward model is a learned step-level verifier steering search or training inside the agent loop; this is a scoring rule for an evaluation report, authored per task rather than trained."
+        },
+        {
+          "pattern": "frozen-rubric-reflection",
+          "relation": "complements",
+          "note": "A frozen rubric fixes the categories one reviewer may use across all outputs; here each task carries its own ordered checkpoint list and the output is a graded progress score, not a review."
+        },
+        {
+          "pattern": "llm-as-judge",
+          "relation": "uses",
+          "note": "Checkpoints that cannot be settled by a scripted assertion are graded by a judge model against a short rubric, which is where judge calibration drift enters this pattern."
+        },
+        {
+          "pattern": "artifact-evaluation",
+          "relation": "complements",
+          "note": "Intermediate artifact evaluation localises which pipeline node failed; this produces a graded task-progress score that is comparable across agent versions on the same tasks."
+        },
+        {
+          "pattern": "verifier-aware-reward-hacking",
+          "relation": "complements",
+          "note": "Graded checkpoints widen the surface an agent can inspect and optimise against, which is why the ordering gate and the claim-versus-trace check are part of the scoring rule."
+        },
+        {
+          "pattern": "blind-grader-with-isolated-context",
+          "relation": "complements",
+          "note": "Isolating the grader's context keeps the checkpoint judge from being primed by the producing agent's framing of its own progress."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Grounded Checklist Partial Credit for Agent Skill Trajectories",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.27487"
+        },
+        {
+          "type": "paper",
+          "title": "Long-Horizon-Terminal-Bench: Testing the Limits of Agents on Long-Horizon Terminal Tasks with Dense Reward-Based Grading",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2607.08964"
+        },
+        {
+          "type": "paper",
+          "title": "trajectory-judge: What Outcome-Only LLM Judges Miss on Agent Trajectories",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2609.00038"
+        },
+        {
+          "type": "paper",
+          "title": "Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks of Language Models",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2408.08926"
+        },
+        {
+          "type": "doc",
+          "title": "Inspect AI — Scorers",
+          "url": "https://inspect.aisi.org.uk/scorers.html"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "evaluation",
+        "benchmark",
+        "scoring",
+        "long-horizon",
+        "regression-testing"
+      ],
+      "example_scenario": "A team adds a repository-navigation skill to its coding agent and reruns the 200-task benchmark. The pass rate moves from 41 to 42 percent, inside the noise, so the skill looks like it changed nothing and is nearly reverted. Scored against per-task checkpoints, the same runs show the agent now reaches the build step on thirty tasks where it used to stop before compiling, and stalls earlier on eight others. The team keeps the skill and goes after the eight.",
+      "applicability": {
+        "use_when": [
+          "Most runs on the suite fail partway through, so the pass rate barely moves between agent versions and comparisons have little power.",
+          "Tasks are long-horizon and pass through identifiable intermediate states that can be checked from the environment or the recorded trace.",
+          "The comparison is between versions of the same agent over the same tasks, where matched-pair scoring separates improvement from regression.",
+          "Knowing where a run stopped matters as much as knowing that it stopped."
+        ],
+        "do_not_use_when": [
+          "Tasks are short or single-step, so the final answer already carries almost all of the signal.",
+          "The pass rate is high enough and moves enough to discriminate between versions on its own.",
+          "Nobody will maintain per-task checkpoint lists as the task environment changes, in which case a stale checklist reports worse than the bit.",
+          "The score is wanted as a training or selection signal inside the agent loop rather than as an evaluation report, where a learned step-level verifier is the fitting tool."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Long-horizon task\"] --> B[\"Ordered checkpoint list authored with the task\"]\n  C[\"Agent run\"] --> D[\"Recorded trace + final environment\"]\n  B --> E[\"Per-checkpoint check: scripted assert or rubric judge\"]\n  D --> E\n  E --> F[\"Claim-vs-trace check on the final report\"]\n  F --> G[\"Graded score = weighted fraction of checkpoints met\"]\n  D --> H[\"Official verifier: one pass/fail bit\"]\n  G --> I[\"Report both; compare versions on matched pairs\"]\n  H --> I",
+        "caption": "The same run is scored twice: the official verifier still emits one bit, while the task's own ordered checkpoints produce a graded score that registers progress the bit cannot show."
+      },
+      "components": [
+        "Checkpoint list — ordered, task-specific intermediate states authored alongside the task itself rather than once for the suite",
+        "Checkpoint checker — scripted assertion against the final environment or the recorded trace, used wherever the check can be made deterministic",
+        "Rubric judge — grades only the checkpoints no script can settle, against a short fixed rubric",
+        "Claim-versus-trace check — withholds credit for a claim in the final report that has no matching entry in the recorded trace",
+        "Ordering gate — refuses credit for a later checkpoint when the earlier ones were never reached",
+        "Score aggregator — turns per-checkpoint verdicts into a weighted graded score with the task's weighting stated",
+        "Official binary verifier — computed unchanged and reported beside the graded score as the auditable verdict",
+        "Matched-pair comparator — runs two agent versions over the same tasks and separates improving pairs from regressing ones"
+      ],
+      "tools": [
+        "Eval harness — runs the suite and stores per-task traces together with both scores",
+        "Sandboxed task environment — produces the final state that scripted checkpoint assertions read",
+        "Trace recorder — captures tool calls and observations so checkpoint checks and the claim-versus-trace check have something to read",
+        "Judge model — grades the checkpoints that no scripted assertion can settle",
+        "Matched-pair statistics — reports improvement and regression rates across paired runs instead of a single averaged delta"
+      ],
+      "evaluation_metrics": [
+        "Checkpoint coverage — share of a task's load-bearing intermediate states that the checklist actually names",
+        "Binary-invisible movement — share of matched pairs with unchanged pass/fail whose graded score moved by more than a stated margin",
+        "Silent-fault recall — share of faulty trajectories caught that an outcome-only verifier missed",
+        "False-alarm rate — share of correct trajectories that checkpoint scoring marks down",
+        "Grading cost per task — cost of graded scoring relative to running the outcome-only verifier alone",
+        "Checkpoint-gaming rate — share of runs collecting checkpoint credit without ever approaching a solution"
+      ],
+      "last_updated": "2026-09-09"
     }
   ]
 }

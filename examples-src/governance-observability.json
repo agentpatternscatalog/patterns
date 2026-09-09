@@ -1171,6 +1171,34 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "served-policy-anchoring",
+      "intent": "One reinforcement-learning step written twice: once trusting the trainer's forward pass, once anchored on the policy the inference engine serves.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Measure the rollout-engine / training-engine probability gap every step, size the correction to it, and gate release on a serving-path score.",
+          "code": "# BEFORE — the trainer's forward pass is treated as the policy\nfor step in range(N):\n    batch = rollout_engine.generate(prompts)        # vLLM, FP8, batched\n    logp  = train_engine.log_probs(batch.tokens)   # BF16, other kernels\n    loss  = grpo_loss(logp, batch.rewards)\n    optimizer.step(loss)\n    log({\"reward\": batch.rewards.mean()})          # the only curve watched\n\n# reward climbs for weeks; the promoted checkpoint does not move in production\n\n\n# AFTER — the served policy is the object being optimised and gated\nfor step in range(N):\n    batch = rollout_engine.generate(prompts)\n    logp_infer = batch.logprobs                    # what the SERVING path assigned\n    logp_train = train_engine.log_probs(batch.tokens)\n\n    # 1. measure the gap as a first-class metric, every step\n    ratio = exp(logp_train - logp_infer)           # 1.0 == the same policy\n    gap = {\n        \"disagree_rate\": mean(abs(ratio - 1.0) > TOL),\n        \"tail_mass\":     frac(abs(log(ratio)) > TAIL),   # clipping misses this\n        \"staleness\":     step - batch.weights_step,\n    }\n    log({\"reward\": batch.rewards.mean(), **gap})\n\n    # 2. size the correction to the MEASURED gap, do not assume it\n    if gap[\"disagree_rate\"] > ALARM:\n        alert(\"train/infer mismatch rising\")        # early warning, not post-mortem\n    loss = grpo_loss(\n        logp_train, batch.rewards,\n        importance_weight = clamp(ratio, LO, HI),\n        trust_region      = contract(BASE, gap[\"staleness\"], gap[\"tail_mass\"]),\n    )\n    optimizer.step(loss)\n\n# 3. eliminate rather than correct when fidelity outranks throughput:\n#      VLLM_BATCH_INVARIANT=1 + model definition shared with the trainer\n#      -> disagree_rate goes to exactly 0.0, at a tokens/sec cost\n\n# 4. gate release on the SERVING path, never on the trainer\nserved = evaluate(checkpoint,\n                  engine=PROD_ENGINE, precision=PROD_PRECISION,\n                  decoding=PROD_DECODING)          # what production will run\nassert served.score > current_release.score, \"trainer curve is not evidence\"\npromote(checkpoint, runtime_record={\n    \"engine\": PROD_ENGINE, \"version\": PROD_VERSION,\n    \"precision\": PROD_PRECISION, \"routing\": PROD_ROUTING,\n})   # a threshold measured here does not transfer to another configuration",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "as-of-information-set-pinning",
+      "intent": "The same dated underwriting decision run twice: once reading live sources, once bound to the information set that existed at its as-of timestamp.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Resolve every read through an as-of pin, store the manifest with the decision, and replay against the manifest instead of today's sources.",
+          "code": "# BEFORE — every read resolves to whatever the source holds right now\ndef underwrite(application):\n    bureau  = bureau_api.score(application.ssn)        # re-scored since March\n    policy  = policy_store.get(\"lending-policy\")       # edited in place\n    market  = rates_api.current()                      # moved\n    docs    = index.search(application.employer)       # re-crawled\n    return llm(model=\"lender-underwriter-latest\",      # alias, weights rotate\n               inputs=[bureau, policy, market, docs])\n\n# a September replay of the March case returns a different answer\n# and nothing records whether the agent changed or the world did\n\n\n# AFTER — one as-of timestamp, resolved reads, a stored manifest\ndef underwrite(application, as_of):\n    pin = Resolver(as_of)          # every read goes through here\n\n    bureau = pin.read(\"bureau\",  key=application.ssn)\n    policy = pin.read(\"policy\",  key=\"lending-policy\")\n    market = pin.read(\"rates\",   key=application.product)\n    docs   = pin.read(\"index\",   query=application.employer)\n    model  = pin.model(\"lender-underwriter\")   # dated snapshot, not an alias\n\n    decision = llm(model=model, inputs=[bureau, policy, market, docs])\n\n    return Decision(\n        outcome  = decision,\n        as_of    = as_of,\n        manifest = pin.manifest(),\n        #  {\"model\":  \"lender-underwriter-2026-03-04\",\n        #   \"bureau\": \"vintage=2026-03-11\",\n        #   \"policy\": \"sha256:9f1c...\",\n        #   \"rates\":  \"table_version=48211\",\n        #   \"index\":  \"snapshot=idx-2026-03-11T00:00Z\"}\n    )\n\n\nclass Resolver:\n    def read(self, source, **q):\n        version = catalog.version_as_of(source, self.as_of)\n        if version is None:                       # retention expired, or the\n            raise UnresolvableAsOf(source)        # source overwrites in place\n        self._pinned[source] = version            # no fallback to live data\n        return store.read(source, version=version, **q)\n\n\n# replay at dispute or examination time reads the manifest, not the sources\ndef replay(decision):\n    out = underwrite_with_manifest(decision.manifest)\n    assert out == decision.outcome    # a difference is now the agent's, not the world's",
+          "verified": false
+        }
+      ]
     }
   ]
 }

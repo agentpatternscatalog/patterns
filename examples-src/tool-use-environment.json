@@ -1455,6 +1455,34 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "forkable-agent-sandbox",
+      "intent": "Explore three candidate repairs from one snapshot of a live sandbox, commit the first that passes, and discard the rest.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Snapshot a running environment, fork branch contexts, apply first-commit-wins, and keep external effects out of the branches.",
+          "code": "# BEFORE — backtracking by rebuilding and replaying\nfor fix in candidate_fixes:\n    env = provision_container()        # minutes: install deps, seed db, boot server\n    replay(env, actions_so_far)        # not faithful: timestamps, external writes\n    apply(env, fix)\n    if run_tests(env).passed:\n        keep(env); break\n    destroy(env)\n# cost per candidate = full rebuild; deep search is unaffordable\n\n\n# AFTER — snapshot once, fork branch contexts\nsnap = env.snapshot()      # fs + memory pages + process group (+ GUI session)\n                           # copy-on-write delta, not a full duplicate\n\nbranches = [snap.fork() for fix in candidate_fixes]   # ~10s of ms each\n\ncommitted = None\nfor branch, fix in zip(branches, candidate_fixes):\n    with branch:                       # own fs view, own PIDs\n        branch.deny(EXTERNAL_EFFECTS)  # no payments/emails/3rd-party writes:\n                                       # abort cannot retract them\n        apply(branch, fix)             # may migrate the db, kill the server, etc.\n        if run_tests(branch).passed and committed is None:\n            committed = branch\n\n# first-commit-wins: the runtime resolves the conflict, not the model\nif committed:\n    committed.commit(paths=[\"src/\", \"migrations/\"])   # selective promote\n    for other in branches:\n        if other is not committed:\n            other.invalidate()         # siblings never merge\nfor branch in branches:\n    if branch is not committed:\n        branch.abort()                 # discard whole; reaper frees pages\n\n# nesting: a branch may fork again for a sub-decision\n#   sub = branch.fork(); ... ; sub.commit() promotes into `branch`, not the parent",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "solver-ready-formulation-handoff",
+      "intent": "The same dispatch request answered twice: once by the agent deciding, once by the agent formulating and a solver deciding.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Move the decision from the model to an exact solver, and return the certificate with the plan.",
+          "code": "# BEFORE - the agent decides\nplan = model.generate(\n    \"12 vans, driver shift limit 9h, chilled stops before 11:00. \"\n    \"Give me tomorrow's routes.\")\n# returns a plausible route list\n#   - no statement that every shift limit holds\n#   - no bound on how much cheaper a better plan would be\n#   - no way to tell 'hard problem' from 'no feasible plan exists'\n# a van breaks down at 06:00 -> regenerate everything, new model, new answer\n\n\n# AFTER - the agent formulates, the solver decides\nir = model.formulate(situation, schema=OPTIMISATION_IR)\n# ir is declarative and solver-agnostic:\n#   sets:        VANS, STOPS\n#   parameters:  travel_time[i,j], demand[s], shift_limit\n#   variables:   x[v,i,j] in {0,1}       # van v drives leg i->j\n#   objective:   minimise total_distance\n#   constraints:\n#     C1 capacity:     sum(demand[s] * visits[v,s]) <= cap[v]      # src: line 2\n#     C2 shift:        route_time[v] <= shift_limit                # src: line 3\n#     C3 chilled:      arrival[s] <= 11:00  for s in CHILLED       # src: line 4\n#     C4 cover:        each stop visited exactly once\n\nreport = validate(ir)          # indices, units, bounds, feasibility probe\nwhile not report.ok:\n    ir = model.repair(ir, violation=report.failed_check)  # the check, not the problem\n    report = validate(ir)\n    if report.rounds > MAX_REPAIR: escalate(ir, report); halt()\n\nresult = solve(compile(ir, backend=\"or-tools\"))   # no model call in this line\n\nmatch result.status:\n    OPTIMAL   -> publish(result.assignment,\n                         certificate=f\"within {result.gap:.1%} of proven best\")\n    FEASIBLE  -> publish(result.assignment,\n                         certificate=f\"feasible, bound {result.bound}\")\n    INFEASIBLE-> escalate(\"no plan exists\",\n                         conflict=result.inconsistent_subset)  # e.g. {C2, C3}\n\n# the van breaks down at 06:00\ncap[\"van7\"] = 0\nresult = solve(compile(ir, backend=\"or-tools\"))   # same model, zero model calls",
+          "verified": false
+        }
+      ]
     }
   ]
 }

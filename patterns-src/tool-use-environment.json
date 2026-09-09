@@ -961,6 +961,11 @@
           "pattern": "tool-output-arithmetic-trust",
           "relation": "alternative-to",
           "note": "Code Execution is the corrected counterpart: it runs the computation in a sandbox and treats the run as the answer, which is exactly the offload this anti-pattern omits."
+        },
+        {
+          "pattern": "solver-ready-formulation-handoff",
+          "relation": "alternative-to",
+          "note": "Both take the computation away from the model, but there the artefact is imperative code and the run is the answer; here the artefact is a declarative model that is separately validated, and the solver rather than the execution is the authority."
         }
       ],
       "references": [
@@ -2858,6 +2863,11 @@
         {
           "pattern": "full-desktop-computer-use",
           "relation": "used-by"
+        },
+        {
+          "pattern": "forkable-agent-sandbox",
+          "relation": "used-by",
+          "note": "Isolation supplies the containment boundary; this pattern adds a versioning primitive on top of it, turning the contained environment into something that can be forked and rolled back."
         }
       ],
       "references": [
@@ -6147,6 +6157,11 @@
           "pattern": "subagent-isolation",
           "relation": "complements",
           "note": "Worktree isolation separates parallel subagents; a shadow workspace isolates the agent's edits from the real tree for safe review."
+        },
+        {
+          "pattern": "forkable-agent-sandbox",
+          "relation": "complements",
+          "note": "A source-file mirror for edit-then-review covers the filesystem in a single branch; this extends the same discipline to running processes and desktop sessions across many branches."
         }
       ],
       "references": [
@@ -6853,6 +6868,11 @@
           "pattern": "tool-discovery",
           "relation": "complements",
           "note": "The semantic layer presents the catalogue of vetted metrics and dimensions as the agent's selectable surface, so the agent discovers and picks from modelled metrics rather than free-authoring against the raw schema."
+        },
+        {
+          "pattern": "solver-ready-formulation-handoff",
+          "relation": "complements",
+          "note": "The same discipline on the analytics side — the model parameterises a vetted structure and a deterministic compiler produces the executable artefact."
         }
       ],
       "references": [
@@ -7242,6 +7262,474 @@
         "Silent-failure rate — unsatisfiable calls that return a success status with a well-formed body",
         "Caller recovery rate after a failure — share of failures where the typed fields were sufficient to choose an action",
         "False-negative rate — findings reported to the user that came from an empty result the caller never questioned"
+      ],
+      "last_updated": "2026-09-09"
+    },
+    {
+      "id": "forkable-agent-sandbox",
+      "name": "Forkable Agent Sandbox",
+      "aliases": [
+        "Branch-Context Exploration",
+        "Sandbox Checkpoint/Rollback",
+        "Copy-on-Write Agent Environment"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Turn the agent's whole execution environment, including filesystem, memory and running processes, into a versioned object that can be snapshotted, forked into isolated branches, rolled back and selectively committed.",
+      "context": "An agent works inside a stateful environment: a container with a seeded database, a package tree that took minutes to install, a running development server, a logged-in browser or desktop session. Search strategies the agent depends on — tree search with backtracking, best-of-N sampling, reinforcement-learning rollouts, speculative execution of a risky command — all assume that a step can be tried and then unmade. Model outputs are trivial to discard because sampling is stateless, but the environment those outputs act on is not.",
+      "problem": "Real environments accumulate side effects that plain re-execution cannot undo. A migration has already altered the schema, a process has already written a lock file, a form has already been submitted in the browser session. Backtracking therefore means rebuilding the environment from scratch and replaying every earlier action, which is slow and not always faithful. Full-state duplication is the obvious alternative, but copying an entire sandbox costs hundreds of milliseconds to seconds per operation, which is far too slow to sit in the inner loop of a deep search or a large fan-out. So the agent either explores one path timidly or pays for a fresh environment per branch.",
+      "forces": [
+        "Search, best-of-N and rollout training all need cheap state restoration, while the environments worth searching in are exactly the ones that are expensive to rebuild.",
+        "Undo by re-execution is only faithful when every action is deterministic and reversible; a single external write, timestamp or random seed breaks the replay.",
+        "Full-state duplication is simple and correct but costs hundreds of milliseconds to seconds per checkpoint, which bottlenecks deep search and large-scale fan-outs; copy-on-write deltas cut that to milliseconds at the cost of a shared-page dependency between parent and branch.",
+        "Isolation and branching pull the same lever in opposite directions: containment keeps a bad path from damaging user state, while forking multiplies the number of live copies of that state that must be tracked, resource-limited and eventually reclaimed.",
+        "Anything a branch does outside the snapshot boundary — a payment, an email, an external API write — cannot be rolled back, so the versioning abstraction is exact inside the box and a lie outside it."
+      ],
+      "therefore": "Therefore: treat the whole execution environment as a versioned object with fork, explore and commit-or-abort as explicit operations, implement the fork with copy-on-write deltas rather than full duplication, and let the first branch that commits invalidate its siblings.",
+      "solution": "Give the sandbox a lifecycle rather than only a lifetime. A snapshot captures the complete machine state — filesystem, memory pages, process groups, and where it applies the GUI or browser session — as a restorable object. Forking that snapshot creates N branch contexts, each with an independent view of the filesystem and its own process group, sharing unmodified pages copy-on-write so a fork costs a delta rather than a full copy; measured implementations land in the low tens of milliseconds for a checkpoint and single-digit milliseconds for a rollback, which is what makes branching affordable inside a search loop. Each branch runs to a verdict: it commits, promoting its changes back into the parent, or it aborts and its state is discarded whole. When several siblings are exploring the same subproblem, the first successful commit wins and the runtime invalidates the rest, so no merge conflict has to be resolved by the model. Commit can be selective, promoting a chosen subset of changes rather than the whole branch, and contexts nest so a branch can itself fork for a sub-decision. Actions with effects outside the snapshot boundary are routed through a separate gate, because no rollback can retract them.",
+      "structure": "Live environment --snapshot--> restorable state object --fork--> N branch contexts (copy-on-write fs view + own process group). Each branch: explore -> commit (selective, promotes to parent) or abort (discard whole). First commit wins; siblings invalidated. Contexts nest. External effects bypass the boundary and need their own gate.",
+      "consequences": {
+        "benefits": [
+          "Backtracking costs a rollback instead of an environment rebuild plus an action replay, so an agent explores substantially more nodes under a fixed time budget.",
+          "Speculative and destructive actions become testable: a branch can run the migration, the destructive refactor or the uncertain command and be discarded if the result is bad.",
+          "Parallel exploration works in environments that cannot be re-derived from a prompt, because every branch starts from the identical live state rather than from a re-provisioned approximation.",
+          "First-commit-wins with sibling invalidation removes the merge problem from the agent's reasoning; the runtime resolves it structurally."
+        ],
+        "liabilities": [
+          "The abstraction is exact only inside the snapshot boundary; a branch that sent an email, charged a card or wrote to an external store has produced an effect that abort cannot retract.",
+          "Copy-on-write branches share pages with the parent, so a long-lived fork tree holds storage and memory proportional to the divergence, and abandoned branches leak resources unless reclamation is enforced.",
+          "Memory snapshots restore process state that assumed the world had not moved on: expired tokens, closed sockets, stale file handles and clock jumps surface as confusing failures after a restore.",
+          "Snapshot and restore are engine-specific and tie the agent to a particular runtime, which makes the exploration strategy hard to move between sandbox providers.",
+          "Forked GUI or browser sessions can reuse the same authenticated identity, so siblings acting in parallel may contend for a single remote session the snapshot never owned."
+        ]
+      },
+      "failure_modes": [
+        "A branch performs an external side effect, aborts, and the effect remains, so the parent state and the world disagree.",
+        "Checkpointing is implemented as full-state duplication, each operation costs seconds, and the search collapses to a single greedy path because branching is unaffordable.",
+        "Two siblings both succeed, both commit, and the parent state ends up with interleaved changes that neither branch was tested against.",
+        "Branches are forked but never aborted or reclaimed, and the host runs out of disk or memory partway through a fan-out.",
+        "A restored memory snapshot resumes a process holding an expired credential or a dead connection, and the failure is attributed to the agent's reasoning rather than to the restore."
+      ],
+      "constrains": "Exploration may only happen inside a forked branch; a branch cannot write to the parent environment before it commits, at most one sibling commit is accepted and the rest must be aborted rather than merged, and actions whose effects escape the snapshot boundary must not be issued speculatively from inside a branch.",
+      "known_uses": [
+        {
+          "system": "E2B Sandbox persistence",
+          "status": "available",
+          "note": "Pauses a sandbox and resumes it from the exact prior state, saving both filesystem and memory so running processes and loaded variables survive the restore.",
+          "url": "https://docs.e2b.dev/sandbox/persistence"
+        },
+        {
+          "system": "Modal Sandbox snapshots",
+          "status": "available",
+          "note": "Filesystem snapshots are images, so multiple sandboxes can be created from one snapshot; each starts with an identical copy and is used to run parallel workloads or test different changes independently.",
+          "url": "https://modal.com/docs/guide/sandbox-snapshots"
+        },
+        {
+          "system": "Daytona",
+          "status": "available",
+          "note": "Markets save, restore and resume of an agent workflow as the core sandbox operation rather than as a backup feature.",
+          "url": "https://www.daytona.io/"
+        },
+        {
+          "system": "NVIDIA NemoClaw",
+          "status": "available",
+          "note": "Lists snapshots as a first-class CLI operation alongside network policy and lifecycle operations in the agent runtime stack.",
+          "url": "https://github.com/NVIDIA/NemoClaw"
+        },
+        {
+          "system": "Branch contexts (Fork, Explore, Commit)",
+          "status": "pure-future",
+          "note": "Research operating-system abstraction giving copy-on-write filesystem and process isolation, a fork/explore/commit lifecycle, first-commit-wins sibling invalidation and nestable contexts.",
+          "url": "https://arxiv.org/abs/2602.08199"
+        },
+        {
+          "system": "DeltaBox",
+          "status": "pure-future",
+          "note": "Delta-based sandbox checkpoint and rollback reported at 14 ms and 5 ms on SWE-bench and reinforcement-learning micro-benchmarks, against hundreds of milliseconds to seconds for full-state duplication.",
+          "url": "https://arxiv.org/abs/2605.22781"
+        },
+        {
+          "system": "TClone",
+          "status": "pure-future",
+          "note": "Extends the same primitive to a live GUI workspace that can be snapshotted, forked into isolated branches, rolled back, and selectively committed or merged.",
+          "url": "https://arxiv.org/abs/2605.17320"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "sandbox-isolation",
+          "relation": "uses",
+          "note": "Isolation supplies the containment boundary; this pattern adds a versioning primitive on top of it, turning the contained environment into something that can be forked and rolled back."
+        },
+        {
+          "pattern": "durable-workflow-snapshot",
+          "relation": "alternative-to",
+          "note": "That snapshots serialisable orchestration state to a storage provider so one linear run can resume after a restart; here the artifact is live machine state and the purpose is parallel branching, not resumption."
+        },
+        {
+          "pattern": "replay-time-travel",
+          "relation": "alternative-to",
+          "note": "That re-runs a recorded trace of model and tool calls with modifications for retrospective debugging; this forks the live environment forward for exploration, and restores process and session state a trace cannot reconstruct."
+        },
+        {
+          "pattern": "shadow-workspace-vcs",
+          "relation": "complements",
+          "note": "A source-file mirror for edit-then-review covers the filesystem in a single branch; this extends the same discipline to running processes and desktop sessions across many branches."
+        },
+        {
+          "pattern": "lats",
+          "relation": "used-by",
+          "note": "Tree search with backtracking assumes the environment can be reset at each node; snapshot-and-fork is what makes that reset cheap enough to search deeply."
+        },
+        {
+          "pattern": "adaptive-branching-tree-search",
+          "relation": "used-by",
+          "note": "Adaptive branching decides how wide to go at each node, which is only affordable when a branch costs a delta rather than a rebuilt environment."
+        },
+        {
+          "pattern": "speculative-agentic-actions",
+          "relation": "complements",
+          "note": "Speculation is safe to discard only if the environment it touched can be discarded with it."
+        },
+        {
+          "pattern": "clone-fan-out-research",
+          "relation": "complements",
+          "note": "Fan-out over identical workers assumes the starting environment is cheap to reproduce; forking one snapshot supplies that starting state when provisioning from scratch is expensive."
+        },
+        {
+          "pattern": "subagent-isolation",
+          "relation": "complements",
+          "note": "Isolation stops parallel workers from colliding; forking gives each worker an identical live starting state instead of an empty one."
+        },
+        {
+          "pattern": "compensating-action",
+          "relation": "complements",
+          "note": "The remedy for effects that escape the snapshot boundary: what cannot be rolled back has to be compensated."
+        },
+        {
+          "pattern": "agent-resumption",
+          "relation": "complements",
+          "note": "Resumption restores one timeline after an interruption; the same snapshot machinery, forked rather than resumed, supports exploration."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "Fork, Explore, Commit: OS Primitives for Agentic Exploration",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2602.08199"
+        },
+        {
+          "type": "paper",
+          "title": "DeltaBox: Scaling Stateful AI Agents with Millisecond-Level Sandbox Checkpoint/Rollback",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.22781"
+        },
+        {
+          "type": "paper",
+          "title": "TClone: Low-Latency Forking of Live GUI Environments for Computer-Use Agents",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.17320"
+        },
+        {
+          "type": "paper",
+          "title": "Tree Search for Language Model Agents",
+          "authors": "Jing Yu Koh, Stephen McAleer, Daniel Fried, Ruslan Salakhutdinov",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2407.01476"
+        },
+        {
+          "type": "doc",
+          "title": "E2B Docs — Sandbox persistence",
+          "url": "https://docs.e2b.dev/sandbox/persistence"
+        },
+        {
+          "type": "doc",
+          "title": "Modal Docs — Sandbox snapshots",
+          "url": "https://modal.com/docs/guide/sandbox-snapshots"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "sandbox",
+        "state-management",
+        "checkpointing",
+        "parallel-exploration",
+        "tool-use",
+        "environment"
+      ],
+      "example_scenario": "An agent is fixing a failing test inside a container where a database has been seeded and a development server is already running. It wants to try three different repairs, but the first one runs a schema migration that the second one would need undone. Rather than rebuild the container three times, it snapshots the running sandbox, forks three branches from that snapshot, and keeps only the branch whose test suite goes green. The other two are discarded, and the migration they ran disappears with them.",
+      "applicability": {
+        "use_when": [
+          "The environment is expensive to rebuild — seeded databases, long installs, long-running processes, an authenticated browser or desktop session — and cannot be re-derived from a prompt.",
+          "The agent runs a search, a best-of-N sampling loop or a reinforcement-learning rollout that needs frequent state restoration.",
+          "Actions under consideration are destructive or hard to reverse, and trying one should not commit the whole run to it.",
+          "Several candidate paths address the same subproblem and only one of them needs to survive."
+        ],
+        "do_not_use_when": [
+          "The environment is stateless or trivially re-provisioned, in which case a fresh sandbox per branch is simpler than a fork tree.",
+          "The main effects of the work leave the sandbox — payments, emails, third-party writes — so abort cannot restore the world and the abstraction misleads.",
+          "Only one path is ever pursued and a linear checkpoint for crash recovery is all that is needed.",
+          "The runtime cannot capture process or memory state and the agent's work genuinely depends on it, since a filesystem-only snapshot restores an incomplete environment."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Live environment: fs + memory + processes + session\"] --> B[\"Snapshot (copy-on-write delta)\"]\n  B --> C1[\"Branch 1: own fs view, own process group\"]\n  B --> C2[\"Branch 2\"]\n  B --> C3[\"Branch 3\"]\n  C1 --> D1{\"Verdict\"}\n  C2 --> D2{\"Verdict\"}\n  C3 --> D3{\"Verdict\"}\n  D1 -- \"commit (first wins)\" --> E[\"Selective promote into parent\"]\n  D2 -- \"invalidated by sibling commit\" --> F[\"Abort: discard branch state\"]\n  D3 -- \"failed\" --> F\n  E --> G[\"New parent state\"]\n  C1 -. \"external write escapes the boundary\" .-> H[\"Effect gate: not rollback-able\"]",
+        "caption": "One snapshot forks into isolated branches; the first commit promotes into the parent and invalidates its siblings, while effects that leave the snapshot boundary need a separate gate."
+      },
+      "components": [
+        "Snapshot engine — captures filesystem, memory pages, process groups and session state as a restorable object",
+        "Copy-on-write branch context — an independent filesystem view and process group that shares unmodified pages with the parent",
+        "Lifecycle controller — exposes fork, explore and commit-or-abort as explicit operations rather than implicit side effects",
+        "Commit arbiter — applies first-commit-wins and invalidates sibling branches so no merge has to be reasoned about",
+        "Selective commit filter — promotes a chosen subset of a branch's changes into the parent instead of the whole branch",
+        "Branch reaper — reclaims storage and memory held by aborted or abandoned branches",
+        "External-effect gate — routes actions whose consequences leave the snapshot boundary out of speculative branches"
+      ],
+      "tools": [
+        "Container and microVM snapshot APIs — capture and restore whole sandbox state, including memory where supported",
+        "Copy-on-write filesystems such as overlayfs, btrfs or ZFS — make a branch cost a delta rather than a full copy",
+        "Process checkpoint-restore tooling such as CRIU — preserves running processes, open handles and memory across a restore",
+        "Sandbox platform SDKs (E2B, Modal, Daytona) — expose pause, snapshot and fork as first-class calls to the agent runtime",
+        "Version-control worktrees — the file-only degenerate case, useful when no process or session state has to survive"
+      ],
+      "evaluation_metrics": [
+        "Fork latency — time to create a usable branch from a snapshot",
+        "Rollback latency — time to discard a branch and restore the parent state",
+        "Nodes explored per fixed time budget — the search throughput the branching primitive actually buys",
+        "Storage and memory amplification per branch — how much a fork tree costs beyond the parent",
+        "Escaped-effect rate — share of aborted branches that left an effect outside the snapshot boundary",
+        "Branch reclamation lag — time between abort and resource release, which predicts host exhaustion during fan-outs",
+        "Post-restore failure rate — failures caused by stale tokens, dead sockets or clock jumps after a memory restore"
+      ],
+      "last_updated": "2026-09-09"
+    },
+    {
+      "id": "solver-ready-formulation-handoff",
+      "name": "Solver-Ready Formulation Handoff",
+      "aliases": [
+        "Declarative Model Handoff",
+        "LLM-to-Solver Formulation",
+        "Formulate-Then-Solve",
+        "制約条件の登録をLLMに任せる"
+      ],
+      "category": "tool-use-environment",
+      "intent": "Have the agent emit a declarative optimisation model — decision variables, objective, hard constraints — in a solver-agnostic representation, and let an exact solver produce the decision with its feasibility or optimality certificate.",
+      "context": "Planning problems in logistics, energy dispatch, workforce rostering and production scheduling carry hard constraints — vehicle capacity, generator ramp rates, delivery time windows, conservation of flow — that a schedule either satisfies or does not. An agent handed such a problem in natural language can answer it in two ways: reason its way to a schedule directly, or write the problem down as a formal model and pass that model to an exact solver. Solvers for these problem classes have existed for decades and return provable answers; what has been scarce is the expertise to translate a business situation into the model they consume, which is why many such problems are still solved by hand.",
+      "problem": "A schedule produced by sampling carries no proof. Nothing in it tells an operator whether every ramp-rate limit holds, whether the assignment is the cheapest available, or whether the problem was infeasible from the start, and a hard physical constraint admits no partly-satisfied answer — a plan that breaks one is not a slightly worse plan but an unusable one. The reasoning trace that produced the schedule is also the wrong artefact for review: an auditor has to follow prose rather than read constraints. When the input data changes, a broken-down truck or an updated price, the entire run has to be repeated at model-call cost, and the new answer need not be consistent with the previous one.",
+      "forces": [
+        "Formulating an optimisation problem is the scarce skill, and translating a described situation into variables and constraints is something the model does well, while solving the resulting model exactly is something it does badly.",
+        "Direct optimisation by prompting has headroom on problems no formal model captures; the tool-augmented route gives up that headroom in exchange for auditability, and the survey literature frames this as the central trade-off between the two architectures.",
+        "An exact solver returns a certificate — an optimality gap, or a proof that no feasible assignment exists — that a sampled plan cannot provide, but it answers exactly the model it was given, so a mis-transcribed constraint is answered confidently and wrongly.",
+        "A solver-agnostic representation costs an extra compilation step and the engineering to maintain it, and buys re-solving on changed data with no further model calls.",
+        "Natural-language problem statements are ambiguous and incomplete, so a formulation needs systematic validation and iterative repair before a solver is worth running on it."
+      ],
+      "therefore": "Therefore: make the deliverable the formulation rather than the decision — variables, objective and hard constraints in a solver-agnostic representation, validated for feasibility before an exact solver, not the model, produces the answer.",
+      "solution": "Split the work at the point where guarantees begin. The agent reads the situation and pins down the sets, parameters and data sources, then emits a declarative model: decision variables with their domains, an objective, and the hard constraints, each one traceable to a sentence in the source statement. That model is written in a solver-agnostic intermediate representation rather than in one vendor's API, so it compiles deterministically to Gurobi, CPLEX, PuLP, Pyomo or OR-Tools without another model call. Before any solve, a validation step checks index consistency, units, variable bounds and feasibility on known instances; when a check fails, the specific violation is handed back for repair rather than the whole problem being regenerated. The solver then produces the assignment together with its status — optimal within a stated gap, feasible, or infeasible with an inconsistent subset of constraints named. What reaches the operator is the assignment and that status. The agent's remaining job is to explain the solver's output, reading its numbers rather than recomputing them, and when the data changes tomorrow the same representation is recompiled and re-solved with no model in the loop at all.",
+      "structure": "Natural-language situation --> formulation module --> solver-agnostic IR {variables, objective, hard constraints} --> validator (index/unit/bound/feasibility) --repair--> IR --> backend compiler --> exact solver --> {assignment, status: optimal+gap | feasible | infeasible+inconsistent subset} --> operator. Data change re-enters at the compiler, not at the model.",
+      "consequences": {
+        "benefits": [
+          "The answer arrives with a solver status — proven optimal within a gap, feasible, or infeasible with the conflicting constraints named — which a sampled plan cannot supply.",
+          "Hard constraints are enforced by construction inside the solve rather than checked afterwards by a reviewer who may miss one.",
+          "Changed data is re-solved deterministically from the existing representation with zero model calls, so two consecutive answers rest on the same model and can be compared.",
+          "The reviewable artefact becomes a list of constraints instead of a reasoning trace, which is what an operator or auditor can actually check.",
+          "Problems previously left to hand-built spreadsheets reach the exact solvers that were always available, because the formulation step no longer requires an operations-research specialist."
+        ],
+        "liabilities": [
+          "The solver answers the model it was given, so a constraint transcribed wrongly produces a confidently optimal plan whose certificate is about the model rather than about reality.",
+          "Only problems that fit the solver's class are served; forcing a genuinely fuzzy or contested objective into a linear one discards the part that mattered, and gives up the headroom the direct-prompting route retains.",
+          "Formulation errors are silent without validation — the power-systems work needed systematic validation and iterative repair to reach feasibility at all — so the validator becomes load-bearing infrastructure.",
+          "Exact solvers can blow up in runtime as instances grow, so a correct model may still fail to return inside the decision window.",
+          "An intermediate representation and its backend compilers are real software to build, test and version, which a single prompt does not need."
+        ]
+      },
+      "failure_modes": [
+        "A hard constraint is quietly moved into the objective as a penalty term, so the solver reports an optimal plan that violates a physical limit.",
+        "Infeasibility comes back as a bare status, the same formulation is retried, and nobody learns which pair of constraints is inconsistent.",
+        "Units or index sets drift between the source statement and the model, so the solver optimises a different problem than the one that was asked.",
+        "Asked to explain the plan, the agent re-derives the numbers in prose instead of reading the solver output, and the explanation contradicts the assignment.",
+        "The formulation is regenerated from scratch on every data change, so successive answers rest on different models and the run-to-run difference cannot be attributed."
+      ],
+      "constrains": "The agent must not emit the decision itself; it emits only the formulation, no plan reaches an operator without the solver status and certificate that produced it, and re-solving on changed data must not call the model again.",
+      "known_uses": [
+        {
+          "system": "OptiMUS",
+          "status": "pure-future",
+          "note": "Research agent that formulates a described problem as a MILP and calls a solver; motivated by the observation that most such problems are still solved by hand rather than optimally, because formulation expertise is the bottleneck.",
+          "url": "https://github.com/teshnizi/OptiMUS"
+        },
+        {
+          "system": "ORPilot",
+          "status": "pure-future",
+          "note": "Production-oriented optimisation-modelling agent built around a solver-agnostic intermediate representation that recompiles deterministically to Gurobi, CPLEX, PuLP, Pyomo or OR-Tools with zero further model calls.",
+          "url": "https://arxiv.org/abs/2605.02728"
+        },
+        {
+          "system": "LLM-assisted power system optimisation framework",
+          "status": "pure-future",
+          "note": "Converts natural-language dispatch scenarios into compact solver-ready formulations and enforces feasibility through systematic validation and iterative repair rather than trusting the first formulation.",
+          "url": "https://arxiv.org/abs/2508.08147"
+        },
+        {
+          "system": "MiniZinc",
+          "status": "available",
+          "note": "A solver-independent modelling language whose compiled form runs on many backends; the kind of representation a formulation handoff targets so the model is not written against one vendor's API.",
+          "url": "https://www.minizinc.org/"
+        },
+        {
+          "system": "Google OR-Tools",
+          "status": "available",
+          "note": "Open-source CP-SAT and routing solvers that return a solution together with a status distinguishing proven-optimal, feasible and infeasible.",
+          "url": "https://developers.google.com/optimization"
+        },
+        {
+          "system": "Gurobi Optimizer",
+          "status": "available",
+          "note": "Reports an optimality gap on every solve and can compute an irreducible inconsistent subsystem for an infeasible model, which is the certificate an operator reads when no plan exists.",
+          "url": "https://www.gurobi.com/documentation/current/refman/index.html"
+        },
+        {
+          "system": "Ubie engineering practice",
+          "status": "available",
+          "note": "Practitioner writeup that splits the work the same way — the model makes constraint entry easy, the mathematical solver does the optimising.",
+          "url": "https://zenn.dev/ubie_dev/articles/opt_with_llm"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "code-execution",
+          "relation": "alternative-to",
+          "note": "Both take the computation away from the model, but there the artefact is imperative code and the run is the answer; here the artefact is a declarative model that is separately validated, and the solver rather than the execution is the authority."
+        },
+        {
+          "pattern": "distributed-constraint-optimization",
+          "relation": "alternative-to",
+          "note": "That solves a constraint problem across many agents holding shared variables because information boundaries forbid centralising it; here one centralised exact solver decides and the agents only write the model."
+        },
+        {
+          "pattern": "hybrid-symbolic-neural-routing",
+          "relation": "complements",
+          "note": "That picks a symbolic or a neural path per query; here both always run, in a fixed producer-and-decider order, with the model structurally barred from the decision."
+        },
+        {
+          "pattern": "mrkl-systems",
+          "relation": "complements",
+          "note": "That dispatches each request to whichever expert module fits; this is a single fixed handoff whose module is an exact solver and whose output includes a certificate."
+        },
+        {
+          "pattern": "semantic-layer-query-guardrail",
+          "relation": "complements",
+          "note": "The same discipline on the analytics side — the model parameterises a vetted structure and a deterministic compiler produces the executable artefact."
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "uses",
+          "note": "The formulation is emitted as a typed artefact that must validate before compilation, not as free prose describing a model."
+        },
+        {
+          "pattern": "tool-output-arithmetic-trust",
+          "relation": "complements",
+          "note": "That anti-pattern is the agent computing over tool data in its head; this pattern moves the whole decision, not just the arithmetic, into a deterministic tool."
+        },
+        {
+          "pattern": "formal-proof-compliance-gate",
+          "relation": "complements",
+          "note": "Both make a machine-checkable artefact the condition of acting; there a proof gates an action, here a solver certificate accompanies the plan."
+        }
+      ],
+      "references": [
+        {
+          "type": "paper",
+          "title": "OptiMUS: Scalable Optimization Modeling with (MI)LP Solvers and Large Language Models",
+          "authors": "Ali AhmadiTeshnizi, Wenzhi Gao, Madeleine Udell",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2402.10172"
+        },
+        {
+          "type": "paper",
+          "title": "From Natural Language to Solver-Ready Power System Optimization: An LLM-Assisted, Validation-in-the-Loop Framework",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2508.08147"
+        },
+        {
+          "type": "paper",
+          "title": "ORPilot: A Production-Oriented Agentic LLM-for-OR Tool for Optimization Modeling",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.02728"
+        },
+        {
+          "type": "paper",
+          "title": "Large Language Models as Optimizers: A Survey of Direct vs. Tool-Augmented Approaches and Their Performance Frontiers",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2606.15577"
+        },
+        {
+          "type": "blog",
+          "title": "LLMと数理最適化を組み合わせる",
+          "authors": "ohtaman",
+          "year": 2024,
+          "url": "https://zenn.dev/ubie_dev/articles/opt_with_llm"
+        },
+        {
+          "type": "doc",
+          "title": "MiniZinc: a solver-independent constraint modelling language",
+          "url": "https://www.minizinc.org/"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "tool-use",
+        "optimisation",
+        "operations-research",
+        "solver",
+        "auditability",
+        "scheduling",
+        "neuro-symbolic"
+      ],
+      "example_scenario": "A depot manager types out tomorrow's deliveries: twelve vans, driver shift limits, chilled goods that have to arrive before eleven. The agent does not answer with a route list; it writes the vans, stops and time windows down as a formal model and hands that to a routing solver. The solver returns an assignment and reports it is within two percent of the best possible. When a van breaks down at six the next morning, the same model is re-solved in seconds without asking the model anything.",
+      "applicability": {
+        "use_when": [
+          "The problem has hard constraints that a plan either satisfies or does not, such as capacity, ramp rates, delivery windows or conservation of flow.",
+          "An operator or auditor has to see why a plan is acceptable, not only what the plan is.",
+          "The same problem is re-solved often on changing data, so re-deciding by prompt each time is expensive and inconsistent between runs.",
+          "A mature exact solver already exists for the problem class, and the missing piece is the translation from the described situation into its model."
+        ],
+        "do_not_use_when": [
+          "The objective is genuinely fuzzy or contested, and forcing it into a formal objective would discard the part that actually matters.",
+          "No tractable formulation exists for the problem class, or instances are large enough that an exact solve does not return inside the decision window.",
+          "A rough, fast answer is sufficient and nobody will audit it afterwards.",
+          "The decision is one-off, so building and maintaining a representation and its compilers costs more than the decision is worth."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  A[\"Situation described in natural language\"] --> B[\"Agent emits formulation: variables, objective, hard constraints\"]\n  B --> C[\"Solver-agnostic intermediate representation\"]\n  C --> D{\"Validation: indices, units, bounds, feasibility\"}\n  D -- \"violated check\" --> B\n  D -- \"passes\" --> E[\"Deterministic compile to solver backend\"]\n  E --> F[\"Exact solver\"]\n  F --> G[\"Assignment + status: optimal with gap / feasible / infeasible subset\"]\n  G --> H[\"Operator reads plan and certificate\"]\n  I[\"New data\"] --> E",
+        "caption": "The model produces the formulation, never the decision; the solver produces the decision and its certificate, and changed data re-enters at the compiler with no model call."
+      },
+      "components": [
+        "Problem intake — reads the described situation and pins down the sets, parameters and the data sources behind them",
+        "Formulation module — emits decision variables, objective and hard constraints, each traceable to a sentence in the source statement",
+        "Solver-agnostic intermediate representation — a declarative model that compiles deterministically to several solver backends instead of one vendor API",
+        "Validation and repair loop — checks index consistency, units, bounds and feasibility, and hands back the specific violated check rather than the whole problem",
+        "Backend compiler — translates the representation into the chosen solver's API with no further model calls",
+        "Exact solver — returns the assignment together with its status: optimal within a gap, feasible, or infeasible",
+        "Certificate reporter — surfaces the optimality gap or the inconsistent constraint subset to the operator alongside the plan",
+        "Explanation layer — narrates the solver's output, reading its numbers instead of recomputing them"
+      ],
+      "tools": [
+        "Gurobi or CPLEX — exact mixed-integer solvers that report an optimality gap and can isolate an inconsistent constraint subsystem",
+        "Google OR-Tools — open-source CP-SAT and routing solvers for scheduling and vehicle-routing formulations",
+        "Pyomo or PuLP — Python modelling layers a solver-agnostic representation compiles into",
+        "MiniZinc — a solver-independent modelling language whose compiled form runs across many backends",
+        "Schema validator — rejects a formulation whose index sets, units or variable bounds do not line up before any solve is attempted"
+      ],
+      "evaluation_metrics": [
+        "Formulation feasibility rate — share of generated models the solver accepts as feasible without repair",
+        "Repair iterations to feasibility — how many validation rounds a formulation needs before it solves",
+        "Optimality gap — how far the returned plan sits from the proven bound",
+        "Constraint fidelity — share of constraints in the source statement present, and correctly typed, in the model",
+        "Model calls per re-solve — should fall to zero once the representation exists and only the data changed",
+        "Solver runtime at operating scale — whether an exact answer arrives inside the decision window"
       ],
       "last_updated": "2026-09-09"
     }
