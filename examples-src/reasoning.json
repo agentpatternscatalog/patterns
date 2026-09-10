@@ -675,6 +675,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "learnability-frontier-task-sampling",
+      "intent": "Replace uniform sampling over a task pool with a per-round frontier band computed from measured per-task success rates.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Route each task by its running success rate, sample only the mixed-outcome band, and regenerate tasks from failures.",
+          "code": "# BEFORE - uniform sampling over the inherited pool\nfor round in range(N_ROUNDS):\n    batch = random.sample(pool, BATCH)          # difficulty ignored\n    groups = [rollout(t, k=K) for t in batch]   # K sandboxed episodes each\n    update(groups)\n# group-relative advantage is 0 whenever all K outcomes agree,\n# so a task solved 4/4 or 0/4 contributes nothing but still\n# costs K multi-minute episodes.\n\n\n# AFTER - sample the learnability frontier\nLOW, HIGH = 0.05, 0.95      # band bounds: strictly between never and always\nRECENT    = 8               # window for the running rate\n\nfor round in range(N_ROUNDS):\n    # 1. classify by measured success rate, not by an authoring heuristic\n    frontier, parked = [], []\n    for t in pool:\n        rate = t.successes_in_last(RECENT)      # None if never attempted\n        if rate is None:            frontier.append(t)   # needs a measurement\n        elif rate >= HIGH:          t.state = \"retired\"  # already learned\n        elif rate <= LOW:           parked.append(t)     # out of reach for now\n        else:                       frontier.append(t)   # mixed outcomes\n\n    # 2. spend the budget on the band, plus a small re-probe slice so a\n    #    difficulty step that has become reachable is not stranded\n    batch  = random.sample(frontier, min(BATCH - PROBE, len(frontier)))\n    batch += random.sample(parked,   min(PROBE, len(parked)))\n\n    groups = [rollout(t, k=K) for t in batch]\n    for t, g in zip(batch, groups):\n        t.record(g.outcomes)                    # feeds the next round's rate\n\n    # 3. only mixed-outcome groups carry a gradient; the rest are measurement\n    update([g for g in groups if 0 < sum(g.outcomes) < K])\n\n    # 4. the frontier moves, so regenerate supply from what just failed\n    if len(frontier) < REFILL_THRESHOLD:\n        pool += generate_tasks_from(failures=[g for g in groups\n                                              if sum(g.outcomes) == 0])\n        pool = prune_redundant(pool)            # cost-aware curation",
+          "verified": false
+        }
+      ]
     }
   ]
 }

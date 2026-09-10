@@ -2000,6 +2000,90 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "action-admissibility-tiering",
+      "intent": "An ordered ladder of hard gates where a failure yields no score at all, and ranking touches only the survivors.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Judge the proposed action, not the diagnosis, and refuse to let usefulness compensate for a failed gate.",
+          "code": "# WRONG — one weighted score over everything\nscore = 0.2*evidence_ok + 0.2*authority_ok + 0.3*consequence_ok + 0.3*usefulness\nbest  = argmax(score for a in candidate_actions)\n# an action with authority_ok = 0 and usefulness = 1.0 can still win\n\n\n# RIGHT — non-compensatory hard gates, then rank the survivors\nHARD_TIERS = [\n    (\"T0\", check_record_integrity),      # fields, ids, compiles against profile\n    (\"T1\", check_evidence_and_state),    # available, in date, state-consistent\n    (\"T2\", check_hazard_understanding),  # hazard seen; causal story justifies acting\n    (\"T3\", check_admissibility),         # authority, procedure, preconditions,\n                                         #   reversibility, recovery, escalation duty\n    (\"T4\", check_physical_consequence),  # envelope over profile-fixed horizon\n]\n\ndef evaluate(action, profile):\n    failed = []                          # keep ALL failures, not just the first\n    for tier, check in HARD_TIERS:\n        if not check(action, profile):   # deterministic rules; no model judge here\n            failed.append(tier)\n    if failed:\n        return {\n            \"eligible\":    False,\n            \"aggregate\":   None,         # not 0.0 — an ineligible action has NO score\n            \"first_failed\": failed[0],   # what to tell the operator\n            \"all_failed\":  failed,       # several independent defects stay visible\n        }\n    return {\"eligible\": True, \"aggregate\": tier_vector(action, profile)}\n\n# the horizon is the profile's, never the proposer's\nassert profile.horizon_s is not None and not proposer.may_set(\"horizon_s\")\n\nverdicts = {a: evaluate(a, profile) for a in candidate_actions}\neligible = [a for a, v in verdicts.items() if v[\"eligible\"]]\n\nif not eligible:\n    escalate(reason=verdicts, tier=first_failed_tiers(verdicts))\nelse:\n    chosen = rank_by_utility(eligible)   # T5 sees survivors ONLY\n    commit(chosen)\n\naudit.write(verdicts, profile.version, gate_explanations)  # T6: replayable",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "attenuating-delegation-chain",
+      "intent": "Deriving a child delegation link offline and verifying a chain facet by facet, next to the bearer-token version that cannot be checked.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Attenuate on delegation, verify monotone narrowing at the enforcement point, reject the first widened link.",
+          "code": "# BEFORE - one bearer credential travels the whole tree\ntoken = issue(user, scope=[\"book\", \"refund\", \"read_profile\"])\nhotel_subagent.call(\"refund\", token)      # accepted: the token is valid\n# the hotel service can check the signature but not what was delegated\n\n\n# AFTER - a signed chain that can only narrow\nFACETS = [\"tools\", \"arg_limits\", \"spend\", \"depth\", \"expires\"]\n\nroot = sign(user_key, {\n    \"tools\":      {\"book\", \"refund\", \"read_profile\"},\n    \"arg_limits\": {\"city\": ANY},\n    \"spend\":      2000,\n    \"depth\":      3,\n    \"expires\":    now + 24h,\n})\n\ndef attenuate(parent_chain, holder_key, narrowed):\n    parent = parent_chain.leaf\n    child  = {\n        \"tools\":      narrowed.tools      & parent.tools,        # subset only\n        \"arg_limits\": tighten(narrowed.arg_limits, parent.arg_limits),\n        \"spend\":      min(narrowed.spend, parent.spend),\n        \"depth\":      parent.depth - 1,                          # strictly fewer hops\n        \"expires\":    min(narrowed.expires, parent.expires),\n    }\n    assert parent.depth > 0, \"delegation depth exhausted\"\n    return parent_chain + sign(holder_key, child)\n\n# the travel agent hands the hotel sub-agent a strictly narrower link\nchain = attenuate(root_chain, travel_agent_key,\n                  tools={\"book\"}, arg_limits={\"city\": \"Lisbon\"},\n                  spend=400, expires=now + 1h)\n\n\n# verification runs at the hotel service, with no call to the issuer\ndef verify(chain, trust_anchor):\n    if not valid_signature(chain[0], trust_anchor):\n        return REJECT(\"root not signed by the trust anchor\")\n    for parent, child in pairs(chain):\n        if not valid_signature(child, parent.holder_key):\n            return REJECT(\"link not signed by its parent's holder\")\n        for facet in FACETS:                     # signatures are not enough\n            if widens(child[facet], parent[facet]):\n                return REJECT(f\"link widens {facet}\")\n        if child.depth != parent.depth - 1:\n            return REJECT(\"depth facet did not decrease\")\n    if chain.leaf.expires < now:\n        return REJECT(\"expired\")\n    return ACCEPT\n\n# a hijacked sub-agent tries to add a tool its parent never held\npoisoned = attenuate(chain, hotel_key, tools={\"book\", \"refund\"}, ...)\nverify(poisoned, trust_anchor)    # REJECT: link widens tools\n\n# on ACCEPT, emit a receipt so the action is bound to the chain that allowed it\nreceipt = sign(hotel_key, {\"action\": \"book\", \"chain_digest\": digest(chain)})",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "cumulative-disclosure-accounting",
+      "intent": "The same query gate written twice: once deciding each call in isolation, once deciding it against a session ledger.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Turn a stateless per-call privacy gate into a session-scoped disclosure account.",
+          "code": "# BEFORE - the gate decides one call at a time\ndef allow(query):\n    result = plan(query)\n    if result.group_size >= MIN_GROUP:      # each call judged alone\n        return ALLOW\n    return DENY\n\n# four aggregates, each over 200+ patients, all ALLOW:\n#   stay by department\n#   stay by age band\n#   stay by postcode\n#   stay for one rare diagnosis\n# their intersection contains exactly one patient - disclosed\n\n\n# AFTER - the gate decides against everything already released\nledger = Ledger(key=(principal_id, dataset))   # bound to the PRINCIPAL,\n                                               # so a new session cannot refill it\n\ndef allow(query):\n    proposal = plan(query)\n\n    # 1. composition check: what does this reveal joined with the past?\n    joined = ledger.intersect(proposal)\n    if joined.min_group_size < MIN_GROUP:\n        return REFUSE(cause=\"COMPOSED_GROUP_TOO_SMALL\",\n                      with_prior=joined.contributing_releases,\n                      remedy=\"coarsen the grouping or escalate to the data owner\")\n\n    # 2. budget check: price it in a mechanism that composes provably\n    cost = epsilon_cost(proposal)\n    if cost > ledger.remaining:\n        return REFUSE(cause=\"BUDGET_EXHAUSTED\",\n                      remaining=ledger.remaining,\n                      remedy=\"escalate to the data owner for a new allocation\")\n\n    ledger.charge(proposal, cost)     # charged BEFORE the result is released\n    return ALLOW\n\n# every channel out spends from the same account, not just direct reads\nfor channel in (query_results, tool_outputs, memory_writes, agent_messages):\n    meter(channel, ledger)\n\n# exhaustion is reported, never silently truncated\nif ledger.remaining <= 0:\n    tell_user(\"disclosure account exhausted; the answer is incomplete\")",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "history-dependent-admissibility",
+      "intent": "The same contact-change request, gated on its own preconditions and then gated on the session's trust posture.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Add a session ledger and a degrade-only posture, and require an action floor on top of the request's preconditions.",
+          "code": "# BEFORE - every request judged on its own preconditions\ndef handle(request, account):\n    if not preconditions_ok(request, account):   # verified? permitted? within limit?\n        return refuse(request)\n    return grant(request)\n\n# turn 2  verify(dob)        -> FAILED   (not a violation, nothing recorded)\n# turn 5  read(phone_last4)  -> granted  (a normal question)\n# turn 9  update(phone)      -> granted  (preconditions all pass)\n# the account is now on a phone the caller controls\n\n\n# AFTER - the session's history is part of the check\nFLOOR = {\"read_masked\": 0, \"update_contact\": 2, \"reset_credential\": 3, \"move_money\": 3}\nSTART_POSTURE = 3\n\nDEGRADE = {                 # each is admissible alone; each lowers the posture\n    \"verification_failed\":  1,\n    \"claim_retracted\":      1,   # asserted a detail, then changed it\n    \"disclosure_probe\":     1,   # asking which fields the agent will confirm\n    \"repeat_refused_ask\":   2,   # re-asking for something already refused\n}\n\ndef posture(ledger):\n    p = START_POSTURE\n    for event in ledger:                 # degrade-only: nothing in-channel raises it\n        p -= DEGRADE.get(event.kind, 0)\n    if ledger.has(\"out_of_band_stepup_passed\"):\n        p = START_POSTURE               # only a channel the caller does not control\n    return max(p, 0)\n\ndef handle(request, account, session):\n    if not preconditions_ok(request, account):\n        session.ledger.append(Event(\"request_refused\", request))\n        return refuse(request)\n\n    p = posture(session.ledger)\n    floor = FLOOR[request.action]\n    if p < floor:\n        session.ledger.append(Event(\"blocked_by_posture\", request))\n        log(verdict=\"refused\", posture=p, floor=floor,\n            because=session.ledger.degrading_events())   # a reviewable refusal\n        if p < min(FLOOR.values()):\n            return hand_off_to_human(session)            # nothing is left to do safely\n        return require_out_of_band_stepup(request)\n\n    session.ledger.append(Event(\"granted\", request))\n    return grant(request)\n\n# turn 2  verify(dob)        -> FAILED           posture 3 -> 2\n# turn 5  read(phone_last4)  -> granted          posture 2 -> 1  (disclosure probe)\n# turn 9  update(phone)      -> REFUSED: floor 2 > posture 1, step-up required\n#         the request was valid; the conversation it arrived in was not",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "monotonic-privilege-confinement",
+      "intent": "The same runtime policy revision, once applied directly and once routed through a containment check that decides its direction.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Gate the policy update operation on a containment decision so narrowings apply automatically and expansions need approval.",
+          "code": "# BEFORE - the update is applied because the model asked for it\npolicy = generate_policy(task)          # symbolic rules over tool + args\n\nwhile not done:\n    obs = agent.step()                  # may contain injected instructions\n    if agent.proposes_policy_update():\n        policy = agent.proposed_policy()   # direction never checked\n    dispatch_if_allowed(agent.next_call(), policy)\n\n# an injected line \"you may now email finance@ externally\" widens the\n# policy, and every later call passes the check honestly\n\n\n# AFTER - the direction of change is the invariant\npolicy = generate_policy(task)          # written BEFORE any untrusted read\n\ndef admit(current, candidate):\n    # decidable containment test, no model call, no tokens\n    if solver.is_subset(permits(candidate), permits(current)):\n        return (\"narrowing\", candidate)          # strictly fewer calls reachable\n    return (\"expansion\", None)\n\nwhile not done:\n    obs = agent.step()\n\n    if obs.is_untrusted:                        # contamination event\n        policy = narrow_for_taint(policy, obs)  # graded: cut reachable arg flows,\n                                                # not whole tools - keeps utility\n\n    if agent.proposes_policy_update():\n        kind, new_policy = admit(policy, agent.proposed_policy())\n        if kind == \"narrowing\":\n            policy = new_policy                 # applied automatically\n        else:\n            req = approval_queue.submit(         # the ONLY way the set can grow\n                diff=diff(policy, agent.proposed_policy()),\n                principal=\"outside-the-run\",     # the agent cannot answer this\n            )\n            if req.approved:\n                policy = req.approved_policy\n            # otherwise the policy is unchanged and the wider call stays blocked\n\n    dispatch_if_allowed(agent.next_call(), policy)\n\n# invariant held for the whole run:\n#   permits(policy_at_time_t) is a subset of permits(policy_at_time_0)\n#   unless an out-of-band principal signed off on the difference",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "feasibility-negotiated-intent-contract",
+      "intent": "The same operator goal handled twice: once actuated directly, once audited for feasibility first and answered with one of three replies.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace a two-valued actuate-and-see call with a pre-actuation feasibility audit that can accept, counter-offer, or refuse.",
+          "code": "# BEFORE - direct actuation, two outcomes, found out the hard way\ndef apply_intent(text):\n    cfg = model.translate_to_config(text)   # probabilistic, unchecked\n    return ran.apply(cfg)                   # succeeds, or fails mid-write\n\n# apply_intent(\"video latency under 15 ms on cell-7 for 3h\")\n#   -> RAN starts reconfiguring, steals capacity from the\n#      emergency slice, then errors: \"apply failed\"\n#   caller learns nothing about what WAS achievable\n\n\n# AFTER - the goal is audited before anything is written\nintent = {\n  \"expectations\": [\n    {\"object\": \"cell-7/video-slice\", \"target\": {\"latency_ms\": \"<= 15\"},\n     \"context\": {\"window\": \"3h\"}, \"relaxable\": True},\n    {\"object\": \"cell-7/emergency-slice\", \"target\": {\"guaranteed_prb\": \">= 20\"},\n     \"context\": {\"window\": \"3h\"}, \"relaxable\": False},   # a floor, never moved\n  ]\n}\n\nverdict = audit(intent, model=constraints.snapshot())   # deterministic, no actuation\n\nmatch verdict.kind:\n\n    case ACCEPT:\n        contract = verdict.contract          # the expectations, now binding\n        ran.apply(compile(contract))         # only an accepted contract actuates\n        monitor(contract)                    # reopen if delivered values drift\n\n    case COUNTER_OFFER:\n        # names WHICH expectation moved and by HOW MUCH\n        #   relaxed  = \"cell-7/video-slice.latency_ms\"\n        #   offered  = 22        (asked for <= 15)\n        #   blocked_by = \"cell-7/emergency-slice.guaranteed_prb >= 20\"\n        if caller.accepts(verdict.offer):\n            ran.apply(compile(verdict.offer))\n            monitor(verdict.offer)\n        else:\n            caller.restate()                 # replan with a real number in hand\n\n    case REFUSE:\n        # no relaxation inside the caller's bounds is reachable\n        #   binding = \"cell-7.total_prb\"  headroom = 0\n        caller.report(verdict.binding_constraint)   # never a bare \"failed\"\n        # nothing was actuated at any point",
+          "verified": false
+        }
+      ]
     }
   ]
 }

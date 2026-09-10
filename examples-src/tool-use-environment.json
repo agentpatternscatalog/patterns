@@ -1441,6 +1441,76 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "machine-checkable-tool-contract",
+      "intent": "The same tool declared twice: once with the constraint in prose only, once with it in the schema plus a typed failure result.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Move a servable-range constraint out of the description and into the schema, and return a typed failure.",
+          "code": "# BEFORE — the constraint lives only in prose\ntool filings_search:\n  description: \"Search company filings. Note: records are only\n                available from 2001 onwards.\"\n  params:\n    year: integer          # no bounds declared\n\n# a call for 1998 runs, matches nothing, and returns:\n#   200 OK  {\"results\": []}\n# the agent cannot tell this from \"the company filed nothing\"\n\n\n# AFTER — the constraint is machine-checkable, the failure is typed\ntool filings_search:\n  description: \"Search company filings.\"\n  params:\n    year:\n      type: integer\n      minimum: 2001        # validator rejects 1998 before the call runs\n      maximum: CURRENT_YEAR\n\n  on_failure:              # not a bare boolean flag\n    cause:       \"PARAM_OUT_OF_RANGE\"   # what went wrong\n    target:      \"year\"                 # which parameter\n    repair:      {\"year\": 2001}         # an executable fix\n    replay_safe: true                   # is retrying safe\n\n# the caller now branches mechanically\nresult = call(filings_search, year=1998)\nif result.failed:\n    match result.cause:\n        PARAM_OUT_OF_RANGE -> retry(result.repair)\n        UNAUTHENTICATED    -> refresh_token(); retry()\n        RATE_LIMITED       -> back_off(result.retry_after)\n        _                  -> escalate(result)   # never silently report []",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "forkable-agent-sandbox",
+      "intent": "Explore three candidate repairs from one snapshot of a live sandbox, commit the first that passes, and discard the rest.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Snapshot a running environment, fork branch contexts, apply first-commit-wins, and keep external effects out of the branches.",
+          "code": "# BEFORE — backtracking by rebuilding and replaying\nfor fix in candidate_fixes:\n    env = provision_container()        # minutes: install deps, seed db, boot server\n    replay(env, actions_so_far)        # not faithful: timestamps, external writes\n    apply(env, fix)\n    if run_tests(env).passed:\n        keep(env); break\n    destroy(env)\n# cost per candidate = full rebuild; deep search is unaffordable\n\n\n# AFTER — snapshot once, fork branch contexts\nsnap = env.snapshot()      # fs + memory pages + process group (+ GUI session)\n                           # copy-on-write delta, not a full duplicate\n\nbranches = [snap.fork() for fix in candidate_fixes]   # ~10s of ms each\n\ncommitted = None\nfor branch, fix in zip(branches, candidate_fixes):\n    with branch:                       # own fs view, own PIDs\n        branch.deny(EXTERNAL_EFFECTS)  # no payments/emails/3rd-party writes:\n                                       # abort cannot retract them\n        apply(branch, fix)             # may migrate the db, kill the server, etc.\n        if run_tests(branch).passed and committed is None:\n            committed = branch\n\n# first-commit-wins: the runtime resolves the conflict, not the model\nif committed:\n    committed.commit(paths=[\"src/\", \"migrations/\"])   # selective promote\n    for other in branches:\n        if other is not committed:\n            other.invalidate()         # siblings never merge\nfor branch in branches:\n    if branch is not committed:\n        branch.abort()                 # discard whole; reaper frees pages\n\n# nesting: a branch may fork again for a sub-decision\n#   sub = branch.fork(); ... ; sub.commit() promotes into `branch`, not the parent",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "solver-ready-formulation-handoff",
+      "intent": "The same dispatch request answered twice: once by the agent deciding, once by the agent formulating and a solver deciding.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Move the decision from the model to an exact solver, and return the certificate with the plan.",
+          "code": "# BEFORE - the agent decides\nplan = model.generate(\n    \"12 vans, driver shift limit 9h, chilled stops before 11:00. \"\n    \"Give me tomorrow's routes.\")\n# returns a plausible route list\n#   - no statement that every shift limit holds\n#   - no bound on how much cheaper a better plan would be\n#   - no way to tell 'hard problem' from 'no feasible plan exists'\n# a van breaks down at 06:00 -> regenerate everything, new model, new answer\n\n\n# AFTER - the agent formulates, the solver decides\nir = model.formulate(situation, schema=OPTIMISATION_IR)\n# ir is declarative and solver-agnostic:\n#   sets:        VANS, STOPS\n#   parameters:  travel_time[i,j], demand[s], shift_limit\n#   variables:   x[v,i,j] in {0,1}       # van v drives leg i->j\n#   objective:   minimise total_distance\n#   constraints:\n#     C1 capacity:     sum(demand[s] * visits[v,s]) <= cap[v]      # src: line 2\n#     C2 shift:        route_time[v] <= shift_limit                # src: line 3\n#     C3 chilled:      arrival[s] <= 11:00  for s in CHILLED       # src: line 4\n#     C4 cover:        each stop visited exactly once\n\nreport = validate(ir)          # indices, units, bounds, feasibility probe\nwhile not report.ok:\n    ir = model.repair(ir, violation=report.failed_check)  # the check, not the problem\n    report = validate(ir)\n    if report.rounds > MAX_REPAIR: escalate(ir, report); halt()\n\nresult = solve(compile(ir, backend=\"or-tools\"))   # no model call in this line\n\nmatch result.status:\n    OPTIMAL   -> publish(result.assignment,\n                         certificate=f\"within {result.gap:.1%} of proven best\")\n    FEASIBLE  -> publish(result.assignment,\n                         certificate=f\"feasible, bound {result.bound}\")\n    INFEASIBLE-> escalate(\"no plan exists\",\n                         conflict=result.inconsistent_subset)  # e.g. {C2, C3}\n\n# the van breaks down at 06:00\ncap[\"van7\"] = 0\nresult = solve(compile(ir, backend=\"or-tools\"))   # same model, zero model calls",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "mirrored-tool-environment",
+      "intent": "The same training loop run against a live search API and against a mirrored tool environment with a cache and a noise curriculum.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Swap the live tool for a fine-tuned mirror during training, schedule response quality, and gate any production claim on a live holdout.",
+          "code": "# BEFORE — every rollout hits the paid, drifting live service\nfor step in range(200_000):                 # ~200k billed search calls\n    query  = agent.propose_query(task)\n    docs   = live_search_api(query)         # cost per call; content varies daily\n    reward = score(agent.answer(docs), task)\n    agent.update(reward)\n# same agent, same task, different score tomorrow;\n# a bad-retrieval day penalises correct reasoning\n\n\n# AFTER — a mirror occupies the tool slot, cache first, noise scheduled\nmirror = finetune(\n    base_model = \"open-8b\",\n    data       = harvested_pairs,           # real (request, response) from the tool\n    objective  = \"emit a same-shaped response for an unseen request\",\n)\n\ndef tool_slot(query, noise_ratio):\n    hit = cache.get(query)                  # really observed response, if any\n    if hit:\n        return hit                          # fidelity where evidence exists\n    return mirror.generate(query, noise=noise_ratio)\n\nfor step in range(200_000):\n    noise  = curriculum(step)               # clean early, rising noise later\n    query  = agent.propose_query(task)\n    docs   = tool_slot(query, noise)        # no external call, reproducible\n    reward = score(agent.answer(docs), task)\n    agent.update(reward)\n\n# the mirror is a training/benchmark device only\nassert env.mode in (\"train\", \"benchmark\")   # never serves a user request\n\n# a mirror-only number is not a claim about production\nsim_score  = benchmark(agent, tool=tool_slot)\nlive_score = benchmark(agent, tool=live_search_api, n=200)   # small holdout\nif abs(sim_score - live_score) > TOLERANCE:\n    refit(mirror, harvest_more_pairs())     # do not publish the sim number\nelse:\n    report(sim_score, holdout=live_score)",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "foveated-perception-escalation",
+      "intent": "One fixed downscale for every observation, then the same task with fidelity treated as an allocated budget on both the spatial and the temporal axis.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace a uniform downscale with a coarse pass, a nominated region, a capped escalation budget, and a mapping back to the original frame.",
+          "code": "# BEFORE - one fixed downscale, applied to everything\nscreen = capture()                      # 2560 x 1440\nobs    = downscale(screen, width=1024)  # every pixel loses acuity equally\nanswer = model(obs, question)           # the small toggle is unreadable\nact(answer.point)                       # confident click, lands on nothing\n\n\n# AFTER - fidelity is a budget the loop allocates\nBUDGET = 3                              # at most 3 high-fidelity looks per task\n\nview  = downscale(capture(), width=1024)\nframe = Transform.identity()            # crop coords -> original coords\nrefs  = ocr_and_element_boxes(view)     # anchors so a coarse view can point\n\nfor _ in range(BUDGET):\n    step = model(view, refs, question)\n\n    if step.kind == \"answer\":\n        # never act on crop coordinates directly\n        return step.text, frame.to_original(step.point)\n\n    # step.kind == \"zoom\": the reasoning names WHERE acuity is needed\n    region = step.region                          # in current view coords\n    if area(region) > 0.6 * area(view):\n        return abstain(\"view is not narrowing\")   # no drift, no oscillation\n    if scale_of(region) > native_resolution(region):\n        return abstain(\"would upsample past the stored original\")\n\n    view, t = crop_and_enlarge(capture(), frame.to_original(region))\n    frame   = frame.compose(t)\n    refs    = ocr_and_element_boxes(view)\n\nreturn abstain(\"budget spent; the deciding detail never became legible\")\n\n\n# The same budget on the TIME axis, for a long-horizon screen agent.\n# Every past event stays as compact text; only B of them regain pixels.\nB = 4\nrecency_default = history[-B:]                       # cheap, often fine\nrestored        = top_k(history, k=B,\n                        key=lambda e: predicted_utility(e, question))\n# Scoring the whole history beat pure recency where the answer depended on an\n# older screen (36.8% vs 30.2% across 117 mobile tasks); where it did not, the\n# two were indistinguishable - so measure before paying for the selector.",
+          "verified": false
+        }
+      ]
     }
   ]
 }

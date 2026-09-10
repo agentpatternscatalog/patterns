@@ -1024,6 +1024,48 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "modality-conflict-arbitration",
+      "intent": "The same audio observation handled twice: once by implicit fusion, once by per-channel claims with a declared authority table.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Turn an invisible text-dominance win into a recorded conflict resolved by a per-claim-type authority.",
+          "code": "# BEFORE - implicit fusion, one pass, one answer\nobs   = {\"audio\": wav, \"transcript\": asr(wav)}\nfused = model(\"How does the caller feel?\", obs)\n# transcript says \"that is exactly what I needed, thanks\"\n# prosody is flat and clipped\n# -> returns \"satisfied\" with high confidence; the contradiction is gone\nreturn fused          # ticket closed\n\n\n# AFTER - per-channel claims, detected conflict, declared authority\nCLAIM_SLOTS = [\"literal_content\", \"speaker_affect\", \"visible_objects\"]\n\nAUTHORITY = {                       # declared in advance, per claim type\n    \"literal_content\": \"transcript\",\n    \"speaker_affect\": \"acoustics\",\n    \"visible_objects\": \"frames\",\n    # \"intent_to_churn\": no entry -> not resolvable by any single channel\n}\n\nclaims = {\n    \"transcript\": extract(transcript_only, CLAIM_SLOTS),\n    \"acoustics\":  extract(audio_only, CLAIM_SLOTS),   # NOT conditioned on the transcript\n}\n# claims[\"transcript\"][\"speaker_affect\"] = (\"satisfied\", 0.91, span=\"0:12-0:15\")\n# claims[\"acoustics\"][\"speaker_affect\"]  = (\"annoyed\",   0.78, span=\"0:12-0:15\")\n\nfor slot in CLAIM_SLOTS:\n    values = {ch: c[slot].value for ch, c in claims.items() if slot in c}\n    if len(set(values.values())) <= 1:\n        continue                                   # agreement, nothing to arbitrate\n\n    conflict = record_event(\"modality_conflict\", slot=slot, claims=values)\n    winner   = AUTHORITY.get(slot)\n\n    if winner is None or claims[winner][slot].confidence < MIN_CONF:\n        return escalate(conflict)                  # no declared authority -> abstain\n\n    decide(slot,\n           value      = claims[winner][slot].value,\n           because    = winner,\n           dissent    = {ch: v for ch, v in values.items() if ch != winner},\n           confidence = downgrade(claims[winner][slot].confidence, conflict))\n\n# speaker_affect resolves to \"annoyed\" on acoustic authority,\n# the \"satisfied\" claim is kept as dissent, and the call is routed to a human.",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "checklist-partial-credit-scoring",
+      "intent": "The same benchmark run scored twice: once as a single pass/fail bit, once against the task's own ordered checkpoints.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Add task-specific graded checkpoints beside the official verifier and compare versions on matched pairs.",
+          "code": "# BEFORE — one official verifier, one bit per task\ntask fix_flaky_build:\n  verify(env) -> bool:            # \"does the test suite pass\"\n      return run(\"make test\").exit_code == 0\n\nscore_v1 = mean(verify(run) for run in suite)   # 0.41\nscore_v2 = mean(verify(run) for run in suite)   # 0.42\n# -> \"within noise, the change did nothing\"\n\n\n# AFTER — the task carries its own ordered checkpoints\ntask fix_flaky_build:\n  verify(env) -> bool:            # unchanged, still reported\n      return run(\"make test\").exit_code == 0\n\n  checkpoints:                    # ordered; weight sums to 1.0\n    - id: located_failure   w: 0.2  check: script  # trace shows the failing test named\n    - id: reproduced        w: 0.2  check: script  # failure reproduced at least once\n    - id: root_cause_stated w: 0.2  check: rubric  # judge, short fixed rubric\n    - id: patch_compiles    w: 0.2  check: script  # build exit_code == 0\n    - id: suite_green       w: 0.2  check: script  # == the official verifier\n\ndef graded_score(task, trace, env):\n    total, reached = 0.0, True\n    for cp in task.checkpoints:\n        ok = reached and cp.run_check(trace, env)   # ordering gate:\n        reached = ok                               # no credit for a later\n        total += cp.w if ok else 0.0               # checkpoint without the\n    # a fabricated final report cannot keep credit                earlier ones\n    if not every_claim_backed_by(trace, agent_final_report):\n        total -= CLAIM_PENALTY\n    return clamp(total, 0.0, 1.0)\n\n# report BOTH, never one instead of the other\nreport = {\n    \"pass_rate\":     mean(verify(r.env)            for r in suite),   # 0.42\n    \"graded_mean\":   mean(graded_score(r.task, r.trace, r.env) for r in suite),\n}\n\n# compare versions on matched pairs, not on the averaged delta\npairs = [(a, b) for a, b in zip(runs_v1, runs_v2) if verify(a.env) == verify(b.env)]\nimproved = share(pairs, lambda a, b: graded(b) - graded(a) >  0.10)   # 20.9%\nregressed = share(pairs, lambda a, b: graded(b) - graded(a) < -0.10)  # 18.7%\n# both numbers are invisible to pass_rate alone",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "physical-evidence-progress-gate",
+      "intent": "The same manipulation loop written twice: once advancing the pointer on command emission, once on re-sensed evidence.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Gate the progress pointer on a post-actuation observation, with a cheap body cue deciding when to look.",
+          "code": "# BEFORE - attempted counts as completed\nfor subgoal in task.subgoals:\n    action = policy(observe(), subgoal.text)\n    actuate(action)\n    memory.pointer += 1          # the command was emitted, so book it as done\n\n# a missed grasp on subgoal 2 is now permanent:\n# subgoals 3..n are planned against a mug the robot does not hold\n\n\n# AFTER - the pointer is a write that has to be earned\nfor subgoal in task.subgoals:\n    while not done(subgoal):\n        before = observe()\n        action = policy(before, subgoal.text)\n        cue    = actuate(action)     # returns proprioception: gripper width, contact force\n\n        # 1. cheap trigger: was an interaction even plausible?\n        if not cue.interaction_detected:\n            continue                 # keep acting, pointer unchanged, no look paid for\n\n        # 2. expensive check, only now: what was actually achieved?\n        after   = observe()\n        verdict = verify(before, after, subgoal.text)\n        #   verify = point tracking (did the named object move?)\n        #          + cross-view comparison (did it end where the subgoal says?)\n        #   a small head over frozen backbones; the policy is untouched\n\n        if verdict == POSITIVE:\n            memory.advance(subgoal)  # the only path that writes progress\n            break\n        elif verdict == NEGATIVE:\n            recover(subgoal, cue, after)   # retry, or hand to the replanner\n        else:                              # AMBIGUOUS - occluded, drifted, unclear\n            hold(subgoal)                  # never scored as success\n            if attempts(subgoal) > LIMIT:\n                escalate(subgoal)          # stall loudly rather than advance blindly",
+          "verified": false
+        }
+      ]
     }
   ]
 }

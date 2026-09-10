@@ -1717,6 +1717,62 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "epistemic-fault-domain-quorum",
+      "intent": "The same five-member approval scored two ways: by counting voters, and by counting the distinct upstream roots those voters descend from.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace headcount with a minimum root-fault cut at the admission gate.",
+          "code": "# BEFORE - resilience is credited from the headcount\nvotes = [m.review(change) for m in members]      # 5 members, 5 approvals\nif sum(v.approve for v in votes) >= 4:\n    approve(change, note=\"4-of-5 quorum\")        # reads as 4 independent checks\n\n\n# AFTER - resilience is credited from distinct upstream roots\n\nROOT_KINDS = [\"document\", \"corpus\", \"telemetry\", \"tool_backend\",\n              \"base_model\", \"generative_process\"]\n\ndef exposure(member, run_trace):\n    # built from what actually ran, not from declared config\n    return {\n        \"document\":           run_trace.documents_read(member),\n        \"corpus\":             run_trace.retrieval_index(member),\n        \"telemetry\":          run_trace.feeds_queried(member),\n        \"tool_backend\":       run_trace.tool_endpoints(member),\n        \"base_model\":         resolve_base_model(member),        # not the vendor label\n        \"generative_process\": diversity_estimator.cluster(member),\n    }\n\ndef epistemic_cut(members, run_trace, threshold_votes):\n    # smallest set of root faults that removes enough approvals to flip the outcome\n    maps  = {m: exposure(m, run_trace) for m in members}\n    roots = distinct_roots(maps)                 # dedup across ROOT_KINDS\n    return min_hitting_set(\n        roots,\n        flips=lambda faulty: surviving_approvals(maps, faulty) < threshold_votes,\n    )\n\ncut = epistemic_cut(members, run_trace, threshold_votes=4)\n\nif cut >= DECLARED_MIN_CUT[change.risk_class]:\n    approve(change, credited_resilience=cut, exposure_map=maps)\nelse:\n    # adding a sixth member at a fixed threshold cannot raise the cut\n    reject(change, reason=f\"epistemic cut {cut} < required \"\n                          f\"{DECLARED_MIN_CUT[change.risk_class]}\",\n                   remedy=\"add a distinct corpus / tool backend / model lineage,\"\n                          \" or downgrade the claim\")\n\n# 5 approvals, 4 of them reading one nightly risk report -> cut = 1",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "control-loop-mapped-agent-chain",
+      "intent": "Build the agent team from the control chain, then arbitrate the proposals with the chain's own selector logic instead of a coordinating model.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "One agent per feedback loop, deterministic selector arbitration, fallback to the base controller.",
+          "code": "# The chain diagram is the specification for the team.\n# Each loop becomes exactly one agent; the prompt carries the loop, not the plant.\nchain = [\n  loop(\"temperature\", cv=\"T_air\", mv=\"fan_speed\", setpoint=18.0,\n       limits=(14.0, 22.0), priority=1, selector=\"MAX\"),\n  loop(\"humidity\",    cv=\"RH_air\", mv=\"fan_speed\", setpoint=70.0,\n       limits=(0.0, 80.0),  priority=2, selector=\"MAX\"),\n  loop(\"air_change\",  cv=\"ACH\",    mv=\"fan_speed\", setpoint=4.0,\n       limits=(2.0, 8.0),   priority=3, selector=\"MIN\"),\n]\n\nagents = {L.name: Agent(prompt=render(L, measurements_of=L.cv)) for L in chain}\n\nwhile plant.running:                       # one control sample, e.g. every 5 minutes\n    proposals = {}\n    for L in chain:\n        try:\n            p = agents[L.name].propose(deadline=sample_interval,\n                                       reading=historian.read(L.cv))\n            assert L.limits[0] <= p.u_request <= L.limits[1]   # own loop only\n            proposals[L.name] = p\n        except (Timeout, AssertionError, ParseError):\n            proposals[L.name] = None                            # fallback below\n\n    # ARBITRATION: no model call here. The chain decides, exactly as commissioned.\n    live = {n: p.u_request for n, p in proposals.items() if p is not None}\n    if live:\n        u = apply_selectors(live, chain)      # MIN/MAX between competing CVs\n        u = apply_split_range(u, chain)       # one MV divided between loops\n        u = apply_override_layer(u, chain)    # override paths win outright\n    else:\n        u = base_controller.output()          # nothing usable this sample\n\n    # A dropped proposal never blocks the sample: the regulatory layer holds.\n    for name, p in proposals.items():\n        if p is None:\n            u = base_controller.hold(name, u)\n\n    plant.write(mv=\"fan_speed\", value=u)\n\n    # One record per agent per sample -> auditable trajectory + operator logbook.\n    for L in chain:\n        p = proposals[L.name]\n        log.append({\n            \"t\": now(), \"loop\": L.name,\n            \"measurement\": historian.read(L.cv), \"setpoint\": L.setpoint,\n            \"u_request\": p.u_request if p else None,\n            \"mode\": p.mode if p else \"fallback\",\n            \"rationale\": p.rationale if p else \"no usable proposal\",\n            \"fallback\": p is None,\n            \"u_applied\": u,\n        })\n\n# WRONG: an LLM orchestrator at the arbitration step.\n#   u = supervisor_model.decide(proposals)   # slower tier, no safety property,\n#                                            # and it can overrule the override layer",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "co-tenant-interference-profiling",
+      "intent": "Gate admission of a new controller on measured pairwise degradation rather than on a declaration that its action space does not overlap.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Profile a candidate controller against every incumbent across a condition sweep and decide admission from the resulting interference matrix.",
+          "code": "# The candidate writes only tx_power. An incumbent writes only resource-block\n# allocation. No shared field, so the static check finds nothing. Both move cell\n# coverage through radio physics, so profile the PAIR, not the controller.\n\nCONDITIONS = [\"light_load\", \"congested\", \"high_mobility\", \"mixed_traffic\"]\nMETRICS    = [\"throughput_p50\", \"throughput_p05\", \"latency_p95\", \"handover_fail\"]\nREPEATS    = 20          # runs per configuration, so variance is measurable\nMILD, SEVERE = 0.05, 0.15  # fractional degradation thresholds (policy, not physics)\n\ndef profile_pair(candidate, incumbent, condition):\n    solo_a = sandbox.run([candidate],            condition, repeats=REPEATS)\n    solo_b = sandbox.run([incumbent],            condition, repeats=REPEATS)\n    joint  = sandbox.run([candidate, incumbent], condition, repeats=REPEATS)\n\n    worst = 0.0\n    for m in METRICS:\n        # compare against BOTH solo baselines: either party may be the victim\n        for solo in (solo_a, solo_b):\n            drop = relative_drop(solo[m], joint[m])\n            if significant(solo[m], joint[m]):      # not run-to-run noise\n                worst = max(worst, drop)\n    return {\n        \"severity\":  worst,\n        \"unstable\":  oscillation(joint[\"throughput_p50\"]) > solo_a.oscillation_bound,\n        \"condition\": condition,\n    }\n\ndef admit(candidate):\n    matrix = []\n    for incumbent in registry.active_controllers():   # each already trusted alone\n        for condition in CONDITIONS:                  # coexistence is conditional\n            matrix.append((incumbent, profile_pair(candidate, incumbent, condition)))\n\n    store.save_interference_matrix(candidate, matrix)\n\n    worst_pair, worst = max(matrix, key=lambda e: e[1][\"severity\"])\n    if worst[\"unstable\"] or worst[\"severity\"] >= SEVERE:\n        # name the pair and the condition; a bare refusal cannot be argued with\n        return Refuse(pair=(candidate, worst_pair), condition=worst[\"condition\"],\n                      measured=worst[\"severity\"])\n    if worst[\"severity\"] >= MILD:\n        return AdmitRestricted(candidate,\n                               scope=narrow_actuation(candidate, worst_pair))\n    return Admit(candidate)\n\n# The matrix is a property of the FLEET, not of the candidate.\nregistry.on_change(lambda _: reprofile_all())   # add, update or substrate change",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "actuation-scope-registered-loops",
+      "intent": "Two independently built loops declare what they may actuate; the commissioning gate finds the overlap by set intersection before either one runs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Declare each loop's actuable resources and optimised indicator, intersect the declarations at commissioning, and settle any contested resource before start.",
+          "code": "# BEFORE — two loops, no shared declaration\nloop cooling_saver:\n    on solar_gain > threshold:\n        blinds.set(position=CLOSED)      # nobody recorded that it writes blinds\n\nloop daylight_saver:\n    on desk_lux < target:\n        blinds.set(position=OPEN)        # nor that this one does too\n\n# both are individually correct, both pass their own tests,\n# and on a bright afternoon the motor cycles for hours.\n\n\n# AFTER — every loop declares its actuation scope up front\ndeclare loop cooling_saver:\n    actuates:  [\"blinds.position\", \"chiller.setpoint\"]\n    optimises: \"cooling_kwh\"\n    priority:  2\n    version:   \"2026-09-10\"\n\ndeclare loop daylight_saver:\n    actuates:  [\"blinds.position\", \"lights.dim_level\"]\n    optimises: \"lighting_kwh\"\n    priority:  3\n    version:   \"2026-09-10\"\n\n\n# COMMISSIONING GATE — a set intersection, not an incident\nfunction admit(candidate, registry):\n    for other in registry.all():\n        contested = candidate.actuates & other.actuates\n        if contested is empty:\n            continue\n        # overlap found on paper, before either loop starts\n        arrangement = registry.arrangement_for(contested, candidate, other)\n        if arrangement is none:\n            reject(candidate,\n                   reason = \"undeclared overlap on \" + contested +\n                            \" with loop \" + other.id)\n    registry.add(candidate)\n\n# the operator settles the contested handle explicitly — one of:\narrange contested \"blinds.position\":\n    lease:          holder = cooling_saver, ttl = 15min, renewable\n    # or\n    shared_reward:  minimise(cooling_kwh + lighting_kwh)   # loops cooperate\n    # or\n    priority:       cooling_saver wins; daylight_saver yields and logs the yield\n\n\n# RUNTIME — the declaration is enforced, so it cannot go stale unnoticed\non write(loop, resource, value):\n    if resource not in registry.declaration(loop).actuates:\n        reject(write); alert(\"undeclared actuation\", loop, resource)\n    if resource is contested and not registry.holds_lease(loop, resource):\n        reject(write)\n\n# DIAGNOSIS — attribution becomes a lookup, not an investigation\non indicator_degraded(\"cooling_kwh\"):\n    suspects = registry.loops_that_may_write(\n        resources_influencing(\"cooling_kwh\"))\n    # -> [cooling_saver, daylight_saver]  in one query",
+          "verified": false
+        }
+      ]
     }
   ]
 }
