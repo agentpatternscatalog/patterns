@@ -1,6 +1,6 @@
 # Pattern Index
 
-556 patterns across 14 categories.
+557 patterns across 14 categories.
 
 ## Reasoning
 
@@ -13,6 +13,7 @@
 - [Graph of Thoughts](patterns/graph-of-thoughts.md) *(a.k.a. GoT, DAG Reasoning)* — Model reasoning as an arbitrary DAG so thoughts can be merged, refined, and aggregated across branches.
 - [Large Reasoning Model (LRM) Paradigm](patterns/large-reasoning-model-paradigm.md) *(a.k.a. LRM, Reasoning-Tuned Model, Inference-Time Reasoning)* — Route reasoning-heavy tasks to a reasoning-tuned model that trades inference time for deliberation, rather than to a fast LLM that exhibits premature-closure.
 - [Latent-Space Reasoning](patterns/latent-space-reasoning.md) *(a.k.a. Continuous-Thought Reasoning, Coconut, Latent Chain-of-Thought)* — Let the model reason in continuous hidden-state space instead of decoding each step to text, feeding the last hidden state back as the next input embedding, so one latent step can hold several continuations.
+- [Learnability-Frontier Task Sampling](patterns/learnability-frontier-task-sampling.md) *(a.k.a. Sampling for Learnability, Success-Variance Curriculum, Self-Evolving Curriculum)* — Spend the training rollout budget on tasks the agent currently solves sometimes, dropping tasks that every attempt solves and tasks that no attempt solves because both yield a zero-variance group and no gradient.
 - [Least-to-Most Prompting](patterns/least-to-most.md) *(a.k.a. L2M, Easy-First Decomposition)* — Decompose a hard problem into an ordered list of easier subproblems, then solve them sequentially with each answer feeding the next.
 - [Recursive Language Model](patterns/recursive-language-model.md) *(a.k.a. RLM, Prompt-as-Environment Recursion, Recursive Inference)* — Treat an over-long prompt as an environment the model navigates by code, letting it partition and recursively call itself over snippets, so it answers over inputs far larger than its context window.
 - [ReST-EM](patterns/rest-em.md) *(a.k.a. Reinforced Self-Training, Self-Training Loop)* — Iterate generate → reward-filter → fine-tune to bootstrap reasoning capabilities without human-labelled data.
