@@ -2070,6 +2070,20 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "feasibility-negotiated-intent-contract",
+      "intent": "The same operator goal handled twice: once actuated directly, once audited for feasibility first and answered with one of three replies.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Replace a two-valued actuate-and-see call with a pre-actuation feasibility audit that can accept, counter-offer, or refuse.",
+          "code": "# BEFORE - direct actuation, two outcomes, found out the hard way\ndef apply_intent(text):\n    cfg = model.translate_to_config(text)   # probabilistic, unchecked\n    return ran.apply(cfg)                   # succeeds, or fails mid-write\n\n# apply_intent(\"video latency under 15 ms on cell-7 for 3h\")\n#   -> RAN starts reconfiguring, steals capacity from the\n#      emergency slice, then errors: \"apply failed\"\n#   caller learns nothing about what WAS achievable\n\n\n# AFTER - the goal is audited before anything is written\nintent = {\n  \"expectations\": [\n    {\"object\": \"cell-7/video-slice\", \"target\": {\"latency_ms\": \"<= 15\"},\n     \"context\": {\"window\": \"3h\"}, \"relaxable\": True},\n    {\"object\": \"cell-7/emergency-slice\", \"target\": {\"guaranteed_prb\": \">= 20\"},\n     \"context\": {\"window\": \"3h\"}, \"relaxable\": False},   # a floor, never moved\n  ]\n}\n\nverdict = audit(intent, model=constraints.snapshot())   # deterministic, no actuation\n\nmatch verdict.kind:\n\n    case ACCEPT:\n        contract = verdict.contract          # the expectations, now binding\n        ran.apply(compile(contract))         # only an accepted contract actuates\n        monitor(contract)                    # reopen if delivered values drift\n\n    case COUNTER_OFFER:\n        # names WHICH expectation moved and by HOW MUCH\n        #   relaxed  = \"cell-7/video-slice.latency_ms\"\n        #   offered  = 22        (asked for <= 15)\n        #   blocked_by = \"cell-7/emergency-slice.guaranteed_prb >= 20\"\n        if caller.accepts(verdict.offer):\n            ran.apply(compile(verdict.offer))\n            monitor(verdict.offer)\n        else:\n            caller.restate()                 # replan with a real number in hand\n\n    case REFUSE:\n        # no relaxation inside the caller's bounds is reachable\n        #   binding = \"cell-7.total_prb\"  headroom = 0\n        caller.report(verdict.binding_constraint)   # never a bare \"failed\"\n        # nothing was actuated at any point",
+          "verified": false
+        }
+      ]
     }
   ]
 }

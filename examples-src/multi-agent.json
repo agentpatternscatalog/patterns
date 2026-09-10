@@ -1745,6 +1745,34 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "co-tenant-interference-profiling",
+      "intent": "Gate admission of a new controller on measured pairwise degradation rather than on a declaration that its action space does not overlap.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Profile a candidate controller against every incumbent across a condition sweep and decide admission from the resulting interference matrix.",
+          "code": "# The candidate writes only tx_power. An incumbent writes only resource-block\n# allocation. No shared field, so the static check finds nothing. Both move cell\n# coverage through radio physics, so profile the PAIR, not the controller.\n\nCONDITIONS = [\"light_load\", \"congested\", \"high_mobility\", \"mixed_traffic\"]\nMETRICS    = [\"throughput_p50\", \"throughput_p05\", \"latency_p95\", \"handover_fail\"]\nREPEATS    = 20          # runs per configuration, so variance is measurable\nMILD, SEVERE = 0.05, 0.15  # fractional degradation thresholds (policy, not physics)\n\ndef profile_pair(candidate, incumbent, condition):\n    solo_a = sandbox.run([candidate],            condition, repeats=REPEATS)\n    solo_b = sandbox.run([incumbent],            condition, repeats=REPEATS)\n    joint  = sandbox.run([candidate, incumbent], condition, repeats=REPEATS)\n\n    worst = 0.0\n    for m in METRICS:\n        # compare against BOTH solo baselines: either party may be the victim\n        for solo in (solo_a, solo_b):\n            drop = relative_drop(solo[m], joint[m])\n            if significant(solo[m], joint[m]):      # not run-to-run noise\n                worst = max(worst, drop)\n    return {\n        \"severity\":  worst,\n        \"unstable\":  oscillation(joint[\"throughput_p50\"]) > solo_a.oscillation_bound,\n        \"condition\": condition,\n    }\n\ndef admit(candidate):\n    matrix = []\n    for incumbent in registry.active_controllers():   # each already trusted alone\n        for condition in CONDITIONS:                  # coexistence is conditional\n            matrix.append((incumbent, profile_pair(candidate, incumbent, condition)))\n\n    store.save_interference_matrix(candidate, matrix)\n\n    worst_pair, worst = max(matrix, key=lambda e: e[1][\"severity\"])\n    if worst[\"unstable\"] or worst[\"severity\"] >= SEVERE:\n        # name the pair and the condition; a bare refusal cannot be argued with\n        return Refuse(pair=(candidate, worst_pair), condition=worst[\"condition\"],\n                      measured=worst[\"severity\"])\n    if worst[\"severity\"] >= MILD:\n        return AdmitRestricted(candidate,\n                               scope=narrow_actuation(candidate, worst_pair))\n    return Admit(candidate)\n\n# The matrix is a property of the FLEET, not of the candidate.\nregistry.on_change(lambda _: reprofile_all())   # add, update or substrate change",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "actuation-scope-registered-loops",
+      "intent": "Two independently built loops declare what they may actuate; the commissioning gate finds the overlap by set intersection before either one runs.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Declare each loop's actuable resources and optimised indicator, intersect the declarations at commissioning, and settle any contested resource before start.",
+          "code": "# BEFORE — two loops, no shared declaration\nloop cooling_saver:\n    on solar_gain > threshold:\n        blinds.set(position=CLOSED)      # nobody recorded that it writes blinds\n\nloop daylight_saver:\n    on desk_lux < target:\n        blinds.set(position=OPEN)        # nor that this one does too\n\n# both are individually correct, both pass their own tests,\n# and on a bright afternoon the motor cycles for hours.\n\n\n# AFTER — every loop declares its actuation scope up front\ndeclare loop cooling_saver:\n    actuates:  [\"blinds.position\", \"chiller.setpoint\"]\n    optimises: \"cooling_kwh\"\n    priority:  2\n    version:   \"2026-09-10\"\n\ndeclare loop daylight_saver:\n    actuates:  [\"blinds.position\", \"lights.dim_level\"]\n    optimises: \"lighting_kwh\"\n    priority:  3\n    version:   \"2026-09-10\"\n\n\n# COMMISSIONING GATE — a set intersection, not an incident\nfunction admit(candidate, registry):\n    for other in registry.all():\n        contested = candidate.actuates & other.actuates\n        if contested is empty:\n            continue\n        # overlap found on paper, before either loop starts\n        arrangement = registry.arrangement_for(contested, candidate, other)\n        if arrangement is none:\n            reject(candidate,\n                   reason = \"undeclared overlap on \" + contested +\n                            \" with loop \" + other.id)\n    registry.add(candidate)\n\n# the operator settles the contested handle explicitly — one of:\narrange contested \"blinds.position\":\n    lease:          holder = cooling_saver, ttl = 15min, renewable\n    # or\n    shared_reward:  minimise(cooling_kwh + lighting_kwh)   # loops cooperate\n    # or\n    priority:       cooling_saver wins; daylight_saver yields and logs the yield\n\n\n# RUNTIME — the declaration is enforced, so it cannot go stale unnoticed\non write(loop, resource, value):\n    if resource not in registry.declaration(loop).actuates:\n        reject(write); alert(\"undeclared actuation\", loop, resource)\n    if resource is contested and not registry.holds_lease(loop, resource):\n        reject(write)\n\n# DIAGNOSIS — attribution becomes a lookup, not an investigation\non indicator_degraded(\"cooling_kwh\"):\n    suspects = registry.loops_that_may_write(\n        resources_influencing(\"cooling_kwh\"))\n    # -> [cooling_saver, daylight_saver]  in one query",
+          "verified": false
+        }
+      ]
     }
   ]
 }
