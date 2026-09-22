@@ -861,6 +861,34 @@
           "verified": false
         }
       ]
+    },
+    {
+      "pattern_id": "advisor-consult",
+      "intent": "Give a cheaper executor a single consult tool backed by a stronger model that reads the full transcript and returns advice only.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Anthropic Python SDK",
+          "language": "python",
+          "intent": "Attach the server-side advisor tool to a Sonnet executor, with a consult cap and one early nudge for executors that under-ask.",
+          "code": "import anthropic\n\nclient = anthropic.Anthropic()\n\nADVISOR = {\n    \"type\": \"advisor_20260301\",\n    \"name\": \"advisor\",\n    \"model\": \"claude-opus-4-6\",   # stronger model; reads the transcript, has no tools\n    \"max_uses\": 3,                 # consult cap per request\n}\n\nmessages = [{\"role\": \"user\", \"content\": task}]\nturn = 0\nwhile True:\n    resp = client.beta.messages.create(\n        model=\"claude-sonnet-4-6\",   # executor: owns the loop and every tool\n        max_tokens=4096,\n        betas=[\"advisor-tool-2026-03-01\"],\n        tools=[ADVISOR, *my_tools],\n        messages=messages,\n    )\n    messages.append({\"role\": \"assistant\", \"content\": resp.content})\n    if resp.stop_reason == \"pause_turn\":     # advisor still running server-side\n        continue\n    if resp.stop_reason != \"tool_use\":\n        break\n    messages.append({\"role\": \"user\", \"content\": run_my_tools(resp.content)})\n    turn += 1\n    if turn == 2 and not called_advisor(messages):\n        messages.append({\"role\": \"user\", \"content\":\n            \"Consult the advisor now before committing to an approach.\"})\n\n# usage reports advisor tokens separately from executor tokens",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "pattern_id": "semantic-decision-node",
+      "intent": "A branch condition asked of a decision model as a typed question, with the threshold and the branch kept in code.",
+      "examples": [
+        {
+          "framework": "pseudo",
+          "framework_label": "Pseudo-code",
+          "language": "pseudo",
+          "intent": "Two orthogonal questions over the same state, thresholds in one reviewed table, and an abstain branch.",
+          "code": "# questions.py - reviewed together with the thresholds\nQUESTIONS = {\n    \"risky\": YesNo(\"Does this request ask for an irreversible or destructive action?\"),\n    \"tool\":  Choice(\"Which tool fits the next step?\", options=[\"db\", \"web\", \"code\"]),\n}\nTHRESHOLDS = {  # keyed by the model version that answered\n    \"jev-1.13.0\": {\"risky_hi\": 0.80, \"risky_lo\": 0.30, \"tool_min_conf\": 0.60},\n}\n\ndef next_step(state):\n    answers = decision_model.ask(state, QUESTIONS)   # evaluated independently\n    t = THRESHOLDS[answers.model_version]\n    log_decision(state.id, answers, t)\n\n    p = answers[\"risky\"].probability\n    if p >= t[\"risky_hi\"]:\n        return human_gate(state)\n    if p > t[\"risky_lo\"]:\n        return abstain(state, reason=\"risk uncertain\")   # never act on the middle\n\n    tool = answers[\"tool\"]\n    if tool.confidence < t[\"tool_min_conf\"]:\n        return abstain(state, reason=\"tool uncertain\")\n    return run_tool(tool.choice, state)                # code takes the branch\n\n# the model never names a branch; it only answers the declared questions",
+          "verified": false
+        }
+      ]
     }
   ]
 }

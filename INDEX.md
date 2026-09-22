@@ -1,6 +1,6 @@
 # Pattern Index
 
-562 patterns across 14 categories.
+564 patterns across 14 categories.
 
 ## Reasoning
 
@@ -356,6 +356,7 @@
 
 ## Routing & Composition
 
+- [Advisor Consult](patterns/advisor-consult.md) *(a.k.a. Advisor Strategy, Advisor Tool, Executor-Advisor Split, Strong-Model Consult)* — Let a lower-cost executor model run the whole task and, at decision points it chooses, consult a stronger advisor model that reads the full transcript and returns guidance only, never actions.
 - [Agent Persona Profile](patterns/agent-persona-profile.md) *(a.k.a. Agent Profile Object, Persona Configuration, Nexus-Style Profile)* — Treat agent identity as a structured profile object — persona, primary motivator, allowed actions, knowledge bindings — rather than a free-form role sentence in the system prompt.
 - [Agent-to-Rule Distillation](patterns/agent-to-rule-distillation.md) *(a.k.a. Recurring-Solution Crystallization, Dynamic-to-Deterministic Promotion, Rule Harvesting from Agent Traces)* — Watch production traces for problems the agent solves the same way repeatedly, and promote each recurring solution into a deterministic rule outside the agent, so the stochastic surface shrinks as the system matures.
 - [Automatic Workflow Search](patterns/automatic-workflow-search.md) *(a.k.a. AFlow, Workflow Synthesis, MCTS over Agent Graphs)* — Treat the agent's workflow (a graph of LLM-invoking nodes) as an artefact to search; use Monte Carlo Tree Search guided by an eval benchmark to discover the best workflow, then deploy it.
@@ -378,6 +379,7 @@
 - [Provider Fallback](patterns/provider-fallback.md) *(a.k.a. Mid-Request Failover, Cross-Provider Recovery)* — When one provider's API errors mid-stream, transparently switch to another provider while preserving state.
 - [Provider-String Routing](patterns/provider-string-routing.md) *(a.k.a. Provider/Model String, Unified Model Identifier, Single-String Model Selection)* — Select the model and provider for a request through a single namespaced string (`provider/model`) backed by env-var credentials, so the caller specifies what to run with one parameter rather than a typed provider object.
 - [Routing](patterns/routing.md) *(a.k.a. Mode Selector, Intent Classifier, Task Router)* — Classify an incoming request and dispatch it to the specialist (lane / agent / model) best suited to handle it.
+- [Semantic Decision Node](patterns/semantic-decision-node.md) *(a.k.a. Bounded Semantic Decision, Probabilistic Branch Condition, Smart If, System One Decision Call, Decision Model in the Harness)* — Place a small decision model at a branch point in harness-owned control flow, have it answer one declared question as a typed probability, and let code apply the threshold and take the branch.
 - [SLA-Aware Triage Scoring](patterns/sla-aware-triage-scoring.md) *(a.k.a. SLA-Deadline-Aware Triage Scoring, Deadline-Aware Ticket Prioritisation, Business-Impact Triage Score)* — Order the work queue by a single fused score that blends each ticket's time-to-SLA-breach, the requester's entitlement tier, and sentiment trajectory, and surface items predicted to breach before they do.
 - [Trust and Reputation Routing](patterns/trust-and-reputation-routing.md) *(a.k.a. Reputation-Based Agent Selection, Trust-Weighted Routing)* — Maintain a per-agent reputation score updated from outcome quality and peer feedback, and route new tasks preferentially to high-reputation agents.
 
