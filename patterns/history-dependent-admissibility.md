@@ -137,7 +137,7 @@ A sensitive action cannot be granted on its request-level preconditions alone; i
 - **[FraudBench (policy-grounded banking agent benchmark)](https://arxiv.org/abs/2608.18136)** _pure-future_ — States the property directly: single-control tasks satisfy every precondition but one, and adaptive attacks make a later, locally valid request unsafe because of an earlier probe, admission, or failed attempt. The benchmark exists because prior suites do not test whether an agent acts safely when a caller manipulates identity, authorization and trust across a conversation.
 - **[Cross-model benchmark of profit-seeking direct prompt injection in customer service](https://arxiv.org/abs/2512.24415)** _pure-future_ — Covers 10 service domains and 100 realistic attack scripts in five technique families, and reports that a small fraction of users can induce unauthorized concessions, shifting costs to others and eroding trust in agentic workflows.
 - **[tau-bench (tool-agent-user interaction benchmark)](https://arxiv.org/abs/2406.12045)** _pure-future_ — Judges policy compliance across a whole multi-turn conversation with a simulated user in retail and airline domains rather than per request, which is the evaluation surface this pattern needs. Its users are not adversarial, so it supplies conversation-level measurement without the attacker model.
-- **[Pindrop Protect](https://www.pindrop.com/products/pindrop-protect)** _available_ — Contact-centre fraud platform that scores call risk continuously and surfaces probing activity inside the self-service menu so that high-risk calls are contained before they reach an agent. A pre-agent precedent for letting earlier events in a session change what a later request is allowed to do.
+- **[Pindrop Protect](https://www.pindrop.com/products/protect)** _available_ — Contact-centre fraud platform that scores call risk continuously and surfaces probing activity inside the self-service menu so that high-risk calls are contained before they reach an agent. A pre-agent precedent for letting earlier events in a session change what a later request is allowed to do.
 
 ## Related patterns
 
@@ -155,4 +155,4 @@ A sensitive action cannot be granted on its request-level preconditions alone; i
 - [FraudBench: Stress-Testing Policy-Grounded Banking Agents Against Adaptive Fraud](https://arxiv.org/abs/2608.18136) — 2026
 - [Language Model Agents Under Attack: A Cross Model-Benchmark of Profit-Seeking Behaviors in Customer Service](https://arxiv.org/abs/2512.24415) — 2025
 - [tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045) — Shunyu Yao, Noah Shinn, Pedram Razavi, Karthik Narasimhan, 2024
-- [Pindrop Protect — contact-centre fraud risk assessment](https://www.pindrop.com/products/pindrop-protect)
+- [Pindrop Protect — contact-centre fraud risk assessment](https://www.pindrop.com/products/protect)

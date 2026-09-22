@@ -530,6 +530,16 @@
           "pattern": "sla-aware-triage-scoring",
           "relation": "alternative-to",
           "note": "Both pick a routing key, but complexity-based-routing keys on estimated request difficulty to choose a model tier; here the key is a deadline-x-entitlement-x-sentiment score that orders a human work queue."
+        },
+        {
+          "pattern": "advisor-consult",
+          "relation": "alternative-to",
+          "note": "A complexity classifier must predict difficulty from the request alone; the advisor defers that call to the executor, which sees difficulty as it arises."
+        },
+        {
+          "pattern": "semantic-decision-node",
+          "relation": "complements",
+          "note": "A complexity classifier is one semantic decision node; benchmarks of decision models show this particular question, which asks the model to predict another model's failures, is among the hardest to answer from local text."
         }
       ],
       "references": [
@@ -1139,6 +1149,11 @@
           "pattern": "solver-ready-formulation-handoff",
           "relation": "complements",
           "note": "That picks a symbolic or a neural path per query; here both always run, in a fixed producer-and-decider order, with the model structurally barred from the decision."
+        },
+        {
+          "pattern": "semantic-decision-node",
+          "relation": "complements",
+          "note": "Symbolic rules handle the conditions that can be written down; semantic decision nodes handle the rest inside the same code-owned structure."
         }
       ],
       "references": [
@@ -1461,6 +1476,11 @@
         {
           "pattern": "large-reasoning-model-paradigm",
           "relation": "complements"
+        },
+        {
+          "pattern": "advisor-consult",
+          "relation": "complements",
+          "note": "Routing picks one model per request before the run; the advisor keeps a single cheap model on the whole run and buys stronger judgement only at the turns that need it. The two stack: route easy requests to a small model with no advisor, hard ones to a mid-tier executor with one."
         }
       ],
       "references": [
@@ -2543,6 +2563,11 @@
           "pattern": "production-failure-triage-loop",
           "relation": "used-by",
           "note": "Reuses classify-then-dispatch, but applied to failures feeding remediation rather than to incoming user requests."
+        },
+        {
+          "pattern": "semantic-decision-node",
+          "relation": "specialises",
+          "note": "Routing classifies an incoming request once and dispatches it to a lane; a semantic decision node is the same mechanism placed at any branch point inside the harness, with the probability exposed and the threshold held in code."
         }
       ],
       "references": [
@@ -3436,6 +3461,458 @@
         "Rule age and review cadence — how stale the promoted inventory is allowed to get"
       ],
       "last_updated": "2026-07-16"
+    },
+    {
+      "id": "advisor-consult",
+      "name": "Advisor Consult",
+      "aliases": [
+        "Advisor Strategy",
+        "Advisor Tool",
+        "Executor-Advisor Split",
+        "Strong-Model Consult"
+      ],
+      "category": "routing-composition",
+      "intent": "Let a lower-cost executor model run the whole task and, at decision points it chooses, consult a stronger advisor model that reads the full transcript and returns guidance only, never actions.",
+      "context": "A long agentic task such as a refactor, a browsing session or a multi-step research run consists mostly of mechanical turns: read a file, call a tool, apply an edit. A few turns decide the outcome, for example choosing an approach, diagnosing an error that keeps coming back, or judging whether the work is actually finished. A smaller model handles the mechanical turns well and cheaply, while a frontier model handles the decisive turns better but costs several times more per token.",
+      "problem": "Running the strongest model on every turn pays frontier prices for work that a smaller model does just as well. Routing each request to a model tier up front does not help, because the hard moments appear in the middle of a run and cannot be predicted from the request. Delegating a hard sub-task to a stronger sub-agent hands over control and forces the parent to summarise its context into a task string, losing the tool results and failed attempts that make the decision hard. Planning once with a strong model and executing with a weak one fixes the plan before the executor has met the problems the plan did not foresee.",
+      "forces": [
+        "Most turns in a long run are routine, so token spend is dominated by turns that do not need the strongest model.",
+        "The turns that decide the outcome cannot be identified before the run starts; they surface as the executor meets the task.",
+        "A useful second opinion needs the evidence the executor has gathered, including failed attempts, not a summary the executor chose to write.",
+        "The party that knows when it is stuck is the executor, yet a weaker model is also the one least able to recognise its own blind spots.",
+        "Advice that the executor must obey can be wrong about local facts it never observed, while advice it may ignore is only as useful as the executor's willingness to act on it."
+      ],
+      "therefore": "Therefore: keep the cheaper model in control of the whole run and give it a single consult tool that hands the stronger model a read-only view of the full transcript, returns a plan, a correction or a stop signal as text, and puts control straight back in the executor's hands.",
+      "solution": "Expose the advisor to the executor as one tool with no meaningful arguments. When the executor calls it, the harness, not the executor, assembles the advisor's input from the full transcript: the system prompt, tool definitions, prior tool calls and their results. The advisor runs as a separate inference pass under its own instructions, with no tools of its own, and returns guidance text such as a plan, a course correction or a recommendation to stop. That text is inserted as the tool result and the executor continues in the same request. The executor decides when to consult; typical moments are before committing to an approach, when an error recurs, and before declaring the task done. Because the advice is guidance rather than a command, the executor still checks it against what it has observed and surfaces a conflict when a recommended step fails or contradicts the files. A per-request cap on consultations bounds cost, and advisor tokens are metered separately from executor tokens so the trade-off stays visible. Where the executor under-consults, a single nudge early in the run, or a forced call at a known decision point, restores the call rate.",
+      "structure": "Executor loop (cheap model, owns tools and user-facing output) -> advisor() tool call at a self-chosen decision point -> harness builds advisor input from the full transcript -> advisor model (no tools, no output to the user) returns plan | correction | stop -> tool result inserted -> executor resumes. Cap: max consults per request. Metering: advisor tokens reported separately.",
+      "consequences": {
+        "benefits": [
+          "Quality on hard tasks rises toward that of the stronger model while most tokens are billed at the executor's rate.",
+          "The advisor judges from the actual evidence, including failed attempts, because it reads the transcript rather than a hand-written brief.",
+          "Control never leaves the executor, so there is no handoff to coordinate, no second agent loop to debug and no merge of two conversations.",
+          "Adding or removing the advisor is a one-line change to the tool list, which makes it cheap to run the same workload with and without it."
+        ],
+        "liabilities": [
+          "Each consult re-reads the whole transcript at the advisor's input price, so late consults on a long run are the most expensive ones.",
+          "The weaker model decides when to ask, and it is the model least able to notice what it does not know, so under-consulting is the typical failure.",
+          "The executor's stream pauses while the advisor runs, adding latency at exactly the moments the run was already slow.",
+          "The gain shrinks as the executor's own capability approaches the advisor's, so the pairing must be re-measured on every model upgrade."
+        ]
+      },
+      "failure_modes": [
+        "The executor never calls the advisor on a task it is quietly getting wrong, because it does not recognise the decision as hard.",
+        "A nudge fires before the executor has read the problem, so the advisor is consulted on an empty transcript and returns generic advice.",
+        "The executor treats the advice as binding and follows a recommended step even after the tool output shows the step failed.",
+        "The executor ignores a correct stop signal and keeps working, so the consult cost is paid and the benefit is lost.",
+        "No per-request cap is set, and an executor that consults on every turn costs more than running the stronger model throughout."
+      ],
+      "constrains": "The advisor must not call tools, write to the user or take over the run: it only reads the executor's transcript and returns guidance text, and control returns to the executor after every consult, at most a capped number of times per request.",
+      "known_uses": [
+        {
+          "system": "Claude API advisor tool (advisor_20260301)",
+          "status": "available",
+          "note": "Server-side tool: the executor emits a call with an empty input, the server runs the advisor model over the executor's full transcript without tools, and the advice returns as a tool result in the same request; max_uses caps consults and advisor tokens are reported separately.",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool"
+        },
+        {
+          "system": "Claude Code /advisor",
+          "status": "available",
+          "note": "Pairs the main model with a stronger advisor that Claude consults before committing to an approach, when an error recurs, or before declaring a task done; the advisor receives the full conversation, including every tool call and result.",
+          "url": "https://code.claude.com/docs/en/advisor"
+        },
+        {
+          "system": "Agno",
+          "status": "available",
+          "note": "Documents an agent configured with a Claude Sonnet executor and an advisor_20260301 tool pointing at an Opus advisor model.",
+          "url": "https://docs.agno.com/examples/models/anthropic/advisor"
+        },
+        {
+          "system": "COTA (Comparison-Only Tiny Advisor)",
+          "status": "pure-future",
+          "note": "Research variant with the capability gap reversed: a tiny comparator advises a larger actor at runtime with non-binding alternatives and the actor replans, showing the pattern rests on who holds control rather than on which model is larger.",
+          "url": "https://arxiv.org/abs/2608.21027"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "agent-as-tool-embedding",
+          "relation": "alternative-to",
+          "note": "Both expose a second model as a tool, but with opposite boundaries: an embedded sub-agent runs its own loop and tools and hides its turns from the parent, while an advisor has no loop or tools and reads the caller's full transcript. Embedding delegates work; the advisor lends judgement."
+        },
+        {
+          "pattern": "plan-and-execute",
+          "relation": "alternative-to",
+          "note": "Plan-and-execute uses the strong model once, before the run; the advisor is consulted in the middle of the run, when the executor has met the problems the plan did not foresee."
+        },
+        {
+          "pattern": "multi-model-routing",
+          "relation": "complements",
+          "note": "Routing picks one model per request before the run; the advisor keeps a single cheap model on the whole run and buys stronger judgement only at the turns that need it. The two stack: route easy requests to a small model with no advisor, hard ones to a mid-tier executor with one."
+        },
+        {
+          "pattern": "complexity-based-routing",
+          "relation": "alternative-to",
+          "note": "A complexity classifier must predict difficulty from the request alone; the advisor defers that call to the executor, which sees difficulty as it arises."
+        },
+        {
+          "pattern": "top-tier-model-for-everything",
+          "relation": "complements",
+          "note": "The advisor is a direct remedy for this anti-pattern: frontier-model judgement is kept for decision points instead of being paid for on every turn."
+        },
+        {
+          "pattern": "evaluator-optimizer",
+          "relation": "complements",
+          "note": "An evaluator critiques on a fixed loop regardless of need; the advisor speaks only when the executor asks, and can be asked for a completion check before the executor declares the task done."
+        },
+        {
+          "pattern": "degenerate-output-detection",
+          "relation": "complements",
+          "note": "That pattern can escalate the output itself to a stronger model; the advisor never produces the output, it only changes what the executor does next."
+        },
+        {
+          "pattern": "adaptive-compute-allocation",
+          "relation": "specialises",
+          "note": "A specific way to vary compute per task: the extra compute is a stronger model's read of the transcript, spent at points the executor selects."
+        },
+        {
+          "pattern": "step-budget",
+          "relation": "complements",
+          "note": "A per-request consult cap is a step budget for the advisor, bounding the one cost the executor controls."
+        },
+        {
+          "pattern": "reflexive-metacognitive-agent",
+          "relation": "complements",
+          "note": "The advisor's value depends on the executor knowing when it is out of its depth; an explicit self-model of competence gives it a better trigger than a nudge."
+        }
+      ],
+      "references": [
+        {
+          "type": "blog",
+          "title": "The advisor strategy: Give Sonnet an intelligence boost with Opus",
+          "year": 2026,
+          "url": "https://claude.com/blog/the-advisor-strategy"
+        },
+        {
+          "type": "doc",
+          "title": "Advisor tool - Claude Platform Docs",
+          "year": 2026,
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool"
+        },
+        {
+          "type": "doc",
+          "title": "Escalate hard decisions with the advisor tool - Claude Code Docs",
+          "year": 2026,
+          "url": "https://code.claude.com/docs/en/advisor"
+        },
+        {
+          "type": "paper",
+          "title": "Don't Solve, Just Compare: Tiny Advisors for Runtime Intervention in LLM Agents",
+          "authors": "Yanze Jiang, Mingxuan Li, Yuhao Wang, Shengfang Zhai, Jiaheng Zhang",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.21027"
+        },
+        {
+          "type": "paper",
+          "title": "Learning to Decode Collaboratively with Multiple Language Models",
+          "authors": "Shannon Zejiang Shen, Hunter Lang, Bailin Wang, Yoon Kim, et al.",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2403.03870"
+        },
+        {
+          "type": "paper",
+          "title": "FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance",
+          "authors": "Lingjiao Chen, Matei Zaharia, James Zou",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.05176"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "cost",
+        "model-tiers",
+        "escalation",
+        "multi-model",
+        "advisor",
+        "anthropic"
+      ],
+      "example_scenario": "A coding agent running on a mid-size model is fixing a flaky test in a large repository. Most of its work is reading files and running the test suite. After the same timeout error appears three times, it asks the advisor, which reads everything the agent has tried and points out that the test depends on a shared fixture the agent never looked at. The agent opens the fixture, fixes it, and finishes without the stronger model ever touching a file.",
+      "applicability": {
+        "use_when": [
+          "Long agentic runs where most turns are mechanical but a few decisions determine the outcome.",
+          "A cheaper model handles the routine turns well, and a clearly stronger model is available for the same provider or harness.",
+          "The hard moments cannot be predicted from the request, so up-front routing would either overpay or underperform.",
+          "The second opinion needs the gathered evidence, including failed attempts, not a summary."
+        ],
+        "do_not_use_when": [
+          "Tasks are short, so there is little to plan and the consult overhead outweighs its benefit.",
+          "Every turn needs the strongest model, in which case switching the main model is simpler.",
+          "The executor is already close to the advisor in capability, so consults add cost with little gain.",
+          "The transcript cannot be shared with a second model for data-handling reasons.",
+          "The hard part is a well-bounded sub-task that should run in its own loop with its own tools, which is agent-as-tool embedding."
+        ]
+      },
+      "diagram": {
+        "type": "sequence",
+        "mermaid": "sequenceDiagram\n  participant App as Application\n  participant E as Executor (cheaper model)\n  participant H as Harness\n  participant A as Advisor (stronger model)\n  App->>E: Task with tools + advisor tool\n  loop Routine turns\n    E->>E: Tool calls and edits\n  end\n  E->>H: advisor() at a decision point\n  H->>A: Full transcript, read-only\n  Note over A: No tools, no user output\n  A-->>H: Plan, correction, or stop\n  H-->>E: Advice as tool result\n  E->>E: Check advice against evidence, continue\n  E-->>App: Final answer",
+        "caption": "The executor keeps control of the run and every tool; the advisor only reads the transcript at a moment the executor chooses and returns text."
+      },
+      "components": [
+        "Executor model — the cheaper model that owns the loop, the tools and all user-facing output",
+        "Advisor tool — a single tool with no meaningful arguments whose call signals that a consult is wanted now",
+        "Transcript assembler — the harness step that gives the advisor the full conversation, so the executor cannot filter what the advisor sees",
+        "Advisor model — the stronger model that reads the transcript without tools and returns a plan, a correction or a stop signal",
+        "Consult cap — a per-request limit after which consult calls return an error and the executor carries on alone",
+        "Split metering — separate token accounting for executor and advisor so the cost trade-off stays measurable"
+      ],
+      "tools": [
+        "Claude API advisor tool — server-side implementation with max_uses, advisor-side prompt caching and separately reported advisor usage",
+        "Claude Code /advisor — command, setting and flag that attach an advisor model to an interactive or headless coding session",
+        "Agent frameworks with provider tool pass-through — such as Agno, which can declare the advisor tool on an agent",
+        "Tracing and cost dashboards — show when consults happened and what they cost relative to the executor's spend"
+      ],
+      "evaluation_metrics": [
+        "Task pass rate with and without the advisor — the quality the consult buys on the same workload",
+        "Cost per completed task — executor plus advisor spend, compared with running the stronger model throughout",
+        "Consults per task — too few suggests under-asking, too many suggests the executor tier is too weak",
+        "Advice uptake rate — how often the executor's next actions follow the advice, and how often following it helped",
+        "Unconsulted failure rate — failed runs in which the executor never asked, which measures the self-triggering gap",
+        "Consult latency — pause added to the run per consult"
+      ],
+      "last_updated": "2026-09-22"
+    },
+    {
+      "id": "semantic-decision-node",
+      "name": "Semantic Decision Node",
+      "aliases": [
+        "Bounded Semantic Decision",
+        "Probabilistic Branch Condition",
+        "Smart If",
+        "System One Decision Call",
+        "Decision Model in the Harness"
+      ],
+      "category": "routing-composition",
+      "intent": "Place a small decision model at a branch point in harness-owned control flow, have it answer one declared question as a typed probability, and let code apply the threshold and take the branch.",
+      "context": "An agent harness is full of narrow judgements that code cannot write as rules: is this request risky, is this tool output an injection attempt, which of four tools fits this step, is the draft on topic. Each one decides which path the run takes next. The control flow around those judgements, meaning the tree, the graph or the state machine, is already explicit code that the team reviews and versions. Since 2026 there are models built only for this job; the San Francisco lab TypeSafe, which came out of stealth in September 2026, ships Jev as a 'System One' model that returns typed choices, scores and yes/no probabilities instead of text.",
+      "problem": "When a general-purpose LLM is asked to make these branch decisions, the decision and the branch fuse into one generated answer. The model may name an option outside the allowed set, phrase its answer so that parsing it is itself a judgement, or state high certainty on a coin-flip. The threshold that decides when to act, when to ask a human and when to fall back sits implicitly inside the prompt, where it cannot be reviewed, tuned per model version or audited afterwards. The call also costs frontier-model latency and price for a question whose answer is a single bit, and in a harness that asks dozens of such questions per turn that cost dominates. Writing the conditions as hard-coded rules instead fails on exactly the fuzzy inputs that made a model necessary.",
+      "forces": [
+        "The branch structure should be explicit, reviewable code, yet some branch conditions are semantic and cannot be written as rules.",
+        "A decision is only actionable if its answer is guaranteed to be one of the declared options, not a sentence that has to be interpreted.",
+        "A probability is only useful for thresholding if it is calibrated; a confident score that is wrong at the same rate as an unsure one is worse than no score.",
+        "Harnesses ask many narrow questions per turn, so each decision has to cost milliseconds and fractions of a cent rather than a frontier-model call.",
+        "One question that bundles several criteria is harder to calibrate and debug than several independent questions whose answers code combines."
+      ],
+      "therefore": "Therefore: keep the tree or graph in code, and at each fuzzy node ask a small decision model exactly one declared question over the current state, receive a typed answer with a probability or distribution, and let code compare it against a versioned threshold that picks the branch, including an abstain branch for the uncertain middle.",
+      "solution": "Declare each branch condition as a question with a fixed answer type: a yes/no probability, a choice from a closed set with a distribution over the options, or a score on declared levels. At the node, send the current state and the question to a decision model whose output is constrained to that type, so an answer outside the schema cannot occur. The model returns the answer, the probability or distribution, and a confidence; it never names the next step. Code holds the thresholds, kept in one reviewed file next to the questions and keyed by the model version that answered, and maps the result onto the branches: act above a high threshold, route to a human or a fallback in the uncertain band, take the other branch below a low one. A compound judgement is split into orthogonal questions answered independently over the same state, so one answer never becomes context for another, and code composes them. Every decision is logged with the question, the answer, the probability, the threshold and the model version, so a wrong branch can be traced to a wrong answer or a wrong threshold. Thresholds are tuned on labelled traffic as coverage-against-accuracy curves rather than set once by intuition.",
+      "structure": "Harness control flow (tree / graph / state machine, in code) -> fuzzy node -> decision model(state, declared question) -> typed answer {choice | score | yes-probability} + confidence -> code threshold (versioned, per model version) -> branch A | abstain -> human or fallback | branch B -> decision log.",
+      "consequences": {
+        "benefits": [
+          "The control flow stays readable code; only the branch conditions that need judgement are delegated, and each one is a named, testable question.",
+          "Typed, schema-constrained answers remove the parsing step and the out-of-set answer as failure classes.",
+          "Moving thresholds into code makes the act, ask and fall-back boundaries reviewable, tunable and auditable, and lets them change when the model version changes.",
+          "A small dedicated decision model answers in around a hundred milliseconds at a small fraction of frontier cost, so a harness can afford many decisions per turn.",
+          "Orthogonal questions composed in code are easier to calibrate and debug than one bundled prompt."
+        ],
+        "liabilities": [
+          "The pattern is only as good as the calibration: a probability that is not calibrated on this traffic turns every threshold into a guess.",
+          "A high confidence means the model applied the question as written, including a badly written question, so question design becomes a new source of defects.",
+          "Decision models built for local text judgements do poorly on questions that require predicting another model's behaviour or reasoning across many steps, and the harness has no signal that it asked such a question.",
+          "Each question and threshold pair is a new artefact to version, test and re-tune on every model upgrade."
+        ]
+      },
+      "failure_modes": [
+        "A probability is wired directly to a side effect with no abstain band, so a 0.51 answer performs an irreversible action.",
+        "Low scores are treated as safe: the bottom bucket of an injection or risk classifier still contains real positives, and the harness passes them through unchecked.",
+        "Thresholds tuned for one model version are kept after the provider silently upgrades the model, and the branch rates drift.",
+        "Several criteria are packed into one question, the answer is well-calibrated for none of them, and the false-positive rate climbs.",
+        "The node is asked a question beyond local text judgement, such as which model will fail on this task, and returns a confident answer no better than chance."
+      ],
+      "constrains": "The decision model only answers a declared question with a typed value and probability: it must not choose or name the branch, call tools or produce free text, and the threshold that turns its answer into a branch lives only in versioned code.",
+      "known_uses": [
+        {
+          "system": "TypeSafe AI Jev",
+          "status": "available",
+          "note": "Decision model from TypeSafe AI, a San Francisco lab that came out of stealth on 15 September 2026. Jev takes a text state and declared questions of three shapes, Choice, Score and Noul (a yes/no probability), and returns typed answers with probabilities and confidence that application code thresholds; questions over the same state are evaluated independently.",
+          "url": "https://docs.typesafe.ai/"
+        },
+        {
+          "system": "Semantic Router (Aurelio AI)",
+          "status": "available",
+          "note": "Embedding-based variant: routes are sets of example utterances, a query is scored against them in vector space, and a route is returned only when its score clears a configurable threshold, otherwise none, leaving the branch to application code.",
+          "url": "https://github.com/aurelio-labs/semantic-router"
+        },
+        {
+          "system": "Vercel AI SDK TypeSafe provider",
+          "status": "available",
+          "note": "The @ai-sdk/typesafe-ai provider package exposes Jev decisions to TypeScript harnesses built on the AI SDK.",
+          "url": "https://registry.npmjs.org/@ai-sdk/typesafe-ai"
+        }
+      ],
+      "related": [
+        {
+          "pattern": "routing",
+          "relation": "generalises",
+          "note": "Routing classifies an incoming request once and dispatches it to a lane; a semantic decision node is the same mechanism placed at any branch point inside the harness, with the probability exposed and the threshold held in code."
+        },
+        {
+          "pattern": "llm-as-periphery",
+          "relation": "complements",
+          "note": "Periphery keeps state and transitions in deterministic code and uses the model at the edges; a semantic decision node is the typed, probabilistic form of the classification edge that architecture calls for."
+        },
+        {
+          "pattern": "agentic-behavior-tree",
+          "relation": "composes-with",
+          "note": "A behavior tree supplies the explicit selectors and sequences; semantic decision nodes supply the condition leaves whose truth needs judgement, returning a probability that the tree thresholds into success or failure."
+        },
+        {
+          "pattern": "stochastic-deterministic-boundary",
+          "relation": "complements",
+          "note": "The decision model is the proposer and the code threshold is the verifier; the abstain band is the structured reject signal."
+        },
+        {
+          "pattern": "conformal-prediction-help-gate",
+          "relation": "complements",
+          "note": "Conformal prediction gives a principled way to set the abstain band: ask for help whenever the calibrated prediction set is not a single option."
+        },
+        {
+          "pattern": "complexity-based-routing",
+          "relation": "complements",
+          "note": "A complexity classifier is one semantic decision node; benchmarks of decision models show this particular question, which asks the model to predict another model's failures, is among the hardest to answer from local text."
+        },
+        {
+          "pattern": "hybrid-symbolic-neural-routing",
+          "relation": "complements",
+          "note": "Symbolic rules handle the conditions that can be written down; semantic decision nodes handle the rest inside the same code-owned structure."
+        },
+        {
+          "pattern": "cost-aware-action-delegation",
+          "relation": "complements",
+          "note": "Classifying an action as read-only, reversible or destructive is a typical semantic decision node; the tiered approval policy is the code that consumes its answer."
+        },
+        {
+          "pattern": "confidence-reporting",
+          "relation": "complements",
+          "note": "Confidence reporting surfaces uncertainty to a human reader; here the probability is consumed by code, which is why it must be calibrated rather than merely stated."
+        },
+        {
+          "pattern": "structured-output",
+          "relation": "uses",
+          "note": "The typed answer schema is structured output taken to its limit: a closed set of options plus a probability, with no free text."
+        },
+        {
+          "pattern": "false-confidence-syndrome",
+          "relation": "complements",
+          "note": "The anti-pattern this node is most exposed to; calibrated training and threshold curves tuned on labelled traffic are the defence."
+        },
+        {
+          "pattern": "human-in-the-loop",
+          "relation": "complements",
+          "note": "The abstain band between the two thresholds is where a human approval step belongs."
+        }
+      ],
+      "references": [
+        {
+          "type": "doc",
+          "title": "TypeSafe documentation (Jev)",
+          "year": 2026,
+          "url": "https://docs.typesafe.ai/"
+        },
+        {
+          "type": "blog",
+          "title": "A deep dive into Jev, TypeSafe's System One model",
+          "authors": "Flavio Copes",
+          "year": 2026,
+          "url": "https://flaviocopes.com/jev/"
+        },
+        {
+          "type": "blog",
+          "title": "Benchmarking Jev: what a decision model can (and can't) do in an agent harness",
+          "year": 2026,
+          "url": "https://dev.to/aitejiu/benchmarking-jev-what-a-decision-model-can-and-cant-do-in-an-agent-harness-20po"
+        },
+        {
+          "type": "paper",
+          "title": "Small Language Models are the Future of Agentic AI",
+          "authors": "Peter Belcak, Greg Heinrich, Shizhe Diao, Yonggan Fu, et al.",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.02153"
+        },
+        {
+          "type": "paper",
+          "title": "Language Models (Mostly) Know What They Know",
+          "authors": "Saurav Kadavath, Tom Conerly, Amanda Askell, Tom Henighan, et al.",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2207.05221"
+        },
+        {
+          "type": "paper",
+          "title": "Just Ask for Calibration: Strategies for Eliciting Calibrated Confidence Scores from Language Models Fine-Tuned with Human Feedback",
+          "authors": "Katherine Tian, Eric Mitchell, Allan Zhou, Archit Sharma, et al.",
+          "year": 2023,
+          "url": "https://arxiv.org/abs/2305.14975"
+        },
+        {
+          "type": "paper",
+          "title": "Selective Classification for Deep Neural Networks",
+          "authors": "Yonatan Geifman, Ran El-Yaniv",
+          "year": 2017,
+          "url": "https://arxiv.org/abs/1705.08500"
+        }
+      ],
+      "status_in_practice": "emerging",
+      "tags": [
+        "decision-model",
+        "classification",
+        "calibration",
+        "thresholds",
+        "control-flow",
+        "typesafe",
+        "jev",
+        "united-states-origin"
+      ],
+      "example_scenario": "A support agent has to decide whether each incoming message is a billing question, a bug report or something else, and whether it contains a refund demand. Instead of asking the main model in a prompt, the harness asks a small decision model two separate questions and gets back, say, billing at 0.93 and refund demand at 0.41. The code sends the ticket to the billing lane because 0.93 clears the 0.8 threshold, and flags it for a person because 0.41 falls in the uncertain band between 0.3 and 0.7.",
+      "applicability": {
+        "use_when": [
+          "The harness control flow is explicit code and some branch conditions need semantic judgement that rules cannot express.",
+          "The decision has a closed answer set: yes or no, one of a fixed list, or a position on a declared scale.",
+          "Many such decisions happen per turn or per item, so latency and cost per decision matter.",
+          "The team needs to review, audit and tune the thresholds that decide when the agent acts, asks or falls back."
+        ],
+        "do_not_use_when": [
+          "The step needs generated text, code, explanations or arithmetic rather than a choice among declared options.",
+          "The question requires reasoning across many steps or predicting another model's behaviour, where small decision models perform near chance.",
+          "No labelled traffic exists to tune thresholds and the decision drives an irreversible action.",
+          "A deterministic rule or a lookup answers the question exactly, which is cheaper and fully auditable."
+        ]
+      },
+      "diagram": {
+        "type": "flow",
+        "mermaid": "flowchart TD\n  S[\"Harness state\"] --> Q1{{\"Decision model: Is this risky? (yes-probability)\"}}\n  Q1 --> T1{\"Code threshold\"}\n  T1 -- \"p >= 0.8\" --> H[\"Human gate\"]\n  T1 -- \"0.3 < p < 0.8\" --> AB[\"Abstain: fallback or review\"]\n  T1 -- \"p <= 0.3\" --> Q2{{\"Decision model: Which tool? (choice + distribution)\"}}\n  Q2 --> T2{\"Code: top choice confidence >= 0.6?\"}\n  T2 -- \"DB\" --> DB[\"Database tool\"]\n  T2 -- \"Web\" --> WEB[\"Web tool\"]\n  T2 -- \"Code\" --> CODE[\"Code tool\"]\n  T2 -- \"low confidence\" --> AB\n  Q1 -.-> LOG[\"Decision log: question, answer, p, threshold, model version\"]\n  Q2 -.-> LOG",
+        "caption": "The tree belongs to the harness; the decision model only answers the fuzzy questions at its nodes, and code applies the thresholds, including an abstain band for the uncertain middle."
+      },
+      "components": [
+        "Harness control flow — the tree, graph or state machine in code that owns every branch",
+        "Declared question — one criterion with a fixed answer type: yes/no probability, closed choice or scored level",
+        "Decision model — a small, schema-constrained model that returns the typed answer, its probability or distribution and a confidence, and nothing else",
+        "Threshold table — versioned code mapping answers to branches, keyed by the model version that answered",
+        "Abstain branch — the route for answers in the uncertain band, usually a human or a fallback handler",
+        "Decision log — records question, answer, probability, threshold and model version for every decision"
+      ],
+      "tools": [
+        "TypeSafe Jev — decision model returning Choice, Score and Noul answers with calibrated probabilities through a REST API and Python and JavaScript SDKs",
+        "Vercel AI SDK TypeSafe provider — exposes Jev decisions inside TypeScript agent harnesses",
+        "Semantic Router — embedding-similarity routing with a configurable score threshold for closed route sets",
+        "Constrained decoding with token log-probabilities — the do-it-yourself version on a general model, restricting output to the option tokens and reading their probabilities",
+        "Calibration tooling — reliability diagrams and coverage-against-accuracy curves for choosing thresholds on labelled traffic"
+      ],
+      "evaluation_metrics": [
+        "Expected calibration error — gap between stated probability and observed accuracy, per question",
+        "Coverage at target accuracy — share of decisions taken automatically while accuracy stays above the required level",
+        "Abstain rate — share of decisions sent to the uncertain band, which prices the human or fallback load",
+        "Low-score miss rate — real positives found in the lowest probability bucket, the risk that low scores are wrongly treated as safe",
+        "Decision latency and cost per call — whether the node is cheap enough for the number of decisions per turn",
+        "Branch-rate drift across model versions — change in how often each branch fires after a model upgrade"
+      ],
+      "last_updated": "2026-09-22"
     }
   ]
 }

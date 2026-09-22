@@ -605,7 +605,9 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
                     return f"HTTP {resp.status}"
                 return None
         except error.HTTPError as e:
-            if e.code in (403, 429):
+            # 403/429 are bot walls and rate limits; arXiv answers bursts of
+            # parallel probes with 406 while the same URL returns 200 alone.
+            if e.code in (403, 406, 429):
                 return None
             return f"HTTP {e.code}"
         except Exception as e:
@@ -624,7 +626,9 @@ def _check_urls(urls: list[tuple[str, str]]) -> list[Violation]:
                     return f"HTTP {resp.status}"
                 return None
         except error.HTTPError as e:
-            if e.code in (403, 429):
+            # 403/429 are bot walls and rate limits; arXiv answers bursts of
+            # parallel probes with 406 while the same URL returns 200 alone.
+            if e.code in (403, 406, 429):
                 return None
             if e.code in (405, 501):
                 return _get_fallback(url)
