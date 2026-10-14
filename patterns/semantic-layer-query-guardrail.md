@@ -137,6 +137,8 @@ The agent may not author or execute raw SQL against production data; it may only
 - _complements_ **Canonical-Entity Grounding** — Grounding replaces model-emitted identifiers with authoritative lookups; this pattern replaces model-authored metric definitions and SQL with vetted ones, so the two together bound both the entities and the measures an agent's data query may reference.
 - _complements_ **Risk-Tiered Action Autonomy** — Narrowing read queries to a curated metric catalogue is the read-side analogue of tiering write autonomy: both shrink the agent's action surface against production to a vetted, bounded set.
 - _complements_ **Tool Discovery** — The semantic layer presents the catalogue of vetted metrics and dimensions as the agent's selectable surface, so the agent discovers and picks from modelled metrics rather than free-authoring against the raw schema.
+- _complements_ **Solver-Ready Formulation Handoff** — The same discipline on the analytics side — the model parameterises a vetted structure and a deterministic compiler produces the executable artefact.
+- _complements_ **Cumulative Disclosure Accounting** — Constrains which query may be issued at all; the account constrains how many permitted queries may be answered before their results compose.
 
 ## References
 

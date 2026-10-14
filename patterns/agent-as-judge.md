@@ -31,9 +31,11 @@ Therefore: feed the candidate's full trajectory (thoughts, tool calls, observati
 
 A judge agent receives the candidate agent's full trajectory: thoughts, tool calls, observations, intermediate state, and final answer. It evaluates against a rubric covering correctness, efficiency, and process quality. Outputs a structured verdict with rationale.
 
-## Example scenario
+## Structure
 
-A team running a coding-agent benchmark notices that two agent versions get the same final answer but one wastes twenty extra tool calls and once tried to write outside the workspace. Scoring only the final patch, both look equal. They wire in an Agent-as-Judge that reads each full trajectory — every thought, tool call, and observation — and rates correctness, efficiency, and safety against a rubric. The wasteful version drops to a lower verdict and is sent back for tuning before the change merges.
+```
+Candidate agent (thoughts, tool calls, observations, answer) --> Trajectory store --full trajectory--> Judge agent <--criteria-- Rubric (correctness, efficiency, safety) --> Verdict record (score + per-step critique)
+```
 
 ## Diagram
 
@@ -50,6 +52,10 @@ sequenceDiagram
   Judge-->>Candidate: score + per-step critique
 ```
 
+## Example scenario
+
+A team running a coding-agent benchmark notices that two agent versions get the same final answer but one wastes twenty extra tool calls and once tried to write outside the workspace. Scoring only the final patch, both look equal. They wire in an Agent-as-Judge that reads each full trajectory — every thought, tool call, and observation — and rates correctness, efficiency, and safety against a rubric. The wasteful version drops to a lower verdict and is sent back for tuning before the change merges.
+
 ## Consequences
 
 **Benefits**
@@ -61,6 +67,13 @@ sequenceDiagram
 
 - Cost: trajectory evaluation is expensive.
 - Judge calibration on trajectory rubrics is its own dataset effort.
+
+## Failure modes
+
+- Truncated trajectory — the trace store drops tool observations or intermediate state, so the judge scores a partial record and misses the unsafe step.
+- Uncalibrated rubric — the judge applies efficiency and safety criteria inconsistently across runs, and two similar trajectories get very different scores.
+- Cost blowout — every run is sent through full trajectory review, and evaluation spend grows faster than the agent's own spend.
+- Answer anchoring — the judge reads a correct final answer first and then waves through the twenty redundant tool calls that led to it.
 
 ## What this pattern constrains
 
@@ -80,20 +93,52 @@ The judge sees the full trajectory, not just the final output; answer-only evalu
 - Trajectory evaluation cost is unjustified for the use case (cheap LLM-as-judge on the answer suffices).
 - Judge-agent calibration cannot be funded as its own dataset effort.
 
+## Components
+
+- Candidate Agent — emits the trajectory under evaluation (thoughts, tool calls, observations, final answer)
+- Trajectory Store — captures the full per-step record the judge will read
+- Judge Agent — reads the trajectory end-to-end and applies the rubric
+- Rubric — explicit criteria covering correctness, efficiency, and process safety
+- Verdict Record — structured score plus per-step critique returned for review
+
+## Tools
+
+- Trajectory capture (Langfuse, LangSmith) — persists per-step inputs, outputs, and tool calls so the judge has a complete record
+- Judge LLM API — runs the rubric pass over each trajectory
+- Agent-as-a-Judge reference framework (MetaGPT) — published rubric and judge implementation
+
+## Evaluation metrics
+
+- Process-failure catch rate — fraction of bad-trajectory runs the judge flags that answer-only grading missed
+- Redundant-step detection rate — share of inefficient runs identified as such by the judge
+- Unsafe-action recall — fraction of out-of-workspace writes or other unsafe steps the judge surfaces
+- Judge-vs-human agreement on trajectory rubrics — calibration signal on the judge itself
+- Cost per trajectory verdict — overhead of trajectory evaluation vs answer-only grading
+
 ## Known uses
 
-- **MetaGPT Agent-as-a-Judge** — *Available*
-- **SWE-Bench-style agentic benchmarks** — *Available*
+- **[MetaGPT Agent-as-a-Judge](https://github.com/metauto-ai/agent-as-a-judge)** _available_
+- **SWE-Bench-style agentic benchmarks** _available_
 
 ## Related patterns
 
-- *specialises* → [llm-as-judge](llm-as-judge.md)
-- *uses* → [eval-harness](eval-harness.md)
-- *uses* → [decision-log](decision-log.md)
+- _specialises_ **LLM-as-Judge**
+- _uses_ **Eval Harness**
+- _uses_ **Decision Log**
+- _alternative-to_ **Blind Grader with Isolated Context**
+- _used-by_ **Scorer Live Monitoring**
+- _alternative-to_ **Cascading Agent Failures**
+- _alternative-to_ **Reward Hacking**
+- _alternative-to_ **Sycophancy**
+- _alternative-to_ **Agent Scheming**
+- _used-by_ **Rigor Relocation**
+- _complements_ **Agent Evaluator**
+- _complements_ **Sampled Prompt Trace Eval**
+- _used-by_ **Trust and Reputation Routing**
+- _alternative-to_ **Checklist Partial-Credit Scoring** — Holistic trajectory judgement is the baseline this pattern replaces: checklist partial credit was measured against it and separated skill effects better (AUC 0.689 against 0.619).
+- _complements_ **Chance-Corrected Judge Validation** — Trajectory judging is where measured discrimination is weakest, around 0.54 to 0.65 AUROC, so a trajectory judge needs its own meta-evaluation set rather than one built from final answers.
 
 ## References
 
-- (paper) Zhuge, Zhao, Ashley, Wang, Khizbullin, Xiong, Liu, Chang, Zhang, Yang, Liu, Huang, Schmidhuber, *Agent-as-a-Judge: Evaluate Agents with Agents*, 2024, <https://arxiv.org/abs/2410.10934>
-- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
-
-**Tags:** eval, judge, trajectory
+- [Agent-as-a-Judge: Evaluate Agents with Agents](https://arxiv.org/abs/2410.10934) — Zhuge, Zhao, Ashley, Wang, Khizbullin, Xiong, Liu, Chang, Zhang, Yang, Liu, Huang, Schmidhuber, 2024
+- [Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents](https://doi.org/10.1016/j.jss.2024.112278) — Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, 2025

@@ -150,6 +150,8 @@ A checkpoint must not be promoted on a score the training engine produced; the r
 - _complements_ **Eval Harness** — The harness decides which dataset scores a version; this pattern constrains which runtime is allowed to produce that score.
 - _complements_ **Dual Evaluation (Offline + Online)** — Both refuse to trust a single pre-deploy number, but the split there is offline benchmark against live traffic, and here it is the training engine against the serving engine on the same checkpoint.
 - _complements_ **RL-Trained Conductor Orchestrator** — An orchestrator trained with reinforcement learning inherits exactly this seam, since its rollouts come from an inference engine and its gradients from a training engine.
+- _complements_ **Harness-Native Rollout Capture** — That pattern measures and corrects the numerical gap between the rollout engine and the training engine; this one governs where the rollout record comes from in the first place, and its probability-agreement check is the same measurement applied to the capture path.
+- _complements_ **Learnability-Frontier Task Sampling** — The frontier band is only meaningful if the success rates were measured on the policy the serving engine actually runs, which is what anchoring enforces.
 
 ## References
 

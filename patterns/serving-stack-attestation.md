@@ -154,6 +154,8 @@ A configured model name must not be recorded as the identity of what served a re
 - _complements_ **Provider Fallback** — Fallback moves traffic to another provider on failure; a separated probe result is one of the signals that should move it, and each fallback target needs its own attestation.
 - _complements_ **Provider-String Routing** — The provider/model string is the claim this pattern tests; routing by string makes the claim easy to write and makes verifying it necessary.
 - _complements_ **Scaffold Ablation on Model Upgrade** — That pattern re-tests harness assumptions on an upgrade the operator performs; this one detects the upgrade, downgrade or requantization the provider performs without telling the operator.
+- _complements_ **Served-Policy Anchoring** — That pattern establishes which backend is actually behind an endpoint when the identity is a claim; here the backend is known and the concern is the numerical gap between two runtimes holding the same weights.
+- _complements_ **As-Of Information-Set Pinning** — A pinned model snapshot identifier is a claim about which weights answered; attestation is how that claim is checked against the live endpoint.
 
 ## References
 

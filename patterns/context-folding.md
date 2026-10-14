@@ -124,6 +124,7 @@ Folded sub-trajectories are no longer visible to the parent context; once a bran
 - _complements_ **Agent-as-Tool Embedding** — Both hide a sub-computation's turns from the parent; embedding does it at a call boundary, folding does it mid-trajectory via branch/return.
 - _complements_ **Subagent Isolation**
 - _alternative-to_ **MemGPT-Style Paging** — Paging moves spans in and out of an external store; folding discards the span and keeps only a summary.
+- _complements_ **Harness-Native Rollout Capture** — Folding a sub-trajectory back into a shorter context is precisely the harness-side rewrite that makes a transcript-reconstructed prompt wrong, so a folding harness is the case that most needs token-level capture.
 
 ## References
 

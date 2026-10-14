@@ -31,9 +31,11 @@ Therefore: design a parallel tool surface targeted at the agent's reasoning shap
 
 Design tools specifically for agents: file viewer that shows a windowed slice with line numbers, edit tool that re-runs linter and shows results, shell that returns structured stdout/stderr/exit-code, search tool that filters and ranks. Each tool's signature + return type optimised for the agent's context budget and reasoning shape.
 
-## Example scenario
+## Structure
 
-An engineering team wires their agent to the standard bash and a desktop-grade text editor. Every diff balloons into a 4000-line buffer, output gets truncated mid-stack-trace, and the agent burns turns scrolling. They replace the surface with an Agent-Computer Interface: a file_view tool that returns numbered windows with elision markers, an edit tool that takes line ranges, and a run tool that streams the last 200 lines plus exit code. Task success rates rise sharply on the same model.
+```
+Agent --view--> File viewer (windowed slice + line numbers) | --edit--> Edit tool (re-runs linter) | --run--> Shell (stdout, stderr, exit code) --> Structured observation --> Agent (next step)
+```
 
 ## Diagram
 
@@ -48,6 +50,10 @@ flowchart TD
   O --> A
 ```
 
+## Example scenario
+
+An engineering team wires their agent to the standard bash and a desktop-grade text editor. Every diff balloons into a 4000-line buffer, output gets truncated mid-stack-trace, and the agent burns turns scrolling. They replace the surface with an Agent-Computer Interface: a file_view tool that returns numbered windows with elision markers, an edit tool that takes line ranges, and a run tool that streams the last 200 lines plus exit code. Task success rates rise sharply on the same model.
+
 ## Consequences
 
 **Benefits**
@@ -59,6 +65,13 @@ flowchart TD
 
 - Two interface surfaces to maintain (agent + human).
 - ACI design is empirical; iterations needed.
+
+## Failure modes
+
+- Human tool passed through — a raw shell or editor is exposed as a primary tool, and one unbounded output fills the context before the agent reaches the lines it needs.
+- Silent edit — the edit tool writes the change but does not re-run the linter, so the agent moves on with a syntax error it never saw.
+- Interface drift — the agent-facing tool and the human-facing tool are changed separately, and the agent ends up with stale arguments or missing features.
+- Untested affordances — the tool shapes are guessed once and never revised, so the agent keeps paginating and re-reading in the same wasteful way.
 
 ## What this pattern constrains
 
@@ -78,19 +91,46 @@ Agent tools follow a deliberate ACI design contract; raw human-CLI tools are not
 - Tool surface changes faster than you can re-curate agent-friendly wrappers.
 - The agent runs against one-off APIs where building a curated surface is not worth the effort.
 
+## Components
+
+- Agent — consumer of windowed observations and emitter of typed tool calls
+- File Viewer — returns a windowed slice with line numbers instead of the whole buffer
+- Edit Tool — applies edits and re-runs linter so the result is part of the observation
+- Structured Shell — returns stdout, stderr, and exit code as separate typed fields
+- Search Tool — filters and ranks matches so the agent never sees raw unbounded grep output
+
+## Tools
+
+- Agent-shaped editor and shell wrappers — replace human-facing CLIs with windowed, line-numbered, exit-code-aware variants
+- Linter or type checker — runs after every edit so feedback rides back in the same observation
+
+## Evaluation metrics
+
+- Tokens per observation — how aggressively the windowed surface beats raw tool output
+- Turns to task completion — whether agent-shaped affordances cut the number of round trips
+- Tool-call validity rate — fraction of calls that pass the typed signature without retry
+- Lint-or-test feedback latency — time from edit to the linter result being visible to the agent
+- Context-overflow incidents — runs aborted because a single observation blew the window
+
 ## Known uses
 
-- **[SWE-Agent (Princeton)](https://github.com/princeton-nlp/SWE-agent)** — *Available*
-- **Claude Code's curated tool set** — *Available*
-- **Cursor's contextual file edit tools** — *Available*
+- **[SWE-Agent (Princeton)](https://github.com/princeton-nlp/SWE-agent)** _available_
+- **Claude Code's curated tool set** _available_
+- **Cursor's contextual file edit tools** _available_
 
 ## Related patterns
 
-- *specialises* → [tool-use](tool-use.md)
-- *complements* → [tool-loadout](tool-loadout.md)
+- _specialises_ **Tool Use**
+- _complements_ **Tool Loadout**
+- _generalises_ **Synthetic Filesystem Overlay**
+- _complements_ **JSON-Only Action Schema**
+- _complements_ **Agent Privilege Escalation**
+- _complements_ **Agent Adapter**
+- _complements_ **Large Action Models (LAMs)**
+- _complements_ **Hierarchical Tool Selection**
+- _complements_ **Tool Transition Fusion**
+- _complements_ **Machine-Checkable Tool Contract** — Designs the tool surface for a model rather than a human; this pattern says which channel of that surface each constraint belongs in.
 
 ## References
 
-- (paper) Yang, Jimenez, Wettig, Lieret, Yao, Narasimhan, Press, *SWE-Agent: Agent-Computer Interfaces Enable Automated Software Engineering*, 2024, <https://arxiv.org/abs/2405.15793>
-
-**Tags:** tool-use, aci, design
+- [SWE-Agent: Agent-Computer Interfaces Enable Automated Software Engineering](https://arxiv.org/abs/2405.15793) — Yang, Jimenez, Wettig, Lieret, Yao, Narasimhan, Press, 2024

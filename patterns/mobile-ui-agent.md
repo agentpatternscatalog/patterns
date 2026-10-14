@@ -24,20 +24,6 @@ Mouse-and-keyboard action sets borrowed from desktop Computer Use do not match h
 - Screen size is small; what fits on one screen does not generalise.
 - Visual state is the source of truth, but text is what the model reasons in.
 
-## Applicability
-
-**Use when**
-
-- The target environment is a smartphone where touch is the only useful input.
-- Desktop Computer Use or Browser Agent action sets are the wrong shape for the task.
-- A small touch-native vocabulary (tap, swipe, type, back, home) covers the workflow.
-
-**Do not use when**
-
-- The task can be done via a web Browser Agent against the same service.
-- Desktop Computer Use is the natural fit and a phone is incidental.
-- Pixel-level control without an action vocabulary is acceptable for the use case.
-
 ## Therefore
 
 Therefore: define a touch-native action vocabulary (tap, long-press, swipe, type, back, home) over screenshots, so that the agent drives apps that expose no API while keeping the loop platform-agnostic above the gesture layer.
@@ -52,10 +38,6 @@ Define a touch-native action vocabulary (tap(x,y), long_press(x,y), swipe(dir), 
 Screenshot + history -> agent -> action_call(tap|swipe|type|...) -> device -> next screenshot -> ...
 ```
 
-## Example scenario
-
-A team tries to reuse their desktop computer-use agent on Android by injecting mouse-and-keyboard actions through ADB. The agent fights the touch interface, mistakes long-press menus for hover tooltips, and cannot find the back button. They rebuild as a mobile-ui-agent: a touch-native action vocabulary (tap, long-press, swipe, type, back, home), screenshots with extracted UI element annotations, and the model reasons about which element to act on instead of which pixel. The agent completes mobile flows like food ordering and ride-booking end to end.
-
 ## Diagram
 
 ```mermaid
@@ -68,6 +50,10 @@ sequenceDiagram
   Phone-->>Agent: next screenshot
   Note over Agent,Phone: Action vocabulary specialised per Android / iOS
 ```
+
+## Example scenario
+
+A team tries to reuse their desktop computer-use agent on Android by injecting mouse-and-keyboard actions through ADB. The agent fights the touch interface, mistakes long-press menus for hover tooltips, and cannot find the back button. They rebuild as a mobile-ui-agent: a touch-native action vocabulary (tap, long-press, swipe, type, back, home), screenshots with extracted UI element annotations, and the model reasons about which element to act on instead of which pixel. The agent completes mobile flows like food ordering and ride-booking end to end.
 
 ## Consequences
 
@@ -83,30 +69,72 @@ sequenceDiagram
 - Pure-vision grounding mistakes are common; element-annotation pipelines add complexity.
 - Sensitive actions (payments, deletions) are easy to mis-fire.
 
+## Failure modes
+
+- Coordinate miss — a tap computed on one screen size or theme lands on the wrong element on another device.
+- Misread screen — pure-vision grounding takes a decorative icon for a button, and the agent taps nothing useful or the wrong control.
+- Mis-fired sensitive action — a swipe or tap confirms a payment or deletion that the agent meant only to open.
+- Platform leak — an Android-only action like back is used on iOS, and the loop stalls on a screen it cannot leave.
+
 ## What this pattern constrains
 
 The agent may only emit actions in the registered touch-action vocabulary; arbitrary system or shell access is forbidden by construction.
 
+## Applicability
+
+**Use when**
+
+- The target environment is a smartphone where touch is the only useful input.
+- Desktop Computer Use or Browser Agent action sets are the wrong shape for the task.
+- A small touch-native vocabulary (tap, swipe, type, back, home) covers the workflow.
+
+**Do not use when**
+
+- The task can be done via a web Browser Agent against the same service.
+- Desktop Computer Use is the natural fit and a phone is incidental.
+- Pixel-level control without an action vocabulary is acceptable for the use case.
+
+## Components
+
+- Mobile Agent — reasons over screenshots and emits touch-native actions
+- Touch Action Vocabulary — small typed set (tap, long_press, swipe, type, back, home)
+- Mobile UI Driver — executes actions via ADB on Android or accessibility APIs on iOS
+- Screenshot Pipeline — captures frames optionally annotated with extracted UI element bounds
+- Platform Adapter — keeps the agent loop platform-agnostic while specialising the action set per OS
+
+## Tools
+
+- Android ADB or appium driver — executes taps, swipes, and key events on real or emulated devices
+- iOS accessibility automation — drives the touch action set on iOS targets
+- UI element extractor — produces annotated element bounds to augment the raw screenshot
+
+## Evaluation metrics
+
+- Task success on AndroidWorld and similar mobile benchmarks — headline capability
+- Tap-coordinate accuracy — fraction of taps landing on the intended element
+- Swipe-direction success rate — share of swipes producing the expected scroll or navigation
+- Cross-platform parity — delta in task success between Android and iOS runs
+- Vision tokens per step — prompt-side cost of feeding screenshots back each loop
+
 ## Known uses
 
-- **[AppAgent (Tencent)](https://github.com/TencentQQGYLab/AppAgent)** — *Available*. Touch-action vocabulary plus exploration-phase documentation per app.
-- **[Mobile-Agent (Alibaba)](https://github.com/X-PLUG/MobileAgent)** — *Available*. Vision-first smartphone agent.
-- **Mobile-Agent-v2 (Alibaba)** — *Available*. Multi-agent mobile assistant: planning, decision, reflection.
-- **AutoGLM (Zhipu)** — *Available*. Phone agent with decision/grounding split.
-- **CogAgent (Tsinghua + Zhipu)** — *Available*. Vision-language model purpose-built for GUI screens.
+- **[AppAgent (Tencent)](https://github.com/TencentQQGYLab/AppAgent)** _available_ — Touch-action vocabulary plus exploration-phase documentation per app.
+- **[Mobile-Agent (Alibaba)](https://github.com/X-PLUG/MobileAgent)** _available_ — Vision-first smartphone agent.
+- **Mobile-Agent-v2 (Alibaba)** _available_ — Multi-agent mobile assistant: planning, decision, reflection.
+- **AutoGLM (Zhipu)** _available_ — Phone agent with decision/grounding split.
+- **CogAgent (Tsinghua + Zhipu)** _available_ — Vision-language model purpose-built for GUI screens.
 
 ## Related patterns
 
-- *alternative-to* → [computer-use](computer-use.md) — Sibling pattern for desktop UI.
-- *alternative-to* → [browser-agent](browser-agent.md) — Sibling pattern for web UI.
-- *uses* → [structured-output](structured-output.md)
-- *complements* → [app-exploration-phase](app-exploration-phase.md)
-- *complements* → [dual-system-gui-agent](dual-system-gui-agent.md)
+- _alternative-to_ **Computer Use** — Sibling pattern for desktop UI.
+- _alternative-to_ **Browser Agent** — Sibling pattern for web UI.
+- _uses_ **Structured Output**
+- _complements_ **App Exploration Phase**
+- _complements_ **Dual-System GUI Agent**
+- _uses_ **Foveated Perception Escalation** — Small screens with dense controls are the case where a coarse view locates a target that it cannot resolve precisely enough to touch.
 
 ## References
 
-- (paper) Zhang et al., *AppAgent: Multimodal Agents as Smartphone Users*, 2023, <https://arxiv.org/abs/2312.13771>
-- (paper) Wang et al., *Mobile-Agent: Autonomous Multi-Modal Mobile Device Agent with Visual Perception*, 2024, <https://arxiv.org/abs/2401.16158>
-- (paper) Wang et al., *Mobile-Agent-v2: Mobile Device Operation Assistant with Effective Navigation via Multi-Agent Collaboration*, 2024, <https://arxiv.org/abs/2406.01014>
-
-**Tags:** tool-use, gui-agent, china-origin, mobile
+- [AppAgent: Multimodal Agents as Smartphone Users](https://arxiv.org/abs/2312.13771) — Zhang et al., 2023
+- [Mobile-Agent: Autonomous Multi-Modal Mobile Device Agent with Visual Perception](https://arxiv.org/abs/2401.16158) — Wang et al., 2024
+- [Mobile-Agent-v2: Mobile Device Operation Assistant with Effective Navigation via Multi-Agent Collaboration](https://arxiv.org/abs/2406.01014) — Wang et al., 2024

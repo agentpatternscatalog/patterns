@@ -24,20 +24,6 @@ Every harness component encodes an assumption about what the model cannot do on 
 - Whether an assumption still holds is only knowable against an eval, which the team must own.
 - Over-scaffolding and under-scaffolding both degrade a stronger model; the right amount shifts every release.
 
-## Applicability
-
-**Use when**
-
-- A harness has accreted scaffolding across several model generations.
-- A model upgrade is being adopted and the team owns an eval suite to gate changes.
-- There is evidence or suspicion that carried-over scaffolding is suppressing the new model's capability.
-
-**Do not use when**
-
-- There is no eval suite to gate removals, so ablation would be guesswork.
-- The harness is new and has not yet crossed a model generation.
-- The component encodes a policy or safety requirement, not a model-capability workaround.
-
 ## Therefore
 
 Therefore: key a harness review to each model release that, component by component, restates the model-limitation assumption the component encodes and ablates the ones the new model no longer needs, gated by evals so removals are evidence-backed rather than hopeful.
@@ -45,6 +31,12 @@ Therefore: key a harness review to each model release that, component by compone
 ## Solution
 
 Make each harness component carry the assumption it encodes ('the model cannot keep a long plan straight', 'the model will not emit valid JSON'). On a model upgrade, walk the components and stress-test each assumption against the new model: temporarily remove the component and run the eval suite. If the eval holds, the assumption has expired and the component comes out; if it regresses, the assumption survives and the component stays. Anthropic demonstrates the move concretely by deleting a sprint construct on an upgrade once the model could plan without it. The eval suite is the gate; the corresponding anti-pattern is keeping stale workaround scaffolding that now constrains the stronger model. Compose with eval-as-contract for the gate and with dynamic-scaffolding for components that should be conditional rather than removed.
+
+## Structure
+
+```
+Model upgrade --> For each harness component --> State its model-limitation assumption --> Ablate (remove component) --> Eval suite holds? --yes, assumption expired--> Remove component / --no, regression--> Keep component --> next component
+```
 
 ## Diagram
 
@@ -78,9 +70,30 @@ A coding agent's harness includes a sprint construct that forces the model to br
 - The review is only as trustworthy as the eval suite that gates it.
 - Per-release review is recurring work that a carry-everything-over approach avoids.
 
+## Failure modes
+
+- Premature removal — the eval suite does not cover the case a component protected, so it is ablated and the regression appears in production.
+- Unlabelled component — a harness piece carries no stated assumption, so nobody knows what to test and it survives every upgrade by default.
+- Skipped review — an upgrade ships under time pressure without the ablation pass, and scaffolding built for the older model keeps holding the new one back.
+- One-at-a-time blind spot — two components cover the same weakness, removing either alone passes the eval, and both get removed.
+
 ## What this pattern constrains
 
 A harness component may not survive a model upgrade on inertia; it must be retained only against an eval that shows its underlying model-limitation assumption still holds for the new model.
+
+## Applicability
+
+**Use when**
+
+- A harness has accreted scaffolding across several model generations.
+- A model upgrade is being adopted and the team owns an eval suite to gate changes.
+- There is evidence or suspicion that carried-over scaffolding is suppressing the new model's capability.
+
+**Do not use when**
+
+- There is no eval suite to gate removals, so ablation would be guesswork.
+- The harness is new and has not yet crossed a model generation.
+- The component encodes a policy or safety requirement, not a model-capability workaround.
 
 ## Components
 
@@ -104,19 +117,19 @@ A harness component may not survive a model upgrade on inertia; it must be retai
 
 ## Known uses
 
-- **[Anthropic — harness design for long-running apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)** — *Available* — Frames every harness component as an assumption about what the model cannot do, worth stress-testing on upgrade; deletes a sprint construct once the model can plan without it.
-- **[Cursor — agent harness](https://cursor.com/blog/continually-improving-agent-harness)** — *Available* — Knocked down early guardrails and moved to dynamic context as models improved.
-- **[Addy Osmani — agent harness engineering](https://addyosmani.com/blog/agent-harness-engineering/)** — *Available* — States that when the model gets better at something, the component becomes load-bearing for nothing and should come out.
+- **[Anthropic — harness design for long-running apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)** _available_ — Frames every harness component as an assumption about what the model cannot do, worth stress-testing on upgrade; deletes a sprint construct once the model can plan without it.
+- **[Cursor — agent harness](https://cursor.com/blog/continually-improving-agent-harness)** _available_ — Knocked down early guardrails and moved to dynamic context as models improved.
+- **[Addy Osmani — agent harness engineering](https://addyosmani.com/blog/agent-harness-engineering/)** _available_ — States that when the model gets better at something, the component becomes load-bearing for nothing and should come out.
 
 ## Related patterns
 
-- *alternative-to* → [dynamic-scaffolding](dynamic-scaffolding.md)
-- *uses* → [eval-as-contract](eval-as-contract.md)
+- _alternative-to_ **Dynamic Scaffolding** — Dynamic scaffolding injects support per task at runtime; this ablates support across model generations.
+- _uses_ **Eval as Contract** — The eval suite is the gate that decides whether an assumption has expired before a component is removed.
+- _complements_ **Enforced Advisory Disclaimer** — The regression gate that asserts disclaimer presence on a frozen high-risk set is the upgrade check that catches the documented coverage collapse across model versions.
+- _complements_ **Serving-Stack Attestation** — That pattern re-tests harness assumptions on an upgrade the operator performs; this one detects the upgrade, downgrade or requantization the provider performs without telling the operator.
 
 ## References
 
-- (blog) Anthropic, *Harness design for long-running application development* 2026,, <https://www.anthropic.com/engineering/harness-design-long-running-apps>
-- (blog) Cursor, *Continually improving our agent harness*, <https://cursor.com/blog/continually-improving-agent-harness>
-- (blog) Addy Osmani, *Agent Harness Engineering*, <https://addyosmani.com/blog/agent-harness-engineering/>
-
-**Tags:** harness, model-upgrade, scaffolding, evals, maintenance
+- [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps) — Anthropic, 2026
+- [Continually improving our agent harness](https://cursor.com/blog/continually-improving-agent-harness) — Cursor
+- [Agent Harness Engineering](https://addyosmani.com/blog/agent-harness-engineering/) — Addy Osmani

@@ -2,7 +2,7 @@
 
 **Also known as:** Code-Execution-with-MCP, MCP-as-Typed-API, Filesystem-Mirrored Tools, Tools-as-Code-Modules
 
-**Category:** Tool Use & Environment
+**Category:** Tool Use & Environment  
 **Status in practice:** emerging
 
 ## Intent
@@ -82,6 +82,13 @@ An assistant must take meeting notes from Google Drive, identify action items, a
 - Wrapper generation must stay in sync with upstream MCP schema changes.
 - Debugging failures spans two layers — generated code and tool wrappers — rather than one tool call.
 
+## Failure modes
+
+- Wrapper drift — an upstream MCP schema changes and the generated file still has the old signature, so the agent's script fails on a call that looked valid.
+- Invented module — the agent imports a wrapper that was never generated, guessing from tool names instead of reading the file tree.
+- Raw output in context — the script prints a whole spreadsheet instead of a summary, and the token saving is lost.
+- Unchecked data path — untrusted content moves between tools inside the sandbox with no model checkpoint, and an injected instruction reaches a write tool.
+
 ## What this pattern constrains
 
 The model must not request raw tool outputs into context when they exceed a configured size; it must route large outputs through sandbox variables and return only printed summaries. It must not invent wrapper modules — only those materialized on the filesystem from real MCP schemas are callable.
@@ -102,24 +109,47 @@ The model must not request raw tool outputs into context when they exceed a conf
 - Each tool result genuinely requires LLM reasoning before the next call.
 - Compliance forbids untrusted data flowing without per-step LLM inspection.
 
+## Components
+
+- Wrapper Generator — walks each MCP server's tool list and emits a typed code file per tool
+- Tool Wrapper Tree — filesystem-shaped directory of typed wrappers grouped by server
+- Agent — writes execution code that imports wrappers instead of calling tools through the model
+- Sandbox Runtime — executes the agent-authored script and routes wrapper calls to MCP servers
+- Filesystem Surface — exposes the wrapper tree to the agent via list and read primitives instead of preloaded schemas
+
+## Tools
+
+- JSON-Schema-to-TypeScript (or Python) compiler — generates the typed wrappers from MCP tool schemas
+- Sandboxed code runtime (Deno, Node, or Python sandbox) — executes the agent-authored scripts that import wrappers
+- MCP client library — carries wrapper calls to the underlying servers
+
+## Evaluation metrics
+
+- Context tokens versus eager-schema baseline — reduction from leaving schemas off the prompt
+- Wrapper-discovery hit rate — fraction of needed tools the agent locates via list and read
+- Inter-tool data size kept in sandbox — payload that never enters the model context
+- Generated-script validity rate — share of authored scripts that parse and run end to end
+- End-to-end task success on data-heavy workflows — headline value of moving plumbing into code
+
 ## Known uses
 
-- **[Anthropic Claude (engineering blog reference implementation)](https://www.anthropic.com/engineering/code-execution-with-mcp)** — *Available* — Reports ~98.7% token reduction on representative MCP workflows.
-- **Cloudflare Code Mode** — *Available* — Exposes MCP tools as a typed code API the model writes against.
+- **[Anthropic Claude (engineering blog reference implementation)](https://www.anthropic.com/engineering/code-execution-with-mcp)** _available_ — Reports ~98.7% token reduction on representative MCP workflows.
+- **[Cloudflare Code Mode](https://developers.cloudflare.com/agents/api-reference/codemode)** _available_ — Exposes MCP tools as a typed code API the model writes against.
 
 ## Related patterns
 
-- *specialises* → [mcp](mcp.md) — Materializes the MCP protocol as a typed code surface instead of inline tool calls.
-- *composes-with* → [code-as-action](code-as-action.md) — The agent emits code as its action — but the action imports MCP-derived wrappers rather than ad-hoc helpers.
-- *complements* → [tool-search-lazy-loading](tool-search-lazy-loading.md) — Filesystem layout enables on-demand schema loading: the model reads only the wrapper files for tools it plans to call.
-- *alternative-to* → [tool-loadout](tool-loadout.md) — Loadout pre-selects a static tool subset; MCP-as-Code-API lets the model self-select at code-write time.
-- *uses* → [sandbox-isolation](sandbox-isolation.md) — Relies on a code sandbox to hold large intermediate state outside model context.
-- *alternative-to* → [tool-explosion](tool-explosion.md) — Avoids the bloat by never loading all schemas into prompt at once.
+- _specialises_ **Model Context Protocol** — Materializes the MCP protocol as a typed code surface instead of inline tool calls.
+- _composes-with_ **Code-as-Action Agent** — The agent emits code as its action — but the action imports MCP-derived wrappers rather than ad-hoc helpers.
+- _complements_ **Tool Search Lazy Loading** — Filesystem layout enables on-demand schema loading: the model reads only the wrapper files for tools it plans to call.
+- _alternative-to_ **Tool Loadout** — Loadout pre-selects a static tool subset; MCP-as-Code-API lets the model self-select at code-write time.
+- _uses_ **Sandbox Isolation** — Relies on a code sandbox to hold large intermediate state outside model context.
+- _alternative-to_ **Tool Explosion** — Avoids the bloat by never loading all schemas into prompt at once.
+- _complements_ **MCP Bidirectional Bridge**
+- _complements_ **Direct API Wrapper**
+- _complements_ **Composite Service**
 
 ## References
 
-- (blog) Anthropic Engineering, *Code execution with MCP: building more efficient AI agents*, 2025, <https://www.anthropic.com/engineering/code-execution-with-mcp>
-- (blog) Simon Willison, *Code execution with MCP (annotation)*, 2025, <https://simonwillison.net/2025/Nov/4/code-execution-with-mcp/>
-- (spec) *Model Context Protocol specification*, 2024, <https://modelcontextprotocol.io>
-
-**Tags:** mcp, code-execution, token-efficiency, tool-use, sandbox
+- [Code execution with MCP: building more efficient AI agents](https://www.anthropic.com/engineering/code-execution-with-mcp) — Anthropic Engineering, 2025
+- [Code execution with MCP (annotation)](https://simonwillison.net/2025/Nov/4/code-execution-with-mcp/) — Simon Willison, 2025
+- [Model Context Protocol specification](https://modelcontextprotocol.io) — 2024

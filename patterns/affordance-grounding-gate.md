@@ -128,6 +128,10 @@ Only actions the scene affords reach the controller; the agent may not execute a
 - _alternative-to_ **World Model as Tool** — World-model-as-tool rolls out an action's future consequences via a generative simulator; the affordance gate predicts present feasibility from the scene image without any rollout.
 - _alternative-to_ **Mental-Model-In-The-Loop Simulator** — The simulator scores multi-step strategy outcomes; the affordance gate scores whether a single candidate action is physically possible right now.
 - _complements_ **Canonical-Entity Grounding** — Both ground a proposed action against an authority before acting; canonical-entity-grounding resolves business identifiers, the affordance gate resolves physical feasibility against the scene.
+- _alternative-to_ **Physical Hallucination** — Affordance grounding is the corrective — discard actions the scene cannot physically support before the controller; physical hallucination is the failure when no such gate exists.
+- _complements_ **Action-Admissibility Tiering** — Screens whether the scene physically supports an action; this ladder asks whether the operation permits it, which is a separate question from whether the body can do it.
+- _complements_ **Feasibility-Negotiated Intent Contract** — That gate screens whether one candidate action is physically supported by the current scene; this negotiates a whole multi-expectation objective and returns a quantified shortfall rather than filtering a candidate.
+- _complements_ **Physical-Evidence Progress Gate** — The affordance gate asks before actuation whether the scene can support the action; this gate asks after actuation whether the effect occurred, and passing a feasibility check says nothing about whether the grasp closed on the object.
 
 ## References
 

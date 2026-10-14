@@ -31,9 +31,11 @@ Therefore: expose the page as a numbered DOM / accessibility tree and a small ac
 
 A library (Playwright-backed) exposes structured page state (numbered interactive elements, accessibility tree) and a compact action set (click, type, scroll, navigate). The agent reasons over the structured state and emits actions; the library executes them.
 
-## Example scenario
+## Structure
 
-A growth team builds an agent that scrapes competitor pricing pages. Feeding raw HTML overflows context with tracking scripts and inline CSS; pixel-level Computer Use is overkill for clicking through five filters. They settle on a Browser Agent surface: the page is reduced to a structured DOM/accessibility tree of interactable elements, and the agent emits actions from a small vocabulary like click(id) and type(id, text). The model spends its tokens on intent, not on parsing minified script tags.
+```
+Page --> Playwright library --> Accessibility tree + numbered elements --> Agent (reasons over structured state) --click / type / scroll / navigate--> Playwright library --> Page
+```
 
 ## Diagram
 
@@ -46,6 +48,10 @@ flowchart TD
   Lib --> P
 ```
 
+## Example scenario
+
+A growth team builds an agent that scrapes competitor pricing pages. Feeding raw HTML overflows context with tracking scripts and inline CSS; pixel-level Computer Use is overkill for clicking through five filters. They settle on a Browser Agent surface: the page is reduced to a structured DOM/accessibility tree of interactable elements, and the agent emits actions from a small vocabulary like click(id) and type(id, text). The model spends its tokens on intent, not on parsing minified script tags.
+
 ## Consequences
 
 **Benefits**
@@ -57,6 +63,13 @@ flowchart TD
 
 - Still struggles with heavily-dynamic JS apps.
 - Anti-bot blocks; CAPTCHAs.
+
+## Failure modes
+
+- Dynamic page blindness — a heavy JavaScript app re-renders after the tree is read, and the numbered element the agent clicks no longer points at the same control.
+- Bot wall — the site serves a CAPTCHA or blocks the automated browser, and the agent loops on a page it cannot get past.
+- Missing element — the control the task needs is not in the accessibility tree, so the agent reasons over a page that looks complete but is not.
+- Vocabulary gap — the task needs an action outside click, type, scroll, and navigate, and the agent cannot finish it within the allowed surface.
 
 ## What this pattern constrains
 
@@ -76,24 +89,47 @@ Actions are limited to the typed vocabulary; arbitrary JavaScript execution is n
 - There is a clean API and using it is cheaper and more reliable than driving the UI.
 - Anti-bot measures make programmatic browser control infeasible at the required scale.
 
+## Components
+
+- Agent — reasons over structured page state and emits compact actions
+- Browser Driver (Playwright-backed) — executes click, type, scroll, and navigate against the live page
+- Accessibility Tree Extractor — produces numbered interactive elements and the a11y tree from the DOM
+- Action Vocabulary — small typed set (click, type, scroll, navigate) the agent can emit
+- Page Snapshotter — captures the structured observation returned after each action
+
+## Tools
+
+- Playwright (or Puppeteer) — drives the browser and exposes accessibility-tree extraction
+- DOM-to-a11y reducer — compresses raw HTML into a numbered element list that fits the context window
+
+## Evaluation metrics
+
+- Task success on web benchmarks (WebArena, Mind2Web) — headline capability on real sites
+- Action-validity rate — fraction of emitted actions that resolve to a real element on the page
+- Tokens per page observation — cost of the structured surface versus raw HTML
+- Layout-shift recovery rate — share of runs that survive a DOM change between observation and action
+- p95 step latency — time per click-or-type round trip including extraction
+
 ## Known uses
 
-- **[browser-use (Python library)](https://github.com/browser-use/browser-use)** — *Available*
-- **Playwright + LangChain** — *Available*
-- **OpenAI Operator** — *Available*
-- **Browserbase** — *Available*
-- **Skyvern** — *Available*
+- **[browser-use (Python library)](https://github.com/browser-use/browser-use)** _available_
+- **Playwright + LangChain** _available_
+- **[OpenAI Operator](https://operator.chatgpt.com/)** _available_
+- **[Browserbase](https://www.browserbase.com/)** _available_
+- **Skyvern** _available_
 
 ## Related patterns
 
-- *alternative-to* → [computer-use](computer-use.md)
-- *specialises* → [tool-use](tool-use.md)
-- *complements* → [tool-output-poisoning](tool-output-poisoning.md)
-- *alternative-to* → [mobile-ui-agent](mobile-ui-agent.md)
-- *generalises* → [dual-system-gui-agent](dual-system-gui-agent.md)
+- _alternative-to_ **Computer Use**
+- _specialises_ **Tool Use**
+- _complements_ **Tool Output Poisoning Defense**
+- _alternative-to_ **Mobile UI Agent**
+- _generalises_ **Dual-System GUI Agent**
+- _generalises_ **Policy-Localizer-Validator**
+- _complements_ **Magentic-One Generalist Multi-Agent**
+- _complements_ **Crawler Dispatcher**
+- _alternative-to_ **Full-Desktop Computer Use**
 
 ## References
 
-- (repo) *browser-use/browser-use*, <https://github.com/browser-use/browser-use>
-
-**Tags:** environment, web, browser
+- [browser-use/browser-use](https://github.com/browser-use/browser-use)

@@ -133,6 +133,11 @@ An agent that has not been measured at the decision-determinism tier must not be
 - _complements_ **Replay / Time-Travel** — Replay/time-travel re-runs a captured trace for debugging; this pattern re-runs paired cases to classify a reproducibility tier and turns that tier into a release gate.
 - _complements_ **Risk-Tiered Action Autonomy** — Both grade by stakes: action autonomy tiers an agent by an action's materiality, this tiers it by reproducibility, and a regulated decision needs to clear both axes.
 - _uses_ **Provenance Ledger** — The tier harness consumes the logged inputs, decisions, and metadata the ledger captures, since it cannot re-run cases or compare conclusions without them.
+- _alternative-to_ **Confident Inconsistency** — The replay gate is the corrective — classify the reproducibility tier by re-running identical inputs and require the strict tier for regulated decisions; confident inconsistency is the unmeasured temporal non-determinism it guards against.
+- _complements_ **Replay Divergence** — The gate measures and tiers how reproducible an agent is and blocks regulated decisions below the strictest tier; this names the underlying hazard the gate exists to grade.
+- _complements_ **Serving-Stack Attestation** — Replay re-runs identical inputs to classify reproducibility, which a consistently substituted endpoint can pass; the probe answers the different question of which backbone and stack are answering at all.
+- _complements_ **Served-Policy Anchoring** — That gate classifies a deployed agent by re-running identical inputs and assigns a reproducibility tier; this is a training-loop invariant plus a correction term, measured on token probabilities rather than on replayed decisions.
+- _complements_ **As-Of Information-Set Pinning** — That gate classifies an agent by re-running identical inputs and presupposes the input set is already fixed and retrievable; this pattern is what makes it fixed and retrievable.
 
 ## References
 

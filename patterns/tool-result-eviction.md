@@ -76,6 +76,13 @@ A research agent runs ten web fetches, each returning a full page of markdown. A
 - Without offload, an evicted payload needed verbatim later is gone.
 - Eviction logic adds bookkeeping to the agent loop.
 
+## Failure modes
+
+- Premature eviction — a result is cleared before the agent has extracted every value it needs, and it has to re-issue the same call.
+- Lossy marker — the one-line marker drops a key number, and later steps reason from an incomplete summary.
+- No offload — the payload is evicted without being saved, and a later step that needs it verbatim cannot get it back.
+- Erased record — eviction removes the whole tool turn instead of only its body, and the agent repeats work it already did.
+
 ## What this pattern constrains
 
 The agent must not retain raw tool payloads in the live window after they have been consumed; a consumed observation has to be replaced with a marker that preserves the call and its conclusion. Eviction must not delete the record that a call happened, only its bulky body.
@@ -96,20 +103,42 @@ The agent must not retain raw tool payloads in the live window after they have b
 - Regulatory needs require the full observation to stay inline in the trace.
 - You cannot reliably tell when a result has been consumed.
 
+## Components
+
+- Observation buffer — holds raw tool payloads in the live window until they are consumed
+- Consumption detector — decides when a result's needed values have been extracted
+- Evictor — replaces a consumed payload with a compact call-and-conclusion marker
+- External payload store — optional offload so an evicted result can be restored verbatim if needed
+- Marker record — the short note that keeps the call and its conclusion in context
+
+## Tools
+
+- Token counter — quantifies how much window each observation costs to prioritise eviction
+- Key-value or blob store — offloads full payloads keyed by call id for later restore
+- Agent runtime — the loop that rewrites the message history to swap payloads for markers
+
+## Evaluation metrics
+
+- Window reclaimed — tokens freed per evicted observation
+- Redundant re-call rate — calls re-issued because a still-needed result was evicted
+- Marker fidelity — sampled checks that markers preserved the conclusion accurately
+- Cost per resolved task — net effect of eviction on tokens spent end to end
+
 ## Known uses
 
-- **[Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)** — *Available* — Context-engineering writeup describes compressing or dropping observations once their information has been used, keeping a restorable reference rather than the full payload.
-- **[上下文工程 (Chico's Tech Blog)](https://realtime-ai.chat/posts/context-engineering/)** — *Available* — Names tool clearing: remove a tool result from the window after it is used and replace it with a brief summary statement.
+- **[Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)** _available_ — Context-engineering writeup describes compressing or dropping observations once their information has been used, keeping a restorable reference rather than the full payload.
+- **[上下文工程 (Chico's Tech Blog)](https://realtime-ai.chat/posts/context-engineering/)** _available_ — Names tool clearing: remove a tool result from the window after it is used and replace it with a brief summary statement.
 
 ## Related patterns
 
-- *complements* → [tool-result-caching](tool-result-caching.md) — Caching retains a result for replay across calls; eviction discards the consumed payload from the live window. The two trade off retention against window pressure.
-- *complements* → [context-compaction](context-compaction.md) — Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest.
-- *complements* → [context-window-packing](context-window-packing.md) — Packing decides what enters the window; eviction decides what leaves it once consumed.
+- _complements_ **Tool Result Caching** — Caching retains a result for replay across calls; eviction discards the consumed payload from the live window. The two trade off retention against window pressure.
+- _complements_ **Context Compaction** — Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest.
+- _complements_ **Context Window Packing** — Packing decides what enters the window; eviction decides what leaves it once consumed.
+- _complements_ **Filesystem as Context**
+- _alternative-to_ **Adaptive Memory Decay** — Tool-result eviction trims the live context; adaptive decay governs the long-term store.
+- _complements_ **Foveated Perception Escalation** — Eviction prunes consumed observations to reclaim context; foveation decides fidelity before and during perception, and lets an archived observation regain its pixels rather than only lose them.
 
 ## References
 
-- (blog) Manus, *Context Engineering for AI Agents: Lessons from Building Manus*, 2025, <https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus>
-- (blog) Chico's Tech Blog, *上下文工程：2026 年比 prompt engineering 更重要的事*, 2026, <https://realtime-ai.chat/posts/context-engineering/>
-
-**Tags:** tool-use, context-engineering, memory, token-budget, observations
+- [Context Engineering for AI Agents: Lessons from Building Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus) — Manus, 2025
+- [上下文工程：2026 年比 prompt engineering 更重要的事](https://realtime-ai.chat/posts/context-engineering/) — Chico's Tech Blog, 2026

@@ -128,6 +128,7 @@ Thresholds must be agreed before go-live and cannot be renegotiated mid-breach: 
 
 ## Related patterns
 
+- _complements_ **crawl-walk-run-automation-gating** — Crawl-walk-run gates autonomy upward as evidence accrues; withdrawal criteria pre-commit the path back down and out when the evidence reverses — the two rails of the same lifecycle.
 - _complements_ **Kill Switch** — The kill switch is the mechanism the risk threshold invokes for immediate halt; withdrawal criteria are the standing policy for when the deployment as a whole should end.
 - _conflicts-with_ **Perma-Beta** — An expiry date and pre-agreed exit thresholds make the indefinite-beta dodge impossible: a breach or a lapsed review forces a recorded decision.
 - _uses_ **Cost Observability** — The economic threshold is only evaluable if cost per case is measured continuously and compared against a maintained human baseline.

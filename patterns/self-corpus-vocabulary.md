@@ -2,7 +2,7 @@
 
 **Also known as:** Personal-Concept Lexicon, Own-Writing Lexicon
 
-**Category:** Memory
+**Category:** Memory  
 **Status in practice:** experimental
 
 ## Intent
@@ -33,9 +33,11 @@ Therefore: periodically mine a small top-N concept vocabulary from the agent's o
 
 Run a periodic mining pass over the agent's own corpus (e.g. last N weeks of thoughts plus the long-term insight store). Aggregate frontmatter tags and content frequency to extract the top-N concept tokens with weights. Persist this vocabulary as a small JSON cache. Downstream scoring components consume the cache as an additional axis: a thought is scored both on generic embedding similarity to recent context and on overlap with the cached self-vocabulary. Refresh on a cadence proportional to corpus volatility (e.g. weekly for a stable agent, after every dream-consolidation cycle for a more volatile one).
 
-## Example scenario
+## Structure
 
-An agent has been journalling for three months. Once a week, a mining job aggregates frontmatter tags and high-frequency content tokens across recent thoughts and the long-term insight store, picks the top thirty concepts with weights, and writes them to a small JSON cache. When the agent receives a new thought, the salience scorer combines generic embedding distance to recent context with overlap against the cached vocabulary. A thought that uses three of the top-thirty concepts scores higher than a thought with similar embedding distance but no overlap, because the cached vocabulary says 'this is on the line of inquiry'.
+```
+Own corpus (thoughts + insights) --periodic mining (tags + content frequency)--> Top-N vocabulary cache; New thought --> Salience scorer <-- vocabulary cache + generic embedding similarity --> Own-frame score
+```
 
 ## Diagram
 
@@ -55,6 +57,10 @@ flowchart LR
 
 *Periodic mining derives a self-vocabulary; downstream scoring uses it as an additional axis alongside generic similarity.*
 
+## Example scenario
+
+An agent has been journalling for three months. Once a week, a mining job aggregates frontmatter tags and high-frequency content tokens across recent thoughts and the long-term insight store, picks the top thirty concepts with weights, and writes them to a small JSON cache. When the agent receives a new thought, the salience scorer combines generic embedding distance to recent context with overlap against the cached vocabulary. A thought that uses three of the top-thirty concepts scores higher than a thought with similar embedding distance but no overlap, because the cached vocabulary says 'this is on the line of inquiry'.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +74,13 @@ flowchart LR
 - Frame lock-in: a stale vocabulary reinforces what the agent already knows at the expense of new directions.
 - Mining is opinionated; tag-vs-frequency weighting is a tuning knob.
 - If the corpus is too small the vocabulary is noisy.
+
+## Failure modes
+
+- Frame lock-in — a stale vocabulary keeps scoring familiar topics high, and new directions never reach attention.
+- Noisy vocabulary — the corpus is too small, so the top-N tokens are chance words rather than real concerns.
+- Tag skew — frontmatter tags are weighted too high, and the vocabulary reflects tagging habits instead of content.
+- Missed refresh — the cache is not rebuilt after a large shift in writing, and scores lag behind what the agent now cares about.
 
 ## What this pattern constrains
 
@@ -87,20 +100,41 @@ Scoring components cannot use only the generic embedding space for own-frame rel
 - Generic semantic similarity is sufficient for the salience use case.
 - Strong frame lock-in would harm exploration more than it helps relevance.
 
+## Components
+
+- Own-writing corpus — the agent's accumulated thoughts, insights, and journal entries, possibly with frontmatter tags
+- Mining pass — periodic job that aggregates tag frequency and content tokens to produce a top-N concept list with weights
+- Vocabulary cache — small JSON file holding the current top-N concepts plus their weights
+- Refresh scheduler — runs the mining pass on a cadence tied to corpus volatility (weekly, post-consolidation, etc.)
+- Own-frame scorer — downstream component that blends generic embedding similarity with overlap against the cached vocabulary
+
+## Tools
+
+- TF-IDF or BM25 implementation — provides the term-specificity backbone of the frequency aggregation
+- Optional topic modeller — BERTopic or similar when frontmatter tags are too sparse to anchor the vocabulary
+- JSON file or small KV store — persists the cached vocabulary across sessions
+
+## Evaluation metrics
+
+- Own-frame lift over generic similarity — labelled-set quality gain when the cached vocabulary is added as an axis
+- Vocabulary churn — fraction of tokens that change between refreshes; high churn flags an unstable frame, low churn flags lock-in
+- Coverage on recent thoughts — fraction of new entries that overlap with at least one cached concept
+- Mining cost per refresh — wall-clock and compute spent generating the vocabulary
+- Operator-audit signal — sampled human judgement on whether the cached vocabulary captures what the agent is currently 'about'
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [vector-memory](vector-memory.md)
-- *complements* → [cluster-capped-insight-store](cluster-capped-insight-store.md)
-- *complements* → [salience-attention-mechanism](salience-attention-mechanism.md)
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
+- _complements_ **Vector Memory**
+- _complements_ **Cluster-Capped Insight Store**
+- _complements_ **Salience Attention Mechanism**
+- _complements_ **Dream Consolidation Cycle** — Consolidation cycles are a natural place to refresh the vocabulary.
+- _complements_ **Semantic Memory**
 
 ## References
 
-- (paper) *A statistical interpretation of term specificity and its application in retrieval*, 1972, <https://www.emerald.com/insight/content/doi/10.1108/eb026526/full/html>
-- (paper) *BERTopic: Neural topic modeling with a class-based TF-IDF procedure*, 2022, <https://arxiv.org/abs/2203.05794>
-
-**Tags:** memory, vocabulary, personalisation, salience
+- [A statistical interpretation of term specificity and its application in retrieval](https://www.emerald.com/insight/content/doi/10.1108/eb026526/full/html) — Karen Spärck Jones, 1972
+- [BERTopic: Neural topic modeling with a class-based TF-IDF procedure](https://arxiv.org/abs/2203.05794) — Maarten Grootendorst, 2022

@@ -126,6 +126,7 @@ The agent does not write directly to the real working tree; all edits land in th
 - _alternative-to_ **Durable Workflow Snapshot** — Snapshots persist execution/workflow state for resume; a shadow workspace versions the files the agent mutates for review and rollback.
 - _complements_ **Synthetic Filesystem Overlay** — An overlay presents a virtual filesystem surface; the shadow adds version history and diff-based rollback over the edits made through it.
 - _complements_ **Subagent Isolation** — Worktree isolation separates parallel subagents; a shadow workspace isolates the agent's edits from the real tree for safe review.
+- _complements_ **Forkable Agent Sandbox** — A source-file mirror for edit-then-review covers the filesystem in a single branch; this extends the same discipline to running processes and desktop sessions across many branches.
 
 ## References
 

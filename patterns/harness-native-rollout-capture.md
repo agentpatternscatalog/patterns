@@ -150,6 +150,7 @@ The trainer must not rebuild a prompt from the rendered transcript; only the tok
 - _complements_ **Managed Agent Runtime** — That pattern makes the agent loop a managed platform primitive; this one says nothing about who operates the loop and only requires that whatever loop is already running expose a model-call boundary to tap.
 - _complements_ **Context Folding** — Folding a sub-trajectory back into a shorter context is precisely the harness-side rewrite that makes a transcript-reconstructed prompt wrong, so a folding harness is the case that most needs token-level capture.
 - _complements_ **Reward Hacking** — A faithful tap records a reward-hacked episode as faithfully as a good one, so the filtering stage between the pool and the update is what keeps the capture from turning specification gaming into training signal.
+- _complements_ **Learnability-Frontier Task Sampling** — Capture supplies the rollouts and their exact token ids; this pattern decides which tasks those expensive rollouts are spent on.
 
 ## References
 

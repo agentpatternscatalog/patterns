@@ -2,7 +2,7 @@
 
 **Also known as:** Master-Data Lookup Grounding, Authoritative Identifier Resolution, Entity-Resolve-Before-Act
 
-**Category:** Tool Use & Environment
+**Category:** Tool Use & Environment  
 **Status in practice:** emerging
 
 ## Intent
@@ -80,6 +80,13 @@ An agent processes supplier invoices into an ERP. A scanned invoice reads 'Müll
 - Building and maintaining a resolver over messy master data is real integration work.
 - Over-eager resolution can mask a genuine data-entry problem a human should have seen.
 
+## Failure modes
+
+- Resolver skipped — the model writes an account code from memory into a write call, format checks pass, and the posting lands on the wrong ledger.
+- Ambiguous match accepted — the description fits two suppliers, the resolver returns one with moderate confidence, and the agent proceeds instead of asking.
+- Dirty master data — duplicate or retired records in the system of record make the resolver return a stale id.
+- Masked data problem — the resolver quietly maps a bad input to some valid entity, hiding an upstream data-entry error a human should have fixed.
+
 ## What this pattern constrains
 
 The agent must not use a self-generated identifier in an action against the system of record: every GL account, SKU, supplier, or customer id must be confirmed by the resolver tool first, and on a no-match or low-confidence result the agent must not guess but must clarify or halt.
@@ -126,23 +133,27 @@ The agent must not use a self-generated identifier in an action against the syst
 
 ## Known uses
 
-- **[Salesforce Agentforce — Grounding](https://trailhead.salesforce.com/content/learn/modules/grounding-an-agent-with-data/learn-the-basics-of-grounding)** — *Available* — Agents are grounded in CRM records so entity references resolve against data rather than model memory.
-- **[Starburst](https://www.starburst.io/blog/agent-grounding-the-missing-discipline-in-enterprise-ai/)** — *Available* — Frames entity resolution and verified identifier grounding as a prerequisite discipline for enterprise agents.
-- **[RudderStack](https://www.rudderstack.com/blog/why-ai-agent-hallucinates-on-your-data)** — *Available* — Describes grounding agents on governed enterprise data so they resolve identifiers instead of hallucinating them.
+- **[Salesforce Agentforce — Grounding](https://trailhead.salesforce.com/content/learn/modules/grounding-an-agent-with-data/learn-the-basics-of-grounding)** _available_ — Agents are grounded in CRM records so entity references resolve against data rather than model memory.
+- **[Starburst](https://www.starburst.io/blog/agent-grounding-the-missing-discipline-in-enterprise-ai/)** _available_ — Frames entity resolution and verified identifier grounding as a prerequisite discipline for enterprise agents.
+- **[RudderStack](https://www.rudderstack.com/blog/why-ai-agent-hallucinates-on-your-data)** _available_ — Describes grounding agents on governed enterprise data so they resolve identifiers instead of hallucinating them.
 
 ## Related patterns
 
-- *complements* → [agentic-rag](agentic-rag.md) — RAG retrieves relevant documents; canonical-entity grounding resolves exact identifiers. Retrieval finds context, resolution pins identity.
-- *complements* → [crag](crag.md) — Corrective RAG checks retrieved evidence quality; this checks that an identifier corresponds to a real master-data record.
-- *complements* → [chain-of-verification](chain-of-verification.md) — Chain-of-verification re-checks claims; here the identifier is verified against the authoritative store before use.
-- *complements* → [json-only-action-schema](json-only-action-schema.md) — A strict action schema validates an identifier's shape; resolution validates that the entity actually exists.
-- *complements* → [citation-attribution](citation-attribution.md) — Citation attribution grounds prose in sources; this grounds identifiers in master data — the same discipline applied to exact codes.
+- _complements_ **Agentic RAG** — RAG retrieves relevant documents; canonical-entity grounding resolves exact identifiers. Retrieval finds context, resolution pins identity.
+- _complements_ **CRAG** — Corrective RAG checks retrieved evidence quality; this checks that an identifier corresponds to a real master-data record.
+- _complements_ **Chain of Verification** — Chain-of-verification re-checks claims; here the identifier is verified against the authoritative store before use.
+- _complements_ **JSON-Only Action Schema** — A strict action schema validates an identifier's shape; resolution validates that the entity actually exists.
+- _complements_ **Citation Attribution** — Citation attribution grounds prose in sources; this grounds identifiers in master data — the same discipline applied to exact codes.
+- _complements_ **Tenant-Scoped Tool Binding**
+- _complements_ **Risk-Tiered Action Autonomy**
+- _complements_ **Affordance Grounding Before Action** — Both ground a proposed action against an authority before acting; canonical-entity-grounding resolves business identifiers, the affordance gate resolves physical feasibility against the scene.
+- _complements_ **Verify-Before-Cite Resolution Gate** — Entity grounding resolves identifiers the agent uses in actions against a system of record; this gate resolves authorities the model cites in output against an external index.
+- _complements_ **Table-Augmented Generation** — Grounding resolves the identifiers a TAG query filters and joins on, so synthesis builds plans over authoritative ids rather than model-emitted ones.
+- _complements_ **Semantic-Layer Query Guardrail** — Grounding replaces model-emitted identifiers with authoritative lookups; this pattern replaces model-authored metric definitions and SQL with vetted ones, so the two together bound both the entities and the measures an agent's data query may reference.
 
 ## References
 
-- (blog) Starburst, *Agent Grounding: The Missing Discipline in Enterprise AI*, 2026, <https://www.starburst.io/blog/agent-grounding-the-missing-discipline-in-enterprise-ai/>
-- (paper) *Deterministic Legal Agents: A Canonical Primitive API for Auditable Reasoning over Temporal Knowledge Graphs*, 2025, <https://arxiv.org/abs/2510.06002>
-- (doc) Salesforce, *Ground an Agent with Data — Salesforce Trailhead*, 2026, <https://trailhead.salesforce.com/content/learn/modules/grounding-an-agent-with-data/learn-the-basics-of-grounding>
-- (blog) RudderStack, *Why Your AI Agent Hallucinates on Your Data*, 2026, <https://www.rudderstack.com/blog/why-ai-agent-hallucinates-on-your-data>
-
-**Tags:** grounding, master-data, entity-resolution, tool-use-environment, hallucination, erp, system-of-record
+- [Agent Grounding: The Missing Discipline in Enterprise AI](https://www.starburst.io/blog/agent-grounding-the-missing-discipline-in-enterprise-ai/) — Starburst, 2026
+- [Deterministic Legal Agents: A Canonical Primitive API for Auditable Reasoning over Temporal Knowledge Graphs](https://arxiv.org/abs/2510.06002) — 2025
+- [Ground an Agent with Data — Salesforce Trailhead](https://trailhead.salesforce.com/content/learn/modules/grounding-an-agent-with-data/learn-the-basics-of-grounding) — Salesforce, 2026
+- [Why Your AI Agent Hallucinates on Your Data](https://www.rudderstack.com/blog/why-ai-agent-hallucinates-on-your-data) — RudderStack, 2026

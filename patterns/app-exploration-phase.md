@@ -32,10 +32,6 @@ Therefore: split the agent's lifecycle into an exploration phase that authors pe
 
 Split the agent's lifecycle into two phases. (1) Exploration — agent autonomously interacts with the app or watches a human demo, and writes per-element documentation: what the element is, what it does, when to use it. Store as a structured knowledge base. (2) Deployment — for each task, retrieve relevant element docs (e.g. via vector search), inject into context, then act. Refresh docs when the UI changes.
 
-## Example scenario
-
-A logistics company points its agent at an internal warehouse app it has never seen before. On every task the agent stumbles: it misreads which button submits, hallucinates field names, and clicks 'Cancel' thinking it confirms. The team runs an exploration phase first: a human demonstrates a few flows while the agent records each element's role and the surrounding context, building a per-element knowledge base. At deployment, the agent retrieves the relevant element docs before each click and stops guessing.
-
 ## Structure
 
 ```
@@ -55,6 +51,10 @@ flowchart TD
   D --> A
 ```
 
+## Example scenario
+
+A logistics company points its agent at an internal warehouse app it has never seen before. On every task the agent stumbles: it misreads which button submits, hallucinates field names, and clicks 'Cancel' thinking it confirms. The team runs an exploration phase first: a human demonstrates a few flows while the agent records each element's role and the surrounding context, building a per-element knowledge base. At deployment, the agent retrieves the relevant element docs before each click and stops guessing.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +68,13 @@ flowchart TD
 - Exploration is expensive and offline; production tasks must wait or use an older KB.
 - KB drift when the app changes; staleness detection is non-trivial.
 - Element documentation quality bounds deployment-phase quality.
+
+## Failure modes
+
+- Stale knowledge base — the app ships a new screen, the element docs still describe the old one, and the agent clicks with confidence on the wrong control.
+- Shallow exploration — the exploration phase never reaches rare screens, so tasks that need them hit missing docs and stall in re-exploration.
+- Bad element notes — exploration writes a vague or wrong description of a button, and every later task that retrieves it inherits the mistake.
+- Improvised click — the agent acts on an element with no documentation instead of triggering re-exploration, and a sensitive action fires by accident.
 
 ## What this pattern constrains
 
@@ -87,19 +94,39 @@ At deployment, the agent may not act on an element whose documentation is missin
 - Each task uses a different app, so exploration cost cannot be amortised.
 - Element-level semantics are obvious from labels alone and exploration adds no signal.
 
+## Components
+
+- Exploration Agent — interacts with the target app or watches a human demo and writes per-element documentation
+- Element Knowledge Base — structured store of per-element descriptions keyed for retrieval
+- Retrieval Index — typically a vector store that fetches relevant element docs at deployment time
+- Deployment Agent — acts on user tasks while reading retrieved element docs
+- Refresh Trigger — detects UI drift and reruns exploration when the app changes
+
+## Tools
+
+- UI driver (Playwright or mobile-UI agent) — executes the exploration interactions and demo replays
+- Vector index — retrieves relevant element documentation per task at deployment time
+- Diff detector — compares screen captures to flag elements whose documentation has gone stale
+
+## Evaluation metrics
+
+- Element-doc coverage — fraction of interactive elements with non-trivial descriptions
+- Doc-retrieval hit rate — share of deployment steps where the right element doc was fetched
+- Task success lift over no-exploration baseline — headline value of the exploration phase
+- Doc staleness rate — fraction of docs invalidated by the latest UI version
+- Exploration cost amortisation point — task volume at which exploration compute pays back
+
 ## Known uses
 
-- **[AppAgent (Tencent)](https://github.com/TencentQQGYLab/AppAgent)** — *Available*. Two-phase architecture; exploration writes element documentation consumed at deployment.
+- **[AppAgent (Tencent)](https://github.com/TencentQQGYLab/AppAgent)** _available_ — Two-phase architecture; exploration writes element documentation consumed at deployment.
 
 ## Related patterns
 
-- *specialises* → [tool-discovery](tool-discovery.md) — Tool discovery for opaque GUIs.
-- *complements* → [skill-library](skill-library.md)
-- *uses* → [naive-rag](naive-rag.md) — Element docs are retrieved at deployment.
-- *complements* → [mobile-ui-agent](mobile-ui-agent.md)
+- _specialises_ **Tool Discovery** — Tool discovery for opaque GUIs.
+- _complements_ **Skill Library**
+- _uses_ **Naive RAG** — Element docs are retrieved at deployment.
+- _complements_ **Mobile UI Agent**
 
 ## References
 
-- (paper) Zhang et al., *AppAgent: Multimodal Agents as Smartphone Users*, 2023, <https://arxiv.org/abs/2312.13771>
-
-**Tags:** tool-use, gui-agent, china-origin, exploration
+- [AppAgent: Multimodal Agents as Smartphone Users](https://arxiv.org/abs/2312.13771) — Zhang et al., 2023

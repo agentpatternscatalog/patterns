@@ -7,7 +7,7 @@
 
 ## Intent
 
-Have the agent emit a Python (or similar) code snippet as its action at each step, executed in a constrained interpreter, instead of emitting a JSON tool call; tool composition becomes function nesting and control flow inside the snippet.
+Have the agent emit a code snippet as its action each step, executed in a constrained interpreter, instead of emitting JSON tool calls; tool composition becomes function nesting and control flow inside the snippet.
 
 ## Context
 
@@ -32,10 +32,6 @@ Therefore: replace the JSON tool-call channel with a sandboxed code snippet whos
 
 Replace the JSON tool-call channel with a code-snippet channel. The agent emits a Python (or DSL) snippet; the host executes it in a sandboxed interpreter that pre-imports the available tools as functions and an allow-list of safe builtins/modules. Tool results are returned as Python values usable by subsequent code. The agent can compose tools inside one snippet (loops, conditionals, intermediate variables) and observe the printed output. Bracket every snippet with a sandbox that whitelists imports and prevents arbitrary IO.
 
-## Example scenario
-
-A data-analysis agent needs to fetch a list of orders, filter to those over a threshold, and call a second tool for each one. With JSON tool calls, it takes a turn per order plus glue. The team switches to Code-as-Action: each step the agent emits a small Python snippet that runs in a constrained interpreter, so the whole composition is one snippet — fetch, filter, loop, call. Tool composition becomes ordinary control flow, and the conversation collapses from twenty turns to one.
-
 ## Structure
 
 ```
@@ -58,6 +54,10 @@ sequenceDiagram
   Model-->>Model: answer
 ```
 
+## Example scenario
+
+A data-analysis agent needs to fetch a list of orders, filter to those over a threshold, and call a second tool for each one. With JSON tool calls, it takes a turn per order plus glue. The team switches to Code-as-Action: each step the agent emits a small Python snippet that runs in a constrained interpreter, so the whole composition is one snippet — fetch, filter, loop, call. Tool composition becomes ordinary control flow, and the conversation collapses from twenty turns to one.
+
 ## Consequences
 
 **Benefits**
@@ -71,6 +71,13 @@ sequenceDiagram
 - Sandbox correctness is load-bearing; weak sandbox means arbitrary code execution.
 - Debugging silent failures inside snippets is harder than per-call JSON tracing.
 - Some hosted environments forbid model-generated code execution.
+
+## Failure modes
+
+- Sandbox escape — the interpreter allows an import or system call that should be blocked, and a generated snippet runs arbitrary code on the host.
+- Silent snippet failure — a loop inside the snippet swallows an error or skips items, and the printed output looks fine while half the refunds never ran.
+- Over-long snippet — the agent packs a whole workflow into one script, so a bug in the middle is hard to locate and the trace shows only the final print.
+- Injected data as code input — untrusted tool output flows into later calls inside the snippet with no model check in between.
 
 ## What this pattern constrains
 
@@ -90,24 +97,48 @@ The agent may only execute Python operations against the explicitly allowlisted 
 - Tools are simple atomic calls with no useful composition.
 - Auditors require explicit per-call structured arguments rather than free-form code.
 
+## Components
+
+- Agent — emits a code snippet as its action each step
+- Sandboxed Interpreter — executes the snippet with pre-imported tools and an allow-listed standard library
+- Tool Function Bindings — expose available tools as importable functions inside the sandbox
+- Result Channel — returns stdout, return values, and exceptions to the agent
+- Step Budget Controller — caps the number of code-snippet steps per task
+
+## Tools
+
+- Python sandbox (Pyodide or restricted CPython) — runs the agent-emitted snippets with pre-imported tool functions
+- Static allow-list of builtins and modules — restricts what the snippet may import or call
+
+## Evaluation metrics
+
+- Steps to completion versus JSON tool calling — compression from composing inside one snippet
+- Snippet-validity rate — fraction of emitted snippets that parse and run without exception
+- Tool-composition depth per snippet — how often the agent actually chains multiple tools in one step
+- Sandbox containment incidents — number of attempted escapes or disallowed imports caught
+- End-to-end task success on agent benchmarks — headline quality of the code-action channel
+
 ## Known uses
 
-- **[Hugging Face smolagents](https://github.com/huggingface/smolagents)** — *Available*. CodeAgent emits Python; pre-imported tool functions; allow-listed modules.
-- **Hugging Face Transformers Agents** — *Available*. Original ReactCodeAgent / CodeAgent variants; beat the GAIA benchmark.
-- **Manus** — *Available*. Sandbox VM with shell + file edit; agent action vocabulary includes code execution.
+- **[Hugging Face smolagents](https://github.com/huggingface/smolagents)** _available_ — CodeAgent emits Python; pre-imported tool functions; allow-listed modules.
+- **Hugging Face Transformers Agents** _available_ — Original ReactCodeAgent / CodeAgent variants; beat the GAIA benchmark.
+- **[Manus](https://manus.im/)** _available_ — Sandbox VM with shell + file edit; agent action vocabulary includes code execution.
 
 ## Related patterns
 
-- *alternative-to* → [tool-use](tool-use.md)
-- *uses* → [code-execution](code-execution.md)
-- *uses* → [sandbox-isolation](sandbox-isolation.md)
-- *specialises* → [react](react.md)
-- *alternative-to* → [parallel-tool-calls](parallel-tool-calls.md)
-- *complements* → [structured-output](structured-output.md)
+- _alternative-to_ **Tool Use**
+- _uses_ **Code Execution**
+- _uses_ **Sandbox Isolation**
+- _specialises_ **ReAct**
+- _alternative-to_ **Parallel Tool Calls**
+- _complements_ **Structured Output**
+- _composes-with_ **MCP-as-Code-API**
+- _alternative-to_ **JSON-Only Action Schema**
+- _complements_ **Code-Then-Execute with Dataflow Analysis**
+- _complements_ **Repo Map**
+- _complements_ **On-Demand Tool Synthesis** — Code-as-Action runs code as the answer; here the code is packaged and registered as a reusable, callable tool.
 
 ## References
 
-- (paper) Wang et al., *Executable Code Actions Elicit Better LLM Agents*, 2024, <https://arxiv.org/abs/2402.01030>
-- (blog) *Introducing smolagents: simple agents that write actions in code*, <https://huggingface.co/blog/smolagents>
-
-**Tags:** tool-use, code, france-origin, smolagents, huggingface
+- [Executable Code Actions Elicit Better LLM Agents](https://arxiv.org/abs/2402.01030) — Wang et al., 2024
+- [Introducing smolagents: simple agents that write actions in code](https://huggingface.co/blog/smolagents)

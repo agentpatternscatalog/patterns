@@ -24,20 +24,6 @@ If-else branching by URL host scales badly. Adding a new source requires editing
 - Tests for a source should not pull in unrelated crawlers.
 - URL-to-crawler mapping is the only routing decision; it should be one place.
 
-## Applicability
-
-**Use when**
-
-- Many heterogeneous sources need ingestion.
-- Sources are added frequently and per-source logic differs materially.
-- Tests should not couple across crawlers.
-
-**Do not use when**
-
-- Only one or two sources, with no growth expected.
-- Sources are similar enough that one crawler suffices.
-- Cross-source coordination (shared rate-limit budgets) dominates per-source variation.
-
 ## Therefore
 
 Therefore: route each URL through a central dispatcher that maps URL patterns to registered crawler classes, so adding a new source is a registration change rather than an edit to the dispatch logic.
@@ -46,9 +32,11 @@ Therefore: route each URL through a central dispatcher that maps URL patterns to
 
 Define a Crawler interface (e.g. `fetch(url) -> document`). Implement one crawler class per source (LinkedInCrawler, MediumCrawler, GitHubCrawler, ...). A Dispatcher object holds a registry of (URL pattern → crawler class). `dispatcher.get_crawler(url)` returns the right instance; adding a source is `dispatcher.register(pattern, CrawlerClass)`. The dispatcher is small and stable; the crawler classes evolve independently. Tests for one crawler don't import the others.
 
-## Example scenario
+## Structure
 
-A personal-knowledge LLM ingests content from LinkedIn, Substack, GitHub, and the author's personal site. The Dispatcher has four registrations. Adding a fifth source (Bluesky) is a new BlueskyCrawler class and one register call. The ingestion module is unchanged.
+```
+Incoming URL --> Dispatcher --lookup--> Registry (URL pattern -> crawler class) --> Matching crawler (LinkedIn / Medium / GitHub ...) --fetch(url)--> Document
+```
 
 ## Diagram
 
@@ -65,6 +53,10 @@ flowchart LR
   C3 --> Doc
 ```
 
+## Example scenario
+
+A personal-knowledge LLM ingests content from LinkedIn, Substack, GitHub, and the author's personal site. The Dispatcher has four registrations. Adding a fifth source (Bluesky) is a new BlueskyCrawler class and one register call. The ingestion module is unchanged.
+
 ## Consequences
 
 **Benefits**
@@ -79,27 +71,65 @@ flowchart LR
 - Cross-source coordination (rate-limit budgets across crawlers) needs a layer above the dispatcher.
 - Registry can drift if registrations live in many files without a startup audit.
 
+## Failure modes
+
+- Ambiguous match — two sources share a host, the first matching pattern wins, and pages go to the wrong crawler.
+- Unregistered crawler — a new crawler class is written but its registration lives in a file that never loads, so its URLs fall through to no handler.
+- Uncoordinated rate limits — each crawler respects its own budget, but together they hit a shared upstream too hard because nothing above the dispatcher tracks the total.
+- If-else creep — a quick fix adds a host check back into the ingestion code, and dispatch logic starts to live in two places.
+
 ## What this pattern constrains
 
 URL-to-crawler dispatch must not be inlined as if-else branching in the ingestion code; the mapping lives in a central registry the dispatcher consults.
 
+## Applicability
+
+**Use when**
+
+- Many heterogeneous sources need ingestion.
+- Sources are added frequently and per-source logic differs materially.
+- Tests should not couple across crawlers.
+
+**Do not use when**
+
+- Only one or two sources, with no growth expected.
+- Sources are similar enough that one crawler suffices.
+- Cross-source coordination (shared rate-limit budgets) dominates per-source variation.
+
+## Components
+
+- Dispatcher — central object holding registry of URL pattern -> crawler class
+- Crawler interface — fetch(url) -> document contract
+- Per-source crawler classes — one per domain or platform
+- Registry — pattern-to-class mapping that grows by registration
+
+## Tools
+
+- URL-pattern matcher — regex or prefix
+- HTTP client — used by individual crawlers
+- Anti-bot/login layer — used by crawlers that need session
+
+## Evaluation metrics
+
+- Source-add cost — engineer-hours to add a new source
+- Per-source success rate — fraction of URLs each crawler resolves cleanly
+- Dispatcher ambiguity incidents — URLs that matched multiple crawlers
+
 ## Known uses
 
-- **LLM Engineer's Handbook (Iusztin, Labonne) — LLM Twin crawler dispatcher pattern** — *Available* — <https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e>
-- **Scrapy spider registry, Apache Tika parser registry (canonical equivalents)** — *Available*
+- **[LLM Engineer's Handbook (Iusztin, Labonne) — LLM Twin crawler dispatcher pattern](https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e)** _available_
+- **[Scrapy spider registry, Apache Tika parser registry (canonical equivalents)](https://docs.scrapy.org/en/latest/topics/spiders.html)** _available_
 
 ## Related patterns
 
-- *complements* → [agent-adapter](agent-adapter.md)
-- *complements* → [augmented-llm](augmented-llm.md)
-- *complements* → [tool-use](tool-use.md)
-- *composes-with* → [fti-llm-pipeline-split](fti-llm-pipeline-split.md)
-- *complements* → [browser-agent](browser-agent.md)
-- *complements* → [rate-limiting](rate-limiting.md)
+- _complements_ **Agent Adapter**
+- _complements_ **Augmented LLM**
+- _complements_ **Tool Use**
+- _composes-with_ **FTI LLM Pipeline Split**
+- _complements_ **Browser Agent**
+- _complements_ **Rate Limiting**
 
 ## References
 
-- (book) *LLM Engineer's Handbook*, Paul Iusztin, Maxime Labonne, 2024, <https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079>
-- (blog) *Your Content is Gold — Decoding AI*, <https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e>
-
-**Tags:** ingestion, data-pipeline, registry
+- [LLM Engineer's Handbook](https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200079) — Paul Iusztin, Maxime Labonne, 2024
+- [Your Content is Gold — Decoding AI](https://medium.com/decodingai/your-content-is-gold-i-turned-3-years-of-blog-posts-into-an-llm-training-d19c265bdd6e)

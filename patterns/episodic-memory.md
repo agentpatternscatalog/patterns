@@ -24,31 +24,19 @@ If the agent has only a fact store, it can answer 'what is true' but not 'what h
 - Raw episode replay is too noisy for prompt context — needs salience scoring, summarisation, or reflection passes to be useful.
 - Privacy and tenant isolation: episodes contain user content and must respect session and user boundaries.
 
-## Applicability
-
-**Use when**
-
-- The agent needs to recall specific past interactions, not just distilled facts.
-- Reflection or consolidation passes need raw episodes as input to derive insights or procedures.
-- Temporal queries ('what did I do yesterday', 'what changed since last week') matter.
-
-**Do not use when**
-
-- Retention or privacy constraints make event logs untenable and only extracted facts are allowed.
-- Session is single-turn and there is no future to reflect from.
-- Storage and compaction infrastructure cannot be maintained at the required scale.
-
 ## Therefore
 
 Therefore: maintain an append-only episodic store of time-stamped events, retrievable by some combination of recency, similarity, and salience, and feed it into compaction or reflection passes that distil reusable insights into the semantic and procedural layers.
 
 ## Solution
 
-Park et al.'s Generative Agents memory stream (2023) is the canonical implementation: every observation is logged with a timestamp and an importance score; retrieval combines recency, relevance, and importance; a periodic reflection pass derives higher-level insights from clusters of recent episodes. LangMem's episodic channel stores past interactions for few-shot retrieval and procedure distillation. Substrate is orthogonal to function: vector store ([vector-memory](vector-memory.md)), append-only log ([append-only-thought-stream](append-only-thought-stream.md)), or structured journal can all back episodic memory. Compaction is typically delegated to [episodic-summaries](episodic-summaries.md); consolidation into facts feeds [semantic-memory](semantic-memory.md); consolidation into skills feeds [procedural-memory](procedural-memory.md).
+Park et al.'s Generative Agents memory stream (2023) is the canonical implementation: every observation is logged with a timestamp and an importance score; retrieval combines recency, relevance, and importance; a periodic reflection pass derives higher-level insights from clusters of recent episodes. LangMem's episodic channel stores past interactions for few-shot retrieval and procedure distillation. Substrate is orthogonal to function: vector store ([[vector-memory]]), append-only log ([[append-only-thought-stream]]), or structured journal can all back episodic memory. Compaction is typically delegated to [[episodic-summaries]]; consolidation into facts feeds [[semantic-memory]]; consolidation into skills feeds [[procedural-memory]].
 
-## Example scenario
+## Structure
 
-A coding agent has worked with a developer across hundreds of tickets over six months. The developer later asks the agent to explain how the team ended up with the weird workaround in the auth module. A pure semantic store would return facts like (auth-module, uses-workaround, true) — useless. An episodic store returns the actual sequence: on 2026-02-14 the developer flagged a CVE, on 2026-02-15 the agent proposed a fix, the proposed fix broke a downstream test, on 2026-02-16 they agreed on a workaround instead with a TODO. The agent can now answer the why. The episodic store also feeds a weekly reflection pass that consolidates 'workaround in auth-module' into a semantic fact and 'CVE-flag → propose fix → test → workaround-with-TODO' into a procedural template.
+```
+Observation --stamp time + importance--> Episodic memory (vector store | append-only log | journal); Query --recency + similarity + importance--> Top-k episodes --> Context; Episodic memory --reflection pass--> {Semantic facts, Procedural recipes, Episodic summaries}
+```
 
 ## Diagram
 
@@ -69,6 +57,10 @@ flowchart TD
   Refl --> Sum[Episodic summaries: compacted tier]
 ```
 
+## Example scenario
+
+A coding agent has worked with a developer across hundreds of tickets over six months. The developer later asks the agent to explain how the team ended up with the weird workaround in the auth module. A pure semantic store would return facts like (auth-module, uses-workaround, true) — useless. An episodic store returns the actual sequence: on 2026-02-14 the developer flagged a CVE, on 2026-02-15 the agent proposed a fix, the proposed fix broke a downstream test, on 2026-02-16 they agreed on a workaround instead with a TODO. The agent can now answer the why. The episodic store also feeds a weekly reflection pass that consolidates 'workaround in auth-module' into a semantic fact and 'CVE-flag → propose fix → test → workaround-with-TODO' into a procedural template.
+
 ## Consequences
 
 **Benefits**
@@ -83,32 +75,79 @@ flowchart TD
 - Raw episode prompts are noisy — direct injection without salience scoring degrades reasoning.
 - Privacy and retention boundaries are harder to enforce on event logs than on extracted facts.
 
+## Failure modes
+
+- Unbounded log — episodes pile up with no compaction, and retrieval slows and costs more over time.
+- Noisy injection — raw episodes are put into the prompt without salience scoring, and the model reasons from irrelevant detail.
+- Flattened causality — interactions are turned into facts at write time, and the order of events needed for debugging is lost.
+- Retention breach — event logs keep personal details past their allowed retention because no boundary is enforced on them.
+
 ## What this pattern constrains
 
 Forbids collapsing every interaction into facts at write-time. Episodes keep their identity (timestamp, context, outcome) and are queried as events; extraction into facts or skills is a separate, downstream step.
 
+## Applicability
+
+**Use when**
+
+- The agent needs to recall specific past interactions, not just distilled facts.
+- Reflection or consolidation passes need raw episodes as input to derive insights or procedures.
+- Temporal queries ('what did I do yesterday', 'what changed since last week') matter.
+
+**Do not use when**
+
+- Retention or privacy constraints make event logs untenable and only extracted facts are allowed.
+- Session is single-turn and there is no future to reflect from.
+- Storage and compaction infrastructure cannot be maintained at the required scale.
+
+## Components
+
+- Event logger — time-stamps each observation/interaction and writes it to the episodic store
+- Importance scorer — assigns a salience score per event to drive later retrieval and consolidation
+- Episodic store — substrate-agnostic layer holding time-stamped events with metadata
+- Substrate adapter — concrete backing: vector index, append-only log, or structured journal
+- Retriever — combines recency, similarity, and salience to surface top-k relevant past episodes
+- Reflection pass — periodically reads recent episodes and consolidates into semantic/procedural memory
+
+## Tools
+
+- Vector database — Pinecone, Weaviate, pgvector when similarity is the dominant retrieval axis
+- Append-only log store — Postgres, S3+object-log, or event store preserving strict order
+- Reflection LLM — periodically reads recent episodes and writes back consolidated assertions
+- LangMem episodic channel — production library implementing few-shot-from-episodes retrieval
+
+## Evaluation metrics
+
+- Episode recall — fraction of labelled relevant past episodes returned by the retriever for matching queries
+- Temporal-query accuracy — share of 'what did I do at time T' style queries answered correctly
+- Reflection yield — number of episodic clusters that produce a useful semantic or procedural artifact per pass
+- Storage growth — episodes per day vs the compaction policy's target steady-state
+- Privacy-boundary breach rate — incidents where episodes from one user surfaced to another
+
 ## Known uses
 
-- **Generative Agents memory stream (Park et al. 2023)** — *Available* — <https://arxiv.org/abs/2304.03442>
-- **LangChain LangMem SDK — episodic channel** — *Available* — <https://www.langchain.com/blog/langmem-sdk-launch>
-- **CoALA framework — episodic memory as second long-term type** — *Available* — <https://arxiv.org/abs/2309.02427>
-- **Letta recall and archival memory — partial implementation (episodic + semantic conflated)** — *Available* — <https://docs.letta.com/>
+- **[Generative Agents memory stream (Park et al. 2023)](https://arxiv.org/abs/2304.03442)** _available_
+- **[LangChain LangMem SDK — episodic channel](https://www.langchain.com/blog/langmem-sdk-launch)** _available_
+- **[CoALA framework — episodic memory as second long-term type](https://arxiv.org/abs/2309.02427)** _available_
+- **[Letta recall and archival memory — partial implementation (episodic + semantic conflated)](https://docs.letta.com/)** _available_
 
 ## Related patterns
 
-- *complements* → [semantic-memory](semantic-memory.md)
-- *complements* → [procedural-memory](procedural-memory.md)
-- *uses* → [vector-memory](vector-memory.md) — Vector store is one substrate option for episodic memory.
-- *uses* → [append-only-thought-stream](append-only-thought-stream.md) — Append-only log is one substrate option preserving causal order.
-- *uses* → [episodic-summaries](episodic-summaries.md) — Summarisation is the standard compaction mechanism for episodic stores.
-- *complements* → [salience-attention-mechanism](salience-attention-mechanism.md)
-- *complements* → [hippocampal-rehearsal](hippocampal-rehearsal.md)
+- _complements_ **Semantic Memory**
+- _complements_ **Procedural Memory**
+- _uses_ **Vector Memory** — Vector store is one substrate option for episodic memory.
+- _uses_ **Append-Only Thought Stream** — Append-only log is one substrate option preserving causal order.
+- _uses_ **Episodic Summaries** — Summarisation is the standard compaction mechanism for episodic stores.
+- _complements_ **Salience Attention Mechanism**
+- _complements_ **Hippocampal Rehearsal**
+- _composes-with_ **Agentic Memory**
+- _complements_ **Memory-Type Storage Specialization**
+- _complements_ **Three Layers of Agentic AI Memory**
+- _complements_ **Test-Time Memorization (Titans)**
 
 ## References
 
-- (paper) Park, O'Brien, Cai, Morris, Liang, Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
-- (paper) Sumers, Yao, Narasimhan, Griffiths, *Cognitive Architectures for Language Agents (CoALA)*, 2023, <https://arxiv.org/abs/2309.02427>
-- (doc) *LangGraph Memory Concepts — semantic, episodic, procedural types*, 2025, <https://docs.langchain.com/oss/python/concepts/memory>
-- (blog) *LangMem SDK launch — semantic, episodic, procedural channels*, 2025, <https://www.langchain.com/blog/langmem-sdk-launch>
-
-**Tags:** memory, long-term, events, coala, function-level
+- [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442) — Park, O'Brien, Cai, Morris, Liang, Bernstein, 2023
+- [Cognitive Architectures for Language Agents (CoALA)](https://arxiv.org/abs/2309.02427) — Sumers, Yao, Narasimhan, Griffiths, 2023
+- [LangGraph Memory Concepts — semantic, episodic, procedural types](https://docs.langchain.com/oss/python/concepts/memory) — 2025
+- [LangMem SDK launch — semantic, episodic, procedural channels](https://www.langchain.com/blog/langmem-sdk-launch) — 2025

@@ -31,9 +31,11 @@ Therefore: tag every model and tool call with feature, route, model id, and anon
 
 Tag every model and tool call with feature, route, user (anonymised), and model id. Stream to a telemetry store. Build dashboards by feature, by model, by tier, by hour. Set alerts on anomalies. Pair with cost-gating for prevention.
 
-## Example scenario
+## Structure
 
-An ops team notices the monthly LLM bill has tripled but can't say which feature drove it — the dashboard only shows total tokens. By the time billing arrives the runaway feature has been live for weeks. They add Cost Observability: every request is tagged with feature, user, and tenant, and per-feature spend rolls up in near-real-time. Within an hour of a regression the team can see which feature now costs ten times what it did yesterday.
+```
+Model call / Tool call --tagging middleware (feature, route, model id, anonymised user)--> Tag-or-reject gateway --> Telemetry store --> Dashboards (by feature, model, tier, hour) + Anomaly alerter --> Operators
+```
 
 ## Diagram
 
@@ -47,6 +49,10 @@ flowchart TD
   A --> Op
 ```
 
+## Example scenario
+
+An ops team notices the monthly LLM bill has tripled but can't say which feature drove it — the dashboard only shows total tokens. By the time billing arrives the runaway feature has been live for weeks. They add Cost Observability: every request is tagged with feature, user, and tenant, and per-feature spend rolls up in near-real-time. Within an hour of a regression the team can see which feature now costs ten times what it did yesterday.
+
 ## Consequences
 
 **Benefits**
@@ -58,6 +64,13 @@ flowchart TD
 
 - Telemetry overhead.
 - Per-user attribution has privacy implications.
+
+## Failure modes
+
+- Unattributed bucket growth — new call sites skip the tags, and a growing share of spend lands in the unattributed bucket where no feature owns it.
+- Alert on the wrong grain — anomaly alerts watch total tokens, so a ten-fold rise in one feature stays under the global threshold.
+- Re-identification through tags — the per-user tag is weakly anonymised, and the cost store becomes a record of what each person did.
+- Detection without brakes — the dashboard shows a runaway loop clearly, but nothing stops it until an operator reads the alert.
 
 ## What this pattern constrains
 
@@ -77,22 +90,48 @@ Calls without telemetry tags fall into an 'unattributed' bucket; some internal g
 - Telemetry pipeline cost exceeds the cost it would help you control.
 - No operator owns cost — the dashboards would go unwatched.
 
+## Components
+
+- Tagging Middleware — attaches feature, route, model id, and anonymised user to every model and tool call
+- Telemetry Store — receives the streamed tagged-cost events
+- Per-Dimension Dashboards — slice spend by feature, model, tier, and hour
+- Anomaly Alerter — fires when per-feature spend deviates from baseline
+- Tag-or-Reject Gateway — refuses untagged calls so spend stays attributable
+
+## Tools
+
+- Langfuse — captures and aggregates per-feature token and cost telemetry
+- Helicone — proxy-style cost and usage telemetry for LLM calls
+- OpenAI usage dashboard — provider-side per-key spend visibility
+- Anthropic Console usage — provider-side per-key spend visibility
+
+## Evaluation metrics
+
+- Attribution coverage — share of model and tool calls that carry the required tags
+- Time-to-detect cost regression — minutes from spend spike to operator alert
+- Per-feature cost variance week-over-week — surfaces chatty prompts and bad routing
+- Unattributed-bucket spend share — fraction of cost the gateway could not assign
+- Alert precision on cost anomalies — true-positive rate against confirmed regressions
+
 ## Known uses
 
-- **Langfuse** — *Available*
-- **Helicone** — *Available*
-- **OpenAI usage dashboard** — *Available*
-- **Anthropic Console usage** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Per-tick and per-provider token / cost telemetry is surfaced so cheap-by-default routing can be audited and premium escalations stay accountable.
+- **Langfuse** _available_
+- **Helicone** _available_
+- **OpenAI usage dashboard** _available_
+- **Anthropic Console usage** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — Per-tick and per-provider token / cost telemetry is surfaced so cheap-by-default routing can be audited and premium escalations stay accountable.
 
 ## Related patterns
 
-- *complements* → [cost-gating](cost-gating.md)
-- *complements* → [lineage-tracking](lineage-tracking.md)
+- _complements_ **Cost Gating**
+- _complements_ **Lineage Tracking**
+- _alternative-to_ **Demo-to-Production Cliff**
+- _alternative-to_ **Token-Economy Blindness**
+- _complements_ **Realtime API When Batchable**
+- _complements_ **Top-Tier Model For Everything (Cost)**
+- _used-by_ **Agent Withdrawal Criteria** — The economic threshold is only evaluable if cost per case is measured continuously and compared against a maintained human baseline.
 
 ## References
 
-- (doc) *Langfuse*, <https://langfuse.com/docs>
-- (doc) *Helicone*, <https://docs.helicone.ai>
-
-**Tags:** observability, cost, telemetry
+- [Langfuse](https://langfuse.com/docs)
+- [Helicone](https://docs.helicone.ai)

@@ -31,6 +31,12 @@ Therefore: persist the agent's reasoning at a chosen granularity and link each p
 
 Persist reasoning at a chosen granularity (full trace, key decisions, or summary). Link each action in the provenance ledger to its trace. Indexed by request id and time for retrieval.
 
+## Structure
+
+```
+Agent action --> Provenance ledger; same step --> Reasoning capture (full / key decisions / summary) --> Redaction filter --> Append-only decision log (indexed by request id + time) <--link-- Provenance ledger; Post-hoc reviewer --query--> Decision log
+```
+
 ## Diagram
 
 ```mermaid
@@ -58,6 +64,13 @@ A trading agent decided to short a position at 14:32. At 16:00, the trade lost m
 - Storage and privacy implications.
 - Trace tampering (the agent rewriting its trace) defeats the purpose; append-only is needed.
 
+## Failure modes
+
+- Rewritten trace — the log store allows updates, and the agent or a later process edits the reasoning so it no longer matches what drove the action.
+- Orphaned action — an action record is written on a path that skips the log entry, and the reviewer finds a trade with no reasoning attached.
+- Summary too thin — the chosen granularity is a one-line summary, and it omits the rejected alternatives the reviewer needed.
+- Sensitive content kept — the redaction filter misses personal data in the reasoning, and the decision log becomes a privacy liability.
+
 ## What this pattern constrains
 
 Action records cannot be written without a corresponding decision-log entry.
@@ -76,27 +89,63 @@ Action records cannot be written without a corresponding decision-log entry.
 - Storage or compliance constraints forbid retaining the reasoning trace.
 - The agent is so simple that the action alone implies the reasoning.
 
+## Components
+
+- Reasoning Capture — extracts the chain of thought or key decisions at the chosen granularity
+- Append-Only Decision Log — immutable store indexed by request id and timestamp
+- Provenance Ledger Link — ties each action record to the reasoning entry that produced it
+- Redaction Filter — strips sensitive content from reasoning before persistence
+- Post-Hoc Reviewer Interface — query layer used by auditors and on-call engineers
+
+## Tools
+
+- Langfuse / LangSmith trace store — captures reasoning, tool calls, and actions per request id
+- OpenTelemetry GenAI spans — emits decisions as spans next to LLM and tool calls
+- Append-only store (object lock, WORM) — guarantees the agent cannot rewrite past entries
+
+## Evaluation metrics
+
+- Action-to-reasoning link rate — share of action-log entries that resolve to a decision-log entry
+- Reasoning-trace coverage — fraction of agent steps that emit a captured rationale
+- Mean time to explain a past action — debug latency after the log lands
+- Tamper-attempt count — append-only rejections of edits to historical entries
+- Redaction false-negative rate — sensitive payloads that escaped the redaction filter
+
 ## Known uses
 
-- **Langfuse / LangSmith trace stores** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Decisions made during a tick are written to a durable log alongside their reasoning.
+- **Langfuse / LangSmith trace stores** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — Decisions made during a tick are written to a durable log alongside their reasoning.
 
 ## Related patterns
 
-- *generalises* → [provenance-ledger](provenance-ledger.md)
-- *uses* → [append-only-thought-stream](append-only-thought-stream.md)
-- *alternative-to* → [black-box-opaqueness](black-box-opaqueness.md)
-- *used-by* → [replay-time-travel](replay-time-travel.md)
-- *used-by* → [agent-as-judge](agent-as-judge.md)
-- *complements* → [attention-manipulation-explainability](attention-manipulation-explainability.md)
-- *complements* → [self-archaeology](self-archaeology.md)
-- *complements* → [memo-as-source-confusion](memo-as-source-confusion.md)
-- *complements* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
-- *complements* → [intra-agent-memo-scheduling](intra-agent-memo-scheduling.md)
-- *complements* → [echo-recognition](echo-recognition.md)
+- _generalises_ **Provenance Ledger**
+- _uses_ **Append-Only Thought Stream**
+- _alternative-to_ **Black-Box Opaqueness**
+- _used-by_ **Replay / Time-Travel**
+- _used-by_ **Agent-as-a-Judge**
+- _complements_ **Attention-Manipulation Explainability**
+- _complements_ **Self-Archaeology**
+- _complements_ **Memo-As-Source Confusion**
+- _complements_ **Interrupt-Resumable Thought**
+- _complements_ **Intra-Agent Memo Scheduling**
+- _complements_ **Echo Recognition**
+- _alternative-to_ **Errors Swept Under the Rug**
+- _complements_ **Typed Refusal Codes**
+- _complements_ **Commitment Tracking**
+- _alternative-to_ **Agentic Skill Atrophy**
+- _alternative-to_ **Agentic Debt**
+- _complements_ **Rigor Relocation**
+- _complements_ **Synchronous Execution-Plan Confirmation**
+- _complements_ **Policy-Gated Agent Action (KRITIS)**
+- _complements_ **Decision Context Maps**
+- _complements_ **Agent Middleware Chain**
+- _complements_ **Multi-Principal Welfare Aggregation**
+- _used-by_ **Sampled Prompt Trace Eval**
+- _complements_ **Decision Token** — The decision log persists the reasoning trace for retrospective review; a Decision Token is a self-contained, signed per-action artifact minted at execution time and handed to a supervisor on its own.
+- _complements_ **Re-Proposing Rejected Decisions** — Decision Log is the cure-side record this anti-pattern lacks: a persisted account of which alternatives were rejected and why is exactly the history that, fed into context, stops the agent from re-proposing them. The log is the corrective input, not a competing solution.
+- _complements_ **Postmortem Pattern Mining** — A decision log captures one agent run's reasoning forward in time; this pattern mines a corpus of human-written postmortems backward to surface trends across many incidents.
+- _used-by_ **Control-Loop-Mapped Agent Chain** — One record per control sample — timestamp, measurement, setpoint, requested output, mode, rationale and fallback flag — is what turns the trajectory into an auditable campaign logbook.
 
 ## References
 
-- (doc) *Langfuse docs*, <https://langfuse.com/docs>
-
-**Tags:** observability, trace, debug
+- [Langfuse docs](https://langfuse.com/docs)

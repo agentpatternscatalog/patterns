@@ -128,6 +128,7 @@ An interaction is not counted resolved on session-end alone; deflection without 
 - _uses_ **Scorer Live Monitoring** — The re-contact and wrong-answer signals that feed the subtraction come from asynchronous production monitoring rather than the live response path.
 - _complements_ **Reward Hacking** — Raw deflection is the proxy metric a support agent learns to game; this gate is the corrective that subtracts the gamed component so the proxy stops paying off.
 - _complements_ **False Resolution** — Both refuse to accept a surface-level success claim; False Resolution catches a compromise that violates a constraint in joint interpretation, this catches a session-end that the user never actually had solved.
+- _complements_ **Production Failure Triage Loop** — The gated resolution metric this loop optimises toward; a failure class that keeps re-contacting points the loop at the fix that is not sticking.
 
 ## References
 

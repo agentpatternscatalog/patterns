@@ -130,6 +130,7 @@ The aggregate report may assert only trends that trace back to cited per-documen
 - _complements_ **Decision Log** — A decision log captures one agent run's reasoning forward in time; this pattern mines a corpus of human-written postmortems backward to surface trends across many incidents.
 - _complements_ **Lineage Tracking** — Lineage records which prompt/model/data produced one output; the citations from records to source postmortems give the aggregate report the same traceability over the mined corpus.
 - _conflicts-with_ **Agent Confession as Forensics** — That anti-pattern trusts a model's generated self-narrative as the root-cause record; this pattern instead mines human-authored postmortems and gates the aggregate on a human sampling check rather than on any single generated account.
+- _complements_ **Production Failure Triage Loop** — Pattern mining is a batch, corpus-level map-fold over thousands of written postmortems that surfaces recurring causes; this loop is the live, per-failure classify-and-route complement — mining finds and validates the buckets, this routes each new failure into them.
 
 ## References
 

@@ -25,21 +25,6 @@ Keeping the workflow state only in process memory is enough to survive a single 
 - Snapshot frequency trades resume granularity against write cost.
 - Snapshots are sensitive data; access control on the storage provider is part of the threat model.
 
-## Applicability
-
-**Use when**
-
-- Runs span deploys (anything longer than a typical release cycle).
-- Workflows may wait minutes-to-hours on external signals.
-- Host loss must not lose user work.
-- An audit trail of intermediate state is required.
-
-**Do not use when**
-
-- Workflows finish well inside a single process lifetime and idempotent retry is enough.
-- State is too large to snapshot at every checkpoint and a different durability shape (event sourcing, append-only) fits better.
-- Resuming with stale code under new deployments cannot be made safe.
-
 ## Therefore
 
 Therefore: serialise the entire workflow state into a pluggable storage provider at well-defined checkpoints, so that a paused run can resume on a different host, after a deploy, or after a process crash by loading the snapshot.
@@ -50,11 +35,9 @@ Treat the workflow runtime as a state machine whose state is fully serialisable.
 
 ## Structure
 
+```
 WorkflowEngine → checkpoint(snapshot) → StorageProvider. On startup: StorageProvider → load(run_id) → WorkflowEngine.resume(snapshot).
-
-## Example scenario
-
-A loan-origination agent runs for hours, pausing twice for human approval. Without durable snapshots, every nightly deploy kills in-flight runs and the work restarts from zero the next morning. The team adds durable workflow snapshots written to Postgres after each step: on deploy, in-flight runs resume from their last checkpoint, the awaited approval is rehydrated, and the worst-case loss is one step. Snapshot schemas are versioned; the new deploy refuses to resume a snapshot it cannot understand and emits an explicit recovery task instead.
+```
 
 ## Diagram
 
@@ -72,6 +55,10 @@ sequenceDiagram
   W->>W: resume from step 3
 ```
 
+## Example scenario
+
+A loan-origination agent runs for hours, pausing twice for human approval. Without durable snapshots, every nightly deploy kills in-flight runs and the work restarts from zero the next morning. The team adds durable workflow snapshots written to Postgres after each step: on deploy, in-flight runs resume from their last checkpoint, the awaited approval is rehydrated, and the worst-case loss is one step. Snapshot schemas are versioned; the new deploy refuses to resume a snapshot it cannot understand and emits an explicit recovery task instead.
+
 ## Consequences
 
 **Benefits**
@@ -88,26 +75,78 @@ sequenceDiagram
 - Resuming a snapshot under different code may reach states the new code does not expect.
 - Sensitive data lands in the storage provider and inherits its access-control posture.
 
+## Failure modes
+
+- Schema mismatch resumed — a deploy changes the snapshot shape and the version check is missing, so an old snapshot loads into new code and the run continues in a broken state.
+- Checkpoint gap — a snapshot is taken only on suspend, and a host crash between steps loses all work since the last suspension.
+- Loose storage access — snapshots carry sensitive local state into a bucket with wider read access than the workflow itself.
+- Unexpected state under new code — the schema version matches, but the new code assumes a field value the old run never set and takes a wrong branch.
+
 ## What this pattern constrains
 
 Workflow state must be fully serialisable into the storage provider at every checkpoint; no in-process-only data may participate in resumption, and snapshots are not allowed to resume under incompatible schema versions.
 
+## Applicability
+
+**Use when**
+
+- Runs span deploys (anything longer than a typical release cycle).
+- Workflows may wait minutes-to-hours on external signals.
+- Host loss must not lose user work.
+- An audit trail of intermediate state is required.
+
+**Do not use when**
+
+- Workflows finish well inside a single process lifetime and idempotent retry is enough.
+- State is too large to snapshot at every checkpoint and a different durability shape (event sourcing, append-only) fits better.
+- Resuming with stale code under new deployments cannot be made safe.
+
+## Components
+
+- Workflow Engine — drives the state machine and decides when to checkpoint
+- Snapshot Serializer — encodes step index, local state, awaited signals, and history
+- Pluggable Storage Provider — Postgres, S3, Redis, or vendor-managed snapshot store
+- Schema Versioner — refuses to resume snapshots written by incompatible code versions
+- Resumer — loads the latest snapshot and continues from the next step on a new host
+
+## Tools
+
+- Mastra workflows — suspend-and-resume with configurable storage providers
+- Temporal — persists workflow execution history for resumption across years
+- Inngest / Restate / DBOS — durable-execution runtimes with pluggable snapshot storage
+- Postgres / S3 / Redis — concrete storage backends for snapshot persistence
+
+## Evaluation metrics
+
+- Resume-success rate across deploys — share of in-flight runs that continue cleanly after a release
+- Mean step-loss per host failure — number of steps re-executed after the last snapshot
+- Snapshot write latency p95 — checkpoint overhead added per step
+- Schema-incompatibility rejections — count of refused resumes vs silent corruption (target zero corruption)
+- Storage cost per workflow run — bytes written across the workflow lifetime
+
 ## Known uses
 
-- **Mastra workflows (suspend-and-resume)** — Mastra workflows write snapshots to a configured storage provider; snapshots persist across deployments and application restarts. *Available* — [link](https://mastra.ai/docs/workflows/suspend-and-resume)
-- **Temporal Workflows** — Temporal persists workflow execution history durably so workflows can run for years and survive process crashes. *Available* — [link](https://docs.temporal.io/workflows)
-- **Inngest / Restate / DBOS** — Same durable-execution shape: workflow state in pluggable storage, resumable across deployments. *Available*
+- **[Mastra workflows (suspend-and-resume)](https://mastra.ai/docs/workflows/suspend-and-resume)** _available_ — Mastra workflows write snapshots to a configured storage provider; snapshots persist across deployments and application restarts.
+- **[Temporal Workflows](https://docs.temporal.io/workflows)** _available_ — Temporal persists workflow execution history durably so workflows can run for years and survive process crashes.
+- **[Inngest / Restate / DBOS](https://www.inngest.com/uses/durable-workflows)** _available_ — Same durable-execution shape: workflow state in pluggable storage, resumable across deployments.
 
 ## Related patterns
 
-- *specialises* → [agent-resumption](agent-resumption.md)
-- *complements* → [replay-time-travel](replay-time-travel.md)
-- *complements* → [provenance-ledger](provenance-ledger.md)
-- *complements* → [scheduled-agent](scheduled-agent.md)
+- _specialises_ **Agent Resumption**
+- _complements_ **Replay / Time-Travel**
+- _complements_ **Provenance Ledger**
+- _complements_ **Scheduled Agent**
+- _complements_ **Blocking Sync Calls in Agent Loop**
+- _complements_ **Missing Idempotency on Agent Calls**
+- _complements_ **Orchestrator as Bottleneck**
+- _complements_ **Stateless Reducer Agent**
+- _used-by_ **Interruptible Agent Execution**
+- _complements_ **Journaled LLM Call**
+- _alternative-to_ **Shadow Workspace** — Snapshots persist execution/workflow state for resume; a shadow workspace versions the files the agent mutates for review and rollback.
+- _alternative-to_ **Forkable Agent Sandbox** — That snapshots serialisable orchestration state to a storage provider so one linear run can resume after a restart; here the artifact is live machine state and the purpose is parallel branching, not resumption.
+- _complements_ **As-Of Information-Set Pinning** — Persists workflow execution state so a run can resume; this pins the external information set the run reads, which the execution snapshot does not contain.
 
 ## References
 
-- *doc*: [Mastra — Suspend and Resume Workflows](https://mastra.ai/docs/workflows/suspend-and-resume) — Mastra
-- *doc*: [Temporal — Workflows](https://docs.temporal.io/workflows) — Temporal Technologies
-
-**Tags:** governance-observability, durable-execution, checkpointing, mastra, temporal
+- [Mastra — Suspend and Resume Workflows](https://mastra.ai/docs/workflows/suspend-and-resume) — Mastra
+- [Temporal — Workflows](https://docs.temporal.io/workflows) — Temporal Technologies
