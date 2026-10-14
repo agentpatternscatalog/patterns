@@ -60,7 +60,7 @@ The build publishes the catalog as consolidated single-file artifacts to the Pag
 
 ## Contribute
 
-See [`docs/contributing.md`](docs/contributing.md) for the rules a pattern must clear before it enters the catalog. There are four ways to contribute, matching the four files that hold catalog state:
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to run the build and linter, and the three rules a pattern must clear before it enters the catalog. [`docs/contributing.md`](docs/contributing.md) is the long-form reference. There are four ways to contribute, matching the four files that hold catalog state:
 
 - **Add or amend a pattern.** Edit the relevant shard in [`patterns-src/`](patterns-src/) (validated against [`schema.json`](schema.json)) and, for new entries, add the corresponding [`patterns/<id>.md`](patterns/) page. Cut a branch, commit, open a pull request.
 - **Add or amend a composition.** Edit the relevant shard in [`compositions-src/`](compositions-src/) (validated against [`compositions.schema.json`](compositions.schema.json)). Recipes are abstract templates; frameworks are real shipping software and require per-pattern evidence (URL + quote).
