@@ -129,6 +129,7 @@ The worked solution is never offered first; help must start at the least-specifi
 - _alternative-to_ **Socratic Questioning Agent** — Socratic questioning responds only in questions to surface the learner's own knowledge; the hint ladder releases help of rising specificity keyed to consecutive failures, and its rungs may be statements, not only questions.
 - _complements_ **Dynamic Scaffolding** — Dynamic scaffolding injects scaffolds by task type; the hint ladder varies help specificity by the learner's per-attempt progress within one task.
 - _complements_ **Disambiguation** — Both delay the direct answer: disambiguation asks to resolve ambiguity before acting, the hint ladder withholds the solution to preserve the learner's struggle.
+- _alternative-to_ **Productive Struggle Erosion** — The hint ladder is the corrective discipline — graduated restraint that keeps the learner working; productive struggle erosion is what happens when the agent answers outright instead.
 
 ## References
 

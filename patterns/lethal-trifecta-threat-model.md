@@ -32,6 +32,12 @@ Therefore: tag every tool and data source by which of the three capabilities it 
 
 Treat the three capabilities — **private-data read**, **untrusted-content ingest**, and **outbound communication** — as a tagged capability set on every tool and data source. For each agent execution path, enforce at orchestration time that at least one of the three is missing. Concrete moves: split the agent into two runs (one that reads private data, one that reads untrusted content), strip outbound network for the run that touches both, or sanitise untrusted content into typed fields before it reaches private-data context. The check is performed by the host, not by guardrail prompts.
 
+## Structure
+
+```
+Tools and sources tagged {private-data read, untrusted ingest, outbound channel} --> Host checks each execution path --all three present--> Refuse or split (separate runs / strip outbound / sanitise to typed fields) | --at least one missing--> Run
+```
+
 ## Diagram
 
 ```mermaid
@@ -61,6 +67,12 @@ A coding agent runs with the user's private GitHub token (private data), browses
 - Requires disciplined capability tagging across the tool catalogue; missing tags create silent gaps.
 - Does not address injection by other paths (poisoned tool output, supply-chain prompts, model weights).
 
+## Failure modes
+
+- Missing tag — a new tool reads private data but is not tagged as such, so the host check passes a path that holds all three legs.
+- Recombined legs — two split runs are later joined by a step that passes untrusted text into the run that also has the outbound channel.
+- Out-of-scope injection — the attack comes through a poisoned tool output rather than ingested content, and the trifecta check never sees it.
+
 ## What this pattern constrains
 
 An execution path may not simultaneously read private data, ingest untrusted content, and reach an outbound channel; tools missing capability tags must be treated as carrying all three.
@@ -78,23 +90,47 @@ An execution path may not simultaneously read private data, ingest untrusted con
 - All three capabilities are needed in the same execution and the operator accepts the residual risk after applying narrower controls.
 - There is no private data in scope and the agent is purely public-input-to-public-output.
 
+## Components
+
+- Capability tag — label on every tool and data source for private-read, untrusted-ingest, or outbound-comm
+- Trifecta checker — orchestration-time enforcement that no execution path holds all three legs
+- Tool catalogue — registry where capability tags are authored and reviewed
+- Path splitter — mechanism that runs untrusted and private legs in separate sessions when needed
+
+## Tools
+
+- Static capability analyser — compile-time scan that flags untagged tools as carrying all three legs
+- Egress firewall — network-level enforcement of outbound-channel restrictions
+- Session isolator — host primitive that strips capabilities for the untrusted leg
+
+## Evaluation metrics
+
+- Untagged-tool count — tools missing capability labels and therefore treated as all-three
+- Trifecta-violation incidents — execution paths that combined all three legs at runtime
+- Path-split coverage — share of untrusted-content reads done in a tokenless subagent
+- Exfiltration-test pass rate — red-team payloads the model neither obeyed nor leaked from
+
 ## Known uses
 
-- **Simon Willison, original framing** — *Available*. Coined June 2025 after a string of vendor incidents fit the same shape.
-- **Microsoft 365 Copilot CVE-2024-38206 fix** — *Available*. Removed outbound channel for sessions that read both untrusted email and private SharePoint content.
-- **GitHub MCP, GitLab Duo postmortem mitigations** — *Available*. First patches in both products removed an outbound path rather than trying to filter the untrusted leg.
+- **[Simon Willison, original framing](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)** _available_ — Coined June 2025 after a string of vendor incidents fit the same shape.
+- **[Microsoft 365 Copilot CVE-2024-38206 fix](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-38206)** _available_ — Removed outbound channel for sessions that read both untrusted email and private SharePoint content.
+- **[GitHub MCP, GitLab Duo postmortem mitigations](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)** _available_ — First patches in both products removed an outbound path rather than trying to filter the untrusted leg.
 
 ## Related patterns
 
-- *complements* → [dual-llm-pattern](dual-llm-pattern.md) — one concrete way to break the trifecta.
-- *complements* → [prompt-injection-defense](prompt-injection-defense.md)
-- *complements* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [sandbox-isolation](sandbox-isolation.md)
-- *complements* → [tool-output-poisoning](tool-output-poisoning.md) — tool output is one source of untrusted content.
+- _complements_ **Dual LLM Pattern** — Dual-LLM removes private-data access from the model that reads untrusted content — one concrete way to break the trifecta.
+- _complements_ **Prompt Injection Defense**
+- _complements_ **Input/Output Guardrails**
+- _complements_ **Sandbox Isolation**
+- _complements_ **Tool Output Poisoning Defense** — Tool output poisoning is one of the untrusted-content sources the trifecta calls out.
+- _complements_ **Control-Flow Integrity**
+- _complements_ **Action Selector Pattern**
+- _complements_ **Adversary-Indistinguishability Blind Spot** — The trifecta blocks injection-driven exfiltration by separating capabilities; this names a detection blind spot that persists even when the attacker is an autonomous agent acting legitimately.
+- _complements_ **Agent Tool-Invocation Data Black-Box** — The trifecta blocks injection-driven exfiltration by separating capabilities; the data black box is non-adversarial undisclosed routing of user data through the agent's own tool calls.
+- _complements_ **Cumulative Disclosure Accounting** — That model blocks an exfiltration path assembled from three capabilities in one run; this one meters authorised reads that accumulate into an unauthorised inference.
+- _complements_ **Monotonic Privilege Confinement** — Names the capability combination that makes an escalation dangerous; narrowing the action space on contamination is one way to break that combination part-way through a run.
 
 ## References
 
-- Simon Willison, *The lethal trifecta for AI agents: private data, untrusted content, and external communication* (2025) — https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/
-- Beurer-Kellner et al., *Design Patterns for Securing LLM Agents against Prompt Injections* (2025) — https://arxiv.org/abs/2506.08837
-
-**Tags:** security, threat-model, prompt-injection, exfiltration
+- [The lethal trifecta for AI agents: private data, untrusted content, and external communication](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) — Simon Willison, 2025
+- [Design Patterns for Securing LLM Agents against Prompt Injections](https://arxiv.org/abs/2506.08837) — Beurer-Kellner et al., 2025

@@ -23,20 +23,6 @@ Agents that try to plan and implement the whole feature in a single turn are bri
 - Tests gate progress; without them the loop has no error signal.
 - Cost per iteration must be tolerable for hundreds of runs.
 
-## Applicability
-
-**Use when**
-
-- A task has a clear (or improvable) spec and incremental iteration adds value.
-- Each iteration's output can be gated by a test or check.
-- An outer shell loop can run the same prompt repeatedly without supervision.
-
-**Do not use when**
-
-- The task has no spec and cannot be incrementally improved.
-- There is no test gate and the loop cannot tell when to stop.
-- Unsupervised loops would consume cost without convergence.
-
 ## Therefore
 
 Therefore: drive the agent from a deterministic outer shell loop pinned to one prompt, an agent-updated fix_plan, and a test gate per iteration, so that progress is legible and the loop converges instead of wandering.
@@ -45,9 +31,11 @@ Therefore: drive the agent from a deterministic outer shell loop pinned to one p
 
 An outer shell loop (`while :; do cat PROMPT.md | claude-code ; done`) runs the same prompt repeatedly. The prompt encodes one task at a time, references a fix_plan.md that the agent itself updates, and ends with a test invocation that gates the next iteration. Subagents are used for parallel reads; build/test stays serial.
 
-## Example scenario
+## Structure
 
-A team is fixing a long-tail bug list across a large repo. A free-form chat session wanders, plans become stale, and progress is hard to measure. They write a deterministic outer loop (`while :; do cat PROMPT.md | claude-code; done`) where the prompt names one task, references a fix_plan.md the agent itself updates, and exits when the spec is satisfied. Progress becomes legible: tasks tick off, the loop terminates, and resuming after interruption is a no-op.
+```
+Outer shell loop --> read PROMPT.md + fix_plan.md --> agent works one task --> agent updates fix_plan.md --> test gate --spec not satisfied--> next iteration. Test gate --spec satisfied--> exit loop
+```
 
 ## Diagram
 
@@ -62,6 +50,10 @@ flowchart TD
   Gate -- yes --> Done[Exit loop]
 ```
 
+## Example scenario
+
+A team is fixing a long-tail bug list across a large repo. A free-form chat session wanders, plans become stale, and progress is hard to measure. They write a deterministic outer loop (`while :; do cat PROMPT.md | claude-code; done`) where the prompt names one task, references a fix_plan.md the agent itself updates, and exits when the spec is satisfied. Progress becomes legible: tasks tick off, the loop terminates, and resuming after interruption is a no-op.
+
 ## Consequences
 
 **Benefits**
@@ -74,23 +66,70 @@ flowchart TD
 - Easy to burn tokens on the wrong shape.
 - Hard to share state between iterations beyond what the agent writes to disk.
 
+## Failure modes
+
+- Wrong-shape burn — the prompt or spec is off, and the loop runs many iterations producing work nobody wanted.
+- Weak test gate — the tests pass without checking the spec, and the loop exits on unfinished work.
+- Fix-plan drift — the agent rewrites fix_plan.md in ways that drop tasks, and later iterations never return to them.
+- Disk-only memory — anything the agent did not write to disk is gone next iteration, and the same dead end is retried.
+
 ## What this pattern constrains
 
 Each loop iteration is constrained by the spec and the test gate; the agent cannot expand scope without editing the spec first.
 
+## Applicability
+
+**Use when**
+
+- A task has a clear (or improvable) spec and incremental iteration adds value.
+- Each iteration's output can be gated by a test or check.
+- An outer shell loop can run the same prompt repeatedly without supervision.
+
+**Do not use when**
+
+- The task has no spec and cannot be incrementally improved.
+- There is no test gate and the loop cannot tell when to stop.
+- Unsupervised loops would consume cost without convergence.
+
+## Components
+
+- Outer shell loop — deterministic while-loop that re-runs the agent
+- Fixed prompt file — single pinned PROMPT.md referenced every iteration
+- Agent-updated fix_plan — file the agent edits to record progress and next tasks
+- Test gate — runs at the end of each iteration to decide whether to continue
+- Convergence check — exits the loop when the spec is satisfied
+
+## Tools
+
+- Shell or process runner — re-invokes the agent each iteration
+- LLM API — runs the agent on the pinned prompt per iteration
+- Test suite or check command — provides the per-iteration gate
+- Version-controlled file system — holds PROMPT.md and fix_plan.md across iterations
+
+## Evaluation metrics
+
+- Iterations to convergence — loop count before the spec is satisfied
+- Per-iteration cost — tokens and wall-clock spent per loop pass
+- Test-gate pass rate — fraction of iterations that pass the gate
+- fix_plan drift — incidents where the agent rewrote the plan in unexpected ways
+- Resumption fidelity — ability to resume mid-loop after interruption with no rework
+
 ## Known uses
 
-- **[Geoffrey Huntley's Ralph](https://ghuntley.com/ralph/)** — *Available*. The canonical write-up.
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The frameworks-picker path runs an iterative loop against a framework spec until satisfied; a deterministic outer loop over a fixed prompt-against-spec rather than free-form chat.
+- **[Geoffrey Huntley's Ralph](https://ghuntley.com/ralph/)** _available_ — The canonical write-up.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The frameworks-picker path runs an iterative loop against a framework spec until satisfied; a deterministic outer loop over a fixed prompt-against-spec rather than free-form chat.
 
 ## Related patterns
 
-- *uses* → [spec-first-agent](spec-first-agent.md)
-- *complements* → [step-budget](step-budget.md)
-- *alternative-to* → [scheduled-agent](scheduled-agent.md)
+- _uses_ **Spec-First Agent**
+- _complements_ **Step Budget**
+- _alternative-to_ **Scheduled Agent**
+- _composes-with_ **Pre-Flight Spec Authoring**
+- _used-by_ **Control-Flow Integrity**
+- _complements_ **Rigor Relocation**
+- _complements_ **Deterministic Control Flow, Not Prompt**
+- _complements_ **Own Your Prompts (12-Factor Agents)**
 
 ## References
 
-- (blog) Geoffrey Huntley, *Ralph Wiggum as a 'software engineer'*, 2025, <https://ghuntley.com/ralph/>
-
-**Tags:** loop, spec, iterative
+- [Ralph Wiggum as a 'software engineer'](https://ghuntley.com/ralph/) — Geoffrey Huntley, 2025

@@ -23,20 +23,6 @@ A sequential executor walks the plan one tool call at a time, so end-to-end late
 - Failure isolation: one branch failing should not kill others.
 - Joiner correctness: combining out-of-order results.
 
-## Applicability
-
-**Use when**
-
-- Latency-sensitive agents waste time waiting on independent tool calls in series.
-- A planner can build a dependency DAG up front for the workload.
-- Bounded concurrency and a join step are acceptable engineering investments.
-
-**Do not use when**
-
-- Tool calls are mostly sequential with strong dependencies.
-- Parallel-tool-calls already gives most of the latency win at lower complexity.
-- DAG planning cost dominates the savings on the actual workload.
-
 ## Therefore
 
 Therefore: have the planner emit a dependency DAG and a task-fetching unit dispatch independent steps concurrently before a joiner assembles them, so that end-to-end latency collapses to the longest dependency chain instead of the sum of all calls.
@@ -45,9 +31,11 @@ Therefore: have the planner emit a dependency DAG and a task-fetching unit dispa
 
 Three roles. Planner builds the dependency DAG. Task-Fetching Unit dispatches steps as their inputs become available, with bounded concurrency. Joiner assembles the final answer from the resolved DAG.
 
-## Example scenario
+## Structure
 
-An agent that builds a daily portfolio brief makes nine independent tool calls — fetch prices for nine tickers — strictly in sequence, taking 18 seconds where it could take two. The team rebuilds the loop as llm-compiler: the planner emits the call DAG up front, the task-fetching unit dispatches each fetch as soon as its dependencies (none, in this case) resolve, with concurrency capped at five, and the joiner assembles the brief. The brief returns in just over two seconds and the planner can express genuine cross-step dependencies when they exist.
+```
+Task --> Planner (dependency DAG of tool calls) --> Task-Fetching Unit --dispatch when inputs resolve, bounded concurrency--> parallel steps --> Variable resolver feeds dependent steps --> Joiner --> Final answer
+```
 
 ## Diagram
 
@@ -66,6 +54,10 @@ flowchart TD
   J --> Ans[Final answer]
 ```
 
+## Example scenario
+
+An agent that builds a daily portfolio brief makes nine independent tool calls — fetch prices for nine tickers — strictly in sequence, taking 18 seconds where it could take two. The team rebuilds the loop as llm-compiler: the planner emits the call DAG up front, the task-fetching unit dispatches each fetch as soon as its dependencies (none, in this case) resolve, with concurrency capped at five, and the joiner assembles the brief. The brief returns in just over two seconds and the planner can express genuine cross-step dependencies when they exist.
+
 ## Consequences
 
 **Benefits**
@@ -78,25 +70,68 @@ flowchart TD
 - Concurrency adds operational complexity.
 - Planner mistakes are amplified by parallel execution.
 
+## Failure modes
+
+- Missed dependency — the planner leaves out an edge in the DAG, and a step fires in parallel before the input it needs exists.
+- Amplified plan error — a wrong planner step is dispatched alongside many others, and several branches run on the same bad premise before anyone sees it.
+- Rate-limit burst — the concurrency bound is set too high, and the parallel steps hit provider limits and fail together.
+- Joiner gap — one branch errors, and the joiner assembles an answer from the rest without flagging the missing piece.
+
 ## What this pattern constrains
 
 Steps run only when all referenced upstream variables are resolved.
 
+## Applicability
+
+**Use when**
+
+- Latency-sensitive agents waste time waiting on independent tool calls in series.
+- A planner can build a dependency DAG up front for the workload.
+- Bounded concurrency and a join step are acceptable engineering investments.
+
+**Do not use when**
+
+- Tool calls are mostly sequential with strong dependencies.
+- Parallel-tool-calls already gives most of the latency win at lower complexity.
+- DAG planning cost dominates the savings on the actual workload.
+
+## Components
+
+- Planner — emits a dependency DAG of tool calls before any tool fires
+- Task-fetching unit — dispatches steps as soon as their inputs resolve
+- Concurrency-bounded executor — runs independent steps in parallel within rate limits
+- Joiner — assembles the final answer from the resolved DAG
+- Variable resolver — substitutes upstream outputs into downstream step inputs
+
+## Tools
+
+- LLM API — strong model for the planner; cheaper one acceptable for individual steps
+- Tool catalogue — registered functions the planner can reference in the DAG
+- Concurrency primitive — async runtime or worker pool bounded by provider rate limits
+
+## Evaluation metrics
+
+- End-to-end latency vs sequential executor — speedup from parallel dispatch
+- Critical-path length versus call count — how many calls actually had to be serial
+- Rate-limit-induced retries — concurrency hitting provider caps
+- Planner DAG correctness — fraction of plans whose dependencies execute without rework
+- Failure isolation rate — branch failures that did not cascade to siblings
+
 ## Known uses
 
-- **LLMCompiler (reference implementation)** — *Available*. Berkeley SqueezeAILab release of the LLMCompiler paper code.
-- **LangGraph LLMCompiler example** — *Available*. LangGraph ships an LLMCompiler example.
+- **[LLMCompiler (reference implementation)](https://github.com/SqueezeAILab/LLMCompiler)** _available_ — Berkeley SqueezeAILab release of the LLMCompiler paper code.
+- **[LangGraph LLMCompiler example](https://github.com/langchain-ai/langgraph)** _available_ — LangGraph ships an LLMCompiler example.
 
 ## Related patterns
 
-- *specialises* → [rewoo](rewoo.md)
-- *uses* → [parallelization](parallelization.md)
-- *alternative-to* → [parallel-tool-calls](parallel-tool-calls.md)
-- *composes-with* → [subagent-isolation](subagent-isolation.md)
-- *complements* → [graph-of-thoughts](graph-of-thoughts.md)
+- _specialises_ **ReWOO**
+- _uses_ **Parallelization**
+- _alternative-to_ **Parallel Tool Calls**
+- _composes-with_ **Subagent Isolation**
+- _complements_ **Graph of Thoughts**
+- _used-by_ **Control-Flow Integrity**
+- _complements_ **Speculative Agentic Actions** — The compiler overlaps independent steps of a KNOWN plan DAG; speculation overlaps the next step of an UNKNOWN plan by guessing it, so a speculated hit can feed the compiler's next dispatch.
 
 ## References
 
-- (paper) Kim, Moon, Tabrizi, Lee, Mahoney, Keutzer, Gholami, *An LLM Compiler for Parallel Function Calling*, 2023, <https://arxiv.org/abs/2312.04511>
-
-**Tags:** planning, parallel, dag
+- [An LLM Compiler for Parallel Function Calling](https://arxiv.org/abs/2312.04511) — Kim, Moon, Tabrizi, Lee, Mahoney, Keutzer, Gholami, 2023

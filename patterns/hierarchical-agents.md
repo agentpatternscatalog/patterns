@@ -23,20 +23,6 @@ A flat supervisor pattern, where one coordinating agent dispatches to a list of 
 - Inter-level communication needs a contract.
 - Failure recovery: which level retries?
 
-## Applicability
-
-**Use when**
-
-- Tasks decompose recursively and a single supervisor cannot cleanly orchestrate the breadth.
-- Sub-tasks are themselves big enough to merit their own decomposition step.
-- Bounded depth and breadth limits can be enforced to prevent runaway hierarchies.
-
-**Do not use when**
-
-- A flat supervisor over a small set of specialists already suffices.
-- Bubbling synthesis up multiple levels is too lossy for the task.
-- Latency and token cost of nested orchestration are unacceptable.
-
 ## Therefore
 
 Therefore: organise agents as a tree where each non-leaf decomposes and dispatches downward and synthesises results upward, so that decomposition scales beyond what a flat supervisor's prompt complexity can hold.
@@ -45,9 +31,11 @@ Therefore: organise agents as a tree where each non-leaf decomposes and dispatch
 
 Each non-leaf agent receives a task, decomposes it, and dispatches sub-tasks to its children. Children may be specialists (leaves) or further managers. Results bubble up; each manager synthesises its children's outputs. Bounded depth and breadth prevent runaway hierarchies.
 
-## Example scenario
+## Structure
 
-A consulting firm builds a market-research agent with one supervisor and twenty specialist tools: data-fetch, summarise, compare, draw-chart, and so on. As they add specialists for new verticals, the supervisor prompt balloons and the agent starts forgetting which tool to call. They restructure as hierarchical-agents: a root research-manager dispatches to vertical managers (healthcare, fintech), each of whom dispatches to leaf specialists for their domain. Depth and breadth are both capped, and adding a new vertical no longer touches the root prompt.
+```
+Task --> Root manager --decompose--> Sub-managers --decompose--> Specialist leaves --results--> Sub-managers (synthesise) --> Root manager (synthesise) --> Answer; depth and breadth bounded
+```
 
 ## Diagram
 
@@ -65,6 +53,10 @@ flowchart TD
   M2 -.synthesis.-> Root
 ```
 
+## Example scenario
+
+A consulting firm builds a market-research agent with one supervisor and twenty specialist tools: data-fetch, summarise, compare, draw-chart, and so on. As they add specialists for new verticals, the supervisor prompt balloons and the agent starts forgetting which tool to call. They restructure as hierarchical-agents: a root research-manager dispatches to vertical managers (healthcare, fintech), each of whom dispatches to leaf specialists for their domain. Depth and breadth are both capped, and adding a new vertical no longer touches the root prompt.
+
 ## Consequences
 
 **Benefits**
@@ -77,24 +69,70 @@ flowchart TD
 - Latency multiplies with depth.
 - Coordination bugs become hard to localise.
 
+## Failure modes
+
+- Latency stack — each level waits on the level below, and a deep tree turns a simple request into a long chain of sequential calls.
+- Runaway tree — managers keep spawning sub-managers without a depth or breadth bound, and cost grows far past what the task needs.
+- Lost in synthesis — a mid-level manager summarises its children's results and drops the one finding the root needed.
+- Unlocalised bug — the final answer is wrong, and it is hard to tell which level's decomposition or synthesis caused it.
+
 ## What this pattern constrains
 
 An agent communicates only with its parent and children; cross-tree communication is forbidden.
 
+## Applicability
+
+**Use when**
+
+- Tasks decompose recursively and a single supervisor cannot cleanly orchestrate the breadth.
+- Sub-tasks are themselves big enough to merit their own decomposition step.
+- Bounded depth and breadth limits can be enforced to prevent runaway hierarchies.
+
+**Do not use when**
+
+- A flat supervisor over a small set of specialists already suffices.
+- Bubbling synthesis up multiple levels is too lossy for the task.
+- Latency and token cost of nested orchestration are unacceptable.
+
+## Components
+
+- Root manager — owns the top-level task and dispatches to sub-managers
+- Sub-manager — non-leaf agent that decomposes further and synthesises children's results upward
+- Leaf specialist — bottom agent that executes against a concrete sub-task and returns a result
+- Parent-child contract — typed message shape for downward dispatch and upward synthesis
+- Depth and breadth caps — hard limits that prevent runaway tree expansion
+
+## Tools
+
+- CrewAI hierarchical processes — provides parent-child orchestration scaffolding
+- AutoGen nested GroupChat — supports tree-shaped multi-agent layouts
+- LLM API — invoked at every non-leaf for decomposition and synthesis steps
+
+## Evaluation metrics
+
+- End-to-end latency by tree depth — wall-clock multiplied by hops
+- Synthesis-fidelity loss — sample-audited information lost as results bubble up
+- Failure-localisation accuracy — share of failures correctly attributed to one subtree
+- Per-level recall — does each manager pick the right child for its sub-task
+- Token cost per task — total spend across all levels of the hierarchy
+
 ## Known uses
 
-- **AutoGen GroupChat with nested groups** — *Available*
-- **CrewAI hierarchical processes** — *Available*
+- **AutoGen GroupChat with nested groups** _available_
+- **CrewAI hierarchical processes** _available_
 
 ## Related patterns
 
-- *generalises* → [supervisor](supervisor.md)
-- *specialises* → [orchestrator-workers](orchestrator-workers.md)
-- *complements* → [goal-decomposition](goal-decomposition.md)
-- *generalises* → [agent-as-tool-embedding](agent-as-tool-embedding.md)
+- _generalises_ **Supervisor**
+- _specialises_ **Orchestrator-Workers**
+- _complements_ **Goal Decomposition**
+- _generalises_ **Agent-as-Tool Embedding**
+- _complements_ **Hybrid HTN + Generative Agent**
+- _complements_ **One Tool, One Agent**
+- _complements_ **Behavior Tree Back Chaining**
+- _alternative-to_ **Partial Global Planning**
+- _complements_ **Two-Rate Cloud-Brain / Edge-Controller Split** — Hierarchy decomposes tasks logically across levels; this split adds a frequency boundary so the lowest level runs on its own real-time clock.
 
 ## References
 
-- (doc) *AutoGen multi-agent docs*, <https://microsoft.github.io/autogen/>
-
-**Tags:** multi-agent, hierarchy
+- [AutoGen multi-agent docs](https://microsoft.github.io/autogen/)

@@ -23,21 +23,6 @@ Large language models echo what they see in context: any personally identifying 
 - Reversible vs irreversible redaction.
 - Token-level vs entity-level redaction.
 
-
-## Applicability
-
-**Use when**
-
-- Inputs to the model may carry personally identifiable information.
-- Outputs and logs must not echo PII the user did not request.
-- Detectors (regex, NER, classifier) can be combined for acceptable recall.
-
-**Do not use when**
-
-- Data is already PII-free at the boundary that feeds the model.
-- Detector false-positive rates would break the user experience.
-- End-to-end encryption or other controls already cover the same risk.
-
 ## Therefore
 
 Therefore: detect PII at the boundary, substitute placeholders before the model sees it, and re-substitute or refuse on the way out, so that personal data never enters prompts, logs, or third-party training surfaces.
@@ -46,9 +31,11 @@ Therefore: detect PII at the boundary, substitute placeholders before the model 
 
 Pre-process inputs: detect PII (regex + NER + classifier), replace with placeholders. Post-process outputs: re-substitute placeholders back, or refuse if outputs contain unrequested PII. Audit log of redactions.
 
-## Example scenario
+## Structure
 
-A health-tech company's support agent logs are reviewed by a security auditor who finds patient names and dates of birth in plaintext across hundreds of transcripts, and worse, the model has occasionally echoed an SSN back into a response. The team installs pii-redaction: an input pipeline detects PII via regex plus NER and substitutes placeholders before anything reaches the model; an output pipeline re-substitutes only when explicitly required and refuses on unrequested PII. Every redaction is logged for audit. The next audit finds zero plaintext PII.
+```
+User input --> Detect PII (regex + NER + classifier) --placeholders--> LLM --> Raw output --> Re-substitute placeholders or refuse unrequested PII --> User; detections and substitutions --> Audit log
+```
 
 ## Diagram
 
@@ -62,6 +49,10 @@ flowchart TD
   D --> A[(Audit log)]
   S --> A
 ```
+
+## Example scenario
+
+A health-tech company's support agent logs are reviewed by a security auditor who finds patient names and dates of birth in plaintext across hundreds of transcripts, and worse, the model has occasionally echoed an SSN back into a response. The team installs pii-redaction: an input pipeline detects PII via regex plus NER and substitutes placeholders before anything reaches the model; an output pipeline re-substitutes only when explicitly required and refuses on unrequested PII. Every redaction is logged for audit. The next audit finds zero plaintext PII.
 
 ## Consequences
 
@@ -77,24 +68,65 @@ flowchart TD
 - Re-identification risk: redacted artefacts plus side-channel data still re-identify; redaction is not anonymisation.
 - Detection has known evasions: leetspeak, homoglyphs, partial-token splits; false negatives are the security failure.
 
+## Failure modes
+
+- Evasion miss — a name or number written with homoglyphs or split across tokens slips past detection and reaches the model and the trace log.
+- Over-redaction — a workflow that needs the customer's address gets a placeholder instead, and the agent cannot finish the task.
+- False anonymity — redacted records are shared as if anonymous, and side-channel data re-identifies the people in them.
+
 ## What this pattern constrains
 
 PII categories listed in the policy must not appear in model inputs or outputs without explicit authorisation.
 
+## Applicability
+
+**Use when**
+
+- Inputs to the model may carry personally identifiable information.
+- Outputs and logs must not echo PII the user did not request.
+- Detectors (regex, NER, classifier) can be combined for acceptable recall.
+
+**Do not use when**
+
+- Data is already PII-free at the boundary that feeds the model.
+- Detector false-positive rates would break the user experience.
+- End-to-end encryption or other controls already cover the same risk.
+
+## Components
+
+- PII detector — composite of regex, named-entity recogniser, and classifier on the inbound path
+- Placeholder substituter — replaces detected PII with typed tokens before the model sees the prompt
+- Re-substitution gate — restores original values on the outbound path only when explicitly authorised
+- Redaction audit log — record of detections, substitutions, and re-substitutions
+
+## Tools
+
+- NER model — entity recogniser tuned for names, addresses, identifiers
+- Regex library — patterns for SSNs, card numbers, IBANs, phone formats
+- PII classifier — supervised model that catches entities the regex misses
+
+## Evaluation metrics
+
+- Detection recall — share of policy-defined PII categories the detector caught
+- False-positive redaction rate — non-PII tokens the detector wrapped as placeholders
+- Plaintext-PII leakage incidents — logs or outputs found with unredacted personal data
+- Re-identification risk score — residual identifiability after redaction plus side channels
+
 ## Known uses
 
-- **Microsoft Presidio** — *Available*
-- **AWS Comprehend PII** — *Available*
+- **Microsoft Presidio** _available_
+- **AWS Comprehend PII** _available_
 
 ## Related patterns
 
-- *specialises* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [session-isolation](session-isolation.md)
-- *complements* → [secrets-handling](secrets-handling.md)
-- *complements* → [open-weight-cascade](open-weight-cascade.md)
+- _specialises_ **Input/Output Guardrails**
+- _complements_ **Session Isolation**
+- _complements_ **Secrets Handling**
+- _complements_ **Open-Weight Cascade**
+- _used-by_ **Agent Middleware Chain**
+- _alternative-to_ **Agent Tool-Invocation Data Black-Box** — PII redaction removes personal data from inputs and outputs as a remedy; the data black box is the failure where personal data flows to undisclosed third-party services with no redaction or disclosure.
+- _complements_ **Cumulative Disclosure Accounting** — Redaction cleans identifiers out of one payload; here every payload is already clean and the disclosure exists only in the join across payloads.
 
 ## References
 
-- (repo) *microsoft/presidio*, <https://github.com/microsoft/presidio>
-
-**Tags:** safety, pii, compliance
+- [microsoft/presidio](https://github.com/microsoft/presidio)

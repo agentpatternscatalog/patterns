@@ -139,6 +139,8 @@ On a matched red flag the agent must abort the workflow and hand off to a human 
 - _complements_ **Risk-Tiered Action Autonomy** — Risk tiers grade autonomy by materiality and let the agent keep working at lower tiers; a red flag is an all-or-nothing interrupt that ends autonomous handling outright.
 - _complements_ **Input/Output Guardrails** — Guardrails validate inputs and outputs in line; the red-flag check is an input-side guardrail whose action is a forced abort-and-handoff rather than a block or rewrite.
 - _complements_ **SLA-Aware Triage Scoring** — The breach predictor's early alert is a natural trigger source for an unconditional escalation when a high-tier ticket is predicted to breach.
+- _complements_ **Advisory-to-Mandate Escalation** — Mandatory-red-flag-escalation deliberately makes certain triggers binding; advisory-to-mandate is the unintended version where ordinary advisory output silently acquires that binding force.
+- _complements_ **Modality-Conflict Arbitration** — Gives the handoff route for a conflict the authority table cannot resolve, so abstention has somewhere to go.
 
 ## References
 

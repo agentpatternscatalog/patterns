@@ -31,9 +31,11 @@ Therefore: instantiate two role-fixed agents — AI-User and AI-Assistant — wi
 
 Use inception prompts to instantiate two agents (AI-User and AI-Assistant) with their roles fixed and the task specified. They converse until the task is completed or budget exhausted. The output is the final assistant message; the conversation log is debugging artefact.
 
-## Example scenario
+## Structure
 
-A research team wants an agent to design and prototype a small data-pipeline tool, but a single agent loop keeps drifting between requirements and implementation. They cast it as a CAMEL role-play: a 'product owner' agent and a 'developer' agent autonomously play out a user-assistant dialogue, with the product owner stating goals and constraints and the developer iterating. Neither alone could keep the conversation grounded; the role pairing produces working scaffolding without a human in the loop.
+```
+Task + inception prompts --> user-agent (fixed role: instructs) --instruction--> assistant-agent (fixed role: acts) --output--> user-agent --> [loop until task complete or budget] --> final assistant message (log kept for debugging)
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ sequenceDiagram
   A-->>Sys: trajectory
 ```
 
+## Example scenario
+
+A research team wants an agent to design and prototype a small data-pipeline tool, but a single agent loop keeps drifting between requirements and implementation. They cast it as a CAMEL role-play: a 'product owner' agent and a 'developer' agent autonomously play out a user-assistant dialogue, with the product owner stating goals and constraints and the developer iterating. Neither alone could keep the conversation grounded; the role pairing produces working scaffolding without a human in the loop.
+
 ## Consequences
 
 **Benefits**
@@ -62,6 +68,13 @@ sequenceDiagram
 
 - Cost: 2x inference per task.
 - Role drift over long conversations.
+
+## Failure modes
+
+- Role drift — over a long chat the user-agent starts answering its own instructions, and the two agents collapse into one voice.
+- Echo loop — the assistant repeats the same output and the user-agent repeats the same instruction until the budget runs out.
+- Premature finish — the user-agent declares the task done after a plausible but incomplete answer, and no outside check catches it.
+- Doubled cost for easy tasks — a task one agent could finish alone still pays for two models per turn.
 
 ## What this pattern constrains
 
@@ -81,17 +94,38 @@ The AI-User role may only ask, never answer; AI-Assistant may only answer, never
 - Adversarial debate (not collaborative role-play) is what the task actually wants.
 - Roles cannot be specified tightly enough and the conversation drifts off-task.
 
+## Components
+
+- AI-User agent — role-locked to issuing instructions, never answering
+- AI-Assistant agent — role-locked to executing and returning artefacts
+- Inception prompts — fixed system prompts that pin both roles and the task description
+- Conversation budget — hard cap on turns to prevent runaway role-play loops
+
+## Tools
+
+- LLM API — two invocations per round, one per role
+- CAMEL framework — provides role templates and the inception-prompting harness
+- Trajectory logger — captures the dialogue for downstream training data extraction
+
+## Evaluation metrics
+
+- Task-completion rate inside budget — share of role-plays that finish before turn cap
+- Role-drift incidents — turns where AI-User answers or AI-Assistant asks user-style questions
+- Convergence speed — turns to a satisfying final assistant message
+- Training-data yield — usable trajectories per session for downstream fine-tuning
+- Per-task token cost — total spend at two LLM calls per turn
+
 ## Known uses
 
-- **CAMEL framework** — *Available*
+- **[CAMEL framework](https://www.camel-ai.org/)** _available_
 
 ## Related patterns
 
-- *alternative-to* → [autogen-conversational](autogen-conversational.md)
-- *specialises* → [role-assignment](role-assignment.md)
+- _alternative-to_ **Conversational Multi-Agent**
+- _specialises_ **Role Assignment**
+- _alternative-to_ **Agent Persona Profile**
+- _complements_ **Simulated-User Rollout Evaluation** — Same two-model conversational structure aimed at completing a task rather than measuring one: the AI-User there cooperates toward an artefact, while the simulated user here withholds information and its counterpart is the subject of the score.
 
 ## References
 
-- (paper) Li, Hammoud, Itani, Khizbullin, Ghanem, *CAMEL: Communicative Agents for "Mind" Exploration of Large Language Model Society*, 2023, <https://arxiv.org/abs/2303.17760>
-
-**Tags:** multi-agent, role-play
+- [CAMEL: Communicative Agents for "Mind" Exploration of Large Language Model Society](https://arxiv.org/abs/2303.17760) — Li, Hammoud, Itani, Khizbullin, Ghanem, 2023

@@ -2,7 +2,7 @@
 
 **Also known as:** Machine-Readable Refusal Reasons, Refusal Reason Enum
 
-**Category:** Safety & Control
+**Category:** Safety & Control  
 **Status in practice:** emerging
 
 ## Intent
@@ -33,9 +33,11 @@ Therefore: define a single ReasonCode enum with format and parse helpers, format
 
 Maintain a single module that exports: a ReasonCode enum (e.g. POLICY_VIOLATION, RATE_LIMIT, UNVERIFIED_TOOL, RCE_RISK, LOOP_DETECTED, INTEGRITY_FAILURE, CONTEXT_INJECTION, ...); a format_refusal(code, detail) helper returning 'REFUSED: CODE: detail'; a parse_refusal(string) helper that returns (code, detail) or None; and a KNOWN_CODES constant for consumers to validate against. Every guard surface in the system uses format_refusal exclusively. Legacy substrings ('cannot comply', 'blocked by policy', etc.) are recognised by parse_refusal as code aliases so old logs keep parsing. Unknown codes return None from the parser rather than throwing. Downstream tooling depends only on the parser, never on raw strings.
 
-## Example scenario
+## Structure
 
-An agent stack has five places that can emit a refusal: a tool-loop guard, a skill-scanner that refuses risky imports, a post-compaction integrity check, an RCE backstop, and a top-level input/output guardrail. Without centralisation, each emits its own string ('I cannot help with that', 'blocked by policy', 'unsupported tool', etc.), and the dashboard parses these with brittle regex. After centralisation, every surface emits 'REFUSED: POLICY_VIOLATION: vendor block on this domain' or 'REFUSED: LOOP_DETECTED: same tool called 7x in 12s'. The dashboard groups by code, the on-call channel alerts on RCE_RISK and INTEGRITY_FAILURE, and the legacy substrings still parse because they are recognised as aliases.
+```
+Each guard --format_refusal(code, detail)--> 'REFUSED: CODE: detail' --> parse_refusal (also maps legacy aliases; unknown -> None) --> (code, detail) --> Audit log / dashboards / alerts
+```
 
 ## Diagram
 
@@ -55,6 +57,10 @@ flowchart LR
 
 *All guards format through one helper; downstream parses once and triages mechanically by code.*
 
+## Example scenario
+
+An agent stack has five places that can emit a refusal: a tool-loop guard, a skill-scanner that refuses risky imports, a post-compaction integrity check, an RCE backstop, and a top-level input/output guardrail. Without centralisation, each emits its own string ('I cannot help with that', 'blocked by policy', 'unsupported tool', etc.), and the dashboard parses these with brittle regex. After centralisation, every surface emits 'REFUSED: POLICY_VIOLATION: vendor block on this domain' or 'REFUSED: LOOP_DETECTED: same tool called 7x in 12s'. The dashboard groups by code, the on-call channel alerts on RCE_RISK and INTEGRITY_FAILURE, and the legacy substrings still parse because they are recognised as aliases.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +74,12 @@ flowchart LR
 - Centralisation is upfront work that pays back only after several guard surfaces exist.
 - The enum becomes a contract; renaming a code is a breaking change for consumers.
 - Detail strings remain human-authored; useful detail is still author-discipline-dependent.
+
+## Failure modes
+
+- Bypassed helper — one guard formats its refusal by hand, and its events are missing from every dashboard that counts by code.
+- Breaking rename — a code is renamed in the enum, and downstream alerts keyed on the old name stop firing.
+- Empty detail — the code is correct but the detail string says nothing useful, so triage still needs the raw logs.
 
 ## What this pattern constrains
 
@@ -87,21 +99,46 @@ No guard surface in the stack may emit a refusal string by hand; every refusal m
 - Refusals are not audited downstream and the enum would be pure ceremony.
 - The team cannot enforce that all surfaces use the shared formatter.
 
+## Components
+
+- ReasonCode enum — single source of truth for refusal categories across guards
+- format_refusal helper — formatter that every guard surface uses to emit refusals
+- parse_refusal helper — reverse parser returning (code, detail) or None
+- Legacy-alias matcher — recogniser for old refusal substrings as code aliases
+- Guard surfaces — tool-loop, skill-scanner, compaction, RCE, I/O guards that emit through the formatter
+
+## Tools
+
+- Shared module containing enum and helpers — imported by every guard surface in the stack
+- Linter rule — forbids hand-rolled refusal strings outside the helper
+- Audit dashboard — consumes parse_refusal output to count and group refusals by code
+
+## Evaluation metrics
+
+- Refusal-code coverage — share of refusal events that parsed cleanly into a known code
+- Hand-rolled-refusal occurrence rate — guards still emitting strings without the helper
+- Legacy-alias parse hits — old phrasings preserved by the alias matcher over time
+- Enum-churn rate — frequency of code renames and the breakage they caused downstream
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [refusal](refusal.md)
-- *complements* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [policy-as-code-gate](policy-as-code-gate.md)
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [incident-response-runbook](incident-response-runbook.md)
+- _complements_ **Refusal** — Refusal is the policy decision; typed-refusal-codes is the format the decision takes on the wire.
+- _complements_ **Input/Output Guardrails**
+- _complements_ **Policy-as-Code Gate**
+- _complements_ **Decision Log** — Typed codes are how refusals enter the decision log without grep fragility.
+- _complements_ **Stochastic-Deterministic Boundary (SDB)**
+- _complements_ **Supervisor-Plus-Gate**
+- _complements_ **Reflexive Metacognitive Agent**
+- _complements_ **Production Failure Triage Loop** — Machine-readable categories are what make mechanical triage possible; typed codes feed the classifier directly instead of string-grepping human-readable messages.
+- _complements_ **Machine-Checkable Tool Contract** — The same machine-readable discipline applied to guard-surface refusals rather than to tool failures.
+- _complements_ **Action-Admissibility Tiering** — Gives the block a machine-readable reason so the failing tier and the failing check reach the caller instead of an unexplained rejection.
+- _complements_ **Feasibility-Negotiated Intent Contract** — Supplies the machine-readable vocabulary a refusal needs; this pattern says what the refusal must carry, namely the binding constraint that made the stated goal unreachable.
 
 ## References
 
-- (doc) *OpenAI Moderation API — typed category outputs*, <https://platform.openai.com/docs/guides/moderation>
-- (spec) *HTTP Semantics (RFC 9110) — status codes as typed reasons*, 2022, <https://datatracker.ietf.org/doc/html/rfc9110>
-
-**Tags:** safety, audit, refusal, schema, observability
+- [OpenAI Moderation API — typed category outputs](https://platform.openai.com/docs/guides/moderation)
+- [HTTP Semantics (RFC 9110) — status codes as typed reasons](https://datatracker.ietf.org/doc/html/rfc9110) — IETF, 2022

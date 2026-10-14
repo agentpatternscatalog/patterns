@@ -2,7 +2,7 @@
 
 **Also known as:** 沉思, Rumination Loop, Long-Horizon Research Loop, Hypothesis-Revising Agent
 
-**Category:** Planning & Control Flow
+**Category:** Planning & Control Flow  
 **Status in practice:** emerging
 
 ## Intent
@@ -75,6 +75,13 @@ A user asks an agent to assess whether a recent paper's empirical claims hold up
 - Without strong termination criteria the loop devolves into Unbounded Loop.
 - Single-agent self-revision still shares all the failure modes of Same-Model Self-Critique.
 
+## Failure modes
+
+- Endless rumination — termination criteria are loose, and the loop keeps revising hypotheses until the budget is gone.
+- Skipped verify — the agent revises its hypothesis straight from search results, and unchecked evidence steers the run.
+- Compaction loss — summaries replace raw search dumps, and a detail needed later for a revision is no longer available.
+- Self-agreement — the same model checks its own hypothesis, and it keeps confirming an early wrong frame.
+
 ## What this pattern constrains
 
 The agent must not branch into parallel sub-investigations, must not skip the verify phase before revising the hypothesis, and must not extend the run past the declared cycle or token budget without explicit budget-extension authorisation.
@@ -93,23 +100,45 @@ The agent must not branch into parallel sub-investigations, must not skip the ve
 - Verification needs an independent model; pair with cross-model review instead.
 - Hard latency budgets forbid minutes-to-hours runs.
 
+## Components
+
+- Single long-running agent — carries the investigation across all cycles
+- Working hypothesis state — named, persistent across cycles
+- Five-phase cycle — think, search, verify, revise, act
+- Evidence ledger — per-cycle verified evidence summary
+- Termination guard — confidence threshold, budget, or explicit answer-ready signal
+
+## Tools
+
+- LLM API — invoked many times for the same agent across cycles
+- Retrieval and browsing tools — external evidence gathering during search
+- Code-execution sandbox — small reproductions during verify
+- Context compactor — replaces raw search dumps with verified summaries between cycles
+
+## Evaluation metrics
+
+- Cycle count to answer-ready — depth of investigation needed
+- Hypothesis-revision frequency — how often the agent narrows, broadens, or replaces
+- Context-bloat resistance — token growth per cycle versus per tool call
+- Verify-phase skip rate — incidents where revision happened without verification
+- Budget-bound respect — fraction of runs terminating cleanly versus unbounded-loop drift
+
 ## Known uses
 
-- **[Kimi K2 Thinking (Moonshot AI)](https://zhuanlan.zhihu.com/p/1969908447005873171)** — *Available* — Long-horizon thinking model with explicit protracted reasoning loop over tool calls.
-- **[GLM-Z1-Rumination (Zhipu AI)](https://ai-bot.cn/glm-z1-rumination/)** — *Available* — Z1 variant tuned for rumination-style research loops.
-- **[AutoGLM沉思 (Zhipu AI)](https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml)** — *Available* — Consumer-facing agent built around the rumination loop.
+- **[Kimi K2 Thinking (Moonshot AI)](https://huggingface.co/moonshotai/Kimi-K2-Thinking)** _available_ — Long-horizon thinking model with explicit protracted reasoning loop spanning 200–300 sequential tool calls; weights on Hugging Face.
+- **[GLM-Z1-Rumination (Zhipu AI)](https://ai-bot.cn/glm-z1-rumination/)** _available_ — Z1 variant tuned for rumination-style research loops.
+- **[AutoGLM沉思 (Zhipu AI)](https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml)** _available_ — Consumer-facing agent built around the rumination loop.
 
 ## Related patterns
 
-- *generalises* → [react](react.md) — ReAct is the short-loop ancestor; rumination is its protracted single-agent descendant.
-- *complements* → [extended-thinking](extended-thinking.md) — Extended thinking is single-turn; rumination spans many turns of tool use.
-- *alternative-to* → [lead-researcher](lead-researcher.md) — Lead-researcher splits the work across agents; rumination keeps it in one.
-- *conflicts-with* → [unbounded-loop](unbounded-loop.md) — Rumination requires explicit termination criteria to avoid this anti-pattern.
+- _generalises_ **ReAct** — ReAct is the short-loop ancestor; rumination is its protracted single-agent descendant.
+- _complements_ **Extended Thinking** — Extended thinking is single-turn; rumination spans many turns of tool use.
+- _alternative-to_ **Lead Researcher** — Lead-researcher splits the work across agents; rumination keeps it in one.
+- _conflicts-with_ **Unbounded Loop** — Rumination requires explicit termination criteria to avoid this anti-pattern.
 
 ## References
 
-- (blog) *Kimi K2 Thinking — Moonshot AI*, 2025, <https://zhuanlan.zhihu.com/p/1969908447005873171>
-- (blog) *GLM-Z1-Rumination — Zhipu AI*, 2025, <https://ai-bot.cn/glm-z1-rumination/>
-- (blog) *AutoGLM沉思 — Zhipu AI rolls out rumination-mode agent*, 2025, <https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml>
-
-**Tags:** long-horizon, single-agent, research, hypothesis-revision, deep-investigation
+- [moonshotai/Kimi-K2-Thinking on Hugging Face](https://huggingface.co/moonshotai/Kimi-K2-Thinking) — Moonshot AI, 2025
+- [Moonshot launches open-source 'Kimi K2 Thinking' AI with trillion parameters](https://siliconangle.com/2025/11/07/moonshot-launches-open-source-kimi-k2-thinking-ai-trillion-parameters-reasoning-capabilities/) — SiliconANGLE, 2025
+- [GLM-Z1-Rumination — Zhipu AI](https://ai-bot.cn/glm-z1-rumination/) — 2025
+- [AutoGLM沉思 — Zhipu AI rolls out rumination-mode agent](https://finance.sina.com.cn/tech/csj/2025-03-31/doc-inerpqhq7160075.shtml) — 2025

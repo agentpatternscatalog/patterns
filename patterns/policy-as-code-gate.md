@@ -2,7 +2,7 @@
 
 **Also known as:** OPA Action Gate, Compiled Governance, Policy-as-Prompt, Rego-Gated Agent, External Policy Engine
 
-**Category:** Safety & Control
+**Category:** Safety & Control  
 **Status in practice:** emerging
 
 ## Intent
@@ -84,6 +84,12 @@ A bank deploys an agent that can move money, open accounts, and call external KY
 - Policies that depend on free-text content (intent, tone) cannot be fully expressed as code and fall back on classifier obligations.
 - Action proposals must serialise enough context for the policy to evaluate, which expands the agent's structured-output surface.
 
+## Failure modes
+
+- Engine outage — the policy decision point is slow or down, and every tool call either waits or fails.
+- Mistranslated rule — the prose-to-code compiler produces a rule that allows what the prose forbade, and no one reviews the compiled output.
+- Thin proposal — the action proposal leaves out context the rule needs, so the engine allows an action it would have denied with full data.
+
 ## What this pattern constrains
 
 The LLM must not dispatch any governed tool call without first obtaining an allow verdict from the external policy engine, must not modify or paraphrase rule content at runtime, and must surface the rule id behind any deny rather than synthesising its own explanation.
@@ -103,24 +109,75 @@ The LLM must not dispatch any governed tool call without first obtaining an allo
 - The action surface is so small that a handful of natural-language rules in the prompt are sufficient and stable.
 - Latency budgets cannot tolerate any synchronous decision point on the tool-call path.
 
+## Components
+
+- Policy repository — compliance-owned store of versioned, signed Rego or Cedar rules
+- Policy Decision Point — external engine returning allow, deny, or allow-with-obligations
+- Action proposal — structured envelope the agent sends carrying tool, args, caller, and data fingerprints
+- Obligation handler — applies allow-conditions like masking or dual-approval before dispatch
+- Decision log — record of action, policy hash, rule id, and verdict for replay
+
+## Tools
+
+- OPA or Cedar runtime — deterministic engine evaluating compiled policy bundles
+- Policy compiler — translator from prose policy documents into rule language
+- Bundle signer — cryptographic provenance for each deployed policy version
+
+## Evaluation metrics
+
+- Policy-decision latency p95 — added milliseconds on the tool-call hot path
+- Deny-with-rule-id rate — fraction of denials that carried an authoritative rule reference
+- Policy-engine availability — uptime of the decision point on the synchronous path
+- Audit-replay reproducibility — share of past actions that re-evaluate to the same verdict
+- Translation-drift findings — diffs between prose policy and compiled rule output flagged by review
+
 ## Known uses
 
-- **[Giskard Guards](https://www.giskard.ai/)** — *Available* — Policy-as-code guardrails for LLM agents (Paris).
-- **[Microsoft Agent Governance Toolkit](https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/)** — *Available* — Open-source runtime governance for AI agents, announced 2026-04.
-- **[heise/BSI KRITIS reference architectures](https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html)** — *Planned* — German critical-infrastructure deployments wrap agent tool dispatch behind OPA-style policy engines.
+- **[Giskard Guards](https://www.giskard.ai/)** _available_ — Policy-as-code guardrails for LLM agents (Paris).
+- **[Microsoft Agent Governance Toolkit](https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/)** _available_ — Open-source runtime governance for AI agents, announced 2026-04.
+- **[heise/BSI KRITIS reference architectures](https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html)** _planned_ — German critical-infrastructure deployments wrap agent tool dispatch behind OPA-style policy engines.
 
 ## Related patterns
 
-- *alternative-to* → [constitutional-charter](constitutional-charter.md) — Constitutional charters keep rules as natural-language inside the prompt; policy-as-code externalises them as machine-evaluable rules with their own release cycle.
-- *complements* → [input-output-guardrails](input-output-guardrails.md) — Guardrails filter content; policy-as-code gates actions. The two stack: a guardrail can be an obligation attached to an allow verdict.
-- *complements* → [human-in-the-loop](human-in-the-loop.md) — A deny or allow-with-obligation verdict can route to a human approver.
-- *complements* → [refusal](refusal.md) — When the policy engine denies, the agent's refusal carries an authoritative rule id rather than a synthesised justification.
+- _alternative-to_ **Constitutional Charter** — Constitutional charters keep rules as natural-language inside the prompt; policy-as-code externalises them as machine-evaluable rules with their own release cycle.
+- _complements_ **Input/Output Guardrails** — Guardrails filter content; policy-as-code gates actions. The two stack: a guardrail can be an obligation attached to an allow verdict.
+- _complements_ **Human-in-the-Loop** — A deny or allow-with-obligation verdict can route to a human approver.
+- _complements_ **Refusal** — When the policy engine denies, the agent's refusal carries an authoritative rule id rather than a synthesised justification.
+- _complements_ **Visual Workflow Graph**
+- _complements_ **Typed Refusal Codes**
+- _complements_ **LLM as Periphery**
+- _complements_ **Simulate Before Actuate**
+- _complements_ **Hybrid Symbolic-Neural Routing**
+- _complements_ **Control-Flow Integrity**
+- _used-by_ **Rigor Relocation**
+- _complements_ **Stochastic-Deterministic Boundary (SDB)**
+- _complements_ **Supervisor-Plus-Gate**
+- _generalises_ **Policy-Gated Agent Action (KRITIS)**
+- _complements_ **Tool Over-Broad Scope**
+- _complements_ **Decision Context Maps**
+- _alternative-to_ **Context Gap (Security)**
+- _complements_ **Priority Matrix (Conflict Resolution)**
+- _composes-with_ **Agent Middleware Chain**
+- _composes-with_ **Multi-Principal Welfare Aggregation**
+- _composes-with_ **Cost-Aware Action Delegation**
+- _complements_ **Agentic Golden Path** — Policy-as-code is the executable form of the standards the agentic golden path checks against.
+- _complements_ **Tenant-Scoped Tool Binding** — Policy gates the action; tenant binding scopes which tenant's data it touches.
+- _complements_ **Risk-Tiered Action Autonomy** — A policy engine can express the deterministic materiality rules that set each tier.
+- _used-by_ **Scope-of-Practice Boundary Gate** — The enumerated licensed acts and the allow/block verdict are authored as compliance-owned code evaluated outside the prompt, the mechanism a policy-as-code gate provides.
+- _used-by_ **Reversibility-Aware Action Filter** — The per-tool reversibility class lives in a manifest or policy declared outside the agent's reach, which is exactly the externally compiled, agent-immutable rule that a policy-as-code gate enforces.
+- _alternative-to_ **Formal-Proof Compliance Gate** — Policy-as-code evaluates externally-managed machine-readable rules for an allow/deny verdict; this gate demands a machine-checked mathematical proof, covering only formalisable invariants but giving a hard guarantee where a rule verdict gives a heuristic one.
+- _complements_ **Change-Freeze-Aware Action Gate** — Policy-as-code evaluates each action against externally-managed rules; the freeze gate is the time-windowed authority rule — a calendar of active freezes — such an engine enforces.
+- _complements_ **Production Failure Triage Loop** — The remediation target for policy-violation failures — the fix encodes the rule as a policy outside the prompt rather than prompting harder.
+- _alternative-to_ **Set-and-Forget System Prompt** — The corrective on the externalisation side — the constraint becomes an executable check outside the model, which measured 88.3% compliance against 67.0% for the same constraint left as passive text.
+- _complements_ **Action-Admissibility Tiering** — Supplies the externally-authored, versioned rule surface that the authority and procedure tier evaluates, though a flat policy set on its own cannot express the ordering or the non-compensatory rule.
+- _complements_ **Cumulative Disclosure Accounting** — Supplies the external decision point; this pattern makes its verdict depend on session history rather than on the proposed action alone.
+- _complements_ **History-Dependent Admissibility** — The external policy engine evaluates a proposed action in isolation, which is the property an adaptive counterparty exploits; the posture floor is the session-scoped input such a gate is missing.
+- _complements_ **Monotonic Privilege Confinement** — That pattern gates each action against an externally authored, comparatively static policy; here the policy is generated from the task and mutable at runtime, so the object that needs protecting is the update operation rather than the action.
+- _complements_ **Feasibility-Negotiated Intent Contract** — That gate answers a binary permission question about an already-formed concrete action against externally authored rules; this audit answers an achievability question about a declarative goal against live resource state, and its middle reply has no analogue in a permission verdict.
 
 ## References
 
-- (paper) *Policy-as-Prompt: Turning AI Governance Rules into Guardrails for AI Agents*, 2025, <https://arxiv.org/abs/2509.23994>
-- (blog) Microsoft Open Source, *Introducing the Agent Governance Toolkit: Open-Source Runtime Security for AI Agents*, 2026, <https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/>
-- (blog) *Agentic AIOps: KI-Agenten in kritischen Infrastrukturen*, <https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html>
-- (blog) *BSI Zero-Trust Designprinzipien für LLMs*, 2025, <https://www.datenschutzticker.de/2025/09/bsi-zero-trust-designprinzipien-fuer-llms/>
-
-**Tags:** policy-as-code, governance, opa, rego, compliance, safety-control, tool-gating
+- [Policy-as-Prompt: Turning AI Governance Rules into Guardrails for AI Agents](https://arxiv.org/abs/2509.23994) — 2025
+- [Introducing the Agent Governance Toolkit: Open-Source Runtime Security for AI Agents](https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/) — Microsoft Open Source, 2026
+- [Agentic AIOps: KI-Agenten in kritischen Infrastrukturen](https://www.heise.de/hintergrund/Agentic-AIOps-KI-Agenten-in-kritischen-Infrastrukturen-11267508.html)
+- [BSI Zero-Trust Designprinzipien für LLMs](https://www.datenschutzticker.de/2025/09/bsi-zero-trust-designprinzipien-fuer-llms/) — 2025

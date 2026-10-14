@@ -158,7 +158,13 @@
         "Throughput per actor — messages handled per second under realistic load",
         "Saga compensation rate — share of cross-actor workflows that needed rollback due to no transactions"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Unbounded mailbox — a slow actor keeps receiving messages with no back-pressure rule, its queue grows without limit, and replies arrive long after they matter.",
+        "Lost message trail — a bug spans three actors, and nobody can reconstruct which message caused which reaction because there is no single linear log.",
+        "Half-applied cross-agent change — two actors must both update for a task to be correct, one crashes after the other has committed, and no compensation step undoes the first.",
+        "Hidden shared state — a team slips a common cache back in for speed, and the race conditions the actor model was meant to remove come back."
+      ]
     },
     {
       "id": "agent-as-tool-embedding",
@@ -318,7 +324,13 @@
         "Recursive nesting depth observed — how often a sub-agent spawns its own sub-agents, against the cap",
         "Cost attribution accuracy — token spend correctly tagged to parent vs sub for billing"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Surprise timeout — the sub-agent runs out of budget mid-task and returns a bare failure, and the parent has no plan for a tool that can fail this way.",
+        "Opaque bad result — the sub-agent returns a confident but wrong value, and because the parent sees only the return, nobody can tell which inner step went wrong.",
+        "Recursive cost spiral — the sub-agent itself wraps further sub-agents as tools, and one parent call fans out into a deep, expensive tree.",
+        "Budget in the prompt — the step limit lives in the sub-agent's instructions rather than the wrapper, and the sub-agent talks itself past it."
+      ]
     },
     {
       "id": "autogen-conversational",
@@ -428,7 +440,14 @@
         "Runaway-conversation rate — share of runs hitting the turn cap without completing",
         "Per-conversation token cost — total spend across both agents and the manager"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Conversation drift — the agents wander onto a side topic, keep agreeing with each other, and spend turns without moving the task forward.",
+        "Termination never fires — the completion criterion is vague, so the chat runs until the max-turn cap and returns whatever the last message said.",
+        "Role leak — an agent starts acting outside its allowed actions, for example a reviewer rewriting the code, and the role split stops meaning anything.",
+        "Untraceable result — a wrong answer comes out of a long transcript, and nobody can say which turn introduced the error."
+      ],
+      "structure": "Task --> Conversation manager --select speaker--> Agent A (reads chat, emits turn) --> Manager --select speaker--> Agent B (reads chat, emits turn) --> Manager --check criterion--> [loop | done: task complete, max turns, or handoff to user]"
     },
     {
       "id": "blackboard",
@@ -561,7 +580,14 @@
         "Idle-agent rate — agents subscribed to keys that never fire, indicating wasted wiring",
         "Read latency — time from key write to interested agent observing the change"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Write race — two agents update the same key at once under last-write-wins, and one agent's finding is silently lost.",
+        "Blackboard bloat — nothing prunes old entries, so each agent reads an ever larger slice full of stale intermediate state.",
+        "Unstructured keys — agents write free-form notes instead of structured keys, and other agents cannot find or trust what they need.",
+        "Back-channel calls — an agent calls a peer directly to save time, and that interaction never appears on the shared, inspectable store."
+      ],
+      "structure": "Agents A, B, C --write(structured key)--> Blackboard (shared store, conflict policy) --read slice / notify on change--> Agents A, B, C --> contribute next step"
     },
     {
       "id": "camel-role-playing",
@@ -667,7 +693,14 @@
         "Training-data yield — usable trajectories per session for downstream fine-tuning",
         "Per-task token cost — total spend at two LLM calls per turn"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Role drift — over a long chat the user-agent starts answering its own instructions, and the two agents collapse into one voice.",
+        "Echo loop — the assistant repeats the same output and the user-agent repeats the same instruction until the budget runs out.",
+        "Premature finish — the user-agent declares the task done after a plausible but incomplete answer, and no outside check catches it.",
+        "Doubled cost for easy tasks — a task one agent could finish alone still pays for two models per turn."
+      ],
+      "structure": "Task + inception prompts --> user-agent (fixed role: instructs) --instruction--> assistant-agent (fixed role: acts) --output--> user-agent --> [loop until task complete or budget] --> final assistant message (log kept for debugging)"
     },
     {
       "id": "chat-chain",
@@ -788,7 +821,13 @@
         "End-to-end success vs single-agent baseline — does the chained structure beat one big prompt",
         "Cross-phase rework rate — later phases that have to send the artefact back upstream"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Weak completion predicate — a phase signs off an artefact that only looks finished, and the next phase builds on a broken base.",
+        "Wrong phase split — the chain pairs roles that do not fit the work, so agents in a phase argue about things they cannot decide.",
+        "Phase skipping — an agent jumps ahead to code while still in design, and the artefact trail no longer matches what was done.",
+        "Lost early requirement — a detail from phase one is not written into the artefact, so later phases never see it."
+      ]
     },
     {
       "id": "coalition-formation",
@@ -914,7 +953,14 @@
         "Coalition-size distribution — actual subset sizes formed",
         "Payoff variance per agent — proxy for fairness",
         "Coalition turnover — frequency of new coalitions vs reuse"
-      ]
+      ],
+      "failure_modes": [
+        "Search blow-up — the protocol tries to score every subset of a large agent pool and spends more time choosing a team than doing the task.",
+        "Overhead on small tasks — a coalition is formed, scored and paid for a task one agent could have done alone.",
+        "Unfair payoff split — the allocation rule credits the wrong agents, and contributors that did the real work are under-rewarded in later rounds.",
+        "Coalition that never dissolves — the group stays together after the task, and the pool loses the agents it needs for the next one."
+      ],
+      "structure": "New task + agent pool --> score candidate coalitions v(S)/cost --> pick best --> form coalition --> coalition executes --> allocate payoff per declared rule --> dissolve back to pool"
     },
     {
       "id": "communicative-dehallucination",
@@ -1030,7 +1076,13 @@
         "Added latency per task — extra wall-clock spent on clarification rounds",
         "Ping-pong incidents — runs that hit the reversal-depth bound without resolution"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Missed gap — the assistant does not notice the instruction is missing a deciding detail, invents a value, and carries on.",
+        "Ping-pong — without a depth bound, assistant and instructor keep asking each other questions and never reach an answer.",
+        "Over-asking — the assistant asks back on details it could have settled itself, and every hand-off pays an extra round of latency.",
+        "Vague question — the clarifying question is broad, the instructor answers loosely, and the assistant still has to guess."
+      ]
     },
     {
       "id": "cross-domain-agent-network",
@@ -1161,7 +1213,13 @@
         "Failure attribution clarity — share of failures correctly localised to one domain",
         "Domain-team change velocity — independent updates shipped per domain without coordinated release"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Fossilised protocol — an early design flaw in the inter-agent protocol is copied by every domain agent and becomes very hard to change.",
+        "Misrouting — the router sends an HR question to the finance agent, which applies its own rules with full confidence.",
+        "Blurred blame — a cross-domain workflow fails, and no one can tell which agent in the chain produced the bad artefact.",
+        "Backdoor integration — two domain teams wire their agents together outside the protocol, and the domain controls no longer apply on that path."
+      ]
     },
     {
       "id": "debate",
@@ -1287,7 +1345,14 @@
         "Counterargument coverage — share of debates where the losing side surfaced a load-bearing concern",
         "Cost multiplier vs single-agent — N×2 inference plus judge call per question"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Shared priors — both debaters run on the same model with the same framing, so the counter-argument is weak and the debate confirms the first answer.",
+        "Bad position split — the assigned positions miss the real disagreement, and the rounds argue about the wrong question.",
+        "Weak judge — the judge picks the more fluent argument rather than the correct one.",
+        "Cost on easy questions — an uncontested question still pays for several agents over several rounds."
+      ],
+      "structure": "Question --assign positions--> Agent A (position 1) <--N rounds of argument / counter-argument--> Agent B (position 2) --final positions--> Judge (or tie-break rule) --select or synthesise--> Answer"
     },
     {
       "id": "decentralized-agent-network",
@@ -1450,7 +1515,14 @@
         "Key rotation success rate — peers correctly handling a rotated key without re-onboarding",
         "Trust-failure rate — fraction of discovered peers that fail signature verification (poisoning detector)"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Lost key — an operator loses the private key behind a DID, and the agent's identity and signed capabilities can no longer be updated.",
+        "Weak DID method — a team picks a DID method with poor trust properties, and peers verify signatures against keys an attacker can control.",
+        "Skipped verification — a peer reads the capability graph but does not check the signature, and honours claims from an unverified agent.",
+        "Context resolution failure — the JSON-LD context cannot be fetched or is parsed differently by two toolchains, and discovery breaks."
+      ],
+      "structure": "Agent --publish--> DID document + signed JSON-LD capability graph; Peer --resolve DID--> DID document --fetch--> capability graph --verify signature against DID keys--> [valid: invoke advertised protocol (MCP, A2A, ...) | invalid: reject]"
     },
     {
       "id": "dynamic-expert-recruitment",
@@ -1594,7 +1666,13 @@
         "Recruiter latency overhead — extra wall-clock spent generating and adjusting the team",
         "Reproducibility variance — outcome spread across repeated runs with the same goal"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Bad recruiter, bad team — the recruiter misreads the goal and generates roles that do not fit it, and every later iteration inherits that mistake.",
+        "Team churn — the recruiter replaces roles after every weak evaluation, and no team runs long enough to show whether it works.",
+        "Unreproducible runs — the same goal produces a different team each time, so a good result cannot be repeated or debugged.",
+        "Self-recruiting agents — a team member invents a new peer on its own, outside the recruiter, and the team grows without control."
+      ]
     },
     {
       "id": "group-chat-manager",
@@ -1743,7 +1821,14 @@
         "Manager-failure rate — runs where the single-point-of-failure manager stalled or crashed",
         "Audit completeness — share of conversations whose manager log fully reconstructs turn order"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Manager outage — the manager crashes or stalls, and the whole conversation stops because no participant may speak on its own.",
+        "Selector favourite — an LLM-based selector keeps picking the same participant, and the others never get a turn on work they own.",
+        "No stop — the termination predicate never matches, so the chat runs until the turn cap and returns an unfinished result.",
+        "Lost pairing — two participants that should always follow each other are separated by the selector, because per-pair affinity is not expressed."
+      ],
+      "structure": "New message --> Manager (owns transcript) --append--> Transcript --select_next(transcript, participants)--> Chosen participant --turn--> Manager --check termination (turn cap, predicate, STOP)--> [next turn | end]"
     },
     {
       "id": "handoff",
@@ -1868,7 +1953,14 @@
         "Per-handoff latency — extra wall-clock from summarisation and target onboarding",
         "Specialisation lift — task-success delta over keeping the wrong agent on the line"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Thin summary — the context summary drops a detail the user already gave, and the new agent asks for it again or acts without it.",
+        "Handoff ping-pong — agent A hands to B, B hands back to A, and without loop detection the user waits while the two bounce the conversation.",
+        "Bluffing instead of handing off — the current agent does not call the handoff tool and keeps answering in territory it cannot handle.",
+        "Silent switch — an agent changes which agent responds outside the registered tool, and the switch leaves no trace in the log."
+      ],
+      "structure": "User <-> Agent A --handoff(target=B, context summary)--> Agent B (receives summary + original conversation) --> continues with user; loop detector watches the handoff chain"
     },
     {
       "id": "hierarchical-agents",
@@ -1996,7 +2088,14 @@
         "Per-level recall — does each manager pick the right child for its sub-task",
         "Token cost per task — total spend across all levels of the hierarchy"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Latency stack — each level waits on the level below, and a deep tree turns a simple request into a long chain of sequential calls.",
+        "Runaway tree — managers keep spawning sub-managers without a depth or breadth bound, and cost grows far past what the task needs.",
+        "Lost in synthesis — a mid-level manager summarises its children's results and drops the one finding the root needed.",
+        "Unlocalised bug — the final answer is wrong, and it is hard to tell which level's decomposition or synthesis caused it."
+      ],
+      "structure": "Task --> Root manager --decompose--> Sub-managers --decompose--> Specialist leaves --results--> Sub-managers (synthesise) --> Root manager (synthesise) --> Answer; depth and breadth bounded"
     },
     {
       "id": "inner-committee",
@@ -2117,7 +2216,14 @@
         "Token overhead vs single-persona — extra tokens spent on persona prompts per task",
         "Correlated-error rate — failures where critic agreed with executor due to shared model priors"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Correlated blind spot — the critic persona runs on the same model as the executor and misses exactly the mistakes the executor made.",
+        "Rubber-stamp critic — the critic persona mostly agrees with the result, and the plan is never revised.",
+        "Persona bleed — personas share too much context, and the executor starts planning while the planner starts executing.",
+        "Prompt overhead — the persona prompts together take a large part of the token budget on every loop."
+      ],
+      "structure": "Task --> Planner persona --plan--> Executor persona --result--> Critic persona --critique--> Planner persona (revise if needed) --> [loop | done]; one model, each persona sees only its own inputs"
     },
     {
       "id": "inter-agent-communication",
@@ -2257,7 +2363,14 @@
         "Integration cost per added agent — engineer-hours to onboard a new vendor or team",
         "Protocol overhead per call — extra bytes and latency versus direct in-process function calls"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Schema break — one agent ships a new envelope version, and clients still on the old version fail to parse its results.",
+        "Stale capability advert — an agent advertises a capability it no longer supports, and clients discover and invoke it anyway.",
+        "Protocol overhead on chatty calls — small, frequent exchanges pay the full envelope and auth cost each time.",
+        "Out-of-band shortcut — a team calls another agent directly to skip the protocol, and that path has no shared auth or inventory entry."
+      ],
+      "structure": "Server agent --advertise capabilities--> Registry; Client agent --discover--> Registry --endpoint + auth--> Client agent --typed task envelope--> Server agent --typed result envelope--> Client agent"
     },
     {
       "id": "joint-commitment-team",
@@ -2398,7 +2511,14 @@
         "Silent-abandonment incidents — teams that ended without proper notification",
         "Wasted-effort rate — work done after goal already achieved or impossible",
         "Notification latency — time from a member's belief change to broadcast"
-      ]
+      ],
+      "failure_modes": [
+        "False 'impossible' — one member wrongly concludes the goal cannot be met, notifies the team, and tears it down while others were close to success.",
+        "Disagreement deadlock — members disagree on whether the goal is achieved, no reconciliation rule exists, and the team neither stops nor progresses.",
+        "Notification noise — on a long-running team, frequent status messages cost more than the work they protect.",
+        "Silent drop — a member stops pursuing the goal without notifying, and the rest keep spending effort on work that no longer matters."
+      ],
+      "structure": "Forming --shared goal G--> Active (each member pursues G) --any member notifies achieved--> Satisfied | --any member notifies impossible--> Impossible | --principal notifies no longer wanted--> Abandoned"
     },
     {
       "id": "lead-researcher",
@@ -2513,7 +2633,14 @@
         "Synthesis-quality lift — human-rated answer quality versus a single-agent serial run",
         "Cost per research task — total spend across lead and all sub-agents"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Overlapping sub-agents — the plan splits the query into questions that overlap, and several sub-agents read the same sources.",
+        "Synthesis bottleneck — the lead receives more findings than it can read well and writes a shallow answer.",
+        "Gap loop — the lead keeps spawning extra sub-agents for every small gap and never settles on an answer.",
+        "Narrow plan — the lead's first plan misses a whole angle of the question, and no sub-agent ever looks there."
+      ],
+      "structure": "User query --> Lead (plan research questions) --dispatch in parallel--> Sub-agents (search independently) --structured findings--> Lead (synthesise) --gaps?--> [yes: spawn extra sub-agents | no: answer]"
     },
     {
       "id": "orchestrator-workers",
@@ -2688,7 +2815,14 @@
         "End-to-end success rate — measured against a static-decomposition baseline",
         "Total token cost per task — orchestrator plus all spawned workers"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Single point of failure — the orchestrator errors mid-task, and without retry logic all worker results are lost.",
+        "Cost blow-up — the orchestrator spawns many workers for a modest task, and token cost scales with the worker count.",
+        "Bad split — the runtime decomposition misses a needed subtask, and the synthesis has a hole no worker was asked to fill.",
+        "Context-starved worker — a worker sees only its subtask and makes a choice that conflicts with another worker's result."
+      ],
+      "structure": "Task --> Orchestrator --decide subtasks at runtime--> Workers 1..N (each sees only its subtask) --results--> Orchestrator --synthesise--> Answer"
     },
     {
       "id": "performative-message",
@@ -2823,7 +2957,14 @@
         "Performative misclassification rate — incorrect typing by the sender",
         "Protocol completion rate — share of started protocols that reach a terminal state",
         "Message volume per performative — operational visibility into the communication mix"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong act type — the model labels a counter-offer as 'accept', and the receiver closes a negotiation that was still open.",
+        "Vocabulary drift — two teams add their own performatives, and agents from one team cannot dispatch messages from the other.",
+        "Label-content mismatch — the performative says 'inform' but the content asks for an action, and the receiver ignores the real request.",
+        "Per-message overhead — type-checking every message slows high-volume exchanges."
+      ],
+      "structure": "Sender --message = (performative: request | inform | propose | accept | refuse | query | ...) + content--> Receiver --dispatch on performative--> handler --> protocol state machine advances on typed transition (logged for audit)"
     },
     {
       "id": "personality-variant-overlay",
@@ -2953,7 +3094,14 @@
         "Variant transparency — share of variant shifts that were visibly announced to the user",
         "Selector accuracy — agreement between selector choice and human-rated ideal variant"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Parody voice — an overlay is written too thick, and the 'teacher' variant starts to sound like a caricature.",
+        "Charter conflict — an overlay contradicts the base charter, and the agent behaves against its own rules in that voice.",
+        "Unannounced shift — the voice changes mid-conversation without notice, and the user reads it as the agent being fake.",
+        "Selector misfire — the selector picks a cheerful coaching voice for a terse operational question."
+      ],
+      "structure": "Turn --> Selector --pick variant--> Variant registry (curated overlays) --active overlay--> Concatenate(base prompt: name + charter + tools, overlay) --> Model --> reply; shared memory and tools, active variant logged"
     },
     {
       "id": "progressive-delegation",
@@ -3088,7 +3236,14 @@
         "Per-class telemetry — feeds the rolling window",
         "Approval queue — used at draft and assisted levels",
         "Audit log — records promotions and demotions"
-      ]
+      ],
+      "failure_modes": [
+        "Gamed promotion — the success metric is weak, so an action class clears the bar without being trustworthy and goes autonomous.",
+        "Demotion thrash — a small window lets one or two bad outcomes demote a class, and capabilities flip back and forth.",
+        "Skipped bookkeeping — a small team stops tracking per-class success rates, and promotion falls back to a verbal decision.",
+        "Whole-agent promotion — the team promotes the agent as a unit, and a weak action class gains autonomy along with the strong ones."
+      ],
+      "structure": "Action class at level Draft --success window clears bar--> Assisted --success window clears bar--> Autonomous; regression in window --> demote one level; each action class tracked separately"
     },
     {
       "id": "rl-conductor-orchestrator",
@@ -3231,7 +3386,13 @@
         "Reward improvement curve — policy improvement over training iterations",
         "Worker-drift sensitivity — outcome degradation when an upstream vendor silently updates a worker model"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Recursive fan-out — the conductor keeps dispatching sub-tasks back to itself, and without strict caps the task spreads across many calls.",
+        "Silent worker drift — a vendor updates a worker model, and the learned routing now sends sub-tasks to a worker that behaves differently.",
+        "Unauditable routing — a bad dispatch occurs, and nobody can read the learned policy to see why that worker was chosen.",
+        "Reward hacking — a weak final-task reward teaches the conductor routes that score well but do not solve the task."
+      ]
     },
     {
       "id": "role-assignment",
@@ -3390,7 +3551,14 @@
         "Attribution accuracy — share of artefacts correctly traced to the producing role on review",
         "Workflow throughput — tasks completed per hour against a generic-agent baseline"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Role drift — over a long session the researcher starts writing prose and the critic starts rewriting, and the outputs blur together again.",
+        "Bureaucracy — a small task is passed through planner, researcher, writer and critic, and the hand-offs cost more than the work.",
+        "Loose acceptance criteria — a role's criteria are vague, so weak outputs pass and review cannot tell which role fell short.",
+        "Leaky tool palette — a role is given tools outside its scope and starts doing another role's job with them."
+      ],
+      "structure": "Task --> Workflow --assign--> Role (system prompt + scoped tool palette + acceptance criteria): Planner | Researcher | Writer | Critic --output--> check against role's acceptance criteria --> [accept | return to role]"
     },
     {
       "id": "sop-encoded-multi-agent",
@@ -3538,7 +3706,13 @@
         "SOP-mismatch incidents — tasks where the encoded SOP did not fit the input task",
         "Token cost per phase — spend distribution across phases, used to find the heavy step"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Bad artefact contract — the design-doc schema leaves out a field the developer needs, and every later role inherits the gap.",
+        "Task outside the SOP — a request does not fit the fixed phases, and the pipeline forces it through steps that make no sense for it.",
+        "Over-strict filter — the subscription filter withholds context a role needed, and that role produces an artefact on partial information.",
+        "Phase cost — every request pays for every phase, even when only one or two of them matter."
+      ]
     },
     {
       "id": "stigmergic-coordination",
@@ -3678,7 +3852,14 @@
         "Trace-pickup latency — time from write to first other-agent read",
         "Stale-trace incidents — actions driven by outdated marks",
         "Coordination effectiveness — task success vs direct-message baseline"
-      ]
+      ],
+      "failure_modes": [
+        "Stale trace — a TODO marker is never cleared after the work is done, and another agent picks it up and repeats the task.",
+        "Conflicting traces — two agents leave opposite markers on the same item, and the next agent acts on whichever it reads first.",
+        "Misread trace — a trace written with one agent's conventions is read differently by another, which then moves in the wrong direction.",
+        "Polling lag — agents check the environment rarely, so a trace waits a long time before anyone acts on it."
+      ],
+      "structure": "Agent 1 --write structured trace--> Shared environment (TODO file, job queue, scratchpad, store) --read trace--> Agent 2 --act, write trace--> Shared environment --read trace--> Agent 3; traces decay or are cleared"
     },
     {
       "id": "subagent-isolation",
@@ -3862,7 +4043,14 @@
           "see_also": "sandbox-isolation"
         }
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Merge conflict at landing — two subagents change the same lines in separate workspaces, and the supervisor cannot reconcile them cleanly.",
+        "Setup latency — creating a fresh worktree or container per subagent takes longer than the subagent's actual task.",
+        "Cross-workspace write — a subagent writes outside its own workspace, and the collisions isolation was meant to prevent come back.",
+        "Orphaned workspace — a subagent fails, its workspace is never cleaned up or reconciled, and its partial work is silently lost."
+      ],
+      "structure": "Supervisor --task--> Subagent 1 (own worktree / container) | Subagent 2 (own worktree / container) --> results --> Supervisor --reconcile one at a time (merge, cherry-pick, replay)--> Main workspace"
     },
     {
       "id": "supervisor",
@@ -4077,7 +4265,14 @@
         "Escalation rate — share of requests the supervisor had to re-route or hand back",
         "Cross-lane interference — incidents where a tuning change in one lane degraded another"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Premature multi-agent — the team builds a supervisor and specialists before a single agent works, and the extra layer only adds failure points.",
+        "Misclassification — the supervisor routes a billing request to the technical specialist, which answers it badly.",
+        "Invisible coordination failure — a dispatch or aggregation bug only shows up under real production traffic.",
+        "Scope creep — a specialist acts outside its declared scope, and the supervisor's aggregation now mixes overlapping answers."
+      ],
+      "structure": "User request --> Supervisor (classify) --dispatch--> Specialist A | B | C (own prompt, tools, model) --result--> Supervisor --> [aggregate and respond | escalate]"
     },
     {
       "id": "swarm",
@@ -4195,7 +4390,14 @@
         "Topology-effect comparison — outcome quality across broadcast, gossip, and pub/sub variants",
         "Debug-localisation difficulty — engineer-hours to trace an emergent bug to a peer set"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Global emergent failure — the agents converge on a wrong outcome together, and no single agent's log shows where it went wrong.",
+        "Cost runaway — with no coordinator, agents keep messaging each other and spend far past the expected budget.",
+        "No convergence — the consensus threshold is never reached, and only the time budget ends the run.",
+        "Side-channel coordination — two agents coordinate outside the shared channel, and the rest of the swarm cannot see or react to it."
+      ],
+      "structure": "Peer agents 1..N (own goals and policies) <--> Shared message bus / environment --> environment-level termination (time budget, consensus threshold, external trigger) --> Emergent outcome"
     },
     {
       "id": "talker-reasoner",
@@ -4353,7 +4555,14 @@
         "Shared-memory staleness — turns served from an outdated Reasoner conclusion",
         "Cost split — Talker cost vs. Reasoner cost per session, against single-agent total"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Premature commit — the Talker tells the user an answer before the Reasoner has confirmed it, and the Reasoner later disagrees.",
+        "Empty promise — the Talker says results are coming, and the Reasoner never produces them or produces something else.",
+        "Stale memory read — the Talker answers from shared memory the Reasoner is in the middle of updating, and the reply mixes old and new state.",
+        "Double operations cost — the team runs two agents but only monitors one, and Reasoner failures go unnoticed."
+      ],
+      "structure": "User <-> Talker (fast, answers from shared memory) --invoke async when deliberation needed--> Reasoner (slow: plans, calls tools) --write conclusions--> Shared memory --read next turn--> Talker; Reasoner never speaks to the user"
     },
     {
       "id": "topic-based-routing",
@@ -4484,7 +4693,14 @@
         "Topic-fan-out distribution — number of subscribers per topic, used to find hot channels",
         "End-to-end message latency — time from publish to last subscriber receipt"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Orphan topic — a message is published to a topic nobody subscribes to, and the event is silently dropped.",
+        "Schema drift — a publisher changes a topic's message shape without a new version, and subscribers break without an error at the sender.",
+        "Slow subscriber — one consumer falls behind without back-pressure rules, and delivery on the topic degrades for everyone.",
+        "Unclear ownership — an incident lands on a topic, and finding out which agent should handle it requires digging through runtime subscriptions."
+      ],
+      "structure": "Publisher agent --publish(typed message)--> Named topic (versioned schema) --fan out with back-pressure--> Subscriber agents 1..N; new subscriber added without changing any sender"
     },
     {
       "id": "vickrey-auction-allocation",
@@ -4607,7 +4823,14 @@
         "Truthful-bidding fraction — share of bids equal to private cost (where measurable)",
         "Second-price premium — average gap between winner cost and payment",
         "Collusion-incident detection rate — flagged price-shading or dummy-bidding events"
-      ]
+      ],
+      "failure_modes": [
+        "Collusion — two bidders agree that one submits a dummy high bid, which inflates the second price the allocator pays.",
+        "Premium surprise — the allocator budgets for the winner's bid but pays the higher second-lowest bid, and costs overrun.",
+        "First-price slip — an implementation pays the winner its own bid, and agents go back to shading their bids above true cost.",
+        "Combinatorial stall — a VCG generalisation over many bundled tasks becomes too expensive to compute in time."
+      ],
+      "structure": "Allocator --broadcast task + sealed bid window--> Agents --sealed bid (true cost)--> Allocator --pick lowest bidder--> Winner --pay second-lowest bid--> Winner executes task"
     },
     {
       "id": "voting-based-cooperation",
@@ -4771,7 +4994,13 @@
         "Ballot-audit completeness — share of decisions whose voting record fully reconstructs",
         "Per-decision overhead — extra inference and coordination cost versus picking one agent"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Dominant voter — one agent or role carries extra weight, and the tally reflects its view rather than the group's.",
+        "Strategic voting — voters whose rewards depend on the outcome vote to game the result instead of for the best option.",
+        "Vote overhead — collecting and tallying ballots costs more than the decision is worth on a simple question.",
+        "Unknown voter — voter identities are not managed, so the tally cannot be audited or a voter counts twice."
+      ]
     },
     {
       "id": "scatter-gather-saga",
@@ -4895,7 +5124,14 @@
         "Partial-failure rate",
         "Compensation success rate — compensations that ran cleanly",
         "Saga atomicity — share of operations that ended all-or-nothing"
-      ]
+      ],
+      "failure_modes": [
+        "Failed compensation — the cancel action for a committed worker itself fails, and the system is left half-committed after all.",
+        "Missing compensator — a worker is added without a defined compensating action, and its commit cannot be undone on failure.",
+        "Report before rollback — the coordinator reports the failure before compensations finish, and callers act on state that is still changing.",
+        "Debugging tangle — a mix of parallel commits and compensations makes it hard to tell which worker did what in which order."
+      ],
+      "structure": "Coordinator --dispatch in parallel--> Workers (each: do_action, compensate_action) --> [all succeed: gather and return | any fails: run compensate_action on every committed worker --> report none committed]"
     },
     {
       "id": "cellular-automata-agents",
@@ -5006,7 +5242,14 @@
         "Per-step computation cost (constant in radius)",
         "Macro-behavior convergence rate",
         "Rule-set fitness — emergent-behavior score"
-      ]
+      ],
+      "failure_modes": [
+        "Unintended macro behaviour — the local rules look sensible one cell at a time, but the population settles into a pattern nobody designed for.",
+        "Unstable tuning — a small change to one rule flips the emergent behaviour, and each tuning round undoes the last.",
+        "Problem too global — the task needs information from far across the grid, and agents limited to their neighbourhood cannot solve it.",
+        "Radius creep — someone widens the neighbourhood or adds a global query to fix a case, and the scaling benefit of local-only access is gone."
+      ],
+      "structure": "Each step: every agent --read k-radius neighbourhood only--> apply local rule --> next state --> next step; macro behaviour observed in simulation, never specified centrally"
     },
     {
       "id": "parallel-fan-out-gather",
@@ -5135,7 +5378,14 @@
         "Aggregator conflict-resolution rate",
         "Per-worker variance in output quality",
         "End-to-end speedup vs sequential"
-      ]
+      ],
+      "failure_modes": [
+        "Aggregator bottleneck — N grows large, and the single aggregator cannot merge results as fast as the workers produce them.",
+        "Unstructured worker output — workers return free-form text, and the aggregator guesses how to line up their results.",
+        "Silent gap — one partition fails or returns nothing, and the aggregator merges the rest into an output that looks complete.",
+        "Reconciliation leak — the orchestrator or a downstream consumer starts fixing conflicts itself, and merge logic is split across components again."
+      ],
+      "structure": "Task --partition into N--> Workers 1..N (in parallel) --structured results--> Aggregator (conflict-resolution policy) --> Single reconciled output"
     },
     {
       "id": "decentralized-swarm-handoff",
@@ -5264,7 +5514,14 @@
         "Handoff success rate",
         "Decline-with-reason distribution — load-balance signal",
         "Trace reconstruction completeness"
-      ]
+      ],
+      "failure_modes": [
+        "Tag mismatch — agents use different capability tags for the same skill, and a handoff finds no peer even though one could do the work.",
+        "Decline cascade — every peer defers or declines under load, and the task circles the swarm without being accepted.",
+        "Missing log entry — an agent hands off without logging, and the trace of who handed work to whom has a hole.",
+        "Hidden router — a team adds a central dispatcher to fix routing problems, and the swarm loses the scaling it was built for."
+      ],
+      "structure": "Agent A (holding task) --address peers by capability tag--> Peers --accept_handoff(task) → accept | defer | decline with reason (capacity back-pressure)--> Agent B accepts --> continues task; every handoff written to per-agent log"
     },
     {
       "id": "pipeline-triad-pattern",
@@ -5375,7 +5632,14 @@
         "Arbiter PASS/FAIL/PARTIAL distribution per stage",
         "Human gate intervention rate",
         "End-to-end pipeline throughput vs single-agent stages"
-      ]
+      ],
+      "failure_modes": [
+        "Rubber-stamp arbiter — the arbiter passes the creator's artefact without weighing the critic's flaws, and the triad becomes a single agent with extra cost.",
+        "Gate fatigue — human reviewers at the four gates approve by habit, and the gates stop catching anything.",
+        "Latency pile-up — waiting on human gates between every stage makes a short pipeline take days.",
+        "Missing triad role — a stage runs with only a creator to save cost, and errors pass to the next stage without a check."
+      ],
+      "structure": "Stage N: Creator (artefact) --> Critic (flaws with reasons) --> Arbiter (PASS / FAIL / PARTIAL, citing both) --> Human gate --> [pass: Stage N+1 triad | reject: back to Creator]"
     },
     {
       "id": "heterogeneous-model-council-with-judge",
@@ -5504,7 +5768,14 @@
         "Inter-model agreement rate",
         "Judge-verdict stability under model swap",
         "Decorrelated-error catch rate — disagreements that surface real issues"
-      ]
+      ],
+      "failure_modes": [
+        "Schema disagreement — council models read the shared JSON schema differently, and the judge compares fields that do not mean the same thing.",
+        "Blind judge misses context — the input has a detail that decides the case, and the judge, seeing only JSON, cannot use it.",
+        "Hidden correlation — the 'different' models share training data or a base model, and their errors still line up.",
+        "Vendor sprawl — running several model vendors adds outages and cost that a single-vendor setup would not have."
+      ],
+      "structure": "Input --> Persona 1 (model A) | Persona 2 (model B) | Persona 3 (model C) in parallel --structured JSON per fixed schema--> Judge (different model, blind to input) --synthesise--> Final verdict"
     },
     {
       "id": "one-tool-one-agent",
@@ -5624,7 +5895,14 @@
         "Per-specialist regression rate",
         "Handoff overhead (latency, cost) per workflow",
         "Specialist-replacement frequency without downstream impact"
-      ]
+      ],
+      "failure_modes": [
+        "Overhead on trivial tasks — a simple request passes through the manager and several specialists, and hop cost exceeds the work.",
+        "Splitting sequential work — an inherently sequential task is cut across specialists, and each hop loses context the next one needed.",
+        "Manager takes on domain logic — the orchestrator starts doing search or formatting itself, and the narrow boundaries blur.",
+        "Hand-off loss — a specialist's output is reshaped at each hop, and the final deliverable drifts from what the first specialist found."
+      ],
+      "structure": "User request --> Manager (decompose and route only) --> Search | Summarisation | Email | Compiler | Formatting agent (one tool each, own eval suite) --results--> Manager --> Final deliverable"
     },
     {
       "id": "contract-net-protocol",
@@ -5767,7 +6045,14 @@
         "Bid-round latency",
         "Award-quality (winner vs ground-truth optimal)",
         "Bid-honesty violation rate"
-      ]
+      ],
+      "failure_modes": [
+        "Dishonest bid — a contractor overstates its capability or capacity to win, and the task goes to an agent that cannot finish it.",
+        "Bidding latency — every small task waits for a full announce-bid-award round before work can start.",
+        "Poor bid criteria — the manager's scoring rule favours low cost over fit, and awarded contractors keep failing.",
+        "Missing cancellation — losing bidders never receive a cancel, so they keep capacity reserved for work they will not get."
+      ],
+      "structure": "Manager --announce task spec--> Contractors --bid {capability, capacity, cost, ETA}--> Manager --validate and score by explicit criteria--> award to best bid, cancel the rest --> Winner commits, executes, reports"
     },
     {
       "id": "magentic-one-generalist",
@@ -5888,7 +6173,14 @@
         "End-to-end task success rate",
         "Per-specialist invocation frequency",
         "Replan rate per task"
-      ]
+      ],
+      "failure_modes": [
+        "Shallow specialist — a task needs deep skill in one modality, and the generalist specialist handles it worse than a bespoke agent would.",
+        "Replan loop — the orchestrator keeps revising its task ledger after each failed step and never converges.",
+        "Missing modality — the team's work needs a capability outside the four specialists, and the orchestrator forces it through the closest one.",
+        "Specialist-to-specialist shortcut — a specialist dispatches to another directly, and the orchestrator's ledger no longer reflects what happened."
+      ],
+      "structure": "User request --> Orchestrator (decompose, plan, task ledger, replan log) --dispatch--> WebSurfer | FileSurfer | Coder | ComputerTerminal --results--> Orchestrator (integrate, replan if needed) --> Final deliverable"
     },
     {
       "id": "agent-capability-manifest",
@@ -6072,7 +6364,13 @@
         "Capability-overstatement rate — calls that fail because advertised skills exceeded actual ability",
         "Cross-vendor interop rate — share of integrations working without per-pair custom code"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Poisoned manifest — a forged descriptor at the well-known location points callers to an attacker's endpoint.",
+        "Overstated skills — an agent lists a capability it handles poorly, and callers bind to it by capability and get bad results.",
+        "Stale cache — a manifest has no version, callers keep a cached copy, and they call an endpoint or auth scheme that changed.",
+        "Schema split — two vendors extend the shared schema differently, and a registry can no longer match their capabilities."
+      ]
     },
     {
       "id": "dynamic-topology-routing",
@@ -6216,7 +6514,13 @@
         "mermaid": "graph TD\n  TASK[Incoming task] --> R{Router scores<br/>agents vs subtask}\n  R --> T1[Chain: A -> B]\n  R --> T2[Fan-out: C -> D,E,F -> G]\n  R --> T3[Clique: H <-> I <-> J]\n  POOL[(Fixed agent pool)] -.candidates.-> R\n  T1 --> OUT[Result]\n  T2 --> OUT\n  T3 --> OUT",
         "caption": "A fixed agent pool, but the router instantiates a different communication graph for each task."
       },
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Wrong wiring — the router scores agents badly for a subtask and connects agents that cannot help each other.",
+        "Edge thrash — the router rebuilds the communication graph every step, and time goes to rewiring instead of work.",
+        "Unreproducible run — the same task produces a different graph next time, so a failure cannot be replayed.",
+        "Benchmark overfit — a learned topology looks good on its training tasks and wires real tasks poorly."
+      ]
     },
     {
       "id": "signed-agent-card",

@@ -24,20 +24,6 @@ Most agent runtimes only expose 'start' and (sometimes) a brutal kill. Pause is 
 - Cancel must run compensating actions on in-flight side effects.
 - All three must be exposed in the UX, not hidden as ops-only controls.
 
-## Applicability
-
-**Use when**
-
-- Agent runs are long enough that users will form mid-run judgments.
-- In-flight side effects can be compensated cleanly.
-- State is small enough to snapshot at step boundaries without prohibitive cost.
-
-**Do not use when**
-
-- Runs are seconds-long; the interruption surface is wasted UI.
-- Tools have no idempotency or compensation hooks — pause cannot be safe.
-- The agent is fully embedded in another product whose UX owns the controls.
-
 ## Therefore
 
 Therefore: surface pause, resume, and cancel as first-class controls in the agent's UX and runtime; on pause snapshot state, on resume rehydrate it, on cancel run compensating actions on in-flight effects.
@@ -46,9 +32,11 @@ Therefore: surface pause, resume, and cancel as first-class controls in the agen
 
 Build the runtime so each step boundary is a snapshot point: state is durable across pause/resume. Pause stops further model and tool calls without killing the process. Resume rehydrates from the snapshot. Cancel runs compensating actions on in-flight side effects (mark drafts as discarded, release locks, end provider sessions) before tearing down. Expose all three as visible UX, not hidden APIs. Distinct from a kill-switch, which is an operator-level emergency halt.
 
-## Example scenario
+## Structure
 
-A research agent has spent 12 minutes browsing sources and is starting to repeat searches. The user clicks Pause. The runtime snapshots state at the next step boundary and stops further calls. The user reviews the work-in-progress notes, decides the agent had enough material 8 minutes ago, and clicks Resume with an instruction to summarise and stop rather than search further. The agent picks up from the snapshot and finishes.
+```
+Running --pause--> Paused (snapshot at step boundary) --resume--> Running (rehydrate); Running or Paused --cancel--> Cancelling (run compensating actions) --> Compensated --> end; Running --> Completed
+```
 
 ## Diagram
 
@@ -65,6 +53,10 @@ stateDiagram-v2
   Completed --> [*]
 ```
 
+## Example scenario
+
+A research agent has spent 12 minutes browsing sources and is starting to repeat searches. The user clicks Pause. The runtime snapshots state at the next step boundary and stops further calls. The user reviews the work-in-progress notes, decides the agent had enough material 8 minutes ago, and clicks Resume with an instruction to summarise and stop rather than search further. The agent picks up from the snapshot and finishes.
+
 ## Consequences
 
 **Benefits**
@@ -79,29 +71,68 @@ stateDiagram-v2
 - In-flight tool calls without idempotency hooks make pause and cancel unsafe.
 - Resume from a stale snapshot can produce a Frankenstein run if the external world has moved on.
 
+## Failure modes
+
+- Unsafe pause — a tool call with no idempotency hook is mid-flight when the user pauses, and resuming repeats its side effect.
+- Stale resume — a run resumed days later continues from a snapshot that no longer matches the external world, mixing old and new state.
+- Leaky cancel — cancel tears down the run before compensating actions finish, leaving locks held and drafts live.
+
 ## What this pattern constrains
 
 A long-running agent must not expose only 'start' and 'kill'; pause, resume, and cancel are first-class controls and state is preserved across them.
 
+## Applicability
+
+**Use when**
+
+- Agent runs are long enough that users will form mid-run judgments.
+- In-flight side effects can be compensated cleanly.
+- State is small enough to snapshot at step boundaries without prohibitive cost.
+
+**Do not use when**
+
+- Runs are seconds-long; the interruption surface is wasted UI.
+- Tools have no idempotency or compensation hooks — pause cannot be safe.
+- The agent is fully embedded in another product whose UX owns the controls.
+
+## Components
+
+- Step-boundary snapshot — durable state at every step
+- Pause control — visible UX, stops further model/tool calls
+- Resume control — rehydrates state and continues
+- Cancel control — runs compensating actions then tears down
+
+## Tools
+
+- Snapshot store — durable storage for the state at each step
+- Compensation registry — per-action compensating implementations
+- Frontend control surface — pause/resume/cancel buttons visible to users
+
+## Evaluation metrics
+
+- Pause completion latency — time from user click to last in-flight call
+- Resume cleanliness — fraction of resumes that continue without retried side-effects
+- Cancel compensation success — fraction of in-flight effects walked back cleanly
+
 ## Known uses
 
-- **Designing Multi-Agent Systems (Dibia) — Interruptibility UX principle** — *Available* — <https://newsletter.victordibia.com/p/4-ux-design-principles-for-multi>
-- **Claude Code session pause/resume** — *Available*
-- **OpenAI Codex/Operator and other long-running agent products** — *Available*
+- **[Designing Multi-Agent Systems (Dibia) — Interruptibility UX principle](https://newsletter.victordibia.com/p/4-ux-design-principles-for-multi)** _available_
+- **[Claude Code session pause/resume](https://code.claude.com/docs/en/agent-sdk/sessions)** _available_
+- **[OpenAI Codex/Operator and other long-running agent products](https://developers.openai.com/blog/run-long-horizon-tasks-with-codex)** _available_
 
 ## Related patterns
 
-- *uses* → [agent-resumption](agent-resumption.md)
-- *uses* → [durable-workflow-snapshot](durable-workflow-snapshot.md)
-- *complements* → [kill-switch](kill-switch.md) — Kill is operator-level emergency; this is user-level pause/cancel.
-- *uses* → [compensating-action](compensating-action.md)
-- *complements* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
-- *composes-with* → [composable-termination-conditions](composable-termination-conditions.md)
-- *complements* → [approval-queue](approval-queue.md)
+- _uses_ **Agent Resumption**
+- _uses_ **Durable Workflow Snapshot**
+- _complements_ **Kill Switch** — Kill is operator-level emergency; this is user-level pause/cancel.
+- _uses_ **Compensating Action**
+- _complements_ **Interrupt-Resumable Thought**
+- _composes-with_ **Composable Termination Conditions**
+- _complements_ **Approval Queue**
+- _complements_ **Async Tool Handle** — Both keep the loop responsive during long work; interruption gives the user a halt control, the handle keeps each tool call short so the loop can be interrupted at a clean boundary.
+- _complements_ **Semantic Turn Endpointing** — Interruptible execution is the task-level halt surface; semantic turn endpointing is the sub-second audio floor-control that decides when a barge-in even counts.
 
 ## References
 
-- (blog) *4 UX Design Principles for Multi-Agent Systems*, Victor Dibia, 2025, <https://newsletter.victordibia.com/p/4-ux-design-principles-for-multi>
-- (book) *Designing Multi-Agent Systems*, Victor Dibia, 2025, <https://www.oreilly.com/library/view/designing-multi-agent-systems/9781098150495/>
-
-**Tags:** safety, interruptibility, ux
+- [4 UX Design Principles for Multi-Agent Systems](https://newsletter.victordibia.com/p/4-ux-design-principles-for-multi) — Victor Dibia, 2025
+- [Designing Multi-Agent Systems](https://multiagentbook.com/) — Victor Dibia, 2025

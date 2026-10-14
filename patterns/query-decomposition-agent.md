@@ -24,20 +24,6 @@ Monolithic prompts on multi-part questions collapse into vague aggregates. The m
 - Aggregation step must combine without losing per-leaf nuance.
 - Decomposition errors silently produce blind spots in the final answer.
 
-## Applicability
-
-**Use when**
-
-- Questions are compositional (entity × dimension matrices, multi-source comparisons).
-- Sub-queries are usefully independent.
-- Latency budget allows parallel leaf execution.
-
-**Do not use when**
-
-- Question is atomic and decomposition would invent structure.
-- Sub-queries are not independent; ordered planning (Plan-and-Execute) is the right shape.
-- Aggregation cost would dominate end-to-end time.
-
 ## Therefore
 
 Therefore: have one agent split the query into independent leaf sub-queries and merge the answers, so multi-part questions are answered by fan-out-then-aggregate rather than by one overloaded prompt.
@@ -46,9 +32,11 @@ Therefore: have one agent split the query into independent leaf sub-queries and 
 
 Front the workflow with a decomposer agent whose system prompt asks it to enumerate independent sub-queries that, together, would answer the user's question. Run each sub-query (in parallel or sequence) through the answering agent, RAG retriever, or tool. Pass the leaf answers to an aggregator that composes the final response. Distinct from Plan-and-Execute (ordered actions): decomposition produces equivalent leaves, not a plan.
 
-## Example scenario
+## Structure
 
-User asks 'summarise revenue, headcount, and major lawsuits for each of these five companies'. The decomposer produces 15 sub-queries (5 companies × 3 dimensions). Each sub-query runs against the RAG corpus in parallel. The aggregator composes a 5×3 matrix response.
+```
+User query --> Decomposer (independent sub-queries, logged) --> leaf executors per sub-query (parallel or sequential: RAG, tool, answering agent) --> Aggregator --> Composed response
+```
 
 ## Diagram
 
@@ -67,6 +55,10 @@ flowchart TD
   Agg --> R[Composed response]
 ```
 
+## Example scenario
+
+User asks 'summarise revenue, headcount, and major lawsuits for each of these five companies'. The decomposer produces 15 sub-queries (5 companies × 3 dimensions). Each sub-query runs against the RAG corpus in parallel. The aggregator composes a 5×3 matrix response.
+
 ## Consequences
 
 **Benefits**
@@ -81,26 +73,64 @@ flowchart TD
 - Over-decomposition fans out into too many leaves and balloons cost.
 - Aggregation can lose nuance present in leaves.
 
+## Failure modes
+
+- Dropped dimension — the decomposer leaves out one part of the question, and the final answer silently ignores it.
+- Leaf explosion — the decomposer splits a question into too many sub-queries, and cost and latency balloon.
+- Flattened aggregate — the aggregator merges leaf answers into a summary that loses caveats each leaf carried.
+- Hidden dependency — sub-queries treated as independent actually need each other's answers, and parallel leaves answer on wrong assumptions.
+
 ## What this pattern constrains
 
 Multi-part queries must not be answered as one monolithic prompt; decomposition into independent leaves and explicit aggregation is required.
 
+## Applicability
+
+**Use when**
+
+- Questions are compositional (entity × dimension matrices, multi-source comparisons).
+- Sub-queries are usefully independent.
+- Latency budget allows parallel leaf execution.
+
+**Do not use when**
+
+- Question is atomic and decomposition would invent structure.
+- Sub-queries are not independent; ordered planning (Plan-and-Execute) is the right shape.
+- Aggregation cost would dominate end-to-end time.
+
+## Components
+
+- Decomposer agent — splits the query into independent sub-queries
+- Leaf executors — RAG or answering agents per sub-query
+- Aggregator — merges leaf answers into final response
+- Decomposition log — exposes the split as inspectable artifact
+
+## Tools
+
+- RAG retriever — answers each leaf
+- Parallel runner — fans out independent leaves
+- Composition prompt — templates the merge
+
+## Evaluation metrics
+
+- Per-leaf success rate — quality of individual sub-answers
+- Composition quality — judge score on the merged response
+- Fan-out width distribution — number of leaves per query
+
 ## Known uses
 
-- **Building Applications with AI Agents (Albada) — Query-Decomposition Agent** — *Available* — <https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html>
-- **Deep-research products (Anthropic Research, ChatGPT Deep Research) fan-out sub-queries** — *Available*
+- **[Building Applications with AI Agents (Albada) — Query-Decomposition Agent](https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html)** _available_
+- **[Deep-research products (Anthropic Research, ChatGPT Deep Research) fan-out sub-queries](https://developers.openai.com/api/docs/guides/deep-research)** _available_
 
 ## Related patterns
 
-- *alternative-to* → [plan-and-execute](plan-and-execute.md) — P&E plans ordered actions; this produces independent leaves.
-- *complements* → [self-ask](self-ask.md)
-- *alternative-to* → [least-to-most](least-to-most.md)
-- *complements* → [goal-decomposition](goal-decomposition.md)
-- *uses* → [map-reduce](map-reduce.md)
-- *complements* → [clone-fan-out-research](clone-fan-out-research.md)
+- _alternative-to_ **Plan-and-Execute** — P&E plans ordered actions; this produces independent leaves.
+- _complements_ **Self-Ask**
+- _alternative-to_ **Least-to-Most Prompting**
+- _complements_ **Goal Decomposition**
+- _uses_ **MapReduce for Agents**
+- _complements_ **Clone Fan-Out Research**
 
 ## References
 
-- (book) *Building Applications with AI Agents*, Michael Albada, 2025, <https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html>
-
-**Tags:** planning, decomposition, multi-query
+- [Building Applications with AI Agents](https://www.oreilly.com/library/view/building-applications-with/9781098176495/ch05.html) — Michael Albada, 2025

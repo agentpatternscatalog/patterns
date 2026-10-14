@@ -129,6 +129,7 @@ A consuming agent must not bind to or delegate to a remote agent on an unsigned 
 - _complements_ **Agent Capability Manifest** — The manifest publishes an agent's identity and skills for runtime discovery; signed agent card is the authenticity layer that lets a consumer trust the manifest before binding.
 - _complements_ **Cryptographic Instruction Authentication** — Both use signatures to establish provenance; instruction authentication signs system instructions against injection, signed agent card signs the discovery descriptor against impersonation.
 - _complements_ **Delegated Agent Authorization** — Verifying the card precedes safe delegation; delegated authorization then scopes what credentials the now-trusted agent receives.
+- _complements_ **Attenuating Delegation Chain** — The card binds an identity to a key; the chain binds authority to that identity and to every hop it passed through.
 
 ## References
 

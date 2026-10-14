@@ -24,21 +24,6 @@ If the agents simply chat freely, they hallucinate context the SOP would have pi
 - Defined artefacts (PRD, design doc, test plan) compress context across role hand-offs.
 - Rigid SOPs lose the model's ability to adapt; the SOP has to leave room for the role to think.
 
-
-## Applicability
-
-**Use when**
-
-- A complex repeatable task already has a documented human SOP with named roles.
-- Hand-off artefacts between phases can be typed (PRD, design doc, code, test plan).
-- An auditable trail of artefacts is required.
-
-**Do not use when**
-
-- The task is one-off and writing an SOP is more work than doing it.
-- Free-form chat between agents is sufficient and cheaper.
-- Phases cannot be cleanly separated and artefact contracts cannot be defined.
-
 ## Therefore
 
 Therefore: encode the human SOP as named roles, ordered phases, and typed artefact contracts at every phase boundary, so that agents communicate through documents rather than drifting free-form chat.
@@ -47,16 +32,11 @@ Therefore: encode the human SOP as named roles, ordered phases, and typed artefa
 
 Encode the SOP as: (a) a fixed set of named roles each with role-specific prompt and tool palette, (b) an ordered sequence of phases, (c) a typed artefact contract for each phase boundary (e.g. PRD → design doc → code → test plan → user manual). Agents communicate via the artefacts; a shared message pool plus a subscription filter routes only relevant context to each role.
 
-## Example scenario
-
-A four-agent product-development chat keeps drifting because agents talk free-form and re-do each other's work. The team rewrites it as an SOP-encoded pipeline: PM writes a typed PRD artefact, Architect transforms PRD into an Architecture artefact, Engineer transforms Architecture into Code, QA transforms Code into Test Report. Each phase boundary is a typed contract, not a chat. Drift stops, the trail is auditable, and review focuses on the artefacts rather than the conversation.
-
 ## Structure
 
 ```
 Role_A -- artefact_1 --> Role_B -- artefact_2 --> Role_C ... ; shared message pool; per-role subscription filter.
 ```
-
 
 ## Diagram
 
@@ -73,6 +53,10 @@ flowchart TD
   Pool -.routes.-> QA
 ```
 
+## Example scenario
+
+A four-agent product-development chat keeps drifting because agents talk free-form and re-do each other's work. The team rewrites it as an SOP-encoded pipeline: PM writes a typed PRD artefact, Architect transforms PRD into an Architecture artefact, Engineer transforms Architecture into Code, QA transforms Code into Test Report. Each phase boundary is a typed contract, not a chat. Drift stops, the trail is auditable, and review focuses on the artefacts rather than the conversation.
+
 ## Consequences
 
 **Benefits**
@@ -87,28 +71,71 @@ flowchart TD
 - Procedure rigidity makes the system brittle when the task does not match the SOP.
 - Token cost scales with the number of phases.
 
+## Failure modes
+
+- Bad artefact contract — the design-doc schema leaves out a field the developer needs, and every later role inherits the gap.
+- Task outside the SOP — a request does not fit the fixed phases, and the pipeline forces it through steps that make no sense for it.
+- Over-strict filter — the subscription filter withholds context a role needed, and that role produces an artefact on partial information.
+- Phase cost — every request pays for every phase, even when only one or two of them matter.
+
 ## What this pattern constrains
 
 Agents may not communicate outside the artefact contract; a role's output that does not conform to the next role's expected schema is rejected at the phase boundary.
 
+## Applicability
+
+**Use when**
+
+- A complex repeatable task already has a documented human SOP with named roles.
+- Hand-off artefacts between phases can be typed (PRD, design doc, code, test plan).
+- An auditable trail of artefacts is required.
+
+**Do not use when**
+
+- The task is one-off and writing an SOP is more work than doing it.
+- Free-form chat between agents is sufficient and cheaper.
+- Phases cannot be cleanly separated and artefact contracts cannot be defined.
+
+## Components
+
+- SOP-encoded role — fixed agent persona (PM, Architect, Engineer, QA, tech-writer) with scoped prompt
+- Typed artefact contract — schema for each phase boundary deliverable (PRD, design doc, code, test plan)
+- Phase sequencer — ordered controller that gates phase transitions on artefact conformance
+- Shared message pool — blackboard-style store of all artefacts and intermediate messages
+- Subscription filter — routes only relevant artefacts to each role's inbox
+
+## Tools
+
+- MetaGPT or ChatDev framework — provides role definitions and SOP phase scaffolding
+- Artefact-schema validator — enforces typed contracts at every phase boundary
+- LLM API — invoked once per role-turn inside each phase
+- Versioned artefact store — keeps every PRD, design, and test plan inspectable after the fact
+
+## Evaluation metrics
+
+- Artefact-conformance rate — share of role outputs that pass the next role's schema
+- Phase rework rate — handoffs sent back upstream for failing the predicate
+- End-to-end success vs free-form-chat baseline — does the SOP actually improve outputs
+- SOP-mismatch incidents — tasks where the encoded SOP did not fit the input task
+- Token cost per phase — spend distribution across phases, used to find the heavy step
+
 ## Known uses
 
-- **[MetaGPT](https://github.com/geekan/MetaGPT)** — *Available*. Five roles (Product Manager, Architect, Project Manager, Engineer, QA) producing standardised artefacts in an assembly-line pipeline.
-- **[ChatDev](https://github.com/OpenBMB/ChatDev)** — *Available*. CEO/CTO/Programmer/Reviewer/Tester roles in a phased pipeline with artefact hand-offs.
+- **[MetaGPT](https://github.com/geekan/MetaGPT)** _available_ — Five roles (Product Manager, Architect, Project Manager, Engineer, QA) producing standardised artefacts in an assembly-line pipeline.
+- **[ChatDev](https://github.com/OpenBMB/ChatDev)** _available_ — CEO/CTO/Programmer/Reviewer/Tester roles in a phased pipeline with artefact hand-offs.
 
 ## Related patterns
 
-- *uses* → [role-assignment](role-assignment.md)
-- *complements* → [supervisor](supervisor.md)
-- *uses* → [blackboard](blackboard.md) — Shared message pool plus subscription filter is a blackboard variant.
-- *complements* → [spec-first-agent](spec-first-agent.md) — The SOP is itself a spec for the multi-agent system.
-- *alternative-to* → [hero-agent](hero-agent.md)
-- *uses* → [structured-output](structured-output.md)
-- *complements* → [chat-chain](chat-chain.md)
+- _uses_ **Role Assignment**
+- _complements_ **Supervisor**
+- _uses_ **Blackboard** — Shared message pool plus subscription filter is a blackboard variant.
+- _complements_ **Spec-First Agent** — The SOP is itself a spec for the multi-agent system.
+- _alternative-to_ **Hero Agent**
+- _uses_ **Structured Output**
+- _complements_ **Chat Chain**
+- _alternative-to_ **Control-Loop-Mapped Agent Chain** — A standard operating procedure is a sequential hand-off of artefacts; a control chain is a set of loops acting at the same sample, arbitrated by structural priority rather than by order of work.
 
 ## References
 
-- (paper) Hong et al., *MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework*, 2023, <https://arxiv.org/abs/2308.00352>
-- (paper) Qian et al., *ChatDev: Communicative Agents for Software Development*, 2023, <https://arxiv.org/abs/2307.07924>
-
-**Tags:** multi-agent, workflow, china-origin, metagpt, chatdev
+- [MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework](https://arxiv.org/abs/2308.00352) — Hong et al., 2023
+- [ChatDev: Communicative Agents for Software Development](https://arxiv.org/abs/2307.07924) — Qian et al., 2023

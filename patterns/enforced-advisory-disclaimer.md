@@ -132,6 +132,7 @@ A high-risk regulated answer is never emitted without the advisory component; th
 - _alternative-to_ **Refusal** — Refusal declines the request; the enforced advisory answers it but frames the answer as information rather than professional advice.
 - _uses_ **Input/Output Guardrails** — The advisory is composed and attached at the output-guard boundary, where the answer is classified before it reaches the user.
 - _complements_ **Scaffold Ablation on Model Upgrade** — The regression gate that asserts disclaimer presence on a frozen high-risk set is the upgrade check that catches the documented coverage collapse across model versions.
+- _alternative-to_ **Advisory-to-Mandate Escalation** — The enforced-advisory-disclaimer keeps output labelled as advice; advisory-to-mandate is the failure where the surrounding protocol promotes that advice into a binding order anyway.
 
 ## References
 

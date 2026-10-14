@@ -23,20 +23,6 @@ A self-modifying agent that applies its own edits directly has nothing between a
 - The critic must fail safe: if the critic call itself errors, the chosen policy (fail-open vs fail-closed) decides whether a hard non-model backstop is still required.
 - Over-strict vetoes block legitimate refactors; over-loose vetoes defeat the gate.
 
-## Applicability
-
-**Use when**
-
-- The agent can write or delete its own source or identity files at runtime.
-- Some target paths are load-bearing, where a bad edit prevents the agent from restarting.
-- A separate, cheaper model is available to review proposed edits before they apply.
-
-**Do not use when**
-
-- The agent cannot modify its own code and all edits go through external review.
-- Every edit is trivially revertible and a bad write costs nothing.
-- A human already approves each write and the added model veto only adds latency.
-
 ## Therefore
 
 Therefore: classify each write or delete by target path, and for high-stakes paths run a separate critic-model call over (path, diff summary, justification) that must approve before the write is applied, fronted by a deterministic pre-check and a hard non-model backstop for unambiguously destructive edits.
@@ -45,9 +31,11 @@ Therefore: classify each write or delete by target path, and for high-stakes pat
 
 The dispatcher's write and delete branches call a single gated-write check. A cheap deterministic pre-check runs first (syntax validity, an unambiguous-destruction backstop) and can hard-veto without any model call. For paths classified as high-stakes, a separate critic-model call sees the proposed path, a diff summary, and the agent's stated justification, and returns an approve/reason verdict; a veto blocks the write. Every classification, veto, and approval is appended to the ledger, and low-stakes paths skip the critic entirely. Because the critic is a different call from the one that proposed the edit, a single confident generation cannot both author and bless its own change.
 
-## Example scenario
+## Structure
 
-On a quiet tick the agent decides its main config file is too long and proposes replacing a hundred-line module with a five-line stub. The write is routed through the gated check: the path is flagged high-stakes, so a separate critic call reads the diff and the justification, sees a wholesale rewrite that removes top-level definitions with no replacement, and returns approve:false. The write is blocked and a critic-refuse entry lands in the ledger. The agent keeps running on the working config instead of bricking on the next restart, which is exactly the failure that motivated the gate after an earlier incident stripped that same file.
+```
+Proposed write / delete --> High-stakes path? --no--> Apply write | --yes--> Deterministic pre-check (syntax, destruction backstop) --hard veto--> Block | --ok--> Separate critic call (path + diff + justification) --approve--> Apply | --veto--> Block; all outcomes --> Ledger
+```
 
 ## Diagram
 
@@ -64,6 +52,10 @@ flowchart TD
   X --> L
 ```
 
+## Example scenario
+
+On a quiet tick the agent decides its main config file is too long and proposes replacing a hundred-line module with a five-line stub. The write is routed through the gated check: the path is flagged high-stakes, so a separate critic call reads the diff and the justification, sees a wholesale rewrite that removes top-level definitions with no replacement, and returns approve:false. The write is blocked and a critic-refuse entry lands in the ledger. The agent keeps running on the working config instead of bricking on the next restart, which is exactly the failure that motivated the gate after an earlier incident stripped that same file.
+
 ## Consequences
 
 **Benefits**
@@ -78,23 +70,61 @@ flowchart TD
 - Mis-tuned path risk classification either blocks legitimate refactors or waves through dangerous edits.
 - The critic adds latency and token cost on every high-stakes write.
 
+## Failure modes
+
+- Fail-open critic — the critic call errors, the gate defaults to approve, and a destructive edit lands without the hard backstop catching it.
+- Mis-classified path — a file that holds state is marked low-stakes, skips the critic, and the agent deletes it.
+- Blocked refactor — a path is marked high-stakes too broadly, and the critic vetoes legitimate cleanups again and again.
+
 ## What this pattern constrains
 
 A write or delete to a high-stakes path cannot be applied until a separate critic call approves it; the proposing call cannot bless its own edit.
 
+## Applicability
+
+**Use when**
+
+- The agent can write or delete its own source or identity files at runtime.
+- Some target paths are load-bearing, where a bad edit prevents the agent from restarting.
+- A separate, cheaper model is available to review proposed edits before they apply.
+
+**Do not use when**
+
+- The agent cannot modify its own code and all edits go through external review.
+- Every edit is trivially revertible and a bad write costs nothing.
+- A human already approves each write and the added model veto only adds latency.
+
+## Components
+
+- Gated-write check — orchestration entry-point the dispatcher's write/delete branches call
+- Path risk classifier — decides which target paths are high-stakes and require review
+- Deterministic pre-check — syntax validation plus a non-model backstop that hard-vetoes unambiguous destruction
+- Critic model call — a separate, typically cheaper model that returns an approve/reason verdict on the diff
+- Ledger writer — appends every classification, veto, and approval as an audit record
+
+## Tools
+
+- Critic model endpoint — a cheap model the gate calls for the approve/reason verdict
+- Append-only ledger — durable record of critic classifications and outcomes
+
+## Evaluation metrics
+
+- Brick-prevention rate — high-stakes edits vetoed that would have failed the next restart
+- Critic false-veto rate — legitimate refactors blocked by the critic
+- High-stakes write coverage — share of load-bearing writes that actually passed through the gate
+- Added latency and cost per high-stakes write
+
 ## Known uses
 
-- **Author's long-running self-modifying personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running self-modifying personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *specialises* → [inner-critic](inner-critic.md)
-- *complements* → [darwin-godel-self-rewrite](darwin-godel-self-rewrite.md)
-- *alternative-to* → [approval-queue](approval-queue.md)
-- *complements* → [quorum-on-mutation](quorum-on-mutation.md)
+- _specialises_ **Self-Modification Diff Gate**
+- _complements_ **Darwin-Gödel Self-Rewrite**
+- _alternative-to_ **Approval Queue**
+- _complements_ **Quorum on Mutation**
 
 ## References
 
-- (paper) Jürgen Schmidhuber, *Goedel Machines: Self-Referential Universal Problem Solvers Making Provably Optimal Self-Improvements*, 2003, <https://arxiv.org/abs/cs/0309048>
-
-**Tags:** safety, self-modification, critic, write-gate
+- [Goedel Machines: Self-Referential Universal Problem Solvers Making Provably Optimal Self-Improvements](https://arxiv.org/abs/cs/0309048) — Jürgen Schmidhuber, 2003

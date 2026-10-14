@@ -2,7 +2,7 @@
 
 **Also known as:** Out-of-Band Tenant Isolation, Tenant Binding Below the Prompt, Programmatic Tenant Scoping
 
-**Category:** Safety & Control
+**Category:** Safety & Control  
 **Status in practice:** emerging
 
 ## Intent
@@ -79,6 +79,12 @@ A B2B analytics SaaS gives every customer an in-app assistant that answers quest
 - Cross-tenant features such as admin views or benchmarking need an explicit, separately-audited escape from the default scope.
 - Logs, caches, and embeddings derived from tenant data inherit the same isolation requirement and are easy to overlook.
 
+## Failure modes
+
+- Fail-open policy — a row-level-security policy is misconfigured, returns rows from every tenant, and nothing errors.
+- Unscoped side path — a cache, log, or embedding index built from tenant data lacks the tenant key, and one tenant's content surfaces for another.
+- Unaudited escape — an admin or benchmarking feature bypasses the default scope, and the agent reaches it through a normal tool path.
+
 ## What this pattern constrains
 
 The model must not be the authority for which tenant a tool call or retrieval targets: the tenant scope is bound from the authenticated request context in code, is not exposed as a model-supplied tool argument, and a tool with no resolvable tenant scope must refuse to execute rather than fall back to an unscoped query.
@@ -126,24 +132,23 @@ The model must not be the authority for which tenant a tool call or retrieval ta
 
 ## Known uses
 
-- **[Amazon Bedrock AgentCore](https://aws.amazon.com/blogs/machine-learning/building-multi-tenant-agents-with-amazon-bedrock-agentcore/)** — *Available* — Multi-tenant agent deployments isolate each tenant's data and resources below the agent rather than via the prompt.
-- **[Azure Architecture Center — Secure Multitenant RAG](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag)** — *Available* — Reference architecture enforcing tenant isolation at the retrieval and vector layer, treating model-level access control as insufficient.
-- **[Scalekit](https://www.scalekit.com/blog/access-control-multi-tenant-ai-agents)** — *Available* — Identity and isolation layer for multi-tenant agents that scopes tool access by the authenticated tenant.
+- **[Amazon Bedrock AgentCore](https://aws.amazon.com/blogs/machine-learning/building-multi-tenant-agents-with-amazon-bedrock-agentcore/)** _available_ — Multi-tenant agent deployments isolate each tenant's data and resources below the agent rather than via the prompt.
+- **[Azure Architecture Center — Secure Multitenant RAG](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag)** _available_ — Reference architecture enforcing tenant isolation at the retrieval and vector layer, treating model-level access control as insufficient.
+- **[Scalekit](https://www.scalekit.com/blog/access-control-multi-tenant-ai-agents)** _available_ — Identity and isolation layer for multi-tenant agents that scopes tool access by the authenticated tenant.
 
 ## Related patterns
 
-- *complements* → [session-isolation](session-isolation.md) — Session isolation separates one conversation's state from another's; tenant binding separates one customer's data from another's. Both isolate, on different axes.
-- *complements* → [tool-over-broad-scope](tool-over-broad-scope.md) — Over-broad tool scope is the failure this pattern narrows: the tenant predicate bounds what an otherwise broad tool can reach.
-- *complements* → [policy-as-code-gate](policy-as-code-gate.md) — A policy gate decides whether an action is allowed; tenant binding decides which tenant's data it may touch. The two stack.
-- *complements* → [agentic-rag](agentic-rag.md) — Retrieval must carry the tenant id before it reaches the index so a query can only match the caller's partition.
-- *complements* → [delegated-agent-authorization](delegated-agent-authorization.md) — Delegated authorization scopes what the agent may do on a principal's behalf; tenant binding scopes which tenant's records it sees.
-- *complements* → [canonical-entity-grounding](canonical-entity-grounding.md) — The resolver that grounds identifiers must itself be tenant-scoped, or it leaks the existence of other tenants' entities.
+- _complements_ **Session Isolation** — Session isolation separates one conversation's state from another's; tenant binding separates one customer's data from another's. Both isolate, on different axes.
+- _complements_ **Tool Over-Broad Scope** — Over-broad tool scope is the failure this pattern narrows: the tenant predicate bounds what an otherwise broad tool can reach.
+- _complements_ **Policy-as-Code Gate** — A policy gate decides whether an action is allowed; tenant binding decides which tenant's data it may touch. The two stack.
+- _complements_ **Agentic RAG** — Retrieval must carry the tenant id before it reaches the index so a query can only match the caller's partition.
+- _complements_ **Delegated Agent Authorization** — Delegated authorization scopes what the agent may do on a principal's behalf; tenant binding scopes which tenant's records it sees.
+- _complements_ **Risk-Tiered Action Autonomy**
+- _complements_ **Canonical-Entity Grounding** — The resolver that grounds identifiers must itself be tenant-scoped, or it leaks the existence of other tenants' entities.
 
 ## References
 
-- (blog) *マルチテナントSaaSにAIエージェントを組み込むとき、テナント分離をどう設計するか*, 2026, <https://zenn.dev/geekplus/articles/e9ea7d8e183eb5>
-- (doc) *Enforcing tenant isolation — AWS Prescriptive Guidance (Agentic AI multitenant)*, 2026, <https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-multitenant/enforcing-tenant-isolation.html>
-- (doc) *Design a Secure Multitenant RAG Inferencing Solution — Azure Architecture Center*, 2026, <https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag>
-- (blog) AWS Machine Learning Blog, *Multi-tenant RAG implementation with Amazon Bedrock and Amazon OpenSearch Service for SaaS using JWT*, 2026, <https://aws.amazon.com/blogs/machine-learning/multi-tenant-rag-implementation-with-amazon-bedrock-and-amazon-opensearch-service-for-saas-using-jwt/>
-
-**Tags:** multi-tenancy, tenant-isolation, safety-control, access-control, saas, row-level-security, rag
+- [マルチテナントSaaSにAIエージェントを組み込むとき、テナント分離をどう設計するか](https://zenn.dev/geekplus/articles/e9ea7d8e183eb5) — 2026
+- [Enforcing tenant isolation — AWS Prescriptive Guidance (Agentic AI multitenant)](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-multitenant/enforcing-tenant-isolation.html) — 2026
+- [Design a Secure Multitenant RAG Inferencing Solution — Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag) — 2026
+- [Multi-tenant RAG implementation with Amazon Bedrock and Amazon OpenSearch Service for SaaS using JWT](https://aws.amazon.com/blogs/machine-learning/multi-tenant-rag-implementation-with-amazon-bedrock-and-amazon-opensearch-service-for-saas-using-jwt/) — AWS Machine Learning Blog, 2026

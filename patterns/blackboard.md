@@ -31,9 +31,11 @@ Therefore: give the agents one inspectable shared workspace they read from and w
 
 Establish a shared store (file, database, in-memory). Each agent reads the relevant slice and writes its contribution under structured keys. Optional event notification when keys change. Conflict resolution is policy-driven (last-write-wins, version-vector, append-only).
 
-## Example scenario
+## Structure
 
-A document-processing pipeline has a layout-extractor agent, a table-parser, a citation-resolver, and a summariser, each strong on its own but needing each other's intermediate outputs. Wiring direct messages between every pair becomes a brittle protocol. They adopt a Blackboard: each agent posts its findings to a shared workspace and subscribes to relevant updates, with a controller deciding who runs next. Coordination becomes 'read what's on the board, contribute what you can'.
+```
+Agents A, B, C --write(structured key)--> Blackboard (shared store, conflict policy) --read slice / notify on change--> Agents A, B, C --> contribute next step
+```
 
 ## Diagram
 
@@ -48,6 +50,10 @@ flowchart TD
   BB -->|notify| A1
 ```
 
+## Example scenario
+
+A document-processing pipeline has a layout-extractor agent, a table-parser, a citation-resolver, and a summariser, each strong on its own but needing each other's intermediate outputs. Wiring direct messages between every pair becomes a brittle protocol. They adopt a Blackboard: each agent posts its findings to a shared workspace and subscribes to relevant updates, with a controller deciding who runs next. Coordination becomes 'read what's on the board, contribute what you can'.
+
 ## Consequences
 
 **Benefits**
@@ -59,6 +65,13 @@ flowchart TD
 
 - Race conditions under concurrent writes.
 - Blackboard bloat without pruning.
+
+## Failure modes
+
+- Write race — two agents update the same key at once under last-write-wins, and one agent's finding is silently lost.
+- Blackboard bloat — nothing prunes old entries, so each agent reads an ever larger slice full of stale intermediate state.
+- Unstructured keys — agents write free-form notes instead of structured keys, and other agents cannot find or trust what they need.
+- Back-channel calls — an agent calls a peer directly to save time, and that interaction never appears on the shared, inspectable store.
 
 ## What this pattern constrains
 
@@ -78,21 +91,46 @@ Cross-agent communication happens only via the blackboard; out-of-band agent-to-
 - Shared mutable state without strict discipline would race in ways the chosen policy cannot handle.
 - Workload requires strict transactional semantics the blackboard does not provide.
 
+## Components
+
+- Shared blackboard — inspectable workspace holding contributions under structured keys
+- Specialist agent — reader-writer that contributes when the board state matches its trigger
+- Controller — optional scheduler that decides which agent runs next given the board state
+- Conflict-resolution policy — last-write-wins, version-vector, or append-only discipline
+- Notification channel — change events that wake interested agents on relevant key updates
+
+## Tools
+
+- Shared memory store — file, database, or in-memory KV that backs the workspace
+- Pub/sub or watcher — delivers key-change events to subscribed agents
+- LLM API — invoked by each specialist when its slice of the board changes
+
+## Evaluation metrics
+
+- Write-conflict rate — concurrent writes that the conflict policy had to reconcile
+- Board bloat rate — keys accumulated per task without pruning
+- Contribution-uptake share — fraction of postings that another agent actually reads and uses
+- Idle-agent rate — agents subscribed to keys that never fire, indicating wasted wiring
+- Read latency — time from key write to interested agent observing the change
+
 ## Known uses
 
-- **Classical AI blackboard architectures** — *Available*
-- **Multi-agent code review with shared scratchpad** — *Available*
+- **Classical AI blackboard architectures** _available_
+- **Multi-agent code review with shared scratchpad** _available_
 
 ## Related patterns
 
-- *complements* → [swarm](swarm.md)
-- *alternative-to* → [supervisor](supervisor.md)
-- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
-- *composes-with* → [graph-of-thoughts](graph-of-thoughts.md)
-- *used-by* → [sop-encoded-multi-agent](sop-encoded-multi-agent.md)
+- _complements_ **Swarm**
+- _alternative-to_ **Supervisor**
+- _complements_ **Append-Only Thought Stream**
+- _composes-with_ **Graph of Thoughts**
+- _used-by_ **SOP-Encoded Multi-Agent Workflow**
+- _alternative-to_ **Topic-Based Routing**
+- _alternative-to_ **Cellular-Automata Agents**
+- _generalises_ **Stigmergic Coordination**
+- _alternative-to_ **Distributed Constraint Optimization**
+- _complements_ **Partial Global Planning**
 
 ## References
 
-- (book) *Blackboard Systems (Engelmore, Morgan)*, 1988
-
-**Tags:** multi-agent, blackboard, shared-state
+- [Blackboard Systems (Engelmore, Morgan)](https://archive.org/details/blackboardsystem0000unse) — 1988

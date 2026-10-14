@@ -7,7 +7,7 @@
 
 ## Intent
 
-Decompose enterprise agency into a set of domain-specialised agents (finance, supply chain, HR, service), each grounded in its own system of record, and orchestrate cross-functional workflows by routing artefacts between them through a standardised inter-agent protocol.
+Decompose enterprise agency into domain-specialised agents (finance, supply chain, HR, service), each grounded in its own system of record, and route artefacts between them through a standardised inter-agent protocol.
 
 ## Context
 
@@ -32,10 +32,6 @@ Therefore: build one grounded agent per business domain and route cross-domain w
 
 Build one specialised agent per business domain, each with its own grounded data, tool palette, and acceptance criteria. Define a standardised inter-agent protocol for handoffs (e.g. A2A, MCP). When a task crosses domains, the source agent routes to the target via the protocol, passing a typed artefact. An optional supervisor or role-based assistant fronts the user and dispatches to the right entry agent.
 
-## Example scenario
-
-A large enterprise has separate teams for finance, supply chain, HR, and customer service, each with its own systems of record. A single mega-agent grounded against all of them has terrible recall and no clear ownership when something goes wrong. They build a Cross-Domain Agent Network: a domain-specialised agent per area, each grounded in its own data and bounded by domain-specific policies, and a standardised inter-agent protocol that lets a finance agent request a supplier risk score from the supply-chain agent. Each domain stays independently governed.
-
 ## Structure
 
 ```
@@ -56,6 +52,10 @@ flowchart TD
   H <-->|A2A / MCP| SV
 ```
 
+## Example scenario
+
+A large enterprise has separate teams for finance, supply chain, HR, and customer service, each with its own systems of record. A single mega-agent grounded against all of them has terrible recall and no clear ownership when something goes wrong. They build a Cross-Domain Agent Network: a domain-specialised agent per area, each grounded in its own data and bounded by domain-specific policies, and a standardised inter-agent protocol that lets a finance agent request a supplier risk score from the supply-chain agent. Each domain stays independently governed.
+
 ## Consequences
 
 **Benefits**
@@ -69,6 +69,13 @@ flowchart TD
 - Protocol design is the core engineering problem; bad protocol fossilises mistakes.
 - Routing decisions become a second-order problem (who does what).
 - Failure attribution across the chain is harder than for a monolith.
+
+## Failure modes
+
+- Fossilised protocol — an early design flaw in the inter-agent protocol is copied by every domain agent and becomes very hard to change.
+- Misrouting — the router sends an HR question to the finance agent, which applies its own rules with full confidence.
+- Blurred blame — a cross-domain workflow fails, and no one can tell which agent in the chain produced the bad artefact.
+- Backdoor integration — two domain teams wire their agents together outside the protocol, and the domain controls no longer apply on that path.
 
 ## What this pattern constrains
 
@@ -88,22 +95,44 @@ An agent may only call across domains via the standardised protocol; ad-hoc back
 - No inter-agent protocol is in place and the integration cost dominates the benefit.
 - Domains share so much context that a single mega-agent is actually simpler.
 
+## Components
+
+- Role assistant — user-facing entry agent that dispatches to the right domain agent
+- Domain agent — specialist grounded in one system of record with its own tool palette
+- Inter-agent protocol envelope — typed A2A or MCP message carrying the cross-domain artefact
+- Capability registry — directory of which domain agent advertises which actions
+- Audit log — per-agent trace of cross-domain handoffs for compliance review
+
+## Tools
+
+- A2A protocol — standardised agent-to-agent task delegation across domains
+- MCP — Model Context Protocol for capability advertisement and grounded tool calls
+- Per-domain system of record — ERP, CRM, HR, ticketing as each agent's grounded data source
+- Heterogeneous LLM APIs — different domain agents may use different models
+
+## Evaluation metrics
+
+- Cross-domain handoff success rate — share of routed tasks that the target agent accepts
+- Per-agent tool-recall accuracy — does the smaller domain catalogue improve over the mega-agent
+- End-to-end workflow latency — wall-clock for tasks that touch multiple domains
+- Failure attribution clarity — share of failures correctly localised to one domain
+- Domain-team change velocity — independent updates shipped per domain without coordinated release
+
 ## Known uses
 
-- **[SAP Joule](https://www.sap.com/products/artificial-intelligence/ai-agents.html)** — *Available*. Per-domain Joule Agents (finance, HR, supply chain, service) collaborating via SAP's collaborative agent architecture; A2A and MCP support announced 2025.
-- **ServiceNow Now Assist** — *Available*. Comparable pattern in ITSM/HR/CSM domain agents.
+- **[SAP Joule](https://www.sap.com/products/artificial-intelligence/ai-agents.html)** _available_ — Per-domain Joule Agents (finance, HR, supply chain, service) collaborating via SAP's collaborative agent architecture; A2A and MCP support announced 2025.
+- **ServiceNow Now Assist** _available_ — Comparable pattern in ITSM/HR/CSM domain agents.
 
 ## Related patterns
 
-- *uses* → [supervisor](supervisor.md)
-- *uses* → [handoff](handoff.md)
-- *uses* → [inter-agent-communication](inter-agent-communication.md)
-- *uses* → [mcp](mcp.md)
-- *uses* → [role-assignment](role-assignment.md)
-- *alternative-to* → [hero-agent](hero-agent.md)
+- _uses_ **Supervisor**
+- _uses_ **Handoff**
+- _uses_ **Inter-Agent Communication**
+- _uses_ **Model Context Protocol**
+- _uses_ **Role Assignment**
+- _alternative-to_ **Hero Agent**
+- _alternative-to_ **Decentralized Agent Network**
 
 ## References
 
-- (blog) *Joule Agents: How SAP Uniquely Delivers AI Agents That Truly Mean Business*, <https://news.sap.com/2025/02/joule-sap-uniquely-delivers-ai-agents/>
-
-**Tags:** multi-agent, enterprise, germany-origin, sap, joule
+- [Joule Agents: How SAP Uniquely Delivers AI Agents That Truly Mean Business](https://news.sap.com/2025/02/joule-sap-uniquely-delivers-ai-agents/)

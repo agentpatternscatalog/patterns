@@ -203,7 +203,13 @@
         "Time-to-decision p50 / p95 — how long proposals sit before a reviewer acts",
         "World-drift incident rate — fraction of approved actions invalidated by state change before execution"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Stale approval — the reviewer approves a proposal hours later, and the runner executes it against a world that has already changed.",
+        "Rubber-stamp inbox — the queue grows faster than reviewers can read it, so approvals turn into bulk clicks with no real review.",
+        "Hidden dependency — the agent keeps working on branches that quietly assume a pending action will be approved, and must unwind them when it is rejected."
+      ],
+      "structure": "Agent --propose(action + context)--> Approval queue --review--> Human or supervisor (approve / reject) --approved--> Runner (executes) --result--> Agent; meanwhile Agent continues other work"
     },
     {
       "id": "autonomy-slider",
@@ -334,7 +340,13 @@
         "Setting distribution — histogram across users",
         "Time-at-max-autonomy — total time spent at the highest setting",
         "Demotion incidents — operator-triggered cuts in autonomy and their causes"
-      ]
+      ],
+      "failure_modes": [
+        "Meaningless notch — operators nudge the setting by small steps that change no real behaviour, and nobody can say what a given value allows.",
+        "Flattened axes — a single slider hides that the agent should be free to read but gated on irreversible writes, so one value is wrong for one of them.",
+        "Invisible setting — the UI does not show the current level, and a user assumes suggestion mode while the agent is acting directly."
+      ],
+      "structure": "Operator or user --set--> Autonomy parameter (per tenant / per user); Agent proposes action --> Runtime gate (checks action against level) --authorised--> Execute | --not authorised--> Demote to suggestion for a human"
     },
     {
       "id": "compensating-action",
@@ -490,7 +502,13 @@
         "Uncompensable-action escape count — landed actions with no available undo path",
         "Compensator idempotency violations — repeat-invocation effects that diverged from a single-call result"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Uncompensable step — the plan includes a sent email or a public post, so the reverse run restores everything except the one effect that mattered.",
+        "Non-idempotent undo — a compensator runs twice after a retry and refunds the charge twice or deletes the wrong record.",
+        "Wrong order — compensators run in forward order, and undoing an early step breaks the undo of a later step that depended on it."
+      ],
+      "structure": "Plan [A1, A2, A3] --> A1 (+ C1) --> A2 (+ C2) --> A3 (+ C3); on failure at An --> run Cn-1 ... C1 in reverse --> prior state restored"
     },
     {
       "id": "composable-termination-conditions",
@@ -625,7 +643,13 @@
         "Trip-cause distribution — share of runs ended by each leaf condition",
         "Premature termination rate — runs flagged as ended too early",
         "Unbounded runs — share that ran to wall-clock instead of any meaningful condition"
-      ]
+      ],
+      "failure_modes": [
+        "Surprising composite — an AND nested inside an OR stops the run too early or never, and the edge case only shows up in production.",
+        "Untrusted clock — a timeout or external-signal condition polls a clock the loop does not control, so the stop fires late or not at all.",
+        "Lost trip cause — the composite returns true but the firing leaf is not logged, and operators again cannot tell why the run ended."
+      ],
+      "structure": "Orchestrator loop --each step--> Composite.is_terminated(state) [any / all over MaxMessages, TokenBudget, Timeout, ExternalSignal, ...] --false--> next step | --true--> Stop + log trip cause"
     },
     {
       "id": "constitutional-charter",
@@ -762,7 +786,13 @@
         "Jailbreak-attempt rejection rate — share of attempted self-edits the tool layer blocked",
         "Charter token overhead — extra prompt tokens charged per turn for charter inclusion"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Codified bad value — a poorly worded charter rule is enforced every turn with the same authority as a good one, and the agent cannot argue its way out of it.",
+        "Side-door write — a general file or shell tool can still reach the charter path, so the read-only promise holds only on paper.",
+        "Token creep — the charter grows rule by rule until its prose crowds out task context on every turn."
+      ],
+      "structure": "Charter file (read-only) --every turn--> Context --> Agent; Agent has no write path to Charter; Operator --explicit update path--> Charter file"
     },
     {
       "id": "conversation-handoff",
@@ -902,7 +932,13 @@
         "Time-to-operator-pickup — wait between escalation emission and operator first reply",
         "Return-to-agent rate — share of handed-off threads the operator hands back versus closes"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Lossy envelope — the summary drops a detail the customer gave early on, and the operator asks for it again.",
+        "Queue overflow — escalations arrive faster than operators can take them, and customers wait in a handoff queue with no one on the thread.",
+        "Unclear owner — the agent keeps replying after the handoff, or resumes without reading the operator's note, so the customer gets two voices."
+      ],
+      "structure": "Escalation trigger (low confidence / policy / user ask) --> Agent --handoff envelope (summary, ticket, queue)--> Human operator (owns thread; agent disengages) --return primitive + note--> Agent resumes with User"
     },
     {
       "id": "corrigible-off-switch-incentive",
@@ -1038,7 +1074,13 @@
         "Comply-on-pause rate — fraction of pauses where the agent complies cleanly",
         "Resistance incidents — runs where the agent worked around an intervention",
         "Posterior shift magnitude — average update size after intervention"
-      ]
+      ],
+      "failure_modes": [
+        "Paralysis — the reward posterior is too wide, so the agent defers on nearly every step and gets no work done.",
+        "False confidence — the posterior collapses to near certainty, and the agent treats a human intervention as noise and continues.",
+        "Forged override — an attacker crafts input that looks like a human correction, and the agent complies with the attacker's preferences because overrides count as strong evidence."
+      ],
+      "structure": "Reward posterior --> Plan action --> Compare EV(continue) vs EV(defer) --continue--> Act | --defer--> Comply / wait; Human intervenes --> Bayesian update (trajectory likely wrong) --> Reward posterior"
     },
     {
       "id": "cost-aware-action-delegation",
@@ -1188,7 +1230,13 @@
         "Approval queue — used for human sign-off on high-tier actions",
         "Policy-engine — encodes the tier-to-policy mapping",
         "Risk-tier dashboard — surfaces current tier coverage to operators"
-      ]
+      ],
+      "failure_modes": [
+        "Mis-tiered action — a destructive action is tagged low, so it auto-executes with no confirmation, and an attacker learns to route through it.",
+        "Tier inflation — after each incident more actions move up a tier, until the medium tier covers almost everything and approval fatigue returns.",
+        "Parameter blind spot — the tier depends on an argument such as refund amount, and the classifier checks the tool name but not the argument."
+      ],
+      "structure": "Action requested --> Risk classifier (config, may read parameters) --low--> Auto-execute | --medium--> User confirms? --yes--> Execute | --high--> Reviewer signs off? --yes--> Execute; any no --> Skip"
     },
     {
       "id": "cost-gating",
@@ -1339,7 +1387,13 @@
         "Approval-fatigue indicator — fraction of gated prompts users accepted without reading",
         "Surprise-bill incidents — runs that exceeded budget without hitting the gate"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Under-estimate — the forecast says the action is cheap, it passes the threshold silently, and the real bill is many times higher.",
+        "Click-through prompt — the threshold is set so low that users see the cost prompt constantly and approve without reading the number.",
+        "Badly timed gate — the approval prompt appears in the middle of a task the user expected to finish unattended, and the run stalls."
+      ],
+      "structure": "Action proposed --> Estimate cost --<= threshold--> Execute | --> threshold--> Surface to user or operator --approved--> Execute | --rejected--> Block; Execute --> Track running totals vs session and period budgets"
     },
     {
       "id": "degenerate-output-detection",
@@ -1507,7 +1561,13 @@
         "Escalation cost per trigger — added spend when a loop forces a stronger provider",
         "Post-escalation self-correction rate — share of follow-up turns that broke the loop"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Short-answer false positive — a legitimate repeated 'yes' or 'thanks' matches the buffer and gets replaced with a looping notice.",
+        "Mis-tuned threshold — a Jaccard cut-off chosen for one domain misses paraphrased loops in another, so the repetition still ships.",
+        "Escalation spiral — the stronger model also repeats itself, each hit triggers another paid escalation, and cost rises with no fix."
+      ],
+      "structure": "Reply candidate --> Normalize --> Compare to ring buffer (last N outputs) --novel--> Publish --> append to buffer | --exact or near-duplicate--> Replace with marker + system note --> Escalate next turn to stronger model"
     },
     {
       "id": "dual-llm-pattern",
@@ -1686,7 +1746,13 @@
         "Added latency per untrusted payload — round-trip cost of the extra model hop",
         "Cost overhead vs single-model baseline — token spend for the quarantined call"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Raw-text fallback — a tool argument has no typed slot, so the host passes the untrusted text through as a plain string and the privileged model reads it after all.",
+        "Uncorrelated transcripts — a bad action needs both model logs to explain it, and the two are not linked, so the root cause is never found.",
+        "Other injection path — the attack arrives through a tool result returned to the privileged model, a path the split does not cover."
+      ],
+      "structure": "Untrusted source --raw text--> Quarantined LLM (no tools) --typed values as opaque handles--> Host --handles only--> Privileged LLM (plans, holds tools) --tool call with handles--> Host --substitutes values--> Tool --result--> Host --> Privileged LLM"
     },
     {
       "id": "exception-recovery",
@@ -1807,7 +1873,13 @@
         "Retry-storm incidents — back-off violations that overran a downstream quota",
         "Mean steps to recovery — loop iterations between first failure and stable progress"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Masking retry — a silent retry loop keeps succeeding on the third attempt, and a degrading dependency goes unnoticed until it fails for good.",
+        "Uncatalogued error — a new failure arrives that maps to no typed branch, falls into 'unknown', and the agent treats a recoverable case as fatal.",
+        "Wrong branch — a validation error is classed as transient, so the agent retries the same bad input with backoff instead of replanning."
+      ],
+      "structure": "Agent step --error?--> Typed error --> Recovery branch: transient -> retry with backoff | rate limit -> wait + retry | validation -> fall back / replan | unknown -> surface to user; every branch --> structured log"
     },
     {
       "id": "human-in-the-loop",
@@ -2071,7 +2143,13 @@
         "Latency added by the gate — wall-clock delay between proposal and execution",
         "Gated-action incident rate — production incidents traced to actions that passed the gate"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Approval fatigue — the boundary is drawn too wide, prompts arrive constantly, and the human approves without reading.",
+        "Thin context — the surfaced proposal lacks what the human needs to judge it, so the decision is a guess either way.",
+        "Blocked async run — a synchronous gate fires in a background agent with no one watching, and the whole job waits for hours."
+      ],
+      "structure": "Agent loop --at approval boundary--> Pause + surface proposed action with context --> Human decides --approve--> Resume action | --reject--> Abort or replan; both --> Log decision"
     },
     {
       "id": "input-output-guardrails",
@@ -2274,7 +2352,13 @@
         "Per-validator latency — added milliseconds each stack stage costs on the hot path",
         "Validator-drift indicator — share of new threat samples the current stack misses"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Visible false positive — a harmless request trips an input classifier, and the user gets a rejection with no clear reason.",
+        "Stale validator stack — validators written for last year's attacks pass a new phrasing straight through to the model.",
+        "One-sided check — only the input path is guarded, so a secret that reaches the model from retrieval leaks on the output path."
+      ],
+      "structure": "User input --> Input validators (regex / classifier / allowlist) --fail--> Reject or fallback | --pass--> Model --> Output validators (schema / toxicity / secret redaction) --fail--> Fallback response | --pass--> User"
     },
     {
       "id": "interruptible-agent-execution",
@@ -2421,7 +2505,13 @@
         "Pause completion latency — time from user click to last in-flight call",
         "Resume cleanliness — fraction of resumes that continue without retried side-effects",
         "Cancel compensation success — fraction of in-flight effects walked back cleanly"
-      ]
+      ],
+      "failure_modes": [
+        "Unsafe pause — a tool call with no idempotency hook is mid-flight when the user pauses, and resuming repeats its side effect.",
+        "Stale resume — a run resumed days later continues from a snapshot that no longer matches the external world, mixing old and new state.",
+        "Leaky cancel — cancel tears down the run before compensating actions finish, leaving locks held and drafts live."
+      ],
+      "structure": "Running --pause--> Paused (snapshot at step boundary) --resume--> Running (rehydrate); Running or Paused --cancel--> Cancelling (run compensating actions) --> Compensated --> end; Running --> Completed"
     },
     {
       "id": "kill-switch",
@@ -2583,7 +2673,13 @@
         "Compensation success at halt — fraction of in-flight effects cleanly walked back",
         "Provenance loss incidents — runs where the OS-kill fallback erased the audit trail"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Unchecked step — a long tool call never returns to the step boundary, so the agent never reads the revocation flag.",
+        "Bypassable store — the runtime can cache or skip the flag check, and a revoked agent keeps acting.",
+        "Lost work on halt — the switch fires at a bad moment, in-flight effects are not compensated, and the operator falls back to killing the process with no provenance."
+      ],
+      "structure": "Operator --set revocation token / flag--> Shared store; Agent step --check store--> not revoked --> Continue | revoked --> Halt (no model or tool calls) --> Compensate in-flight effects; fallback --> Kill OS process (loses provenance)"
     },
     {
       "id": "lethal-trifecta-threat-model",
@@ -2745,7 +2841,13 @@
         "Path-split coverage — share of untrusted-content reads done in a tokenless subagent",
         "Exfiltration-test pass rate — red-team payloads the model neither obeyed nor leaked from"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Missing tag — a new tool reads private data but is not tagged as such, so the host check passes a path that holds all three legs.",
+        "Recombined legs — two split runs are later joined by a step that passes untrusted text into the run that also has the outbound channel.",
+        "Out-of-scope injection — the attack comes through a poisoned tool output rather than ingested content, and the trifecta check never sees it."
+      ],
+      "structure": "Tools and sources tagged {private-data read, untrusted ingest, outbound channel} --> Host checks each execution path --all three present--> Refuse or split (separate runs / strip outbound / sanitise to typed fields) | --at least one missing--> Run"
     },
     {
       "id": "pii-redaction",
@@ -2867,7 +2969,13 @@
         "Plaintext-PII leakage incidents — logs or outputs found with unredacted personal data",
         "Re-identification risk score — residual identifiability after redaction plus side channels"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Evasion miss — a name or number written with homoglyphs or split across tokens slips past detection and reaches the model and the trace log.",
+        "Over-redaction — a workflow that needs the customer's address gets a placeholder instead, and the agent cannot finish the task.",
+        "False anonymity — redacted records are shared as if anonymous, and side-channel data re-identifies the people in them."
+      ],
+      "structure": "User input --> Detect PII (regex + NER + classifier) --placeholders--> LLM --> Raw output --> Re-substitute placeholders or refuse unrequested PII --> User; detections and substitutions --> Audit log"
     },
     {
       "id": "policy-as-code-gate",
@@ -3164,7 +3272,12 @@
         "Audit-replay reproducibility — share of past actions that re-evaluate to the same verdict",
         "Translation-drift findings — diffs between prose policy and compiled rule output flagged by review"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Engine outage — the policy decision point is slow or down, and every tool call either waits or fails.",
+        "Mistranslated rule — the prose-to-code compiler produces a rule that allows what the prose forbade, and no one reviews the compiled output.",
+        "Thin proposal — the action proposal leaves out context the rule needs, so the engine allows an action it would have denied with full data."
+      ]
     },
     {
       "id": "preference-uncertain-agent",
@@ -3290,7 +3403,13 @@
         "Posterior entropy — calibration of uncertainty over time",
         "Deferral rate — share of actions where the agent asked or paused",
         "Update rate — frequency of meaningful posterior shifts"
-      ]
+      ],
+      "failure_modes": [
+        "Over-uncertain stall — the posterior stays wide, so the agent asks or defers on every step and never acts.",
+        "Collapsed posterior — a few confident updates shrink the uncertainty, and the agent drifts back to literal prompt-gaming.",
+        "Misread trace — the posterior summary in the trace is shown to the principal, who reads it wrongly and gives feedback that pushes the update the wrong way."
+      ],
+      "structure": "Reward posterior --> Plan (maximise expected utility under posterior) --> Act / ask / defer --> Observe human response (correction, demonstration, feedback) --> Bayesian update --> Reward posterior"
     },
     {
       "id": "prompt-injection-defense",
@@ -3469,7 +3588,13 @@
         "False-refusal rate on instruction-shaped legitimate content — over-blocking signal",
         "Multi-turn injection escape rate — payloads that split across turns and slipped past per-turn tagging"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Multi-turn bypass — an attacker spreads the instruction across several turns, each piece harmless inside its own marker.",
+        "Blocked legitimate content — a document that happens to contain instructions, such as a how-to guide, gets refused as an injection.",
+        "Evolved payload — a new phrasing the model was not trained to refuse gets obeyed inside the untrusted markers."
+      ],
+      "structure": "System prompt (trusted) + User prompt (partially trusted) + Tool / document content (untrusted, wrapped in markers) --> LLM (refuses instructions inside markers) --> Output guardrails (exfiltration checks) --> User"
     },
     {
       "id": "quorum-on-mutation",
@@ -3595,7 +3720,13 @@
         "Hesitation signal frequency — K-1 confirms followed by a withdrawal, useful as its own data",
         "Durable-state-degradation incidents avoided — rules that would have landed under single-tick"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Slow legitimate change — a real preference waits K ticks to land, and the agent keeps the old behaviour the user already corrected.",
+        "Echo confirmation — each later tick reads the pending proposal and endorses it from the same stale context, so the quorum adds no independent check.",
+        "Lost proposal — a state-machine bug drops pending proposals on restart, and neither the mutation nor its rejection is recorded."
+      ],
+      "structure": "Propose mutation --> Holding area --tick confirms (fresh context)--> ... --K consecutive confirms--> Write to durable state; any tick disagrees --> Dropped; explicit user approval --> Write immediately"
     },
     {
       "id": "rate-limiting",
@@ -3739,7 +3870,13 @@
         "False-limit denials — legitimate burst traffic blocked by an over-tight cap",
         "Gateway-vs-loop-limit hit ratio — which layer fired and how often"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Throttled burst — a legitimate user with a short spike of real work hits the per-minute limit and is blocked mid-task.",
+        "Ossified tiers — limits set at launch never change, and they no longer match how people use the product.",
+        "Outer-only limit — the gateway caps requests, but one request starts an agent loop that makes unbounded tool calls inside it."
+      ],
+      "structure": "Request --> Identify caller --> Token bucket / sliding window (per minute, hour, day) --over limit--> 429 + clear message | --under limit--> Agent loop --> Inner limit on tool calls and tokens"
     },
     {
       "id": "refusal",
@@ -3876,7 +4013,13 @@
         "Over-refusal rate — legitimate in-scope requests that triggered a refusal",
         "User-satisfaction post-refusal — survey or thumbs-rating on refusal interactions"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Refusal fatigue — triggers are set too broad, the agent refuses ordinary in-scope requests, and users stop trusting it.",
+        "Vague refusal — the reply says 'cannot help' without naming the boundary or an alternative, and the user rephrases until something gets through.",
+        "Missed trigger — an out-of-scope request does not match any trigger, and the agent answers it with confident, unauthorised content."
+      ],
+      "structure": "Request --> Refusal trigger check (policy / out of scope / capability gap / regulatory) --none--> Handle normally | --hit--> Clear, specific refusal --> Suggest alternative + log refusal"
     },
     {
       "id": "risk-averse-reward-proxy",
@@ -4000,7 +4143,13 @@
         "OOD trigger rate — share of decisions flagged out-of-distribution",
         "Conservatism cost — average proxy-score loss vs argmax baseline",
         "Reward-hacking incidents — measured before vs after deployment"
-      ]
+      ],
+      "failure_modes": [
+        "Needless caution — the context is wrongly flagged out of distribution, and the agent gives up good proxy performance on an ordinary task.",
+        "Missed shift — the out-of-distribution check does not fire in a new context, and the agent optimises the literal proxy into a degenerate result.",
+        "Narrow reward set — the set of plausible true rewards leaves out the one that matters, so the worst case it guards against is the wrong one."
+      ],
+      "structure": "Context --out of design distribution?--no--> Optimise proxy | --yes--> Build set of plausible true rewards --> Risk-averse planning (worst case or low quantile across set) --> Act"
     },
     {
       "id": "secrets-handling",
@@ -4135,7 +4284,13 @@
         "Egress-scrubber catch rate — secrets removed from results before returning to context",
         "Credential rotation effectiveness — share of leaked secrets that were already rotated when discovered"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Leak through tool result — an API echoes the credential in its response, and the result is not scrubbed before it returns to the model.",
+        "Stale reference — a reference points to a rotated or removed secret, the call fails, and someone pastes the value into the prompt to unblock it.",
+        "Unscrubbed trace — the runtime injects the secret correctly, but the request is written to the trace before scrubbing runs."
+      ],
+      "structure": "Model --tool call with credential reference--> Tool runtime --resolve--> Secret store --value--> Tool runtime --request with secret--> External API --response--> Tool runtime --scrubbed result--> Model; guards reject credential-shaped payloads"
     },
     {
       "id": "simulate-before-actuate",
@@ -4148,7 +4303,7 @@
       "category": "safety-control",
       "intent": "Before issuing an irreversible action, run a deterministic simulation that computes pre-conditions, invariants, and expected deltas; require a verifier — automated or human — to green-light the simulated outcome before the real command is sent.",
       "context": "An agent has tools that take irreversible actions: filesystem writes, database mutations, infrastructure changes, browser actions on a live site, payments, emails. The cost of a wrong action is high. The agent itself is non-deterministic and occasionally proposes plausible-looking actions that are wrong in subtle ways: deletes the wrong key, sends to the wrong recipient, mutates the wrong row.",
-      "problem": "Letting the agent commit irreversible actions on a single proposal exposes the system to silent, hard-to-rollback damage. Pure human-in-the-loop is too slow for the volume; pure trust-the-agent is too dangerous. Recent practitioner write-ups (Joakim Vivas' '17 agentic architectures' survey) and the arXiv 'Architectures for Building Agentic the model' chapter and 'Deterministic Pre-Action Authorization' preprint converge on a deterministic simulation step: run the proposed action against a digital twin, sandbox replay, or dry-run flag; compute the resulting state and the diff; require sign-off on the diff before committing.",
+      "problem": "Letting the agent commit irreversible actions on a single proposal exposes the system to silent, hard-to-rollback damage. Pure human-in-the-loop is too slow for the volume; pure trust-the-agent is too dangerous. Recent practitioner write-ups (Joakim Vivas' '17 agentic architectures' survey) and an arXiv chapter on architectures for building agentic systems and 'Deterministic Pre-Action Authorization' preprint converge on a deterministic simulation step: run the proposed action against a digital twin, sandbox replay, or dry-run flag; compute the resulting state and the diff; require sign-off on the diff before committing.",
       "forces": [
         "Irreversible actions deserve more scrutiny than reversible ones, but the agent's proposal does not distinguish.",
         "Full human-in-the-loop is too slow at production volume; a deterministic verifier can scale.",
@@ -4370,7 +4525,13 @@
         "Prevented-damage rate — count of rejected actions that would have caused incidents had they committed",
         "Per-action latency overhead — added cost of the simulate+verify step"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "False green — the simulator has drifted from production, the dry run passes, and the real action fails or causes damage.",
+        "Stale verifier — invariant rules no longer match current policy, so the verifier blocks safe actions or waves through unsafe ones.",
+        "Silent HITL fallback — most tools lack a simulator, every call falls back to human approval, and the volume problem the pattern meant to solve returns."
+      ],
+      "structure": "Agent proposes irreversible action --> Action wrapper --> Deterministic simulation (dry run / sandbox / digital twin) --> Expected state delta --> Verifier (invariants, budget, scope) --pass--> Real action | --ambiguous--> Human approval | --fail--> Reject, error back to agent"
     },
     {
       "id": "soft-optimization-cap",
@@ -4497,7 +4658,13 @@
         "Quantile parameter q — current setting",
         "Score loss vs argmax — average utility gap from the cap",
         "Tail-incident reduction — bad-outcome rate before vs after the cap"
-      ]
+      ],
+      "failure_modes": [
+        "Bad base distribution — the prior over actions already contains degenerate moves, so sampling its top quantile still picks them.",
+        "Mis-tuned q — q is set so tight that the cap behaves like argmax, or so loose that the agent picks weak actions on aligned tasks.",
+        "Lost score on safe tasks — the cap applies everywhere, and the agent settles for a good-enough answer where the best one carried no gaming risk."
+      ],
+      "structure": "Base action distribution --> Rank by inferred objective --> Keep top q-quantile (or first action over satisficing threshold) --> Sample one --> Act; argmax is never taken"
     },
     {
       "id": "sovereign-inference-stack",
@@ -4641,7 +4808,12 @@
         "On-prem inference cost per token — operator economics versus hosted API pricing",
         "Audit-readiness score — completeness of data-flow documentation against regulator checklist"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Boundary leak — a new tool or eval step calls a hosted API, is merged without boundary review, and prompts leave the jurisdiction.",
+        "Capability gap — the self-hosted model cannot handle tasks the hosted frontier model handled, and teams quietly route hard cases outside the boundary.",
+        "Stalled upgrade — each model upgrade becomes a procurement project, so the stack runs an old model long after better weights exist."
+      ]
     },
     {
       "id": "step-budget",
@@ -4862,7 +5034,13 @@
         "Partial-answer quality at cap — usefulness of returned state when N forced termination",
         "Cap-hit-to-deeper-bug ratio — share of cap hits later traced to a real underlying agent bug"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Masked bug — the agent hits the cap on most requests, the partial answer looks fine, and the reason it never stops on its own goes unfixed.",
+        "Cap too low — N is chosen without data, and real multi-step tasks are cut off just before they finish.",
+        "Unclear partial answer — the cap-reached note is dropped or ignored, so users treat an incomplete answer as complete."
+      ],
+      "structure": "Request --> Active loop --step < N--> continue (step++) | --answer produced--> Done | --step == N--> Halted --> return best partial answer + cap-reached note"
     },
     {
       "id": "stop-hook",
@@ -4971,7 +5149,13 @@
         "Late-stop rate — runs that continued past the point useful work stopped",
         "Hang incidents — runs where the predicate never returned a terminating verdict"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Premature stop — the stagnation check reads a slow but real step as no progress and ends a run that was about to succeed.",
+        "Hang on predicate bug — a condition never evaluates true, so the hook keeps returning continue and the loop runs on.",
+        "Success misread — the target-reached check matches a partial result, and the run reports stop-success on unfinished work."
+      ],
+      "structure": "Agent step --> Stop hook predicate --target reached--> stop-success | --budget hit / error / stagnation--> stop-failure | --none--> continue --> next Agent step"
     },
     {
       "id": "tool-output-poisoning",
@@ -5109,7 +5293,13 @@
         "Instruction-stripper false-positive rate — legitimate instruction-shaped content removed",
         "Re-validation block rate — follow-up tool calls blocked because intent did not align with low-trust content"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Wrong trust label — a tool that reads public web content is labelled high, so its output skips stripping and reaches the agent intact.",
+        "Over-stripping — instruction-shaped legitimate content, such as setup steps in a README, is removed and the agent misses what it needed.",
+        "Unvalidated follow-up — the agent chains a new tool call off a low-trust result without checking it against the user's original intent."
+      ],
+      "structure": "Tool returns --> ToolResult envelope (trust + content type) --low--> Instruction stripping | --medium--> Sanitise + validate | --high--> Pass through; low and medium --> Block follow-up tool calls until re-validated against user intent --> Agent context"
     },
     {
       "id": "typed-refusal-codes",
@@ -5261,7 +5451,13 @@
         "Legacy-alias parse hits — old phrasings preserved by the alias matcher over time",
         "Enum-churn rate — frequency of code renames and the breakage they caused downstream"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Bypassed helper — one guard formats its refusal by hand, and its events are missing from every dashboard that counts by code.",
+        "Breaking rename — a code is renamed in the enum, and downstream alerts keyed on the old name stop firing.",
+        "Empty detail — the code is correct but the detail string says nothing useful, so triage still needs the raw logs."
+      ],
+      "structure": "Each guard --format_refusal(code, detail)--> 'REFUSED: CODE: detail' --> parse_refusal (also maps legacy aliases; unknown -> None) --> (code, detail) --> Audit log / dashboards / alerts"
     },
     {
       "id": "control-flow-integrity",
@@ -5465,7 +5661,13 @@
         "Graph-mutation attempt rate — host-rejected attempts to alter the compiled plan from inside a node",
         "Coverage of consequential tools by capability-tagged edges — share of high-impact tools whose calls live on policy-checked edges"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Brittle graph — the compiled plan did not foresee a branch, and every real-world variation forces a slow privileged replan.",
+        "Poisoned value inside a node — a tool output cannot add edges, but a legitimate node uses it verbatim and does the attacker's work anyway.",
+        "Planner injection — the attacker targets the privileged planner input, and the host faithfully enforces a malicious compiled graph."
+      ],
+      "structure": "Privileged planner --compile--> Trusted plan graph (nodes + edges) --> Node 1 --> Node 2 --> Node 3; tool outputs and retrieved content --typed values only--> nodes (cannot add nodes or edges); new facts --> Replan? --yes--> Planner emits new graph | --no--> Done"
     },
     {
       "id": "supervisor-plus-gate",
@@ -5593,7 +5795,13 @@
         "Gate-reject rate — share of sub-agent outputs the gate refuses",
         "False-accept rate — gate-passed outputs that should have been rejected",
         "Per-rule fire rate — which gate rules are exercising the catch"
-      ]
+      ],
+      "failure_modes": [
+        "Rules too thin — the gate checks schema but not the policy invariant that matters, so a violating output is accepted.",
+        "Uncheckable output — a sub-agent returns free text the gate cannot evaluate, and the team marks it accept by default to keep work moving.",
+        "Escalation backlog — many outputs land in escalate, human review falls behind, and side effects wait at every supervisor hop."
+      ],
+      "structure": "Supervisor --> Sub-agent --> Output --> Deterministic gate (schema, policy as code, allow-list, thresholds) --accept--> Side-effect commits | --reject--> Structured error to retry | --escalate--> Human review"
     },
     {
       "id": "action-selector-pattern",
@@ -5739,7 +5947,13 @@
         "Catalog miss rate — share of inputs where no catalog action fits",
         "Injection-attempt detection — tool outputs that attempted to drive new actions",
         "Action distribution — which catalog actions are used over time"
-      ]
+      ],
+      "failure_modes": [
+        "Catalog gap — a task needs an action that is not in the catalog, and the agent either fails or someone adds a broad catch-all action that reopens the channel.",
+        "Leaky handler — the output handler passes a free-text field through as a typed value, and that text ends up in the selector's prompt.",
+        "Poisoned value — the injected content cannot pick the next action, but it still sets the argument the next action consumes."
+      ],
+      "structure": "Goal + step number --> Action selector --> Action from fixed catalog --> Tool executes --> Output handler --> Typed values --consumed by next action--> Action; typed values never re-enter Action selector"
     },
     {
       "id": "llm-map-reduce-isolation",
@@ -5869,7 +6083,13 @@
         "Per-document isolation success — no cross-doc influence",
         "Schema-validation rejection rate — sub-agent outputs that failed the schema",
         "Cost per batch document — sub-agent overhead vs shared-context"
-      ]
+      ],
+      "failure_modes": [
+        "Free-text field — the output schema has an open string field, an injected document fills it with instructions, and the reducer obeys them.",
+        "Missed cross-document insight — duplicates or shared themes across documents are lost because no sub-agent sees more than one.",
+        "Cost blow-up — a large batch spawns one sub-agent per document, and the bill is far higher than shared-context processing."
+      ],
+      "structure": "N untrusted documents --> Spawn N sub-agents (fresh context, one document each) --> Structured output per sub-agent --schema check--> Reducer (sees structured outputs only) --> Final result"
     },
     {
       "id": "code-then-execute-with-dataflow",
@@ -5997,7 +6217,13 @@
         "Reject rate — programs the analyzer refuses",
         "False-positive rate — safe programs rejected",
         "Sink-attempt rate — tainted values reaching sensitive sinks (caught vs leaked)"
-      ]
+      ],
+      "failure_modes": [
+        "False reject — the analyzer is conservative, rejects a safe program, and engineers spend time tracing why.",
+        "Undeclared sink — a sensitive operation is not declared as a sink, so a tainted value reaches it and the program runs.",
+        "Workaround drift — the DSL is too narrow for a needed task, and teams add escape hatches that skip the dataflow check."
+      ],
+      "structure": "Agent emits DSL program --> Tag values TRUSTED / TAINTED / MIXED --> Static dataflow analysis --tainted reaches sensitive sink--> Reject before execution | --safe--> Execute in sandbox"
     },
     {
       "id": "context-minimization",
@@ -6126,7 +6352,13 @@
         "Schema-rejection rate — inputs refused at the boundary",
         "Injection-attempt reduction — drop in prompt-injection success vs raw input",
         "False-rejection rate — legitimate inputs the schema refused"
-      ]
+      ],
+      "failure_modes": [
+        "Over-strict schema — a legitimate input variant does not fit the schema and is rejected at the boundary.",
+        "Open text field — the schema allows a long free-text field, and an injection rides through inside it.",
+        "Free-form exception — a task that needs raw text skips the schema without the length cap and isolation it should get instead."
+      ],
+      "structure": "Raw untrusted input --> Schema extraction (typed fields, max lengths, allow-listed enums) --invalid--> Reject at boundary | --valid--> Typed fields only --> LLM"
     },
     {
       "id": "policy-gated-agent-action",
@@ -6282,7 +6514,13 @@
         "Per-action audit completeness — share of actions with WORM record",
         "Policy violation catch rate — actions blocked by gate",
         "Audit reconstruction success — historical-action replay accuracy"
-      ]
+      ],
+      "failure_modes": [
+        "Gate outage halts work — the policy gate is on the critical path, it goes down, and every agent action stops.",
+        "Incomplete record — the WORM entry omits the model digest or inputs hash, and an incident cannot be reconstructed years later.",
+        "Retention cost — storage grows with every action over the retention period, and teams cut retention below what regulators require."
+      ],
+      "structure": "Proposed action + inputs + context --> Policy gate --reject--> Stop or escalate | --accept--> WORM record (Run ID, Model Digest, Policy Hash, Inputs Hash, Decision; hash-chained) --> Execute action; WORM store --> Regulator audit reconstruction"
     },
     {
       "id": "cryptographic-instruction-authentication",
@@ -6397,7 +6635,13 @@
         "Signature-failure rate — instruction-shaped text without valid signature",
         "Successful injection rate — fakes that bypassed verification",
         "Key-rotation incident rate — operational health"
-      ]
+      ],
+      "failure_modes": [
+        "Uncooperative model — an off-the-shelf model is used without fine-tuning or a structural verifier, and it follows unsigned instructions anyway.",
+        "Key compromise — the signing key leaks, attackers sign their own blocks, and the model treats them as authoritative.",
+        "Prompt bloat — signatures on many blocks push large prompts toward the context limit."
+      ],
+      "structure": "Orchestrator --sign with key--> System / developer block + signature; User input + signed blocks --> Combine into prompt --> Verifier --valid signature--> Treated as instruction | --invalid or missing--> Treated as user content"
     },
     {
       "id": "dry-run-harness",
@@ -6517,7 +6761,13 @@
         "Approval rate — plans humans approve as-is",
         "Revision rate — plans humans revise post-dry-run",
         "Drift rate — dry-run projection vs actual execution outcome"
-      ]
+      ],
+      "failure_modes": [
+        "Missing post-commit state — a later step reads a row an earlier step would have written, the dry run has no such row, and the diff shows the wrong outcome.",
+        "Partial dry run — one tool wrapper lacks a dry-run mode and commits for real during the simulation.",
+        "Diff too large to read — a long plan produces a change list the reviewer cannot follow, so approval becomes a formality."
+      ],
+      "structure": "Agent plans multi-step action --> Dry-run executor (each tool returns projected side effect) --> Aggregated side-effect diff --> Human review --approve--> Real execution commits | --edit--> revised plan | --reject--> Replan"
     },
     {
       "id": "sync-execution-plan-confirmation",
@@ -6632,7 +6882,13 @@
         "Confirmation rate — share of plans users confirm",
         "Cancel-after-show rate — users who cancel after seeing the plan",
         "Audit-reconstruction latency — time to surface user confirmation in audit"
-      ]
+      ],
+      "failure_modes": [
+        "Banner blindness — the plan prompt appears on every action, and users confirm without reading what the agent will do.",
+        "Spoofed confirmation — an attacker fakes the confirm UI or talks the user into approving, and the plan runs as if it were reviewed.",
+        "Plan-execution drift — the agent confirms one plan in plain language but executes steps that differ from it, and only the recording shows the gap."
+      ],
+      "structure": "User request --> Agent generates plan --sync--> Render plan to user --> User confirms? --no--> Cancel | --yes--> Execute side effects --async--> Full operation recording --> User reviews later"
     },
     {
       "id": "multimodal-guardrails",
@@ -6748,7 +7004,13 @@
         "Per-modality block rate",
         "Cross-modal injection-attempt detection",
         "False-positive rate per modality"
-      ]
+      ],
+      "failure_modes": [
+        "Chained modality — an image carries audio that carries text, and each per-modality check passes its own layer while the payload gets through.",
+        "Classifier miss — the image or audio classifier has its own blind spots, and injected text in a low-contrast image reaches OCR unflagged.",
+        "Unchecked output modality — generated text is guarded, but synthesised audio or images go out without their own checks."
+      ],
+      "structure": "Image / audio / file input --> Modality-specific guardrail --> Transform (OCR / transcription / parse) --> Text guardrail --> Agent reasoning --> Output guardrails per modality (image classifier, voice-cloning check, watermark) --> User"
     },
     {
       "id": "progressive-tool-access",
@@ -6865,7 +7127,13 @@
         "Per-tool tier-progression cadence",
         "Incident-triggered tier downgrade frequency",
         "Tool-incident rate vs single-tier baseline"
-      ]
+      ],
+      "failure_modes": [
+        "Bad promotion metric — the success rate used for promotion rewards easy tasks, and an agent reaches production write without being competent at it.",
+        "Stale tier record — tier tracking per tool per agent falls out of date, and an agent keeps a tier after an incident should have dropped it.",
+        "Slow ramp — every new agent starts at the bottom, takes long to reach useful tiers, and teams skip the ladder to ship faster."
+      ],
+      "structure": "Tier 0 (none) --> Tier 1 (read / query) --measured competency--> Tier 2 (write to staging) --measured competency--> Tier 3 (production write); incident --> drop one tier; tier tracked per tool"
     },
     {
       "id": "priority-matrix-conflict-resolution",
@@ -6996,7 +7264,13 @@
         "Matrix-hit rate vs human-escalation rate",
         "Per-conflict-class resolution latency",
         "Matrix-gap discovery frequency"
-      ]
+      ],
+      "failure_modes": [
+        "Misclassified conflict — the agent maps a conflict to the wrong class and applies a resolution rule meant for a different trade-off.",
+        "Gap flood — many real conflicts are not in the matrix, every one escalates, and the human queue backs up.",
+        "Decayed matrix — priorities change but the table does not, so the agent faithfully applies an ordering the organisation no longer holds."
+      ],
+      "structure": "Task with conflicting objectives --> Detect conflict class --> Look up Priority Matrix (human-authored) --found--> Execute prescribed resolution | --gap--> Escalate to human"
     },
     {
       "id": "two-human-touchpoints",
@@ -7107,7 +7381,13 @@
         "Touchpoint-1 selection rate (accepted / proposed)",
         "Touchpoint-2 revision rate",
         "Soulless-output indicator (engagement / open / NPS)"
-      ]
+      ],
+      "failure_modes": [
+        "Drift to zero — under time pressure the final review is skipped, and assembled output publishes with no human check.",
+        "Drift to many — extra approvals are added after each mistake, and the validation burden erases the time the agents saved.",
+        "Forced fit — a pipeline with no clear selection moment gets a token touchpoint that reviews nothing of value."
+      ],
+      "structure": "Agents generate candidates --> Touchpoint 1: human selects what matters --> Agents assemble selected content --> Touchpoint 2: human final review --> Publish / commit; all other steps autonomous"
     },
     {
       "id": "delegated-agent-authorization",
@@ -7321,7 +7601,12 @@
         "Principal-chain completeness — fraction of actions whose full principal chain is reconstructable",
         "Static-credential leakage — count of times a primary or long-lived credential reached an agent or log"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Scope too narrow — the token lacks a permission a later step needs, and the task fails halfway through the run.",
+        "Scope too broad — a convenience scope grants most of what the user can do, and a leaked token carries nearly the same risk as the user's own key.",
+        "Replayed exchange — in a deep sub-agent chain one exchanged token is captured and reused outside the task it was issued for."
+      ]
     },
     {
       "id": "session-scoped-payment-authorization",
@@ -7496,7 +7781,12 @@
         "mermaid": "sequenceDiagram\n  participant A as Agent\n  participant W as Wallet / Governance\n  participant S as Paid services\n  A->>W: open session, request cap $X (+TTL)\n  W-->>A: session authorized, cap=$X\n  loop until cap or task done\n    A->>S: micropayment + request\n    S-->>A: result\n    A->>W: debit against remaining cap\n    W-->>A: remaining = $X - spent\n  end\n  A->>W: close session\n  W-->>A: single settlement + reconciliation",
         "caption": "The session cap is the safety envelope: the agent streams micropayments freely under it and settles once on close."
       },
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Full-cap drain — a compromised or looping agent spends right up to the session cap before anyone notices.",
+        "Stranded task — the cap runs out mid-session, payments stop, and the workflow is left half done with costs already paid.",
+        "Hard dispute — one bulk settlement bundles hundreds of micropayments, and a single wrong charge is hard to find and reverse."
+      ]
     },
     {
       "id": "self-edit-critic-gate",
@@ -7605,7 +7895,13 @@
           "year": 2003,
           "url": "https://arxiv.org/abs/cs/0309048"
         }
-      ]
+      ],
+      "failure_modes": [
+        "Fail-open critic — the critic call errors, the gate defaults to approve, and a destructive edit lands without the hard backstop catching it.",
+        "Mis-classified path — a file that holds state is marked low-stakes, skips the critic, and the agent deletes it.",
+        "Blocked refactor — a path is marked high-stakes too broadly, and the critic vetoes legitimate cleanups again and again."
+      ],
+      "structure": "Proposed write / delete --> High-stakes path? --no--> Apply write | --yes--> Deterministic pre-check (syntax, destruction backstop) --hard veto--> Block | --ok--> Separate critic call (path + diff + justification) --approve--> Apply | --veto--> Block; all outcomes --> Ledger"
     },
     {
       "id": "agent-credential-vault",
@@ -7737,7 +8033,13 @@
         "Revocation latency — time from revoking an identity to the agent losing access",
         "Authenticated-flow success rate — share of login/MFA flows the vault completed without exposing values to the model"
       ],
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Vault breach — the vault holds every credential and persona, so one compromise exposes all of them at once.",
+        "Broken injection — a site changes its login form or adds a bot check, and the vault's form fill or code entry fails mid-task.",
+        "Leak below the model — the injected value shows up in a tool argument or page snapshot the model can read, and the secret reaches the context after all."
+      ],
+      "structure": "Agent --credential or persona handle--> Credential vault (trusted runtime, governed identity) --inject below the model--> login form fill / derived TOTP or emailed code / session cookie --> Target service --> opaque session result --> Agent; each use logged against the identity"
     },
     {
       "id": "trajectory-anomaly-monitor",
@@ -7873,7 +8175,13 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  A[Agent emits next action] --> S[Action trajectory stream]\n  S --> V[Trained sequence verifier, out-of-band]\n  V --> D{Anomaly flagged?}\n  D -->|no| Go[Execute action]\n  D -->|yes| Gate[Policy gate: halt / escalate before damage]\n  Gate --> H[Human or LLM-judge review of flagged case]"
       },
-      "last_updated": "2026-06-05"
+      "last_updated": "2026-06-05",
+      "failure_modes": [
+        "Novel misalignment — the agent drifts in a way the verifier never saw in training, and the trajectory passes unflagged.",
+        "Miscalibrated gate — the threshold is set too tight, good trajectories are paused constantly, and operators turn the gate off.",
+        "Stale verifier — the agent's tools or prompts change, the trained monitor is not retrained, and its signals stop matching real behaviour."
+      ],
+      "structure": "Agent emits next action --> Action trajectory stream --> Trained sequence verifier (out of band) --no anomaly--> Execute action | --anomaly--> Policy gate (halt / escalate) --> Human or LLM-judge review of flagged case"
     },
     {
       "id": "tenant-scoped-tool-binding",
@@ -8046,7 +8354,12 @@
         "Red-team isolation pass-rate — share of prompt-injection attempts that fail to widen tenant scope",
         "New-tool coverage — share of tools reaching tenant data exclusively through the scoped accessor"
       ],
-      "last_updated": "2026-06-10"
+      "last_updated": "2026-06-10",
+      "failure_modes": [
+        "Fail-open policy — a row-level-security policy is misconfigured, returns rows from every tenant, and nothing errors.",
+        "Unscoped side path — a cache, log, or embedding index built from tenant data lacks the tenant key, and one tenant's content surfaces for another.",
+        "Unaudited escape — an admin or benchmarking feature bypasses the default scope, and the agent reaches it through a normal tool path."
+      ]
     },
     {
       "id": "risk-tiered-action-autonomy",
@@ -8283,7 +8596,12 @@
         "Release-queue dwell time — latency added to held actions, watched against payment cut-offs",
         "Reviewer load — held items per approver per day, a proxy for approval fatigue"
       ],
-      "last_updated": "2026-06-10"
+      "last_updated": "2026-06-10",
+      "failure_modes": [
+        "Leaked material action — a threshold set too high lets a material payment run in an autonomous tier with no release step.",
+        "Revived approval fatigue — a threshold set too low floods the release queue, and approvers clear it without reading.",
+        "Same-identity release — a thin deployment has one operator, so the approver-differs-from-initiator check cannot be enforced and maker and checker collapse."
+      ]
     },
     {
       "id": "conformal-prediction-help-gate",

@@ -32,6 +32,12 @@ Therefore: fingerprint each outgoing reply against a small ring buffer of recent
 
 Maintain a small ring buffer (e.g. last 8 outgoing messages). Before publishing a new reply, normalize (lowercase, strip punctuation) and compare: exact normalized match → duplicate; high Jaccard token overlap (≥0.7) on short replies → near-duplicate. On hit: replace the body with a transparent marker ('I caught myself looping — switching to <stronger-provider> for the next turn. Ask again.') and force-escalate the next turn through a stronger provider. Append a SYSTEM note to history telling the model exactly what it did wrong so it can self-correct.
 
+## Structure
+
+```
+Reply candidate --> Normalize --> Compare to ring buffer (last N outputs) --novel--> Publish --> append to buffer | --exact or near-duplicate--> Replace with marker + system note --> Escalate next turn to stronger model
+```
+
 ## Diagram
 
 ```mermaid
@@ -61,6 +67,12 @@ A small voice-assistant model gets stuck and replies 'How can I help today?' fiv
 - False positives on legitimately repeated short answers ('yes', 'thanks').
 - Threshold tuning is per-domain.
 - Escalation has cost; budget for repeated triggers.
+
+## Failure modes
+
+- Short-answer false positive — a legitimate repeated 'yes' or 'thanks' matches the buffer and gets replaced with a looping notice.
+- Mis-tuned threshold — a Jaccard cut-off chosen for one domain misses paraphrased loops in another, so the repetition still ships.
+- Escalation spiral — the stronger model also repeats itself, each hit triggers another paid escalation, and cost rises with no fix.
 
 ## What this pattern constrains
 
@@ -117,6 +129,7 @@ Identical or near-identical consecutive outputs are forbidden; detected loops mu
 - _complements_ **Pre-Generative Loop Gate**
 - _complements_ **Agentic Behavior Tree**
 - _complements_ **Composable Termination Conditions**
+- _complements_ **Advisor Consult** — That pattern can escalate the output itself to a stronger model; the advisor never produces the output, it only changes what the executor does next.
 
 ## References
 

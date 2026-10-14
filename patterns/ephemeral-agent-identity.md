@@ -134,6 +134,7 @@ An agent run must not authenticate under a long-lived or shared identity; it may
 - _conflicts-with_ **Agent Identity Sprawl** — Sprawl is the accumulation of long-lived over-privileged agent identities; per-task minting with revocation at completion is the direct counter to it.
 - _conflicts-with_ **Static Role for a Dynamic Agent** — Pinning a dynamic agent to a fixed static role is the anti-pattern this replaces with an identity born and retired with each run.
 - _alternative-to_ **Identity Impersonation** — Giving the agent its own task-bounded identity class is the cure for treating the agent's self as the user's self.
+- _complements_ **Attenuating Delegation Chain** — That pattern bounds how long an agent's credential lives; this one bounds how wide a child's authority may be relative to its parent. Short-lived roots are also the practical answer to a chain that cannot be revoked from inside.
 
 ## References
 
@@ -141,4 +142,4 @@ An agent run must not authenticate under a long-lived or shared identity; it may
 - [Identitätsmanagement im Spannungsfeld zwischen menschlichen Nutzern, Maschinen, Agenten und KI-Personas](https://www.datensicherheit.de/identitaetsmanagement-spannungsfeld-mensch-maschine-agent-ki-persona) — 2026
 - [Agentic AI Identity Management Approach](https://cloudsecurityalliance.org/blog/2025/03/11/agentic-ai-identity-management-approach) — Ken Huang (Cloud Security Alliance), 2025
 - [Who Governs the Machine? A Machine Identity Governance Taxonomy (MIGT) for AI Systems Operating Across Enterprise and Geopolitical Boundaries](https://arxiv.org/abs/2604.06148) — Andrew Kurtz, Klaudia Krawiecka, 2026
-- [OWASP Non-Human Identities Top 10](https://owasp.org/www-project-non-human-identities-top-10/) — 2025
+- [OWASP Non-Human Identities Top 10 (project repository)](https://github.com/OWASP/www-project-non-human-identities-top-10) — 2025

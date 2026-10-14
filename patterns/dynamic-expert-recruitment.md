@@ -31,10 +31,6 @@ Therefore: let a recruiter agent generate the role descriptions and instantiate 
 
 Add a recruiter agent (or a meta-agent committee: planner + agent observer + plan observer). Stage 1 — Drafting: recruiter receives the goal, generates role descriptions matched to that goal, instantiates the team and an execution plan. Stage 2 — Execution: the team works. Stage 3 — Evaluation: a reviewer scores progress; if unsatisfactory, the recruiter adjusts the team (add, remove, replace roles) and the next iteration runs. The recruiter is the only meta-agent that mutates team composition.
 
-## Example scenario
-
-A multi-agent platform runs both 'draft a regulatory filing' and 'refactor this Python module' through the same hard-coded team of writer, reviewer, and editor. The reviewer is fine for prose but useless on code. They switch to Dynamic Expert Recruitment: a meta-agent reads the task and instantiates appropriate roles — for the filing, a compliance expert and a legal editor; for the refactor, a senior engineer and a unit-test author. After the first iteration's evaluation, the team composition is adjusted between rounds.
-
 ## Structure
 
 ```
@@ -55,6 +51,10 @@ flowchart TD
   Adj -- no --> Done[Result]
 ```
 
+## Example scenario
+
+A multi-agent platform runs both 'draft a regulatory filing' and 'refactor this Python module' through the same hard-coded team of writer, reviewer, and editor. The reviewer is fine for prose but useless on code. They switch to Dynamic Expert Recruitment: a meta-agent reads the task and instantiates appropriate roles — for the filing, a compliance expert and a legal editor; for the refactor, a senior engineer and a unit-test author. After the first iteration's evaluation, the team composition is adjusted between rounds.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +68,13 @@ flowchart TD
 - Recruiter quality is the bottleneck; a bad recruiter produces bad teams.
 - Run-time team generation is non-deterministic; reproducibility suffers.
 - Adjustment between iterations can churn (replace too aggressively).
+
+## Failure modes
+
+- Bad recruiter, bad team — the recruiter misreads the goal and generates roles that do not fit it, and every later iteration inherits that mistake.
+- Team churn — the recruiter replaces roles after every weak evaluation, and no team runs long enough to show whether it works.
+- Unreproducible runs — the same goal produces a different team each time, so a good result cannot be repeated or debugged.
+- Self-recruiting agents — a team member invents a new peer on its own, outside the recruiter, and the team grows without control.
 
 ## What this pattern constrains
 
@@ -87,22 +94,44 @@ No role may be instantiated outside the recruiter; agents may not unilaterally c
 - Recruiter latency or cost outweighs the benefit of dynamic team composition.
 - Stable, certified roles are required for compliance reasons.
 
+## Components
+
+- Recruiter agent — reads the goal and generates role descriptions matched to that goal
+- Generated specialist team — instantiated agents whose roles came from the recruiter, not a fixed list
+- Plan observer — meta-agent that scores progress against the original goal
+- Agent observer — meta-agent that scores team composition and flags missing or unused roles
+- Composition mutator — recruiter step that adds, removes, or replaces team members between iterations
+
+## Tools
+
+- LLM API — recruiter and observers each cost a call before and between work iterations
+- Agent registry — runtime catalogue where freshly instantiated roles are registered and addressable
+- AgentVerse or AutoAgents framework — supplies the recruiter scaffolding and observer harness
+
+## Evaluation metrics
+
+- Team-fit score — observer-rated match between generated roles and task needs
+- Composition churn — roles added or replaced per iteration, against an over-churn threshold
+- End-to-end success vs fixed-team baseline — does dynamic recruitment beat a hard-coded crew
+- Recruiter latency overhead — extra wall-clock spent generating and adjusting the team
+- Reproducibility variance — outcome spread across repeated runs with the same goal
+
 ## Known uses
 
-- **[AgentVerse](https://github.com/OpenBMB/AgentVerse)** — *Available*. Recruiter agent generates expert descriptions per goal; team composition adjusted across iterations.
-- **[AutoAgents](https://github.com/Link-AGI/AutoAgents)** — *Available*. Drafting stage with three meta-agents (Planner, Agent Observer, Plan Observer) synthesises the team.
+- **[AgentVerse](https://github.com/OpenBMB/AgentVerse)** _available_ — Recruiter agent generates expert descriptions per goal; team composition adjusted across iterations.
+- **[AutoAgents](https://github.com/Link-AGI/AutoAgents)** _available_ — Drafting stage with three meta-agents (Planner, Agent Observer, Plan Observer) synthesises the team.
 
 ## Related patterns
 
-- *complements* → [supervisor](supervisor.md)
-- *generalises* → [role-assignment](role-assignment.md) — Role assignment is the design-time special case.
-- *alternative-to* → [mixture-of-experts-routing](mixture-of-experts-routing.md) — MoE routes to a fixed expert pool; this constructs the experts.
-- *complements* → [orchestrator-workers](orchestrator-workers.md)
-- *uses* → [evaluator-optimizer](evaluator-optimizer.md) — Evaluation step drives team adjustment.
+- _complements_ **Supervisor**
+- _generalises_ **Role Assignment** — Role assignment is the design-time special case.
+- _alternative-to_ **Mixture of Experts Routing** — MoE routes to a fixed expert pool; this constructs the experts.
+- _complements_ **Orchestrator-Workers**
+- _uses_ **Evaluator-Optimizer** — Evaluation step drives team adjustment.
+- _alternative-to_ **Tacit-Knowledge Elicitation Agent** — Expert recruitment spins up synthetic agent personas at run time; elicitation extracts real human experts' tacit knowledge into a reusable base ahead of time.
+- _complements_ **Consensus-Averaging Over Expertise** — Recruitment names the expert for the task; consensus-averaging is the failure to use that expert because the team compromises toward the average.
 
 ## References
 
-- (paper) Chen et al., *AgentVerse: Facilitating Multi-Agent Collaboration and Exploring Emergent Behaviors*, 2023, <https://arxiv.org/abs/2308.10848>
-- (paper) Chen et al., *AutoAgents: A Framework for Automatic Agent Generation*, 2023, <https://arxiv.org/abs/2309.17288>
-
-**Tags:** multi-agent, dynamic, china-origin, agentverse, autoagents
+- [AgentVerse: Facilitating Multi-Agent Collaboration and Exploring Emergent Behaviors](https://arxiv.org/abs/2308.10848) — Chen et al., 2023
+- [AutoAgents: A Framework for Automatic Agent Generation](https://arxiv.org/abs/2309.17288) — Chen et al., 2023

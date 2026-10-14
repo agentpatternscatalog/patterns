@@ -31,6 +31,12 @@ Therefore: route gated actions to an asynchronous review inbox while the agent k
 
 Agent emits proposed action to an approval queue with context. A human (or supervisor agent) reviews the queue and approves or rejects. Approved actions are executed by the agent or by a runner. The agent can continue parallel work while waiting; some workflows pause specific branches.
 
+## Structure
+
+```
+Agent --propose(action + context)--> Approval queue --review--> Human or supervisor (approve / reject) --approved--> Runner (executes) --result--> Agent; meanwhile Agent continues other work
+```
+
 ## Diagram
 
 ```mermaid
@@ -62,6 +68,12 @@ An email-drafting agent prepares replies to 80 inbox messages overnight. Rather 
 - Inbox fatigue at scale.
 - World drift between proposal and approval.
 
+## Failure modes
+
+- Stale approval — the reviewer approves a proposal hours later, and the runner executes it against a world that has already changed.
+- Rubber-stamp inbox — the queue grows faster than reviewers can read it, so approvals turn into bulk clicks with no real review.
+- Hidden dependency — the agent keeps working on branches that quietly assume a pending action will be approved, and must unwind them when it is rejected.
+
 ## What this pattern constrains
 
 Actions in the approval queue may not execute until the approval status is set to approved.
@@ -80,17 +92,54 @@ Actions in the approval queue may not execute until the approval status is set t
 - The action's approval window is so short that asynchronous review adds no benefit.
 - No reviewer capacity exists to drain the queue at the rate the agent fills it.
 
+## Components
+
+- Agent — emits proposed actions with surrounding context to the queue
+- Approval Queue — holding store that pins each proposal until a verdict arrives
+- Human Reviewer — asynchronous decider who approves or rejects queued items
+- Runner — executor that runs approved actions and returns results to the agent
+
+## Tools
+
+- Queue store — durable inbox keyed by proposal id with approve/reject endpoints
+- Audit log — append-only record of who decided what and when
+
+## Evaluation metrics
+
+- Approval queue depth and age — backlog signal that flags reviewer under-capacity
+- Approve / reject ratio — calibration check on what the agent surfaces for review
+- Time-to-decision p50 / p95 — how long proposals sit before a reviewer acts
+- World-drift incident rate — fraction of approved actions invalidated by state change before execution
+
 ## Known uses
 
-- **Lindy approval inbox** — *Available*
-- **Sierra supervisor escalations** — *Available*
-- **GitHub Copilot Workspace plan review** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — High-blast-radius actions (file edits outside the agent's own surfaces, dangerous tools) queue for two-phase human approval via an inbox folder; the human partner reads and replies asynchronously.
+- **[Lindy approval inbox](https://www.lindy.ai/)** _available_
+- **[Sierra supervisor escalations](https://sierra.ai/)** _available_
+- **[GitHub Copilot Workspace plan review](https://githubnext.com/projects/copilot-workspace)** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — High-blast-radius actions (file edits outside the agent's own surfaces, dangerous tools) queue for two-phase human approval via an inbox folder; the human partner reads and replies asynchronously.
 
 ## Related patterns
 
-- *specialises* → [human-in-the-loop](human-in-the-loop.md)
-- *complements* → [compensating-action](compensating-action.md)
-- *complements* → [conversation-handoff](conversation-handoff.md)
+- _specialises_ **Human-in-the-Loop**
+- _complements_ **Compensating Action**
+- _complements_ **Conversation Handoff to Human**
+- _complements_ **Simulate Before Actuate**
+- _complements_ **Dry-Run Harness**
+- _complements_ **Synchronous Execution-Plan Confirmation**
+- _complements_ **Pipeline Triad Pattern**
+- _alternative-to_ **Human Reflection**
+- _complements_ **Policy-Gated Agent Action (KRITIS)**
+- _complements_ **Two Human Touchpoints**
+- _used-by_ **crawl-walk-run-automation-gating**
+- _used-by_ **Progressive Delegation**
+- _complements_ **Autonomy Slider**
+- _complements_ **Corrigible Off-Switch Incentive**
+- _used-by_ **Cost-Aware Action Delegation**
+- _complements_ **Interruptible Agent Execution**
+- _alternative-to_ **Self-Edit Critic Gate**
+- _complements_ **Risk-Tiered Action Autonomy** — The release tier uses an approval queue cleared by a different identity than the initiator.
+- _used-by_ **Monotonic Privilege Confinement** — The out-of-band route an expansion request travels to reach a principal the run itself cannot impersonate.
 
-**Tags:** safety, approval, async
+## References
+
+- [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) — Anthropic, 2024

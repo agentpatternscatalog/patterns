@@ -30,7 +30,13 @@ Therefore: split the work between a tool-holding model that never sees raw untru
 
 ## Solution
 
-Run two models with disjoint privileges. A **Privileged LLM** plans, holds tool access, and never sees raw untrusted content. A **Quarantined LLM** ingests the untrusted content but has no tools and cannot emit free-form actions. The two communicate through symbolic references: the Quarantined LLM extracts typed values (an email address, a date, a summary) and returns them as opaque handles; the Privileged LLM composes tool calls using those handles, with the host substituting the underlying values only at execution time.
+Run two models with disjoint privileges. A Privileged LLM plans, holds tool access, and never sees raw untrusted content. A Quarantined LLM ingests the untrusted content but has no tools and cannot emit free-form actions. The two communicate through symbolic references: the Quarantined LLM extracts typed values (an email address, a date, a summary) and returns them as opaque handles; the Privileged LLM composes tool calls using those handles, with the host substituting the underlying values only at execution time.
+
+## Structure
+
+```
+Untrusted source --raw text--> Quarantined LLM (no tools) --typed values as opaque handles--> Host --handles only--> Privileged LLM (plans, holds tools) --tool call with handles--> Host --substitutes values--> Tool --result--> Host --> Privileged LLM
+```
 
 ## Diagram
 
@@ -69,6 +75,12 @@ An email assistant must read inbound messages and draft replies that may include
 - Handle plumbing is intrusive — every tool argument needs a typed slot or it has to fall back to raw text.
 - Defends only against injection via the untrusted path; injection via tool outputs or system prompts is out of scope.
 
+## Failure modes
+
+- Raw-text fallback — a tool argument has no typed slot, so the host passes the untrusted text through as a plain string and the privileged model reads it after all.
+- Uncorrelated transcripts — a bad action needs both model logs to explain it, and the two are not linked, so the root cause is never found.
+- Other injection path — the attack arrives through a tool result returned to the privileged model, a path the split does not cover.
+
 ## What this pattern constrains
 
 The privileged model may not receive untrusted content as raw text; the quarantined model may not call tools.
@@ -87,26 +99,49 @@ The privileged model may not receive untrusted content as raw text; the quaranti
 - The untrusted content must be reasoned over verbatim and cannot be compressed to typed extractions.
 - Cost and latency budgets cannot absorb a second model round trip per untrusted payload.
 
-## Variants
+## Components
 
-- **Typed-extraction handoff** — Quarantined model emits a fixed schema (typed fields only); Privileged model composes tool calls over those fields. Recommended default.
-- **Opaque-handle substitution** — Quarantined model returns opaque IDs (`$VAR1`, `$VAR2`); the host substitutes the underlying values only at tool-execution time so the privileged model never sees them. Use when even the extracted value could carry an injection payload.
+- Privileged LLM — planner with tool access that never sees raw untrusted text
+- Quarantined LLM — reader of untrusted content with no tools and no free-form action surface
+- Host orchestrator — trust boundary that substitutes handles to raw values only at tool-call time
+- Symbolic handle store — typed references (or opaque IDs) mapping to real extracted values
+- Tool runtime — invocation layer that receives substituted values from the host
+
+## Tools
+
+- Typed schema validator — enforces the structured extraction shape the quarantined model returns
+- Two distinct model endpoints — disjoint inference paths for privileged and quarantined roles
+
+## Evaluation metrics
+
+- Injection-success rate — share of crafted payloads that drove a privileged tool call
+- Handle-leakage incidents — cases where a raw untrusted string slipped into the privileged context
+- Extraction-schema conformance — fraction of quarantined outputs that parsed cleanly
+- Added latency per untrusted payload — round-trip cost of the extra model hop
+- Cost overhead vs single-model baseline — token spend for the quarantined call
 
 ## Known uses
 
-- **Simon Willison, original proposal** — *Available*. Coined as a defence pattern for AI assistants that read email and call tools.
-- **Beurer-Kellner et al., Design Patterns for Securing LLM Agents** — *Available*. Formalised as design pattern §3.1(4) — Dual LLM with symbolic variables.
+- **[Simon Willison, original proposal](https://simonwillison.net/2023/Apr/25/dual-llm-pattern/)** _available_ — Coined as a defence pattern for AI assistants that read email and call tools.
+- **[Beurer-Kellner et al., Design Patterns for Securing LLM Agents](https://arxiv.org/abs/2506.08837)** _available_ — Formalised as design pattern §3.1(4) — Dual LLM with symbolic variables.
 
 ## Related patterns
 
-- *specialises* → [prompt-injection-defense](prompt-injection-defense.md)
-- *complements* → [lethal-trifecta-threat-model](lethal-trifecta-threat-model.md) — trifecta names the risk; dual-LLM removes one of the three legs.
-- *complements* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [sandbox-isolation](sandbox-isolation.md)
+- _specialises_ **Prompt Injection Defense**
+- _complements_ **Lethal Trifecta Threat Model** — Trifecta names the risk; dual-LLM removes one of the three legs (private data exposure to the action loop).
+- _complements_ **Input/Output Guardrails**
+- _complements_ **Sandbox Isolation**
+- _alternative-to_ **Goal Hijacking**
+- _complements_ **Control-Flow Integrity**
+- _complements_ **AI-Targeted Comment Injection**
+- _complements_ **Context Minimization**
+- _complements_ **LLM Map-Reduce Isolation**
+- _complements_ **Action Selector Pattern**
+- _complements_ **Cryptographic Instruction Authentication**
+- _complements_ **MCP Server-Side Sampling** — Both move language work across a model boundary; the dual-LLM split isolates a quarantined model from tools, while sampling lets a tool server borrow the host's model.
+- _complements_ **Monotonic Privilege Confinement** — Keeps untrusted content away from the component that holds tools; this pattern assumes untrusted content reaches the deciding component anyway and constrains what its arrival is allowed to do to the permitted set.
 
 ## References
 
-- Simon Willison, *The Dual LLM pattern for building AI assistants that can resist prompt injection* (2023) — https://simonwillison.net/2023/Apr/25/dual-llm-pattern/
-- Beurer-Kellner et al., *Design Patterns for Securing LLM Agents against Prompt Injections* (2025) — https://arxiv.org/abs/2506.08837
-
-**Tags:** security, prompt-injection, privilege-separation, multi-model
+- [The Dual LLM pattern for building AI assistants that can resist prompt injection](https://simonwillison.net/2023/Apr/25/dual-llm-pattern/) — Simon Willison, 2023
+- [Design Patterns for Securing LLM Agents against Prompt Injections](https://arxiv.org/abs/2506.08837) — Beurer-Kellner et al., 2025

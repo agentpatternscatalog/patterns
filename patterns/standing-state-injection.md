@@ -125,6 +125,7 @@ The injected state block must be recomputed from the live run on every prompt as
 - _complements_ **Attentive Reasoning Queries** — ARQs re-anchor attention via a fixed query sequence inside the model's reasoning; standing-state-injection re-anchors it via a harness-computed state block placed ahead of reasoning.
 - _complements_ **Context Compaction** — Compaction reduces the bloated history; a standing state block guarantees the goal and next step survive the reduction in a fixed high-salience slot.
 - _complements_ **Tool-Result Reinforcement** — Both restate goal, status, and next step from the live run; standing-state-injection injects the block as a system message ahead of reasoning, tool-result reinforcement appends it to the tool return the model reads on the action turn.
+- _alternative-to_ **Set-and-Forget System Prompt** — The corrective on the re-assertion side, applied to task state; the same per-turn recompute-and-inject discipline applied to the role and policy block is exactly what this anti-pattern omits.
 
 ## References
 

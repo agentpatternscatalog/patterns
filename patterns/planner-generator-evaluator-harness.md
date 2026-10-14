@@ -2,12 +2,12 @@
 
 **Also known as:** Three-Agent Harness, GAN-Inspired Agent Architecture, Spec-Plan-Generate-Evaluate Loop
 
-**Category:** Planning & Control Flow
-**Status in practice:** emerging
+**Category:** Planning & Control Flow  
+**Status in practice:** experimental
 
 ## Intent
 
-Decompose a long-running coding or creative job into three role-isolated agents — a Planner that emits a structured feature list, a Generator that builds one chunk per fresh context, and an Evaluator that grades the artefact against a fixed rubric without seeing the Generator's reasoning trace.
+Decompose a long-running job into three role-isolated agents — a Planner emitting a feature list, a Generator working one chunk per fresh context, and an Evaluator grading against a rubric without seeing the Generator's trace.
 
 ## Context
 
@@ -78,6 +78,13 @@ A coding agent is asked to add OAuth support across a large web app. The Planner
 - A weak or mis-specified rubric makes the Evaluator useless or actively harmful.
 - Planner errors propagate through the whole run because the Generator trusts the plan.
 
+## Failure modes
+
+- Trace leak — the evaluator is given the generator's scratch notes, and it grades the reasoning it was shown rather than the artefact.
+- Bad rubric — the fixed rubric checks the wrong things, and the evaluator passes broken chunks run after run.
+- Trusted bad plan — the planner lists a wrong or missing feature, and the generator builds every chunk on top of it.
+- Generator re-planning — the generator changes the feature list to make a chunk easier, and the plan and artefact drift apart.
+
 ## What this pattern constrains
 
 The Evaluator must never receive the Generator's reasoning trace or scratch context, only the artefact and the rubric; the Generator must not re-plan (any plan change goes back to the Planner); the Planner must not generate the artefact directly.
@@ -96,23 +103,44 @@ The Evaluator must never receive the Generator's reasoning trace or scratch cont
 - No meaningful rubric can be written; the evaluator will degrade to noise.
 - Latency matters more than quality; the inter-role hand-offs are too expensive.
 
+## Components
+
+- Planner — runs once and emits a structured feature-list artefact
+- Generator — fresh-context worker invoked per chunk, edits the artefact
+- Evaluator — fresh-context grader that sees artefact plus rubric only
+- Driver loop — routes between the three roles based on evaluator findings
+- Fixed rubric — durable acceptance criteria the evaluator scores against
+
+## Tools
+
+- LLM API — three role-isolated invocations, contexts never overlap
+- Artefact store on disk — feature-list, current artefact, and findings files
+- Rubric file — version-controlled, fixed across runs
+- Test harness or compiler — verifies the artefact for the evaluator
+
+## Evaluation metrics
+
+- Context-window pressure per role — peak tokens any single role uses
+- Evaluator gaming rate — incidents of generator influencing evaluator outcomes
+- Chunk-acceptance rate — fraction of generator chunks that pass evaluation first try
+- Cross-run rubric stability — variance in evaluator scores on the same artefact
+- Total wall-clock per accepted chunk — including evaluator retries
+
 ## Known uses
 
-- **[Anthropic harness for Claude Code long-running tasks](https://www.anthropic.com/engineering/harness-design-long-running-apps)** — *Available* — Three-agent harness described in Anthropic engineering posts on long-running application development.
-- **[Anthropic effective-harnesses guidance](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)** — *Available* — Codifies role isolation and fresh-context generation as harness primitives.
+- **[Anthropic harness for Claude Code long-running tasks](https://www.anthropic.com/engineering/harness-design-long-running-apps)** _available_ — Three-agent harness described in Anthropic engineering posts on long-running application development.
+- **[Anthropic effective-harnesses guidance](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)** _available_ — Codifies role isolation and fresh-context generation as harness primitives.
 
 ## Related patterns
 
-- *specialises* → [evaluator-optimizer](evaluator-optimizer.md) — Adds a separate Planner role and enforces evaluator isolation.
-- *alternative-to* → [planner-executor-observer](planner-executor-observer.md) — POE's observer is a monitor; here the evaluator is a peer grader with veto power.
-- *specialises* → [orchestrator-workers](orchestrator-workers.md) — Fixes three named roles instead of dynamic worker decomposition.
-- *complements* → [spec-first-agent](spec-first-agent.md) — The Planner output is a machine-readable spec.
-- *uses* → [frozen-rubric-reflection](frozen-rubric-reflection.md) — Evaluator runs against a fixed rubric.
+- _specialises_ **Evaluator-Optimizer** — Adds a separate Planner role and enforces evaluator isolation.
+- _alternative-to_ **Planner-Executor-Observer** — POE's observer is a monitor; here the evaluator is a peer grader with veto power.
+- _specialises_ **Orchestrator-Workers** — Fixes three named roles instead of dynamic worker decomposition.
+- _complements_ **Spec-First Agent** — The Planner output is a machine-readable spec.
+- _uses_ **Frozen Rubric Reflection** — Evaluator runs against a fixed rubric.
 
 ## References
 
-- (blog) Anthropic Engineering, *Harness design for long-running application development*, 2026, <https://www.anthropic.com/engineering/harness-design-long-running-apps>
-- (blog) Anthropic Engineering, *Effective harnesses for long-running agents*, 2025, <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents>
-- (blog) InfoQ, *Anthropic Details Three-Agent Harness for Long-Running Coding Agents*, 2026, <https://www.infoq.com/news/2026/04/anthropic-three-agent-harness-ai/>
-
-**Tags:** harness, long-running, role-isolation, coding-agent, rubric
+- [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps) — Anthropic Engineering, 2026
+- [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — Anthropic Engineering, 2025
+- [Anthropic Details Three-Agent Harness for Long-Running Coding Agents](https://www.infoq.com/news/2026/04/anthropic-three-agent-harness-ai/) — InfoQ, 2026

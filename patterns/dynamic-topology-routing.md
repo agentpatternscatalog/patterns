@@ -76,6 +76,13 @@ A research platform keeps a pool of a dozen specialist agents — retrieval, cod
 - Learned topologies need training data and can overfit a benchmark.
 - Pathological routing can oscillate or rebuild edges every step.
 
+## Failure modes
+
+- Wrong wiring — the router scores agents badly for a subtask and connects agents that cannot help each other.
+- Edge thrash — the router rebuilds the communication graph every step, and time goes to rewiring instead of work.
+- Unreproducible run — the same task produces a different graph next time, so a failure cannot be replayed.
+- Benchmark overfit — a learned topology looks good on its training tasks and wires real tasks poorly.
+
 ## What this pattern constrains
 
 Agents must not assume a fixed set of peers or a standing communication structure; who they talk to is decided by the routing layer per task and may change between steps. An agent must not open links the router has not granted for the current subtask.
@@ -96,21 +103,41 @@ Agents must not assume a fixed set of peers or a standing communication structur
 - Reproducibility and easy tracing outweigh adaptivity.
 - There is no signal to route on and the router would guess blindly.
 
+## Components
+
+- Agent pool — the fixed set of specialised agents the router draws edges over
+- Router — scores candidate agents against the current subtask and selects collaborators
+- Topology instantiator — materialises the chosen edges (chain, fan-out, clique) for the task
+- Capability index — descriptions or embeddings the router matches subtasks against
+- Edge-revision loop — adds and drops links as the task progresses
+
+## Tools
+
+- Embedding model — scores subtask-to-agent similarity for semantic routing
+- Graph runtime — represents and executes the per-task agent graph, e.g. a LangGraph-style engine
+- Optimiser — trains the topology end to end when the graph is treated as optimisable (GPTSwarm)
+
+## Evaluation metrics
+
+- Task accuracy vs topology cost — quality per message/token compared with a fixed mesh or chain
+- Routing precision — fraction of subtasks wired to a competent agent
+- Messages per task — communication volume relative to the static baseline
+- Rewiring stability — how often the graph churns without improving the outcome
+
 ## Known uses
 
-- **[GPTSwarm](https://github.com/metauto-ai/GPTSwarm)** — *Available* — Represents a multi-agent system as an optimisable graph and learns the edges/topology end to end, rather than fixing them by hand.
-- **[GPTSwarm (Zhuge et al., arXiv:2402.16823)](https://arxiv.org/abs/2402.16823)** — *Available* — Language Agents as Optimizable Graphs: formalises agents and their connections as a graph that can be optimised for a task.
-- **[VoltAgent awesome-ai-agent-papers (DyTopo)](https://github.com/VoltAgent/awesome-ai-agent-papers)** — *Available* — Catalogues Dynamic Topology Routing, which rewires agent connections at runtime via semantic matching.
+- **[GPTSwarm](https://github.com/metauto-ai/GPTSwarm)** _available_ — Represents a multi-agent system as an optimisable graph and learns the edges/topology end to end, rather than fixing them by hand.
+- **[GPTSwarm (Zhuge et al., arXiv:2402.16823)](https://arxiv.org/abs/2402.16823)** _available_ — Language Agents as Optimizable Graphs: formalises agents and their connections as a graph that can be optimised for a task.
+- **[VoltAgent awesome-ai-agent-papers (DyTopo)](https://github.com/VoltAgent/awesome-ai-agent-papers)** _available_ — Catalogues Dynamic Topology Routing, which rewires agent connections at runtime via semantic matching.
 
 ## Related patterns
 
-- *alternative-to* → [orchestrator-workers](orchestrator-workers.md) — Orchestrator-workers fixes a star around a hub; dynamic topology routing chooses the shape per task, of which the star is one option.
-- *complements* → [decentralized-swarm-handoff](decentralized-swarm-handoff.md) — Swarm handoff transfers control along existing peer links; topology routing decides which links exist in the first place.
-- *complements* → [contract-net-protocol](contract-net-protocol.md) — Contract-net bids allocate a task to an agent; topology routing wires the resulting collaborators into a task-specific graph.
+- _alternative-to_ **Orchestrator-Workers** — Orchestrator-workers fixes a star around a hub; dynamic topology routing chooses the shape per task, of which the star is one option.
+- _complements_ **Decentralized Swarm Handoff** — Swarm handoff transfers control along existing peer links; topology routing decides which links exist in the first place.
+- _complements_ **Contract Net Protocol** — Contract-net bids allocate a task to an agent; topology routing wires the resulting collaborators into a task-specific graph.
+- _alternative-to_ **Behavior-Space Architecture** — Topology routing rewires links between agents inside an all-multi-agent system; behavior-space routing selects which kinds of subsystem participate at all, and may activate zero agents.
 
 ## References
 
-- (paper) Mingchen Zhuge et al., *GPTSwarm: Language Agents as Optimizable Graphs*, 2024, <https://arxiv.org/abs/2402.16823>
-- (repo) VoltAgent, *VoltAgent/awesome-ai-agent-papers (2026 agent papers, incl. DyTopo)*, 2026, <https://github.com/VoltAgent/awesome-ai-agent-papers>
-
-**Tags:** multi-agent, topology, routing, orchestration, graph
+- [GPTSwarm: Language Agents as Optimizable Graphs](https://arxiv.org/abs/2402.16823) — Mingchen Zhuge et al., 2024
+- [VoltAgent/awesome-ai-agent-papers (2026 agent papers, incl. DyTopo)](https://github.com/VoltAgent/awesome-ai-agent-papers) — VoltAgent, 2026

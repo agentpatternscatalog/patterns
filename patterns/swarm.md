@@ -23,6 +23,58 @@ A central supervisor scales poorly to dozens or hundreds of agents: it becomes t
 - Communication topology (broadcast? gossip? pub/sub?) is a design choice.
 - Termination is non-trivial without a supervisor.
 
+## Therefore
+
+Therefore: run many peer agents over a shared message bus or environment with no central coordinator, and define termination at the environment level, so that coordination emerges from interaction instead of bottlenecking on a supervisor.
+
+## Solution
+
+Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).
+
+## Structure
+
+```
+Peer agents 1..N (own goals and policies) <--> Shared message bus / environment --> environment-level termination (time budget, consensus threshold, external trigger) --> Emergent outcome
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]
+  A2[Peer agent 2] <--> Bus
+  A3[Peer agent 3] <--> Bus
+  A4[Peer agent N] <--> Bus
+  Bus --> Term{Env-level termination<br/>time / consensus / trigger}
+  Term --> Out[Emergent outcome]
+```
+
+## Example scenario
+
+A team simulates negotiation strategies among many parties; a centralised supervisor would bottleneck and would also impose a single policy on all parties. They run many peer agents on a shared message bus, each with its own goals and policies, no central coordinator, and environment-level termination conditions. Coordination emerges from interaction rather than instruction; the simulation produces patterns the team did not pre-script.
+
+## Consequences
+
+**Benefits**
+
+- Scales horizontally.
+- Suits negotiation, market simulation, exploration.
+
+**Liabilities**
+
+- Hard to debug; emergent failures are global.
+- Cost can balloon without supervision.
+
+## Failure modes
+
+- Global emergent failure — the agents converge on a wrong outcome together, and no single agent's log shows where it went wrong.
+- Cost runaway — with no coordinator, agents keep messaging each other and spend far past the expected budget.
+- No convergence — the consensus threshold is never reached, and only the time budget ends the run.
+- Side-channel coordination — two agents coordinate outside the shared channel, and the rest of the swarm cannot see or react to it.
+
+## What this pattern constrains
+
+Agents communicate only via the shared channel; out-of-band coordination is forbidden.
 
 ## Applicability
 
@@ -38,60 +90,42 @@ A central supervisor scales poorly to dozens or hundreds of agents: it becomes t
 - Convergence cannot be guaranteed and runaway interaction is too costly.
 - A supervisor pattern already handles the workload predictably.
 
-## Therefore
+## Components
 
-Therefore: run many peer agents over a shared message bus or environment with no central coordinator, and define termination at the environment level, so that coordination emerges from interaction instead of bottlenecking on a supervisor.
+- Peer agent — autonomous participant with its own goals and policies, no central authority
+- Shared message bus — communication channel (broadcast, gossip, or pub/sub) all peers attach to
+- Environment-level termination — time budget, consensus threshold, or external trigger ending the run
+- Communication-topology policy — broadcast vs gossip vs pub/sub design choice for the bus
+- Cost-budget governor — global cap on total interactions to prevent runaway emergent fan-out
 
-## Solution
+## Tools
 
-Agents interact via a shared message bus, chat, or environment. Each agent has its own goals and policies. No central coordinator; convergence is emergent. Termination conditions are environment-level (time budget, consensus threshold, external trigger).
+- OpenAI Swarm primitives or successor Agents SDK — provides peer-agent runtime and bus glue
+- Pub/sub or chat bus — transport for peer-to-peer messages
+- LLM API — invoked by each peer agent on its own turn
 
-## Example scenario
+## Evaluation metrics
 
-A team simulates negotiation strategies among many parties; a centralised supervisor would bottleneck and would also impose a single policy on all parties. They run many peer agents on a shared message bus, each with its own goals and policies, no central coordinator, and environment-level termination conditions. Coordination emerges from interaction rather than instruction; the simulation produces patterns the team did not pre-script.
-
-
-## Diagram
-
-```mermaid
-flowchart TD
-  A1[Peer agent 1] <--> Bus[(Shared message bus /<br/>environment)]
-  A2[Peer agent 2] <--> Bus
-  A3[Peer agent 3] <--> Bus
-  A4[Peer agent N] <--> Bus
-  Bus --> Term{Env-level termination<br/>time / consensus / trigger}
-  Term --> Out[Emergent outcome]
-```
-
-## Consequences
-
-**Benefits**
-
-- Scales horizontally.
-- Suits negotiation, market simulation, exploration.
-
-**Liabilities**
-
-- Hard to debug; emergent failures are global.
-- Cost can balloon without supervision.
-
-## What this pattern constrains
-
-Agents communicate only via the shared channel; out-of-band coordination is forbidden.
+- Convergence rate — share of runs that reach a satisfying outcome within the time budget
+- Emergent-failure surface — global failure modes that did not appear in any single agent
+- Cost per simulated run — total spend across all peers under the budget governor
+- Topology-effect comparison — outcome quality across broadcast, gossip, and pub/sub variants
+- Debug-localisation difficulty — engineer-hours to trace an emergent bug to a peer set
 
 ## Known uses
 
-- **OpenAI Swarm (deprecated; succeeded by OpenAI Agents SDK)**
-- **Stanford Generative Agents simulation** — *Available*
+- **[OpenAI Swarm (deprecated; succeeded by OpenAI Agents SDK)](https://github.com/openai/swarm)** _deprecated_
+- **Stanford Generative Agents simulation** _available_
 
 ## Related patterns
 
-- *specialises* → [debate](debate.md)
-- *alternative-to* → [supervisor](supervisor.md)
-- *complements* → [blackboard](blackboard.md)
+- _specialises_ **Debate**
+- _alternative-to_ **Supervisor**
+- _complements_ **Blackboard**
+- _complements_ **Group-Chat Manager**
+- _generalises_ **Decentralized Swarm Handoff**
+- _generalises_ **Cellular-Automata Agents**
 
 ## References
 
-- (repo) *openai/swarm*, <https://github.com/openai/swarm>
-
-**Tags:** multi-agent, swarm, emergent
+- [openai/swarm](https://github.com/openai/swarm)

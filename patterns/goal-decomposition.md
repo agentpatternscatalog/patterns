@@ -31,9 +31,11 @@ Therefore: recursively split the goal into sub-goals until every leaf is directl
 
 Build a tree of goals. The root is the user's goal. Each non-leaf goal decomposes into sub-goals. Leaves are directly actionable steps. Monitor progress at each level; surface stuck branches. Distinct from least-to-most (which is sequential) by allowing parallel sibling goals.
 
-## Example scenario
+## Structure
 
-A team building a procurement assistant gives it a single brief: 'renew our cloud contracts before Q4'. Asked in one shot, the agent produces a three-paragraph summary and stalls. They wrap the agent in a goal-decomposition tree: the root splits into inventory-current-contracts, gather-renewal-quotes, and negotiate-and-sign, each of which decomposes again until each leaf is a concrete email or spreadsheet update. Progress now shows up at every level, and the negotiate branch surfaces as 'stuck' for two weeks instead of vanishing into the summary.
+```
+Root goal --Decomposer--> sub-goals --Decomposer--> ... --> actionable leaves --Leaf executor--> results --Progress monitor (per level)--> stuck branches surfaced --> root goal status
+```
 
 ## Diagram
 
@@ -50,6 +52,10 @@ flowchart TD
   L4 -.stuck.-> Surface[Surface stuck branch]
 ```
 
+## Example scenario
+
+A team building a procurement assistant gives it a single brief: 'renew our cloud contracts before Q4'. Asked in one shot, the agent produces a three-paragraph summary and stalls. They wrap the agent in a goal-decomposition tree: the root splits into inventory-current-contracts, gather-renewal-quotes, and negotiate-and-sign, each of which decomposes again until each leaf is a concrete email or spreadsheet update. Progress now shows up at every level, and the negotiate branch surfaces as 'stuck' for two weeks instead of vanishing into the summary.
+
 ## Consequences
 
 **Benefits**
@@ -61,6 +67,13 @@ flowchart TD
 
 - Tree construction is itself work.
 - Stuck branches at deep levels are easy to lose.
+
+## Failure modes
+
+- Lost stuck branch — a leaf deep in the tree stalls, the progress monitor does not surface it, and the final report omits the gap.
+- Over-splitting — the decomposer keeps adding levels for simple goals, and building the tree costs more than doing the work.
+- Premature action — the agent acts on a non-leaf goal that is still too vague, and produces shallow work for that branch.
+- Sibling overlap — parallel sub-goals cover the same ground, and the leaves duplicate or contradict each other.
 
 ## What this pattern constrains
 
@@ -80,19 +93,43 @@ Action is taken only at leaf goals; non-leaf goals must decompose further before
 - Strict sequential structure fits better (use least-to-most prompting instead).
 - Tracking the tree adds more overhead than it saves in execution quality.
 
+## Components
+
+- Goal tree — root holds the user goal, leaves are directly actionable
+- Decomposer — splits a non-leaf goal into sibling sub-goals
+- Leaf executor — runs the action for any leaf goal
+- Progress monitor — reports status at each level and surfaces stuck branches
+
+## Tools
+
+- LLM API — performs the decomposition step and the leaf action
+- Tree state store — persists the goal tree across decomposition rounds
+- Status dashboard or log — surfaces per-level progress and stuck branches
+
+## Evaluation metrics
+
+- Tree depth at completion — how many levels the decomposition needed versus expected
+- Stuck-branch surfacing rate — fraction of stalled deep leaves caught versus lost in summary
+- Leaf-action success rate — fraction of leaves that completed on first attempt
+- End-to-end goal completion — long-horizon task success vs single-shot baseline
+- Decomposition overhead — tokens spent on non-leaf splitting versus leaf execution
+
 ## Known uses
 
-- **Classical AI Hierarchical Task Networks** — *Available*
-- **Gulli ch.20 Goal Setting & Monitoring** — *Available*
+- **Classical AI Hierarchical Task Networks** _available_
+- **Gulli ch.20 Goal Setting & Monitoring** _available_
 
 ## Related patterns
 
-- *complements* → [least-to-most](least-to-most.md) — least-to-most is the prompting tactic at the language layer; goal-decomposition is the planner architecture at the agent layer.
-- *complements* → [hierarchical-agents](hierarchical-agents.md)
-- *specialises* → [plan-and-execute](plan-and-execute.md)
+- _complements_ **Least-to-Most Prompting**
+- _complements_ **Hierarchical Agents**
+- _specialises_ **Plan-and-Execute**
+- _complements_ **Pre-Flight Spec Authoring**
+- _complements_ **Hybrid HTN + Generative Agent**
+- _complements_ **BDI Agent**
+- _complements_ **Behavior Tree Back Chaining**
+- _complements_ **Query-Decomposition Agent**
 
 ## References
 
-- (book) *Agentic Design Patterns (Gulli, ch. 20 Prioritization)*, 2025
-
-**Tags:** planning, decomposition, htn
+- [Agentic Design Patterns (Gulli, ch. 20 Prioritization)](https://www.goodreads.com/book/show/237795815) — 2025

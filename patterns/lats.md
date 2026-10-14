@@ -23,20 +23,6 @@ Single-chain agent loops like ReAct (the reason-act-observe loop) and Plan-and-E
 - Branch ranking determines whether search beats greedy.
 - Memory of failed branches must not leak into successful ones.
 
-## Applicability
-
-**Use when**
-
-- Single-chain agent loops commit too early on ambiguous problems.
-- A learned or heuristic value function can score partial trajectories.
-- Backtracking from failing branches is worth the search overhead.
-
-**Do not use when**
-
-- ReAct or Plan-and-Execute already solves the task without search.
-- No useful value function or step-level signal exists.
-- Latency and token cost cannot absorb tree expansion and rollouts.
-
 ## Therefore
 
 Therefore: lift the agent loop into an MCTS-style tree of partial trajectories scored by a value function, so that the agent can backtrack from failing branches instead of committing to the first plausible chain.
@@ -45,9 +31,11 @@ Therefore: lift the agent loop into an MCTS-style tree of partial trajectories s
 
 Apply Monte Carlo Tree Search (MCTS) to the agent loop. Each node is a partial trajectory. Expansion samples next thoughts/actions. Backpropagation updates a value estimate. Selection chooses the next node by UCT. The agent can backtrack from a failing branch instead of committing.
 
-## Example scenario
+## Structure
 
-A coding agent given an ambiguous bug report tries the first plausible fix, finds it wrong on the test suite, then thrashes because its single chain-of-thought has already committed to that frame. The team rebuilds the loop as LATS: each partial trajectory is a node, expansion samples alternative next actions, the test suite acts as the value signal, and UCT selects the next node to explore. When a branch fails its tests the agent backtracks instead of digging in. Hard bugs that previously needed a human now resolve autonomously.
+```
+Root partial trajectory --> UCT selection --> Expansion (sample next thoughts/actions from LLM) --> Simulate --> Value estimate --> Backpropagate to ancestors --> UCT selection (failing branch: backtrack to another node)
+```
 
 ## Diagram
 
@@ -62,6 +50,10 @@ flowchart TD
   Sel -.failing branch.-> BT[Backtrack instead of commit]
 ```
 
+## Example scenario
+
+A coding agent given an ambiguous bug report tries the first plausible fix, finds it wrong on the test suite, then thrashes because its single chain-of-thought has already committed to that frame. The team rebuilds the loop as LATS: each partial trajectory is a node, expansion samples alternative next actions, the test suite acts as the value signal, and UCT selects the next node to explore. When a branch fails its tests the agent backtracks instead of digging in. Hard bugs that previously needed a human now resolve autonomously.
+
 ## Consequences
 
 **Benefits**
@@ -74,28 +66,74 @@ flowchart TD
 - Token cost can be 5-10x ReAct.
 - The value function is hard to train without supervision signals.
 
+## Failure modes
+
+- Token overrun — the tree search runs many rollouts, and one task costs several times a plain ReAct run without a matching gain.
+- Misleading value estimate — an untrained or heuristic value function scores a wrong partial trajectory high, and selection keeps expanding it.
+- Inconsistent expansion — an expansion samples an action that does not follow from the parent state, and the branch describes steps that never happened.
+- Shallow backtracking — the search backs out of a failing branch only after spending most of the budget inside it.
+
 ## What this pattern constrains
 
 Each node may be expanded only by sampling actions consistent with the parent state.
 
+## Applicability
+
+**Use when**
+
+- Single-chain agent loops commit too early on ambiguous problems.
+- A learned or heuristic value function can score partial trajectories.
+- Backtracking from failing branches is worth the search overhead.
+
+**Do not use when**
+
+- ReAct or Plan-and-Execute already solves the task without search.
+- No useful value function or step-level signal exists.
+- Latency and token cost cannot absorb tree expansion and rollouts.
+
+## Components
+
+- Trajectory tree — nodes are partial agent traces (thought/action/observation prefixes)
+- UCT selector — picks the next node to expand by upper-confidence bound
+- Expansion policy — samples next thoughts and actions from the LLM
+- Value function — scores partial trajectories, learned or heuristic
+- Backpropagator — updates ancestor value estimates after a rollout
+
+## Tools
+
+- LLM API — used both as expansion policy and (optionally) as self-evaluator
+- Tool catalogue — actions the agent can take inside a rollout
+- Test harness or external verifier — provides reward signal when available
+- Tree state store — persists nodes, visit counts, and value estimates
+
+## Evaluation metrics
+
+- Pass rate vs single-chain ReAct — quality lift from search
+- Token cost multiple over ReAct — overhead the tree expansion pays
+- Backtrack rate — fraction of runs that abandon a failing branch versus committing
+- Value-function calibration — correlation between predicted value and final reward
+- Branch-memory bleed — incidents of failed-branch context leaking into successful ones
+
 ## Known uses
 
-- **LanguageAgentTreeSearch (reference implementation)** — *Available*. Original code release by the LATS paper authors (Zhou et al.).
-- **LangGraph LATS example** — *Available*. LangGraph ships an LATS notebook in its examples.
+- **[LanguageAgentTreeSearch (reference implementation)](https://github.com/lapisrocks/LanguageAgentTreeSearch)** _available_ — Original code release by the LATS paper authors (Zhou et al.).
+- **[LangGraph LATS example](https://github.com/langchain-ai/langgraph)** _available_ — LangGraph ships an LATS notebook in its examples.
 
 ## Related patterns
 
-- *uses* → [react](react.md)
-- *complements* → [self-consistency](self-consistency.md)
-- *specialises* → [tree-of-thoughts](tree-of-thoughts.md) — LATS adds learned value function and MCTS-style search.
-- *complements* → [exploration-exploitation](exploration-exploitation.md)
-- *specialises* → [test-time-compute-scaling](test-time-compute-scaling.md)
-- *complements* → [graph-of-thoughts](graph-of-thoughts.md)
-- *complements* → [process-reward-model](process-reward-model.md)
-- *complements* → [automatic-workflow-search](automatic-workflow-search.md)
+- _uses_ **ReAct**
+- _complements_ **Self-Consistency**
+- _specialises_ **Tree of Thoughts** — LATS adds learned value function and MCTS-style search.
+- _complements_ **Exploration vs Exploitation**
+- _specialises_ **Test-Time Compute Scaling**
+- _complements_ **Graph of Thoughts**
+- _complements_ **Process Reward Model**
+- _complements_ **Automatic Workflow Search**
+- _generalises_ **Adaptive Branching Tree Search**
+- _complements_ **World Model as Tool**
+- _complements_ **Multi-Path Plan Generator**
+- _uses_ **Forkable Agent Sandbox** — Tree search with backtracking assumes the environment can be reset at each node; snapshot-and-fork is what makes that reset cheap enough to search deeply.
 
 ## References
 
-- (paper) Zhou, Yan, Shlapentokh-Rothman, Wang, Wang, *Language Agent Tree Search Unifies Reasoning, Acting, and Planning in Language Models*, 2023, <https://arxiv.org/abs/2310.04406>
-
-**Tags:** search, mcts, planning
+- [Language Agent Tree Search Unifies Reasoning, Acting, and Planning in Language Models](https://arxiv.org/abs/2310.04406) — Zhou, Yan, Shlapentokh-Rothman, Wang, Wang, 2023
