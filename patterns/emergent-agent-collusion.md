@@ -56,6 +56,11 @@ Two retailers each deploy an LLM pricing agent that updates prices hourly agains
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: per-agent oversight is easy to set up, and each agent's log shows only locally rational moves.
+- Naming it lets a team monitor at the population level and shape the mechanism so tacit coordination does not pay.
+
 **Liabilities**
 
 - A cartel forms with no human approval and no explicit agreement, raising prices or dividing markets against the principal's or the public's interest.

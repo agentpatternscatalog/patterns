@@ -24,20 +24,6 @@ Role-based access control decides permissions once, from a static role, for a pr
 - Granting the role enough privilege to never block the agent means granting standing access far broader than any single task needs.
 - Reusing the organisation's existing RBAC machinery is faster than building runtime, task-scoped authorization.
 
-## Applicability
-
-**Use when**
-
-- An agent is assigned a static role with standing permissions decided once, at deployment or login.
-- The agent's role is periodically widened to unblock it mid-task, and privilege never narrows again.
-- Effective agent access is assembled from proliferating roles or groups and can no longer be explained per action.
-
-**Do not use when**
-
-- Agent actions are authorized at runtime against principal, task, and context, with least-privilege, short-lived grants.
-- The agent performs a single fixed, fully enumerable operation that a static scope captures exactly.
-- Credentials are task-scoped and revoked when the task ends, so no standing privilege accrues.
-
 ## Therefore
 
 Therefore: authorize agents per action at runtime — bind each grant to a principal, a task, and a moment, make it least-privilege and short-lived, and revoke it when the task ends — instead of assigning a static role with standing privilege.
@@ -45,6 +31,12 @@ Therefore: authorize agents per action at runtime — bind each grant to a princ
 ## Solution
 
 Replace standing, role-based grants with runtime, task-scoped authorization. Decide each consequential action against the current principal, task intent, and context rather than against a role assigned once at login; issue least-privilege, short-lived, revocable credentials per task so privilege never outlives the work that needed it; expand access only as the agent demonstrates it needs and can be trusted with more. Mitigation patterns: delegated-agent-authorization for scoped, short-lived, revocable per-action credentials, and progressive-tool-access for minimal access that expands only as competency is shown. Static RBAC is not wrong for human users whose access is decided at login; it is wrong as the authorization model for an actor that chooses its own next step, which is the mismatch this anti-pattern names.
+
+## Structure
+
+```
+Anti-pattern: Static role at login -> standing permissions -> too broad (privilege beyond task) or too narrow (blocked, role widened) -> hijack or error acts with full role. Corrected: Agent action -> runtime check against principal, task, context -> short-lived, least-privilege task credential -> revoked when task ends.
+```
 
 ## Diagram
 
@@ -67,6 +59,11 @@ A team gives its new support agent a role in the existing identity provider: rea
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: reusing existing role-based access control is familiar, already deployed, and gets the agent running without new infrastructure.
+- Naming it lets a team explain why roles keep getting widened and push for task-scoped runtime authorization instead.
+
 **Liabilities**
 
 - Standing privilege persists between and beyond tasks, so a hijacked, prompt-injected, or simply mistaken agent acts with the full breadth of its role.
@@ -82,6 +79,20 @@ A team gives its new support agent a role in the existing identity provider: rea
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is runtime, task-scoped authorization — every consequential agent action checked against principal, task, and context, granted least-privilege and short-lived, and revoked when the task ends.
+
+## Applicability
+
+**Use when**
+
+- An agent is assigned a static role with standing permissions decided once, at deployment or login.
+- The agent's role is periodically widened to unblock it mid-task, and privilege never narrows again.
+- Effective agent access is assembled from proliferating roles or groups and can no longer be explained per action.
+
+**Do not use when**
+
+- Agent actions are authorized at runtime against principal, task, and context, with least-privilege, short-lived grants.
+- The agent performs a single fixed, fully enumerable operation that a static scope captures exactly.
+- Credentials are task-scoped and revoked when the task ends, so no standing privilege accrues.
 
 ## Components
 
@@ -105,21 +116,20 @@ No useful constraint; the missing constraint is runtime, task-scoped authorizati
 
 ## Known uses
 
-- **[Cloud Security Alliance — NIST AI agent standards & agentic identity](https://labs.cloudsecurityalliance.org/research/csa-research-note-nist-ai-agent-standards-20260416-csa-style/)** — *Available* — Reports that emerging agentic-AI controls move away from static role-to-permission mapping toward ephemeral, context-aware identities scoped to an agent's current task, because goal-driven agents chain tools and discover paths static RBAC never anticipated.
-- **[Help Net Security — IAM built for humans versus agents](https://www.helpnetsecurity.com/2026/04/27/ai-agents-access-control-model/)** — *Available* — Argues that traditional IAM's static roles and long-lived credentials cannot govern agents whose behaviour is dynamic, contextual, and continuous, and that access must be evaluated at runtime, per action.
+- **[Cloud Security Alliance — NIST AI agent standards & agentic identity](https://labs.cloudsecurityalliance.org/research/csa-research-note-nist-ai-agent-standards-20260416-csa-style/)** _available_ — Reports that emerging agentic-AI controls move away from static role-to-permission mapping toward ephemeral, context-aware identities scoped to an agent's current task, because goal-driven agents chain tools and discover paths static RBAC never anticipated.
+- **[Help Net Security — IAM built for humans versus agents](https://www.helpnetsecurity.com/2026/04/27/ai-agents-access-control-model/)** _available_ — Argues that traditional IAM's static roles and long-lived credentials cannot govern agents whose behaviour is dynamic, contextual, and continuous, and that access must be evaluated at runtime, per action.
 
 ## Related patterns
 
-- *alternative-to* → [delegated-agent-authorization](delegated-agent-authorization.md)
-- *alternative-to* → [progressive-tool-access](progressive-tool-access.md)
-- *complements* → [agent-privilege-escalation](agent-privilege-escalation.md)
-- *complements* → [tool-over-broad-scope](tool-over-broad-scope.md)
-- *complements* → [agent-identity-sprawl](agent-identity-sprawl.md)
+- _alternative-to_ **Delegated Agent Authorization** — The positive model: scoped, short-lived, revocable per-action credentials decided at runtime, in place of a static role's standing privilege.
+- _alternative-to_ **Progressive Tool Access** — The positive model: start minimal and expand access only as the agent proves competency, rather than granting a broad standing role up front.
+- _complements_ **Agent Privilege Escalation** — Standing role privilege is the breadth that escalation across agent-plus-tool-plus-service identities then exploits.
+- _complements_ **Tool Over-Broad Scope** — Over-broad tool scope is the per-tool symptom; static-role authorization is the model-level cause that makes broad standing scope the default.
+- _complements_ **Agent Identity Sprawl** — Sibling non-human-identity failure: sprawl is the creation-versus-governance rate mismatch, this is the static-versus-dynamic authorization-model mismatch.
+- _conflicts-with_ **Ephemeral Agent Identity** — Pinning a dynamic agent to a fixed static role is the anti-pattern this replaces with an identity born and retired with each run.
 
 ## References
 
-- (paper) arXiv:2510.25819, *Identity Management for Agentic AI*, <https://arxiv.org/abs/2510.25819>
-- (blog) SC Media, *A New Identity Class: Why AI Agents Require Runtime Control*, <https://www.scworld.com/resource/a-new-identity-class-why-ai-agents-require-runtime-control>
-- (blog) Help Net Security, *Your IAM was built for humans, AI agents don't care*, <https://www.helpnetsecurity.com/2026/04/27/ai-agents-access-control-model/>
-
-**Tags:** anti-pattern, security, authorization, identity, least-privilege
+- [Identity Management for Agentic AI](https://arxiv.org/abs/2510.25819) — arXiv:2510.25819
+- [A New Identity Class: Why AI Agents Require Runtime Control](https://web.archive.org/web/20260610183423/https://www.scworld.com/resource/a-new-identity-class-why-ai-agents-require-runtime-control) — SC Media
+- [Your IAM was built for humans, AI agents don't care](https://www.helpnetsecurity.com/2026/04/27/ai-agents-access-control-model/) — Help Net Security

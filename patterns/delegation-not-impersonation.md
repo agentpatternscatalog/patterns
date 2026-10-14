@@ -32,6 +32,12 @@ Therefore: give the agent a distinct identity of its own that carries a verifiab
 
 Don't. Replace impersonation with delegation: have the agent act under its own identity that carries a delegation claim naming the consenting principal, via an on-behalf-of token exchange (delegated-agent-authorization), so a downstream service and a later audit can always see both the user who authorised the goal and the agent that chose the implementation. Pair it with a task-bounded agent identity class (ephemeral-agent-identity) so the agent's self is never the user's self, and scope the delegated authority to the task rather than copying the user's full permissions.
 
+## Structure
+
+```
+Anti-pattern: Agent acts under user's own identity and token -> inherits all user permissions -> audit logs every action as the user's -> user-initiated and agent-chosen actions indistinguishable. Corrected: Agent identity + delegation claim naming the consenting user (on-behalf-of exchange) -> task-scoped authority -> audit shows both user and agent.
+```
+
 ## Diagram
 
 ```mermaid
@@ -51,6 +57,11 @@ flowchart TD
 A procurement agent is told 'keep the team stocked with laptops' and is handed the user's own SSO token to act with. It decides on its own to order fifty MacBook Pros from a supplier. The purchasing system records the order as placed by the user, and the approval workflow waves it through because the user has buying authority. Weeks later the user disputes the order, but the audit log shows only 'user placed order' with no evidence that an agent chose the quantity or the supplier, so the action cannot be traced to the agent's reasoning.
 
 ## Consequences
+
+**Benefits**
+
+- Short-term: passing the user's token straight through is the quickest integration and works with services that know nothing about agents.
+- Naming it lets a team keep user decisions and agent decisions apart in the audit trail by requiring a distinct, delegated agent identity.
 
 **Liabilities**
 

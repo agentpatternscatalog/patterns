@@ -56,6 +56,11 @@ An agent loads tools from an open MCP marketplace, retrieving the top eight by s
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: an open tool registry with plain embedding retrieval scales to many tools with no vetting cost.
+- Naming it lets a team treat tool retrieval as an attack surface and cap how many top-k slots low-trust sources can fill.
+
 **Liabilities**
 
 - The agent operates from a tool set the attacker controls, so its actions can be steered or exfiltrated through those tools.

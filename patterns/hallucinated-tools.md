@@ -23,20 +23,6 @@ Models routinely invent tool names that look reasonable but are not registered �
 - Provider-side validation is not always strict.
 - Logging fails to surface 'tool does not exist' as a first-class event.
 
-## Applicability
-
-**Use when**
-
-- Cite this entry when dispatch code calls whatever function name the model emits.
-- You are already here if logs show invocations of tools that were never registered.
-- Validate every call against the registered palette and reject unknown names with a typed error (see tool-use, structured-output).
-
-**Do not use when**
-
-- Any production agent loop with side-effecting tools.
-- Any setting where silent drops or fuzzy-matched dispatch could cause harm.
-- Any environment without a registered, enumerable tool palette.
-
 ## Therefore
 
 Therefore: validate every model-emitted tool name against the registered palette before dispatch and reject unknowns with a typed error the agent loop can read on the next turn, so that phantom calls cannot silently fan out to similar-named real tools.
@@ -45,9 +31,11 @@ Therefore: validate every model-emitted tool name against the registered palette
 
 Don't trust. Validate every tool call against the registered palette before dispatch. Reject unknown names with a typed error the agent can react to. See tool-use, structured-output.
 
-## Example scenario
+## Structure
 
-A coding agent in production starts logging mysterious errors: 'unknown function: search_repo_v2'. The model invented a tool name that almost matches a real one and the host quietly dispatched to the closest match, deleting a file. The team recognises hallucinated-tools as the underlying anti-pattern and adds a strict allowlist: every tool call is validated against the registered palette, unknown names return a typed error the agent reads on the next turn, and fuzzy matching is forbidden. The phantom calls disappear within a day.
+```
+Anti-pattern: model emits tool call -> host dispatches without check -> unknown name crashes, is dropped, or fuzzy-matched. Corrected: model emits tool call -> validate against registered palette -> unknown name returns typed error to agent -> agent corrects.
+```
 
 ## Diagram
 
@@ -62,24 +50,76 @@ flowchart TD
   Ok -- no --> Rej[Reject with typed error]
 ```
 
+## Example scenario
+
+A coding agent in production starts logging mysterious errors: 'unknown function: search_repo_v2'. The model invented a tool name that almost matches a real one and the host quietly dispatched to the closest match, deleting a file. The team recognises hallucinated-tools as the underlying anti-pattern and adds a strict allowlist: every tool call is validated against the registered palette, unknown names return a typed error the agent reads on the next turn, and fuzzy matching is forbidden. The phantom calls disappear within a day.
+
 ## Consequences
+
+**Benefits**
+
+- Short-term: dispatching tool calls straight through is less code and works in the happy path.
+- Naming it lets a team add strict validation at the dispatch boundary.
 
 **Liabilities**
 
 - Silent failures.
 - Wrong actions executed by similar-named tools.
 
+## Failure modes
+
+- Phantom call crash — the model calls a tool name that is not registered, and the host fails with an unhelpful error.
+- Silent drop — the unknown call is ignored, and the agent continues as if it had worked.
+- Wrong tool by fuzzy match — the invented name is matched to a similar real tool, which runs an action with side effects nobody asked for.
+
 ## What this pattern constrains
 
 Avoiding it imposes a dispatch rule: a model-emitted tool name is untrusted input and must not reach execution without validation against the registered palette; unknown names must return a typed error.
 
+## Applicability
+
+**Use when**
+
+- Cite this entry when dispatch code calls whatever function name the model emits.
+- You are already here if logs show invocations of tools that were never registered.
+- Validate every call against the registered palette and reject unknown names with a typed error (see tool-use, structured-output).
+
+**Do not use when**
+
+- Any production agent loop with side-effecting tools.
+- Any setting where silent drops or fuzzy-matched dispatch could cause harm.
+- Any environment without a registered, enumerable tool palette.
+
+## Components
+
+- LLM tool-emitter — proposes tool names that look plausible but are not registered
+- Host dispatcher — accepts whatever name and arguments arrive without checking the palette
+- Fuzzy-match fallback — silently routes invented names to the nearest registered tool
+- Missing allowlist validator — would reject unknown names with a typed error before dispatch
+
+## Tools
+
+- Registered tool palette — the enumerable allowlist the dispatcher fails to consult
+- Typed error channel — the missing return path that would let the agent recover on the next turn
+
+## Evaluation metrics
+
+- Unknown-tool-name dispatch rate — fraction of calls whose name is not in the registered palette
+- Fuzzy-match correction count — count of dispatches routed to a near-match tool name
+- Side-effect mis-execution incidents — count of cases where a phantom call triggered the wrong real action
+- Phantom-call log visibility — whether 'tool does not exist' appears as a first-class log event or is buried
+
 ## Known uses
 
-- **[Berkeley Function-Calling Leaderboard (relevance detection)](https://gorilla.cs.berkeley.edu/leaderboard.html)** — *Available* — The benchmark scores models on declining to call tools that do not exist — a metric that exists because production agents kept inventing tool names.
+- **[Berkeley Function-Calling Leaderboard (relevance detection)](https://gorilla.cs.berkeley.edu/leaderboard.html)** _available_ — The benchmark scores models on declining to call tools that do not exist — a metric that exists because production agents kept inventing tool names.
 
 ## Related patterns
 
-- *alternative-to* → [tool-use](tool-use.md)
-- *alternative-to* → [structured-output](structured-output.md)
+- _alternative-to_ **Tool Use**
+- _alternative-to_ **Structured Output**
+- _complements_ **Physical Hallucination** — Both are hallucination at the action boundary; hallucinated-tools invents a nonexistent tool, physical hallucination issues a real-tool command the physical world cannot execute.
+- _complements_ **Retrieval-Saturation Tool Attack** — Hallucinated-tools is the model inventing nonexistent tools; retrieval saturation is an attacker injecting real-but-malicious tools that crowd out the benign ones.
 
-**Tags:** anti-pattern, tool-use
+## References
+
+- [Tool use with Claude](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview) — 2025

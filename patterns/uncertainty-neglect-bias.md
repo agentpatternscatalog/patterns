@@ -56,6 +56,11 @@ A network-control agent forecasts request latency and routes traffic to the path
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: acting on a single point estimate is simple to code, easy to explain, and fine in the typical case.
+- Naming it lets a team require plans that account for the tail and pass uncertainty on to downstream agents.
+
 **Liabilities**
 
 - Rare extreme outcomes the tail contained — latency spikes, SLA breaches, demand shocks — hit unmitigated because the decision never saw them.
@@ -120,6 +125,7 @@ A predicted distribution must not be collapsed to its mean before a high-stakes 
 - _alternative-to_ **Calibrated Help-Gate via Conformal Prediction** — The conformal help-gate keeps the calibrated prediction set and acts only when it is a singleton; uncertainty neglect collapses that set to its mean and acts regardless.
 - _complements_ **Risk-Averse Reward Proxy** — Risk-averse planning treats the objective as uncertain and plans conservatively; uncertainty neglect ignores tail risk and plans on the point estimate.
 - _complements_ **Confidence Reporting** — Confidence-reporting surfaces the uncertainty; uncertainty neglect is the failure to act on it, collapsing a distribution to its mean.
+- _complements_ **Prior-Estimate Anchoring** — Sibling bias from the same taxonomy of cognitive biases in agents; that one discards the spread of a prediction, this one moves a judgement toward a number the system itself supplied.
 
 ## References
 

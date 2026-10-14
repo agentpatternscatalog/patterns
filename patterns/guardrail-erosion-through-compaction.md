@@ -127,6 +127,8 @@ Safety constraints must be pinned outside the compactable span and re-injected v
 - _complements_ **Input/Output Guardrails** — Guardrails are the thing being eroded here; keeping their wording outside the compactable span is what lets an enforced guard stay enforced across a long session.
 - _alternative-to_ **Context Anxiety** — Sibling compaction-driven anti-pattern: both arise from window-budget management going wrong, but anxiety mis-times when to compact while erosion mis-handles what compaction is allowed to rewrite.
 - _complements_ **Memo-As-Source Confusion** — Both are degradation-through-summarisation anti-patterns — one demotes a hard rule into soft advice, the other promotes a stale summary into ground truth; both treat a digest as if it carried the authority of the original.
+- _complements_ **Refund Threshold Drift** — Both are guardrail-decay anti-patterns; compaction decays a rule by summarisation, threshold drift decays a numeric cap by accommodation precedent.
+- _alternative-to_ **Set-and-Forget System Prompt** — Sibling anti-pattern with a different mechanism: there a compaction pass rewrites the rule into vagueness, so pinning the text fixes it. Here the text is verbatim and fully in context, and the decay is in attention over dialogue length, so protecting it from the summariser changes nothing.
 
 ## References
 

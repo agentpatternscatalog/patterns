@@ -56,6 +56,11 @@ A user signs up for a shopping agent and grants it blanket authority to buy, ret
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: one broad grant across apps removes repeated consent prompts and lets the agent act without friction.
+- Naming it lets a team scope authorization by action class and keep an accountable owner attached to each delegated action.
+
 **Liabilities**
 
 - A harmful autonomous action has no clear responsible owner, so redress and correction stall.
@@ -120,6 +125,7 @@ An autonomous action with real-world effects must not rest on one broad standing
 - _alternative-to_ **Deontic Token Delegation** — Deontic tokens transfer duty and accountability with the work along the chain; blanket authorization transfers only the credentials, leaving the responsibility rupture this names.
 - _complements_ **Accountability Laundering via Algorithm** — Accountability laundering actively deflects blame onto the algorithm; blanket-authorization rupture is the structural gap where no party retained control to be blamed in the first place.
 - _complements_ **Session-Scoped Payment Authorization** — Session-scoped authorization bounds a grant to a capped session; blanket authorization is the unbounded standing grant whose harm has no clear owner.
+- _complements_ **Oversight as Legitimation** — Both misplace responsibility at the point of authorisation: a blanket grant leaves no party with whole-process control, while a legitimating sign-off concentrates responsibility on a person with no control at all.
 
 ## References
 

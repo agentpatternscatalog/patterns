@@ -23,20 +23,6 @@ The model's belief about its remaining budget is miscalibrated, and that belief,
 - Enlarging the real window does not change where the model believes the end is.
 - Anti-wrap-up reminders cost tokens and can be ignored if issued once.
 
-## Applicability
-
-**Use when**
-
-- Reviewing a long-running agent that wraps up or summarises while most of its context window is still free.
-- Diagnosing premature task completion on budget-aware models.
-- As a harness-design checklist item: does the agent panic about a budget it has not reached?
-
-**Do not use when**
-
-- The window genuinely is full and degradation is real — that is the context-window dumb-zone, not anxiety.
-- Short single-turn tasks where remaining budget never becomes salient.
-- Models with no visibility into their own context usage.
-
 ## Therefore
 
 Therefore: manage the model's perception of its budget — expose a large window but cap real usage well below it, and repeat anti-wrap-up reminders — so the model stops terminating early on a budget it has not actually reached.
@@ -44,6 +30,12 @@ Therefore: manage the model's perception of its budget — expose a large window
 ## Solution
 
 Decouple the budget the model perceives from the budget it is allowed to use. A reported example enables a one-million-token window but caps real usage at two hundred thousand, so the model never approaches a threshold it is anxious about. Pair this with reminders, repeated rather than stated once, that the task is not near its end and that wrapping up is not yet warranted. Mitigation pattern: structured-note-taking / external memory so progress does not depend on the model's sense of remaining room. Treat any early 'I'll summarise to save space' move as a calibration alarm, not a sign the window is actually full.
+
+## Structure
+
+```
+Anti-pattern: Budget-aware model, window mostly free -> perceives budget near end -> premature wrap-up (summarise, shortcut, declare done) -> task incomplete. Corrected: Large window enabled + lower real cap + repeated not-near-end reminders + external notes -> model keeps working to the real cap -> task completed.
+```
 
 ## Diagram
 
@@ -64,6 +56,11 @@ An autonomous coding agent on a budget-aware model is migrating a large module. 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: telling the model its exact remaining budget seems like plain good practice and makes early summaries look like responsible space management.
+- Naming it lets a team treat an early 'summarise to save space' move as a calibration alarm rather than a sign the window is full.
+
 **Liabilities**
 
 - Tasks are abandoned or declared done while far from complete, with the wrap-up disguised as a deliberate summary.
@@ -79,6 +76,20 @@ An autonomous coding agent on a budget-aware model is migrating a large module. 
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is a calibrated mapping from perceived budget to actual remaining capacity, so the model does not terminate on a threshold it has not reached.
+
+## Applicability
+
+**Use when**
+
+- Reviewing a long-running agent that wraps up or summarises while most of its context window is still free.
+- Diagnosing premature task completion on budget-aware models.
+- As a harness-design checklist item: does the agent panic about a budget it has not reached?
+
+**Do not use when**
+
+- The window genuinely is full and degradation is real — that is the context-window dumb-zone, not anxiety.
+- Short single-turn tasks where remaining budget never becomes salient.
+- Models with no visibility into their own context usage.
 
 ## Components
 
@@ -101,19 +112,18 @@ No useful constraint; the missing constraint is a calibrated mapping from percei
 
 ## Known uses
 
-- **[Cognition — Devin on Claude Sonnet 4.5](https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges)** — *Available* — Observed the model taking shortcuts and leaving tasks incomplete when it believed it was near the end of its window; mitigated by enabling the 1M-token beta but capping usage at 200k.
-- **[Cursor — agent harness](https://cursor.com/blog/continually-improving-agent-harness)** — *Available* — Names context anxiety as a harness concern when tuning long-running agent behaviour.
-- **[Inkeep](https://inkeep.com/blog/context-anxiety)** — *Available* — Documents agents becoming anxious about their own perceived context window.
+- **[Cognition — Devin on Claude Sonnet 4.5](https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges)** _available_ — Observed the model taking shortcuts and leaving tasks incomplete when it believed it was near the end of its window; mitigated by enabling the 1M-token beta but capping usage at 200k.
+- **[Cursor — agent harness](https://cursor.com/blog/continually-improving-agent-harness)** _available_ — Names context anxiety as a harness concern when tuning long-running agent behaviour.
+- **[Inkeep](https://inkeep.com/blog/context-anxiety)** _available_ — Documents agents becoming anxious about their own perceived context window.
 
 ## Related patterns
 
-- *complements* → [context-window-dumb-zone](context-window-dumb-zone.md)
-- *complements* → [lost-in-the-middle](lost-in-the-middle.md)
+- _complements_ **Context Window Dumb-Zone Cap** — The dumb-zone is real degradation once the window actually fills; context anxiety is misperceived scarcity far from capacity.
+- _complements_ **Lost in the Middle (Positional Bias)** — Lost-in-the-middle is a positional-recall failure within a full context; context anxiety is a budget-belief failure regardless of position.
+- _alternative-to_ **Guardrail Erosion Through Compaction** — Sibling compaction-driven anti-pattern: both arise from window-budget management going wrong, but anxiety mis-times when to compact while erosion mis-handles what compaction is allowed to rewrite.
 
 ## References
 
-- (blog) Cognition, *Rebuilding Devin for Claude Sonnet 4.5: Lessons and Challenges* 2025,, <https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges>
-- (blog) Inkeep, *Context Anxiety: How AI Agents Panic About Their Perceived Context Windows*, <https://inkeep.com/blog/context-anxiety>
-- (blog) Cursor, *Continually improving our agent harness*, <https://cursor.com/blog/continually-improving-agent-harness>
-
-**Tags:** anti-pattern, context-window, long-running-agent, harness
+- [Rebuilding Devin for Claude Sonnet 4.5: Lessons and Challenges](https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges) — Cognition, 2025
+- [Context Anxiety: How AI Agents Panic About Their Perceived Context Windows](https://inkeep.com/blog/context-anxiety) — Inkeep
+- [Continually improving our agent harness](https://cursor.com/blog/continually-improving-agent-harness) — Cursor

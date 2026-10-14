@@ -66,6 +66,11 @@ A developer runs a spec-driven setup that spawns five sub-agents, each pinging t
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: talking to each agent directly needs no extra tooling and gives the supervisor a feeling of close control.
+- Naming it lets a team cap agents per supervisor and add an aggregation layer before the oversight load breaks.
+
 **Liabilities**
 
 - Oversight quality collapses as the supervisor thrashes between agents.
@@ -73,6 +78,12 @@ A developer runs a spec-driven setup that spawns five sub-agents, each pinging t
 - The human becomes the throughput bottleneck, erasing the parallelism gain.
 - Errors slip through because no one holds full context on any single agent.
 - Supervisor fatigue and burnout make the arrangement unsustainable.
+
+## Failure modes
+
+- Context thrash — the supervisor switches between agent conversations, forgets which agent said what, and gives one agent instructions meant for another.
+- Rubber-stamp creep — to keep pace with the queue of agent questions, the human approves outputs without reading them, and the oversight check becomes empty.
+- Human bottleneck — agents sit idle waiting for clarification from one person, so adding agents adds waiting time instead of throughput.
 
 ## What this pattern constrains
 
@@ -94,20 +105,40 @@ The system must not require a human to hold live context on, and individually co
 - Agents are fully autonomous and no per-agent human steering is required.
 - Supervision is already distributed across multiple people or a lead agent.
 
+## Components
+
+- Concurrent sub-agents — the parallel workers each generating supervision demand
+- Overloaded supervisor — the single human expected to steer all of them
+- Missing aggregation layer — the absent orchestrator/summariser whose lack causes the saturation
+- Escalation policy — the selective filter that, when present, keeps the human's surface bounded
+
+## Tools
+
+- Status dashboard — aggregates sub-agent state so the human sees one prioritised surface instead of N chats
+- Orchestrator/lead agent — absorbs routine clarifications that would otherwise reach the human
+- Escalation router — forwards only decisions that genuinely need human judgement
+
+## Evaluation metrics
+
+- Agents-per-supervisor — concurrent agents one human is expected to steer
+- Approval dwell time — how long agents wait on the saturated human
+- Rubber-stamp rate — approvals granted without substantive review
+- Escaped-error rate — mistakes that passed because no one held full context
+
 ## Known uses
 
-- **[AIエージェント時代、正直しんどい話 (Zenn)](https://zenn.dev/ryo369/articles/d02561ddaacc62)** — *Available* — Reports that spec-driven sub-agent delegation forces the human to converse with all the agents, and identifies the resulting cognitive load as the limiting problem.
-- **[Anthropic — Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** — *Available* — Motivates orchestrator/sub-agent layering and selective surfacing so a human is not in the loop on every parallel agent's full context.
+- **[AIエージェント時代、正直しんどい話 (Zenn)](https://zenn.dev/ryo369/articles/d02561ddaacc62)** _available_ — Reports that spec-driven sub-agent delegation forces the human to converse with all the agents, and identifies the resulting cognitive load as the limiting problem.
+- **[Anthropic — Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** _available_ — Motivates orchestrator/sub-agent layering and selective surfacing so a human is not in the loop on every parallel agent's full context.
 
 ## Related patterns
 
-- *complements* → [orchestrator-as-bottleneck](orchestrator-as-bottleneck.md) — Orchestrator-as-bottleneck saturates a coordinating agent; supervisor cognitive overload saturates the coordinating human. Same shape, different node.
-- *complements* → [unbounded-subagent-spawn](unbounded-subagent-spawn.md) — Unbounded spawning is a common trigger: the more sub-agents created, the heavier the human supervision surface becomes.
-- *complements* → [role-typed-subagents](role-typed-subagents.md) — Role-typed sub-agents without an aggregation layer push their individual interactions straight onto one overloaded supervisor.
+- _complements_ **Orchestrator as Bottleneck** — Orchestrator-as-bottleneck saturates a coordinating agent; supervisor cognitive overload saturates the coordinating human. Same shape, different node.
+- _complements_ **Unbounded Subagent Spawn** — Unbounded spawning is a common trigger: the more sub-agents created, the heavier the human supervision surface becomes.
+- _complements_ **Role-Typed Subagents** — Role-typed sub-agents without an aggregation layer push their individual interactions straight onto one overloaded supervisor.
+- _complements_ **Agent Output Alert Fatigue** — Overload exceeds supervisor capacity; alert fatigue desensitises the control within capacity.
+- _complements_ **Oversight as Legitimation** — Overload is attention saturating across parallel sub-agents; legitimation can occur with a single case per day, since the missing ingredient is the ability to detect an error rather than the capacity to look.
 
 ## References
 
-- (blog) ryo369 (Zenn), *AIエージェント時代、正直しんどい話*, 2026, <https://zenn.dev/ryo369/articles/d02561ddaacc62>
-- (blog) Anthropic, *Effective context engineering for AI agents*, 2025, <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents>
-
-**Tags:** anti-patterns, multi-agent, human-in-the-loop, oversight, cognitive-load
+- [AIエージェント時代、正直しんどい話](https://zenn.dev/ryo369/articles/d02561ddaacc62) — ryo369 (Zenn), 2026
+- [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic, 2025

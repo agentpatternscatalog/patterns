@@ -24,20 +24,6 @@ Identity creation happens at machine speed and identity governance happens at hu
 - Least-privilege scoping per agent is slower than issuing a broad credential that just works.
 - The creation-versus-revocation rate mismatch means the orphaned-credential population only grows.
 
-## Applicability
-
-**Use when**
-
-- An agent fleet provisions identities and credentials faster than they are scoped, rotated, or retired.
-- Auditing standing access reveals orphaned or over-privileged non-human identities of unknown ownership.
-- Identity governance runs through human-speed review while creation is automated.
-
-**Do not use when**
-
-- Identity lifecycle is automated and reconciled at the same rate as creation.
-- The deployment is a single agent or a small fixed set with managed credentials.
-- Credentials are already short-lived, least-privilege, owned, and revoked on retirement.
-
 ## Therefore
 
 Therefore: govern non-human identities at the rate they are created — automate least-privilege scoping, short-lived rotation, ownership tracking, and revocation on agent retirement — so the credential population stays reconciled instead of sprawling.
@@ -45,6 +31,12 @@ Therefore: govern non-human identities at the rate they are created — automate
 ## Solution
 
 Make identity lifecycle keep pace with identity creation. Issue short-lived, least-privilege credentials by default rather than broad long-lived ones; bind every identity to an owning agent and a retirement trigger so it is revoked when the agent is decommissioned; continuously reconcile created identities against active, owned, scoped ones and flag orphans. The mechanism to fix is the creation-versus-revocation rate mismatch, so the controls must themselves run at machine speed. Mitigation patterns: agent-credential-vault for scoped, rotated, brokered secrets per agent; delegated-agent-authorization for narrowly scoped, time-bound grants. This is the fleet-scale lifecycle failure those per-agent patterns do not by themselves prevent.
+
+## Structure
+
+```
+Anti-pattern: Agent fleet -> mints identities at machine speed -> credential pool; scope, rotate, own, revoke at human speed -> orphaned over-privileged long-lived credentials -> growing attack surface. Corrected: Agent fleet -> short-lived least-privilege credentials bound to an owner and retirement trigger -> continuous reconciliation flags orphans -> revoke.
+```
 
 ## Diagram
 
@@ -65,6 +57,11 @@ A platform team scales from a handful of agents to hundreds, each spinning up se
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: giving each new agent a broad, long-lived key gets it working at once and avoids waiting on an approval process.
+- Naming it lets a team treat the gap between creation rate and revocation rate as the thing to fix, and automate governance at the same speed.
+
 **Liabilities**
 
 - Orphaned, over-privileged credentials accumulate and outlive the agents that needed them.
@@ -80,6 +77,20 @@ A platform team scales from a handful of agents to hundreds, each spinning up se
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is machine-speed identity governance — least-privilege scoping, rotation, ownership, and revocation that keep pace with the rate at which agents mint identities.
+
+## Applicability
+
+**Use when**
+
+- An agent fleet provisions identities and credentials faster than they are scoped, rotated, or retired.
+- Auditing standing access reveals orphaned or over-privileged non-human identities of unknown ownership.
+- Identity governance runs through human-speed review while creation is automated.
+
+**Do not use when**
+
+- Identity lifecycle is automated and reconciled at the same rate as creation.
+- The deployment is a single agent or a small fixed set with managed credentials.
+- Credentials are already short-lived, least-privilege, owned, and revoked on retirement.
 
 ## Components
 
@@ -103,19 +114,21 @@ No useful constraint; the missing constraint is machine-speed identity governanc
 
 ## Known uses
 
-- **[Cloud Security Alliance — non-human identity governance whitepaper](https://labs.cloudsecurityalliance.org/research/csa-whitepaper-nonhuman-identity-agentic-ai-governance-v1-cs/)** — *Available* — Names the non-human identity governance vacuum for agentic systems and the gap between machine-speed creation and human-speed governance.
-- **[Fortra / Unite.AI analysis](https://www.unite.ai/agentic-ai-turns-nhi-sprawl-into-an-ungovernable-attack-surface/)** — *Available* — Observes that machine-speed identity creation cannot be governed by human-speed approval processes, turning NHI sprawl into an ungovernable attack surface.
+- **[Cloud Security Alliance — non-human identity governance whitepaper](https://labs.cloudsecurityalliance.org/research/csa-whitepaper-nonhuman-identity-agentic-ai-governance-v1-cs/)** _available_ — Names the non-human identity governance vacuum for agentic systems and the gap between machine-speed creation and human-speed governance.
+- **[Fortra / Unite.AI analysis](https://www.unite.ai/agentic-ai-turns-nhi-sprawl-into-an-ungovernable-attack-surface/)** _available_ — Observes that machine-speed identity creation cannot be governed by human-speed approval processes, turning NHI sprawl into an ungovernable attack surface.
 
 ## Related patterns
 
-- *alternative-to* → [agent-credential-vault](agent-credential-vault.md)
-- *complements* → [agent-privilege-escalation](agent-privilege-escalation.md)
-- *complements* → [shadow-ai](shadow-ai.md)
+- _alternative-to_ **Agent Credential Vault** — The vault scopes, rotates, and brokers secrets per agent; sprawl is the fleet-scale lifecycle failure that outpaces per-agent vaulting.
+- _complements_ **Agent Privilege Escalation** — Escalation is one agent gaining privilege at runtime; sprawl is the fleet accumulating over-privileged identities over time.
+- _complements_ **Shadow AI** — Shadow AI is unsanctioned use; sprawl is sanctioned agents minting governed-too-slowly identities.
+- _complements_ **Agent Sprawl** — Identity sprawl is the credential facet (non-human identities minted too fast to govern); agent sprawl is the operational-lifecycle facet — owning, measuring, monitoring, and retiring the agents themselves.
+- _complements_ **Static Role for a Dynamic Agent** — Sibling non-human-identity failure: sprawl is the creation-versus-governance rate mismatch, this is the static-versus-dynamic authorization-model mismatch.
+- _conflicts-with_ **Ephemeral Agent Identity** — Sprawl is the accumulation of long-lived over-privileged agent identities; per-task minting with revocation at completion is the direct counter to it.
+- _complements_ **Agent-Speed Incident-Response Gap** — Both are velocity mismatches between machine-speed agents and human-speed governance: sprawl is identity lifecycle out of pace, this gap is incident response out of pace.
 
 ## References
 
-- (blog) Unite.AI / Fortra, *Agentic AI Turns NHI Sprawl Into an Ungovernable Attack Surface*, <https://www.unite.ai/agentic-ai-turns-nhi-sprawl-into-an-ungovernable-attack-surface/>
-- (blog) InformationWeek, *Non-human identity sprawl is agentic AI's real risk*, <https://www.informationweek.com/risk-management/non-human-identity-sprawl-is-agentic-ai-s-real-risk>
-- (doc) Cloud Security Alliance, *The Non-Human Identity Governance Vacuum*, <https://labs.cloudsecurityalliance.org/research/csa-whitepaper-nonhuman-identity-agentic-ai-governance-v1-cs/>
-
-**Tags:** anti-pattern, security, non-human-identity, credentials, fleet-governance
+- [Agentic AI Turns NHI Sprawl Into an Ungovernable Attack Surface](https://www.unite.ai/agentic-ai-turns-nhi-sprawl-into-an-ungovernable-attack-surface/) — Unite.AI / Fortra
+- [Non-human identity sprawl is agentic AI's real risk](https://www.informationweek.com/risk-management/non-human-identity-sprawl-is-agentic-ai-s-real-risk) — InformationWeek
+- [The Non-Human Identity Governance Vacuum](https://labs.cloudsecurityalliance.org/research/csa-whitepaper-nonhuman-identity-agentic-ai-governance-v1-cs/) — Cloud Security Alliance

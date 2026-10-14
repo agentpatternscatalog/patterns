@@ -63,6 +63,12 @@ A coding agent is asked why one test fails. It has a shell and the repository in
 
 ## Consequences
 
+**Benefits**
+
+- Naming the failure separates two things teams conflate: a task the model cannot solve versus a task it never gathered the facts for.
+- It gives a measurable target — the ratio of thinking tokens to observation actions on tasks the environment could have answered directly.
+- It points at the corrective that measures well, capping or budgeting deliberation between observations, and away from raising the thinking budget, which makes the failure worse.
+
 **Liabilities**
 
 - Task success falls as the thinking budget grows, inverting the assumption that more inference compute buys quality.

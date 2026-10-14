@@ -15,7 +15,7 @@ An agent drives an embodied or physical system — a robot arm, a mobile robot, 
 
 ## Problem
 
-The model has no faithful internal model of physics, so it can emit a command that reads as correct and is phrased with full confidence yet cannot be executed: an unreachable arm pose, a dynamically infeasible motion, a path through an obstacle, or a setpoint inconsistent with the plant's current state. Because the command is syntactically valid and confident, downstream systems that trust the policy pass it through to actuation, where it fails, damages equipment, or creates a hazard. The failure is grounded in the physical world the model cannot perceive faithfully, not in missing facts or tools.
+The model has no faithful internal model of physics, so it can emit a command that reads as correct and is phrased with full confidence yet cannot be executed. Examples are an unreachable arm pose, a dynamically infeasible motion, a path through an obstacle, or a setpoint inconsistent with the plant's current state. Because the command is syntactically valid and confident, downstream systems that trust the policy pass it through to actuation, where it fails, damages equipment, or creates a hazard. The failure is grounded in the physical world the model cannot perceive faithfully, not in missing facts or tools.
 
 ## Forces
 
@@ -30,7 +30,7 @@ Therefore: do not let a policy command reach an actuator on its confidence alone
 
 ## Solution
 
-Treat every command from the policy as a proposal to be checked against physics, not an instruction to execute. Insert a feasibility stage between policy and actuator that grounds the candidate action in the current scene and the system's kinematic, dynamic, and state limits — for example by predicting its affordance from perception, or by rolling it out in a simulator or world model — and rejects or repairs any action the environment cannot support. Only feasible, in-state commands reach the controller; infeasible ones are discarded, re-planned, or escalated. The check is independent of the policy's own confidence, so a fluent but impossible command cannot pass merely by being well-phrased.
+Treat every command from the policy as a proposal to be checked against physics, not an instruction to execute. Insert a feasibility stage between policy and actuator that grounds the candidate action in the current scene and the system's kinematic, dynamic, and state limits. That stage can predict the action's affordance from perception, or roll it out in a simulator or world model, and it rejects or repairs any action the environment cannot support. Only feasible, in-state commands reach the controller; infeasible ones are discarded, re-planned, or escalated. The check is independent of the policy's own confidence, so a fluent but impossible command cannot pass merely by being well-phrased.
 
 ## Structure
 
@@ -55,6 +55,11 @@ flowchart TD
 A warehouse robot is told to place a box on the top shelf. The vision-language policy confidently emits an arm pose to reach it, but the pose is outside the arm's workspace; with no feasibility check the controller accepts it, the arm jams against its limit, and the motion faults. A grounding gate that predicted the pose was unreachable would have rejected the command before the arm ever moved.
 
 ## Consequences
+
+**Benefits**
+
+- Short-term: sending policy commands straight to the controller keeps the loop fast and looks fine while the commands happen to be feasible.
+- Naming it lets a team insert a physics and plant-state feasibility check between policy and actuator as a standard stage.
 
 **Liabilities**
 
@@ -122,6 +127,7 @@ A policy-generated command must not reach an actuator on its confidence alone; i
 - _complements_ **Hallucinated Tools** — Both are hallucination at the action boundary; hallucinated-tools invents a nonexistent tool, physical hallucination issues a real-tool command the physical world cannot execute.
 - _complements_ **Phantom Action Completion** — Phantom completion narrates an action as done that never ran; physical hallucination actually issues a command that is physically impossible to carry out.
 - _complements_ **Mental-Model-In-The-Loop Simulator** — Running candidate strategies in an internal simulator before committing is one way to reject the infeasible commands this anti-pattern produces.
+- _complements_ **Physical-Evidence Progress Gate** — That anti-pattern is a physically infeasible command reaching an actuator unchecked; here the command was feasible and was issued, and the omission is the check on whether it worked.
 
 ## References
 

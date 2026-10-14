@@ -24,20 +24,6 @@ Per-step success multiplies across an agent's trajectory. A 95%-per-step pipelin
 - Adding recovery (verifier, retry, checkpoint) raises the effective per-step success above the raw model's rate.
 - Cutting the step count by fusing or pre-computing actions has more impact than improving the model.
 
-## Applicability
-
-**Use when**
-
-- Naming this anti-pattern when reviewing a long-horizon agent proposal.
-- Per-step benchmarks look healthy but end-to-end success on production traffic does not.
-- A long pipeline is being proposed with no step budget and no per-step verifier.
-
-**Do not use when**
-
-- The agent loops fewer than ~5 steps on a typical task; multiplicative error is negligible.
-- A strong per-step verifier already lifts effective per-step success above ~99%.
-- End-to-end success is measured directly on representative traffic, not extrapolated from step benchmarks.
-
 ## Therefore
 
 Therefore: when designing a long-horizon agent, treat aggregate task success as the product of per-step successes and budget the step count accordingly, so the realised pipeline rate clears the user-visible bar.
@@ -46,9 +32,11 @@ Therefore: when designing a long-horizon agent, treat aggregate task success as 
 
 Model end-to-end task success as the product of per-step successes (after any per-step recovery). Either cap the step count so the product clears the user-visible success bar, or raise effective per-step success with verifiers, retries, and intermediate checkpoints. Treat raw per-step accuracy on a benchmark as a ceiling, not a forecast.
 
-## Example scenario
+## Structure
 
-A team benchmarks their planner-executor at 92% per-step accuracy on a curated tool-call dataset and ships it on a workflow that averages 30 steps. Realised end-to-end task completion comes back at ~8%. The team assumed step quality would carry the pipeline; the multiplicative product (0.92^30 ≈ 0.082) was the actual ceiling. They cut step count by fusing common tool pairs and add a verifier that lifts effective per-step success to ~98%; aggregate rises to ~55%.
+```
+Anti-pattern: per-step accuracy from benchmark -> long trajectory, many steps -> success multiplies down per step -> low end-to-end success in production. Corrected: estimate end-to-end success as product of per-step success -> cap step count or add verifiers, retries, checkpoints -> product clears the success bar.
+```
 
 ## Diagram
 
@@ -65,6 +53,10 @@ flowchart TD
   Drop -- no --> Ship[Ship]
 ```
 
+## Example scenario
+
+A team benchmarks their planner-executor at 92% per-step accuracy on a curated tool-call dataset and ships it on a workflow that averages 30 steps. Realised end-to-end task completion comes back at ~8%. The team assumed step quality would carry the pipeline; the multiplicative product (0.92^30 ≈ 0.082) was the actual ceiling. They cut step count by fusing common tool pairs and add a verifier that lifts effective per-step success to ~98%; aggregate rises to ~55%.
+
 ## Consequences
 
 **Benefits**
@@ -77,24 +69,61 @@ flowchart TD
 - Estimating per-step success on production-shaped tasks is hard; benchmarks rarely transfer.
 - Step-level verifiers add their own error term that must be modelled too.
 
+## Failure modes
+
+- Step benchmark looks good — end-to-end fails — root cause obscured.
+- Adding more steps to recover hurts more than it helps because each new step adds its own error term.
+
 ## What this pattern constrains
 
 Per-step accuracy on a benchmark must not be used as a forecast of end-to-end agent success; the product over the trajectory bounds what the agent can deliver.
 
+## Applicability
+
+**Use when**
+
+- Naming this anti-pattern when reviewing a long-horizon agent proposal.
+- Per-step benchmarks look healthy but end-to-end success on production traffic does not.
+- A long pipeline is being proposed with no step budget and no per-step verifier.
+
+**Do not use when**
+
+- The agent loops fewer than ~5 steps on a typical task; multiplicative error is negligible.
+- A strong per-step verifier already lifts effective per-step success above ~99%.
+- End-to-end success is measured directly on representative traffic, not extrapolated from step benchmarks.
+
+## Components
+
+- Per-step success estimator — measures p on benchmark and on production-shaped tasks
+- Step budget — caps n so p^n clears the user-visible bar
+- Per-step verifier — raises effective p with cheap checks at each step
+- Aggregate-success monitor — surfaces end-to-end task success vs benchmark p
+
+## Tools
+
+- Per-step eval set — measures raw p on representative inputs
+- Trajectory logger — captures end-to-end success for aggregate metrics
+- Step-level scorer — produces the verifier signal that lifts effective p
+
+## Evaluation metrics
+
+- Aggregate task-success rate — measured on representative production traffic
+- Implied per-step accuracy — back-computed from aggregate vs step count
+- Step-budget compliance — share of runs honouring the documented cap
+
 ## Known uses
 
-- **Long-horizon coding agents (Devin, SWE-agent) on long trajectories** — *Available*
-- **Multi-step research agents (deep-research style loops)** — *Available*
+- **[Long-horizon coding agents (Devin, SWE-agent) on long trajectories](https://cognition.ai/blog/introducing-devin)** _available_
+- **[Multi-step research agents (deep-research style loops)](https://openai.com/index/introducing-deep-research/)** _available_
 
 ## Related patterns
 
-- *complements* → [step-budget](step-budget.md)
-- *alternative-to* → [tool-transition-fusion](tool-transition-fusion.md) — Fusing tools is one way to shrink step count and dodge multiplicative error.
-- *complements* → [evaluator-optimizer](evaluator-optimizer.md)
+- _complements_ **Step Budget**
+- _alternative-to_ **Tool Transition Fusion** — Fusing tools is one way to shrink step count and dodge multiplicative error.
+- _complements_ **Evaluator-Optimizer**
+- _complements_ **Agent Bullwhip Effect** — Compound-error multiplies per-step error along one trajectory; the bullwhip amplifies a demand signal across a network of parallel agents.
 
 ## References
 
-- (blog) *Agents — Chip Huyen*, Chip Huyen, 2025, <https://huyenchip.com/2025/01/07/agents.html>
-- (book) *AI Engineering*, Chip Huyen, 2024, <https://www.oreilly.com/library/view/ai-engineering/9781098166298/>
-
-**Tags:** anti-pattern, long-horizon, evaluation
+- [Agents — Chip Huyen](https://huyenchip.com/2025/01/07/agents.html) — Chip Huyen, 2025
+- [AI Engineering](https://www.oreilly.com/library/view/ai-engineering/9781098166298/) — Chip Huyen, 2024

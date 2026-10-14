@@ -23,6 +23,58 @@ Language models trained on academic and legal text are particularly fluent at pr
 - Models trained on academic text are particularly fluent at fabricating citations.
 - End users do not check.
 
+## Therefore
+
+Therefore: bind every citation to a retrieved-source id and validate URLs against the retrieval result before rendering, so that the model cannot smuggle invented references into authoritative-looking output.
+
+## Solution
+
+Don't. Wire citations to retrieved-source ids. See citation-streaming, naive-rag, contextual-retrieval. Validate URLs before display.
+
+## Structure
+
+```
+Anti-pattern: model writes citations as free text -> shown to user unchecked -> some citations do not exist. Corrected: retrieve sources -> model cites retrieved-source ids -> validate links -> display.
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  M[Model emits free-text citation] --> T{Trust as-is?}
+  T -- yes anti-pattern --> F[Fabricated URL ships to user]
+  F --> Lose[Trust damage / retraction]
+  T -.fix.-> R[Wire citations to retrieved-source ids]
+  R --> V[Validate URLs before display]
+  V --> OK[Citation grounded]
+```
+
+## Example scenario
+
+A legal-research assistant ships with a plausible-looking footnote feature: the model writes citations as free text. After launch, three customers report that quoted case names do not exist on Westlaw and one cited statute number is off by a digit. The team treats hallucinated-citations as the named anti-pattern they fell into: they rewire the assistant to cite only documents returned from the retrieval call by id, and add a URL-liveness check that strips any citation whose link 404s before the answer renders. Free-text citations are now banned at the prompt template level.
+
+## Consequences
+
+**Benefits**
+
+- Short-term: free-text citations make answers look well-sourced with no retrieval or validation work.
+- Naming it lets a team require that every citation maps to a source the system actually retrieved.
+
+**Liabilities**
+
+- Trust collapse on first user verification.
+- Legal / regulatory exposure in regulated domains.
+
+## Failure modes
+
+- Phantom reference — the model invents an author, title, or identifier that looks correct, and the user trusts it without checking.
+- Fake case law — a legal answer cites a case no court decided, and it reaches a customer or a filing.
+- Trust collapse on first click — one user checks a citation, finds it does not exist, and stops trusting the product.
+
+## What this pattern constrains
+
+Avoiding it imposes a binding rule: a citation must not be emitted as free text; every reference shown to a user must resolve to a retrieved-source id validated before display.
+
 ## Applicability
 
 **Use when**
@@ -37,48 +89,38 @@ Language models trained on academic and legal text are particularly fluent at pr
 - Any setting where authoritative-looking but invented sources can mislead.
 - Any audit or compliance setting requiring traceable provenance.
 
-## Therefore
+## Components
 
-Therefore: bind every citation to a retrieved-source id and validate URLs against the retrieval result before rendering, so that the model cannot smuggle invented references into authoritative-looking output.
+- LLM generator — emits citations as free text inside the answer
+- Prompt template — asks for references without binding them to retrieved sources
+- Rendering layer — ships the model's invented URLs and titles straight to the user
+- Missing retrieval pipeline — would return documents by stable id and bind every citation to one
 
-## Solution
+## Tools
 
-Don't. Wire citations to retrieved-source ids. See citation-streaming, naive-rag, contextual-retrieval. Validate URLs before display.
+- Free-text citation field — the unverified surface the model fills with plausible-looking references
+- URL liveness check — the missing pre-display validator that would catch 404s and wrong DOIs
+- Retrieval index keyed by source id — the missing store that would make citations binding
 
-## Example scenario
+## Evaluation metrics
 
-A legal-research assistant ships with a plausible-looking footnote feature: the model writes citations as free text. After launch, three customers report that quoted case names do not exist on Westlaw and one cited statute number is off by a digit. The team treats hallucinated-citations as the named anti-pattern they fell into: they rewire the assistant to cite only documents returned from the retrieval call by id, and add a URL-liveness check that strips any citation whose link 404s before the answer renders. Free-text citations are now banned at the prompt template level.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  M[Model emits free-text citation] --> T{Trust as-is?}
-  T -- yes anti-pattern --> F[Fabricated URL ships to user]
-  F --> Lose[Trust damage / retraction]
-  T -.fix.-> R[Wire citations to retrieved-source ids]
-  R --> V[Validate URLs before display]
-  V --> OK[Citation grounded]
-```
-
-## Consequences
-
-**Liabilities**
-
-- Trust collapse on first user verification.
-- Legal / regulatory exposure in regulated domains.
-
-## What this pattern constrains
-
-Avoiding it imposes a binding rule: a citation must not be emitted as free text; every reference shown to a user must resolve to a retrieved-source id validated before display.
+- Citation-resolvability rate — fraction of emitted URLs and DOIs that resolve to live, matching sources
+- Title-match accuracy — share of cited paper or case titles that exist verbatim in an authoritative index
+- Author-name fabrication rate — share of cited authors that cannot be matched in the source database
+- User-flagged citation rate — fraction of answers where users report a citation does not exist
 
 ## Known uses
 
-- **Notable lawyer's brief incident, 2023 (filed hallucinated cases)** — *Available*
+- **Notable lawyer's brief incident, 2023 (filed hallucinated cases)** _available_
 
 ## Related patterns
 
-- *alternative-to* → [citation-streaming](citation-streaming.md)
-- *alternative-to* → [naive-rag](naive-rag.md)
+- _alternative-to_ **Citation Streaming**
+- _alternative-to_ **Naive RAG**
+- _alternative-to_ **Citation Attribution**
+- _alternative-to_ **Verify-Before-Cite Resolution Gate** — Hallucinated-citations is the anti-pattern of trusting free-text references; this gate is the positive remedy that resolves each one against an external registry before output.
+- _complements_ **Oversight as Legitimation** — The legal seam where this failure was measured: the designated attorney overseer is expected to catch fabricated citations by hand, at rates of 17 to 33 percent, inside a normal filing deadline.
 
-**Tags:** anti-pattern, citation, hallucination
+## References
+
+- [OWASP LLM09: Misinformation](https://genai.owasp.org/llmrisk/llm092025-misinformation/) — 2025

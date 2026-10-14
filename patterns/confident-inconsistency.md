@@ -56,6 +56,11 @@ A compliance team runs the same contract clause through their agent on Monday an
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: reviewing each output once is cheap, and every answer that passes review looks correct.
+- Naming it lets a team measure consistency by re-running identical inputs and pin determinism where regulated decisions depend on it.
+
 **Liabilities**
 
 - Equivalent inputs receive materially different regulated determinations, each defensible alone but inconsistent together.
@@ -120,6 +125,9 @@ Single-run review must not be treated as sufficient for a regulated output; cons
 - _alternative-to_ **Determinism-Tiered Replay Gate** — The replay gate is the corrective — classify the reproducibility tier by re-running identical inputs and require the strict tier for regulated decisions; confident inconsistency is the unmeasured temporal non-determinism it guards against.
 - _complements_ **False Confidence Syndrome** — False confidence is miscalibrated certainty on a single answer; confident inconsistency is that each of several mutually-inconsistent answers is delivered with full confidence and passes review.
 - _complements_ **Confidence Reporting** — Confidence-reporting surfaces per-answer uncertainty; confident inconsistency is invisible to it because each individual output looks confident and correct — only cross-time comparison reveals the variance.
+- _complements_ **Replay Divergence** — Confident-inconsistency is user-facing output drift across independent re-runs of a query; this is state-reconstruction drift when an event log is replayed, where the harm is corrupted recovery and broken audit fidelity rather than two reviewers seeing different answers.
+- _complements_ **Serving-Stack Attestation** — That anti-pattern is unmeasured variance in outputs over time; attestation names one common cause of it, a route or backend that changed under a stable model name.
+- _complements_ **Served-Policy Anchoring** — The anti-pattern of variance that stays invisible because nobody re-runs; here the divergence is between two runtimes on one set of weights and is measured continuously rather than discovered.
 
 ## References
 

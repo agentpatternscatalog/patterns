@@ -146,6 +146,7 @@ A standing role or policy constraint must not rest on a single turn-zero block: 
 - _complements_ **Prompt Bloat** — Two failures of the same block in opposite directions: bloat is a prompt that grows and is never pruned, this is a prompt that never changes and stops binding anyway.
 - _complements_ **Rogue Agent Drift** — That failure needs a long-running deployment with persistent memory and self-modification; this one needs neither and appears inside a single conversation.
 - _complements_ **Context-Driven Architecture Drift** — The coding-agent case of a convention not being honoured: there the conventions were never written down in machine-readable form, here they were written down plainly and still went unhonoured a third of the time.
+- _complements_ **Ratified Design Philosophy** — The anti-pattern this avoids: the direction is rewritten on every use instead of left to go stale.
 
 ## References
 

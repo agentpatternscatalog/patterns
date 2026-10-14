@@ -56,6 +56,11 @@ A support agent may auto-approve refunds up to fifty dollars. A loyal customer i
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: accommodating each reasonable edge case keeps customers happy and avoids sending cases to human approval.
+- Naming it lets a team enforce the cap below the agent and audit the effective ceiling on a schedule instead of trusting the original setting.
+
 **Liabilities**
 
 - Authorised financial exposure grows beyond what was approved, one justified exception at a time.

@@ -62,6 +62,12 @@ A conference asks a model to draft first-pass reviews of submitted papers. One P
 
 ## Consequences
 
+**Benefits**
+
+- Naming the failure identifies the injector as the candidate under selection rather than an outside attacker, which changes who the defence is aimed at.
+- It gives a measurable target — verdict flip rate when the graded artifact is authored by the party whose score is at stake.
+- It shows why hiding the rubric and blinding the grader to the producer's trace are both insufficient, because the payload rides inside the artifact the grader must read.
+
 **Liabilities**
 
 - The score reports what the author wrote into the judge's prompt rather than the quality of the artifact, and the pipeline records it as a normal verdict.
@@ -139,6 +145,7 @@ By definition this anti-pattern imposes no useful restriction; the missing const
 - _complements_ **Prompt Injection Defense** — Untrusted-content tagging is the generic mitigation, but the untrusted content here is the very artifact being scored, so it cannot simply be excluded from the judge's context.
 - _complements_ **LLM-as-Judge** — This is the failure surface of model grading: the judge pattern assumes the candidate output is data, and the injection turns it into instructions the judge obeys.
 - _complements_ **Heterogeneous-Model Council with Synthesis Judge** — Decorrelated judges are a partial corrective: a payload tuned against one judge is less likely to carry across model families, though shared reading heuristics still leave common ground.
+- _complements_ **Chance-Corrected Judge Validation** — Injection corrupts the judge's inputs; validation measures its baseline discrimination, and a judge can fail either way independently.
 
 ## References
 

@@ -59,6 +59,11 @@ A travel agent calls a flights tool that correctly returns five fares. Asked for
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: letting the model sum or rank the rows directly saves a tool call and returns an answer that reads as authoritative.
+- Naming it lets a team route every aggregate over tool data through a deterministic step and keep the model to choosing what to compute.
+
 **Liabilities**
 
 - Confident wrong aggregates — a mis-ranked list, an off-by-some total, or a wrong cheapest pick — reach the user with no warning.
@@ -115,7 +120,7 @@ Avoiding it forbids the agent from computing aggregates over tool data itself: c
 
 - **[Aegis (agent-environment failure taxonomy)](https://arxiv.org/abs/2508.19504)** _pure-future_ — Names Tool Output Processing Failure — the agent makes computational errors such as comparisons and ranking when processing correctly-returned tool outputs — as a high-frequency failure class in its annotated data.
 - **Code-execution / tool-calculator offloading** _available_ — Production agent stacks mitigate the failure by routing arithmetic and comparison through a code sandbox or calculator tool rather than the model's free-form output.
-- **[OpenAI Code Interpreter (Advanced Data Analysis)](https://platform.openai.com/docs/assistants/tools/code-interpreter)** _available_ — Routes arithmetic, comparison, and data aggregation to a sandboxed Python runtime and reads back the computed result, the corrected offload this anti-pattern skips.
+- **[OpenAI Code Interpreter (Advanced Data Analysis)](https://developers.openai.com/api/docs/guides/tools-code-interpreter)** _available_ — Routes arithmetic, comparison, and data aggregation to a sandboxed Python runtime and reads back the computed result, the corrected offload this anti-pattern skips.
 
 ## Related patterns
 
@@ -124,6 +129,7 @@ Avoiding it forbids the agent from computing aggregates over tool data itself: c
 - _complements_ **Tool Output Trusted Verbatim** — Inverse failure on the same boundary: trusted-verbatim is about over-trusting the tool's content and safety, while this is the agent mis-computing over content the tool returned correctly.
 - _complements_ **Premature Closure** — Both are confidence-without-checking failures; premature closure skips constraints during answer generation, this skips deterministic computation over already-correct data.
 - _complements_ **False Confidence Syndrome** — The wrong aggregate is reported in the same authoritative tone as a correct one, which is the false-confidence surface that hides this failure from review.
+- _complements_ **Solver-Ready Formulation Handoff** — That anti-pattern is the agent computing over tool data in its head; this pattern moves the whole decision, not just the arithmetic, into a deterministic tool.
 
 ## References
 

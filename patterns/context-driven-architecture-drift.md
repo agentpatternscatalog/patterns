@@ -119,7 +119,7 @@ No useful constraint; the missing constraint is a machine-readable architecture 
 ## Known uses
 
 - **[Software Architecture Summit — coding-agent architecture failures](https://software-architecture-summit.de/blog/software-architektur/coding-agent-architektur-spec-harness/)** _available_ — German practitioner write-up of brownfield coding agents producing wrong layers, ignored conventions, and misplaced logic, and the spec/harness remedy.
-- **[EconLab — agent harness explained](https://econlab-ai.de/blog/agent-harness-erklaert)** _available_ — States that without spec, guardrails, and judgement, agents produce consistent nonsense — the failure shape this anti-pattern names.
+- **[EconLab — Agent Harness erklärt (archived)](https://web.archive.org/web/20260704205909/https://econlab-ai.de/blog/agent-harness-erklaert)** _available_ — German practitioner write-up naming the production failures as control, memory and verification problems rather than model-capability ones — drift after roughly thirty steps, a decision forgotten two hours earlier, the same mistake repeated across three branches, a unit test passed while a policy is violated.
 - **[ArchUnit](https://www.archunit.org/)** _available_ — Library that expresses allowed layer dependencies and module boundaries as test-like assertions, the in-loop drift check that rejects wrong-layer and forbidden-dependency diffs before they merge.
 - **[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)** _available_ — Validates JS/TS code against forbidden-dependency and layer rules, encoding the cross-layer boundaries an agent would otherwise violate from a local view.
 
@@ -129,11 +129,13 @@ No useful constraint; the missing constraint is a machine-readable architecture 
 - _complements_ **Repo Map** — A repo map gives the agent structural context across the codebase, reducing the local-sample inference that drives wrong-layer placement; it is partial mitigation, not the full spec.
 - _complements_ **Automating a Broken Process** — Both amplify a defect through an agent — that one a dysfunctional workflow, this one a brownfield codebase's un-encoded architecture conventions.
 - _complements_ **Agentic Skill Atrophy** — Atrophy erodes the team's ability to spot wrong-shape diffs; this drift produces them — together the agent makes architectural mistakes and the team stops catching them.
+- _complements_ **Set-and-Forget System Prompt** — The coding-agent case of a convention not being honoured: there the conventions were never written down in machine-readable form, here they were written down plainly and still went unhonoured a third of the time.
+- _complements_ **Ratified Design Philosophy** — Names the drift that results when conventions are tacit; this pattern is a remedy for the interface layer.
 
 ## References
 
 - [Warum dein Coding Agent die falsche Architektur baut](https://software-architecture-summit.de/blog/software-architektur/coding-agent-architektur-spec-harness/) — 2026
-- [Agent Harness erklärt](https://econlab-ai.de/blog/agent-harness-erklaert) — 2026
+- [Agent Harness erklärt: Warum 2026 das Jahr der KI-Kontrolle ist (archived)](https://web.archive.org/web/20260704205909/https://econlab-ai.de/blog/agent-harness-erklaert) — 2026
 - [Architecture Without Architects: How AI Coding Agents Shape Software Architecture](https://arxiv.org/abs/2604.04990) — 2026
 - [ContextCov: Deriving and Enforcing Executable Constraints from Agent Instruction Files](https://arxiv.org/abs/2603.00822) — 2026
 - [Constraint Decay: The Fragility of LLM Agents in Backend Code Generation](https://arxiv.org/abs/2605.06445) — 2026

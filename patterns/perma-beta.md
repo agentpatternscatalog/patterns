@@ -23,6 +23,57 @@ Without an evaluation harness, every release is a guess: regressions land invisi
 - GA promises commit to quality bars.
 - Beta lets product move fast.
 
+## Therefore
+
+Therefore: build the eval harness, set quality gates, and exit beta on a published date, so that regressions become visible and the label stops absorbing accountability for unmeasured quality.
+
+## Solution
+
+Don't. Build the eval harness and exit beta. See eval-harness, llm-as-judge, shadow-canary.
+
+## Structure
+
+```
+Anti-pattern: agent shipped as beta -> no eval harness -> releases and model swaps unmeasured -> quality drifts. Corrected: eval harness + judge + shadow canary -> measured releases -> exit beta with owned quality.
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']
+  V1 --> V2[v2 still 'beta']
+  V2 -.no eval gate.-> Reg[Quality regressions]
+  Reg -.blamed on.-> Users[Users]
+  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]
+```
+
+## Example scenario
+
+A startup launches its agent product as 'beta' and uses the label as a blanket excuse for any quality complaint. Eighteen months later the agent is still beta, there is no eval harness, and customers have started churning to a competitor that ships GA. The team names the failure perma-beta and forces an exit: build the eval suite, set quality gates, fix the regressions blocking GA, and remove the beta label. The label was hiding the fact that nobody actually knew whether the product was getting better or worse.
+
+## Consequences
+
+**Benefits**
+
+- Short-term: the beta label lowers expectations and lets the team ship without building measurement.
+- Naming it lets a team set the exit criteria for beta in advance.
+
+**Liabilities**
+
+- Trust erosion.
+- No SLA defensibility.
+- Quality stagnates without measurement.
+
+## Failure modes
+
+- Invisible regression — a release lowers quality, and no eval harness catches it, so users find it first.
+- Model upgrade on vibe — a new model version is accepted because it feels better, with no measurement.
+- Accountability sink — every quality complaint is answered with 'it is beta', and nobody owns the problem.
+
+## What this pattern constrains
+
+Avoiding it imposes an accountability rule: 'beta' cannot be a permanent disclaimer; a release must carry an eval harness and an explicit exit condition, or the label is hiding unowned quality regressions.
 
 ## Applicability
 
@@ -38,53 +89,44 @@ Without an evaluation harness, every release is a guess: regressions land invisi
 - Any product where 'beta' is being used as an excuse for missing evaluation.
 - Any team that has the resources to build an eval harness but has not.
 
-## Therefore
+## Components
 
-Therefore: build the eval harness, set quality gates, and exit beta on a published date, so that regressions become visible and the label stops absorbing accountability for unmeasured quality.
+- Beta label on the product surface — used as a shield against quality accountability past its useful life
+- Release pipeline — ships new versions without a regression-detection gate
+- Missing eval harness — would measure quality across releases and gate GA
+- Model-upgrade decision — accepted or rejected on vibe rather than measured deltas
 
-## Solution
+## Tools
 
-Don't. Build the eval harness and exit beta. See eval-harness, llm-as-judge, shadow-canary.
+- Eval harness — missing measurement surface that would expose regressions per release
+- Shadow-canary or LLM-as-judge gate — missing release control that would block bad ships
 
-## Example scenario
+## Evaluation metrics
 
-A startup launches its agent product as 'beta' and uses the label as a blanket excuse for any quality complaint. Eighteen months later the agent is still beta, there is no eval harness, and customers have started churning to a competitor that ships GA. The team names the failure perma-beta and forces an exit: build the eval suite, set quality gates, fix the regressions blocking GA, and remove the beta label. The label was hiding the fact that nobody actually knew whether the product was getting better or worse.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  V0[v0 ship in 'beta'] --> V1[v1 still 'beta']
-  V1 --> V2[v2 still 'beta']
-  V2 -.no eval gate.-> Reg[Quality regressions]
-  Reg -.blamed on.-> Users[Users]
-  V0 -. fix .-> EH[Build eval harness] --> Exit[Exit beta]
-```
-
-## Consequences
-
-**Liabilities**
-
-- Trust erosion.
-- No SLA defensibility.
-- Quality stagnates without measurement.
-
-## What this pattern constrains
-
-Avoiding it imposes an accountability rule: 'beta' cannot be a permanent disclaimer; a release must carry an eval harness and an explicit exit condition, or the label is hiding unowned quality regressions.
+- Time-since-launch-still-in-beta — months elapsed past a reasonable graduation window
+- Eval coverage of shipped features — fraction of capabilities backed by a regression-tracking eval set
+- Release-rejection rate from automated gates — near zero indicates no gating at all
+- User-reported-regression rate per release — climbs because internal measurement does not catch issues first
 
 ## Known uses
 
-- **[Google Bard 'Experiment' label (2023-2024)](https://blog.google/technology/ai/try-bard/)** — *Deprecated* — Shipped to the public for a year while labeled an experiment; the label acknowledged unreliability without reducing exposure, and quality complaints were answered with the beta framing.
+- **[Google Bard 'Experiment' label (2023-2024)](https://blog.google/technology/ai/try-bard/)** _deprecated_ — Shipped to the public for a year while labeled an experiment; the label acknowledged unreliability without reducing exposure, and quality complaints were answered with the beta framing.
 
 ## Related patterns
 
-- *alternative-to* → [eval-harness](eval-harness.md)
-- *alternative-to* → [shadow-canary](shadow-canary.md)
-- *conflicts-with* → [eval-as-contract](eval-as-contract.md)
+- _alternative-to_ **Eval Harness**
+- _alternative-to_ **Shadow Canary**
+- _conflicts-with_ **Eval as Contract**
+- _complements_ **Demo-to-Production Cliff**
+- _complements_ **Automating a Broken Process**
+- _complements_ **Agentic Skill Atrophy**
+- _complements_ **Agentic Debt**
+- _alternative-to_ **Rigor Relocation**
+- _complements_ **Hidden Validation-Work Amplification**
+- _complements_ **Agent Sprawl** — Perma-beta is one agent shipped without a measurement story; agent sprawl is the fleet-scale version where many agents run with no success metric and no owner.
+- _complements_ **Silent Pilot-to-Production Promotion** — Both keep a misleading status label to dodge accountability: perma-beta ships forever in 'beta' to defer quality ownership; this defers the go-live decision by staying forever in 'pilot'. The shared mechanism is a label that lags reality.
+- _conflicts-with_ **Agent Withdrawal Criteria** — An expiry date and pre-agreed exit thresholds make the indefinite-beta dodge impossible: a breach or a lapsed review forces a recorded decision.
 
 ## References
 
-- (repo) *ai-standards/ai-design-patterns (Perma-Beta)*, <https://github.com/ai-standards/ai-design-patterns>
-
-**Tags:** anti-pattern, release, beta
+- [ai-standards/ai-design-patterns (Perma-Beta)](https://github.com/ai-standards/ai-design-patterns)

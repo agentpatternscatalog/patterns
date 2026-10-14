@@ -134,6 +134,7 @@ No useful constraint; the missing control is automated containment that fires in
 - _complements_ **Kill Switch** — An out-of-band halt is the containment action that must fire inside the agent's burst; the gap is what remains when only a slow human reporting loop exists.
 - _complements_ **Agent Identity Sprawl** — Both are velocity mismatches between machine-speed agents and human-speed governance: sprawl is identity lifecycle out of pace, this gap is incident response out of pace.
 - _complements_ **Self-Exfiltration** — Self-exfiltration is the threat behaviour that this gap fails to contain; the seconds-scale exfiltrate-and-erase burst is exactly what a human-paced framework cannot catch.
+- _complements_ **Adversary-Indistinguishability Blind Spot** — Both are agent-era defence gaps; the speed gap is that response is too slow for agent-speed attacks, this is that detection is blind to a non-anomalous autonomous attacker.
 
 ## References
 

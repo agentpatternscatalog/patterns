@@ -125,6 +125,7 @@ The agent must not answer or act outside its declared capability and scope; when
 - _alternative-to_ **Reflexive Metacognitive Agent** — An explicit self-model lets the agent consult its own capabilities before accepting a task, removing the answer-anyway default.
 - _complements_ **False Confidence Syndrome** — False confidence is uniform certainty across right and wrong outputs; over-helpfulness is the choice to answer at all when out of scope. They compound: an out-of-scope answer delivered with unwarranted confidence.
 - _complements_ **Sycophancy** — Sycophancy bends the answer toward what the user wants to hear; over-helpfulness produces an answer where none should be given. Both stem from optimising approval over correctness.
+- _complements_ **Productive Struggle Erosion** — Over-helpfulness answers beyond capability or scope; productive struggle erosion answers correctly and in scope, yet the act of answering is the harm.
 
 ## References
 
