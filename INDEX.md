@@ -1,6 +1,6 @@
 # Pattern Index
 
-564 patterns across 14 categories.
+565 patterns across 14 categories.
 
 ## Reasoning
 
@@ -419,6 +419,7 @@
 - [Production Failure Triage Loop](patterns/production-failure-triage-loop.md) *(a.k.a. Failure-Class Routed Remediation, Post-Launch Triage Loop)* — Sort every production agent failure into a small fixed taxonomy and bind each class to a set remediation path, so fixes are dispatched mechanically and the monitor-to-fix loop stays fast enough to gate scaling.
 - [Prompt Versioning](patterns/prompt-versioning.md) *(a.k.a. Prompt-as-Artifact, Prompt Registry, Versioned Prompts)* — Treat prompts as immutable, hashed, semver'd artefacts in a registry; deploy and roll back like code.
 - [Provenance Ledger](patterns/provenance-ledger.md) *(a.k.a. Audit Trail, Action Log)* — Log every agent decision and state change with enough metadata to explain or reverse it later.
+- [Ratified Design Philosophy](patterns/ratified-design-philosophy.md) *(a.k.a. Owner-Ratified Design Authority, Self-Learning Design Review Skill, Living Design Direction)* — Give a design or review agent one living design authority that holds the owner's ranked principles and their reasons, learns from every correction, and changes only through the owner's ratification.
 - [Re-Contact-Subtracted Resolution Gate](patterns/re-contact-subtracted-resolution.md) *(a.k.a. Deflection-Minus-Re-Contact Resolution, True Resolution Rate Gate)* — Gate a support agent on a re-contact-subtracted resolution rate so an interaction that merely ends the session is never reported as a resolved one.
 - [Replay / Time-Travel](patterns/replay-time-travel.md) *(a.k.a. Trace Replay, Run Branching, Fork from Step N)* — Re-run a past agent trace from any step with modified inputs/prompts/tools to debug or branch.
 - [Rigor Relocation](patterns/rigor-relocation.md) *(a.k.a. Relocating Rigor, Rigor Migration, Discipline at a Higher Abstraction)* — Relocate verification rigor from the model loop to surrounding scaffolding (evals, judges, decision logs, policy gates) so failures are caught by the wrapper rather than the agent.
