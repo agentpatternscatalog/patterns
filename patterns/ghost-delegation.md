@@ -56,6 +56,11 @@ An orchestrator agent delegates a data-fetch subtask to a worker and moves on to
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: fire-and-forget handoffs are simple to build and need no acknowledgement or tracking code.
+- Naming it lets a team require acknowledgements, timeouts, and completion contracts, and treat a missing result as an error.
+
 **Liabilities**
 
 - Final results are silently incomplete because a delegated subtask vanished with no error to flag it.

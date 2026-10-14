@@ -126,6 +126,9 @@ No useful constraint; the missing constraint is named-owner accountability — e
 - _complements_ **Black-Box Opaqueness** — Thin traces and missing decision logs are what let an organisation point to a model score instead of a reasoned human endorsement; opacity is the enabling condition for laundering.
 - _conflicts-with_ **Human-in-the-Loop** — Genuine human-in-the-loop requires a reviewer who can and does override; laundering keeps the reviewer for form while collapsing review into a rubber stamp, subverting the safeguard it imitates.
 - _complements_ **Silent Pilot-to-Production Promotion** — Both let a production-scale decision system escape ownership, and both surface in the same Polish governance source: laundering severs the decision from a named owner; silent promotion severs the deployment from a named production status, so neither trips the controls real stakes demand.
+- _complements_ **Advisory-to-Mandate Escalation** — Accountability laundering deflects blame onto the algorithm; advisory-to-mandate makes the algorithm's advice binding and reframes a correct human override as defiance.
+- _complements_ **Blanket-Authorization Accountability Rupture** — Accountability laundering actively deflects blame onto the algorithm; blanket-authorization rupture is the structural gap where no party retained control to be blamed in the first place.
+- _complements_ **Oversight as Legitimation** — The mirror failure: there a decision is routed through a model so that no person owns it, while here a person is deliberately named as owner and the naming is what makes the deployment possible.
 
 ## References
 

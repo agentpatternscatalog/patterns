@@ -56,6 +56,11 @@ A support-automation team event-sources every agent run so they can replay logs 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: replaying the event log is the standard event-sourcing recovery method and needs no extra recording.
+- Naming it lets a team record non-deterministic outputs on first run and treat replay under a new model as a fresh run to diff.
+
 **Liabilities**
 
 - Crash recovery rebuilds a state the system was never in, because re-invoked LLM calls diverge from what originally happened.

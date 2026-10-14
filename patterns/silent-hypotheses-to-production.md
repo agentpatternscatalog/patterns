@@ -59,6 +59,11 @@ A developer asks an agent to add a function that returns the average order value
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: green tests and fluent code that passes review feel like enough proof to ship quickly.
+- Naming it lets a team ask the model to state its assumptions and to test the cases where those assumptions break.
+
 **Liabilities**
 
 - A production failure presents as an unexplained incident because the premise that broke was never written down to point at.

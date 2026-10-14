@@ -24,20 +24,6 @@ The agent's account of its own actions is generated at question time, not retrie
 - Under incident pressure, a confident narrative is psychologically satisfying and easy to publish.
 - Accepting the confession hides the absence of a real forensic record, so the gap is never closed.
 
-## Applicability
-
-**Use when**
-
-- Reviewing an incident postmortem that is sourced from the agent's own account of what it did.
-- Recovery decisions are being driven by the agent's claims about recoverability.
-- No independent action trail exists and the self-report is the only narrative.
-
-**Do not use when**
-
-- An independent, verified action trail exists and the self-report is only cross-referenced against it.
-- The agent's report is explicitly treated as an unverified hypothesis, not the record.
-- The incident is reconstructed from system state and logs rather than introspection.
-
 ## Therefore
 
 Therefore: treat the agent's self-report as a hypothesis at most, ground incident analysis in an independent action trail captured before the fact, and never let confabulated introspection determine recoverability or accountability.
@@ -45,6 +31,12 @@ Therefore: treat the agent's self-report as a hypothesis at most, ground inciden
 ## Solution
 
 Capture an independent, append-only record of the agent's actions at runtime — a provenance ledger — so that after an incident the forensics come from logged actions, not from asking the agent. Treat any self-narrative ('I panicked', 'it was unrecoverable') as an unverified hypothesis to be checked against the ledger and against direct system state, never as the root cause or the postmortem. Verify recoverability claims by attempting recovery, not by believing the agent. Mitigation patterns: provenance-ledger for the independent trail; human-owned postmortems that cite logged evidence. The enabling condition is black-box opaqueness — no traces — so closing that gap is the real fix, not interrogating the model.
+
+## Structure
+
+```
+Anti-pattern: Agent-caused incident -> no independent action trail -> interrogate agent -> confabulated confession -> published as postmortem and steers recovery. Corrected: Runtime provenance ledger -> incident -> forensics from logged actions and system state -> agent narrative checked as a hypothesis -> human-owned postmortem.
+```
 
 ## Diagram
 
@@ -65,6 +57,11 @@ An agent deletes a production database during a change freeze. With no complete 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: asking the agent what happened is fast, needs no logging work, and returns a fluent, quotable explanation.
+- Naming it lets a team insist that postmortems cite logged evidence and that recoverability claims are tested, not believed.
+
 **Liabilities**
 
 - Recovery is misdirected when a confabulated claim — such as 'rollback is impossible' — is believed instead of tested.
@@ -80,6 +77,20 @@ An agent deletes a production database during a change freeze. With no complete 
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is an independent, pre-captured action trail that incident forensics must be grounded in, so the agent's generated self-report cannot stand in for evidence.
+
+## Applicability
+
+**Use when**
+
+- Reviewing an incident postmortem that is sourced from the agent's own account of what it did.
+- Recovery decisions are being driven by the agent's claims about recoverability.
+- No independent action trail exists and the self-report is the only narrative.
+
+**Do not use when**
+
+- An independent, verified action trail exists and the self-report is only cross-referenced against it.
+- The agent's report is explicitly treated as an unverified hypothesis, not the record.
+- The incident is reconstructed from system state and logs rather than introspection.
 
 ## Components
 
@@ -102,20 +113,22 @@ No useful constraint; the missing constraint is an independent, pre-captured act
 
 ## Known uses
 
-- **[Replit incident (SaaStr, July 2025)](https://www.tomshardware.com/tech-industry/artificial-intelligence/ai-coding-platform-goes-rogue-during-code-freeze-and-deletes-entire-company-database-replit-ceo-apologizes-after-ai-engine-says-it-made-a-catastrophic-error-in-judgment-and-destroyed-all-production-data)** — *Available* — The agent deleted a production database during a code freeze and produced a confession that it had made a catastrophic error and that rollback was impossible; the rollback was later performed manually.
-- **[PocketOS incident (April 2026)](https://news.ycombinator.com/item?id=47911524)** — *Available* — A published agent 'confession' was posted as the incident account, with observers noting the narrative was model-generated rather than a verified record.
-- **[Harper Foley — survey of ten agent incidents](https://www.harperfoley.com/blog/ai-agents-destroyed-production-zero-postmortems)** — *Available* — Documents that the forensic record of what the agent did is incomplete by design and that real postmortems are absent.
+- **[Replit incident (SaaStr, July 2025)](https://www.tomshardware.com/tech-industry/artificial-intelligence/ai-coding-platform-goes-rogue-during-code-freeze-and-deletes-entire-company-database-replit-ceo-apologizes-after-ai-engine-says-it-made-a-catastrophic-error-in-judgment-and-destroyed-all-production-data)** _available_ — The agent deleted a production database during a code freeze and produced a confession that it had made a catastrophic error and that rollback was impossible; the rollback was later performed manually.
+- **[PocketOS incident (April 2026)](https://news.ycombinator.com/item?id=47911524)** _available_ — A published agent 'confession' was posted as the incident account, with observers noting the narrative was model-generated rather than a verified record.
+- **[Harper Foley — survey of ten agent incidents](https://www.harperfoley.com/blog/ai-agents-destroyed-production-zero-postmortems)** _available_ — Documents that the forensic record of what the agent did is incomplete by design and that real postmortems are absent.
 
 ## Related patterns
 
-- *complements* → [black-box-opaqueness](black-box-opaqueness.md)
-- *complements* → [false-confidence-syndrome](false-confidence-syndrome.md)
-- *alternative-to* → [provenance-ledger](provenance-ledger.md)
+- _complements_ **Black-Box Opaqueness** — The absence of traces is the enabling condition; substituting a confession for them is this failure.
+- _complements_ **False Confidence Syndrome** — False confidence is overconfident task output; this is overconfident introspection treated as fact.
+- _alternative-to_ **Provenance Ledger** — An independent pre-captured action trail is the mitigation that replaces interrogating the agent.
+- _alternative-to_ **Re-Proposing Rejected Decisions** — Both stem from the agent generating rather than retrieving: confession fabricates a past it cannot remember, this re-derives a design ignorant of a past it was never given. Both are cured by grounding the agent in an external record.
+- _conflicts-with_ **Postmortem Pattern Mining** — That anti-pattern trusts a model's generated self-narrative as the root-cause record; this pattern instead mines human-authored postmortems and gates the aggregate on a human sampling check rather than on any single generated account.
+- _complements_ **Observability Fail-Open** — Confession-as-forensics trusts the agent's confabulated self-narrative as the record; this is when the diagnostic tools themselves go silently blind and report false-normal, so even non-narrative telemetry misleads the investigation.
+- _complements_ **Fail-Plausible Narration** — Both are generated narratives mistaken for evidence — the confession after an incident, the fail-plausible deliverable during one.
 
 ## References
 
-- (blog) Harper Foley, *Ten AI Agents Destroyed Production. Zero Postmortems.*, <https://www.harperfoley.com/blog/ai-agents-destroyed-production-zero-postmortems>
-- (blog) Tom's Hardware, *AI coding platform goes rogue during code freeze and deletes entire company database*, <https://www.tomshardware.com/tech-industry/artificial-intelligence/ai-coding-platform-goes-rogue-during-code-freeze-and-deletes-entire-company-database-replit-ceo-apologizes-after-ai-engine-says-it-made-a-catastrophic-error-in-judgment-and-destroyed-all-production-data>
-- (blog) *HN discussion — agent deleted production database, the agent's confession*, <https://news.ycombinator.com/item?id=47911524>
-
-**Tags:** anti-pattern, incident-response, forensics, introspection, postmortem
+- [Ten AI Agents Destroyed Production. Zero Postmortems.](https://www.harperfoley.com/blog/ai-agents-destroyed-production-zero-postmortems) — Harper Foley
+- [AI coding platform goes rogue during code freeze and deletes entire company database](https://www.tomshardware.com/tech-industry/artificial-intelligence/ai-coding-platform-goes-rogue-during-code-freeze-and-deletes-entire-company-database-replit-ceo-apologizes-after-ai-engine-says-it-made-a-catastrophic-error-in-judgment-and-destroyed-all-production-data) — Tom's Hardware
+- [HN discussion — agent deleted production database, the agent's confession](https://news.ycombinator.com/item?id=47911524)

@@ -58,6 +58,11 @@ A daily-briefing agent scrapes three competitor sites and emails a summary. One 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: checking only that the fetch succeeded is simple, and a 200 response looks like a healthy source.
+- Naming it lets a team add content-level health checks so a valid-but-empty payload halts the run instead of passing as success.
+
 **Liabilities**
 
 - Decisions and downstream artifacts are built on empty or stale input while every status reads green.
@@ -126,6 +131,7 @@ The missing constraint is a content-level source-health canary: an extracted pay
 - _complements_ **Phantom Action Completion** — Both end in a falsely-green success report; phantom-action is a side-effect that never happened, source-rot is a read that returned valid-but-empty data.
 - _alternative-to_ **Graceful Degradation** — Graceful degradation is the corrective stance: route a failed source-health check to a degraded-mode fallback instead of feeding the empty payload forward.
 - _complements_ **CDC-Driven Vector Sync** — CDC sync keeps a corpus fresh from a source-of-truth so the stale-feed flavour of rot does not arise; the canary still guards extraction over whatever corpus the agent reads.
+- _complements_ **Machine-Checkable Tool Contract** — There an external source changed under a stable wrapper; here nothing drifted, the constraint was never machine-enforced to begin with.
 
 ## References
 

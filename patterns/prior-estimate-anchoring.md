@@ -58,6 +58,12 @@ A code-review loop scores a patch 4 out of 10, the author agent rewrites it, and
 
 ## Consequences
 
+**Benefits**
+
+- Naming the failure explains why a pipeline's stages agree more than their independence would predict, so manufactured agreement is not read as corroboration.
+- It gives a measurable target — the shift in a stage's own judgement when the prior estimate is withheld from its context.
+- It locates the anchor in the harness's own bookkeeping metadata, which is where trace-blind grading does not reach.
+
 **Liabilities**
 
 - Corrections the judge would have made are suppressed — 48% of them in the measured refinement loop — so real defects survive revision.

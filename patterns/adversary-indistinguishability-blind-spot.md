@@ -30,7 +30,7 @@ Therefore: do not assume behavioural-anomaly detection calibrated to human irreg
 
 ## Solution
 
-Stop equating 'looks normal' with 'is safe' when the adversary can be an agent. Supplement human-irregularity anomaly detection with signals that an autonomous attacker cannot make look human: cryptographic provenance and identity for which automation is acting, intent and authorisation checks on sequences rather than per-action normality, rate and volume baselines specific to legitimate automation, and tight capability scoping so a credential-legitimate agent still cannot reach a lethal combination of actions. Treat flawless, high-consistency activity as a category to verify against its authorised purpose rather than as evidence of benignity. The defence is to detect on what an agent adversary cannot fake, not on the human-noise signature it never had.
+Stop equating 'looks normal' with 'is safe' when the adversary can be an agent. Supplement human-irregularity anomaly detection with signals an autonomous attacker cannot make look human. Add cryptographic provenance and identity for which automation is acting, intent and authorisation checks on sequences rather than per-action normality, and rate and volume baselines specific to legitimate automation. Scope capabilities tightly so a credential-legitimate agent still cannot reach a lethal combination of actions. Treat flawless, high-consistency activity as a category to verify against its authorised purpose rather than as evidence of benignity. The defence is to detect on what an agent adversary cannot fake, not on the human-noise signature it never had.
 
 ## Structure
 
@@ -54,6 +54,11 @@ flowchart TD
 A red team runs an autonomous agent that logs in with stolen but valid credentials and performs a long, flawless sequence of standard API calls to stage data for exfiltration. The SOC's anomaly tooling, tuned to flag odd hours and erratic human behaviour, sees a consistent, well-formed session and raises nothing. A human doing the same clumsily would have tripped alerts; the agent's very consistency is what keeps it invisible.
 
 ## Consequences
+
+**Benefits**
+
+- Short-term: existing anomaly detection is already deployed, and a quiet alert stream reads as a safe system.
+- Naming it lets a team add provenance, intent checks, and automation-specific baselines rather than trusting 'looks normal'.
 
 **Liabilities**
 
@@ -119,6 +124,9 @@ Behavioural-anomaly detection calibrated to human irregularity must not be treat
 - _complements_ **Agent-Speed Incident-Response Gap** — Both are agent-era defence gaps; the speed gap is that response is too slow for agent-speed attacks, this is that detection is blind to a non-anomalous autonomous attacker.
 - _complements_ **Sandbox Escape Monitoring** — Sandbox-escape monitoring treats boundary violations as telemetry; this names why behavioural-anomaly detection alone misses a credential-legitimate agent adversary that never trips an obvious boundary.
 - _complements_ **Lethal Trifecta Threat Model** — The trifecta blocks injection-driven exfiltration by separating capabilities; this names a detection blind spot that persists even when the attacker is an autonomous agent acting legitimately.
+- _complements_ **Emergent Agent Collusion** — Both are monitoring blind spots from inspecting agents one at a time: one misses a clean autonomous adversary, the other misses coordination that exists only when behaviour is correlated across agents.
+- _complements_ **Observability Fail-Open** — Both leave a defender blind: one because the adversary looks normal to human-calibrated detection, the other because the monitoring tool fails open and reports normal when it cannot see.
+- _complements_ **History-Dependent Admissibility** — There the detector is mis-calibrated against an autonomous attacker who looks too regular; here the attacker looks entirely ordinary at every single turn and is visible only in the sequence.
 
 ## References
 

@@ -57,6 +57,11 @@ An auto-remediation agent gets a CPU alert on an API pod and scales the service 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: the target metric recovers fast, incidents close, and nobody is paged at night.
+- Naming it lets a team treat a recovered metric as mitigation, keep state across incidents, and escalate after repeated fixes.
+
 **Liabilities**
 
 - The underlying fault grows under repeated masking until it fails harder and takes down more services at once.
@@ -122,6 +127,8 @@ A recovered target metric must not by itself close an incident as resolved; reme
 - _alternative-to_ **Circuit Breaker** — A circuit breaker that trips after repeated failures is the corrective that stops a masking fix from re-firing indefinitely; thrashing is what happens without one.
 - _complements_ **Composable Termination Conditions** — An explicit escalate-after-N-attempts termination is the corrective; thrashing lacks any stop-or-escalate condition on repeated remediation.
 - _complements_ **Phantom Action Completion** — Phantom completion narrates a fix that never ran; symptom thrashing runs a fix that genuinely hits the metric yet masks the real problem.
+- _complements_ **Production Failure Triage Loop** — The anti-pattern this guards against: binding a class to a root-cause-appropriate surface (code, policy, data owner) is the discipline that stops the masking-fix loop.
+- _complements_ **Actuation-Scope-Registered Control Loops** — There one stateless loop oscillates against itself, re-applying a fix to a root cause it cannot see. Here every loop is individually correct and stable and the oscillation is purely relational, so carrying state within a loop does not help and the remedy is a declared write scope shared between loops.
 
 ## References
 

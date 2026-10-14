@@ -58,6 +58,11 @@ A team ships a multi-agent pipeline of five agents, described in the design doc 
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: splitting work into named agents that share one context is quick to build and is easy to present as a decoupled design.
+- Naming it lets a team judge the system by its runtime coupling and either provide real isolation or design it honestly as a monolith.
+
 **Liabilities**
 
 - No agent can be deployed, scaled, or reasoned about in isolation, despite the system being described as if it could.
@@ -122,6 +127,7 @@ A system must not be treated as decoupled merely because it is split into agents
 - _complements_ **Orchestrator as Bottleneck** — Orchestrator-as-bottleneck is single-orchestrator throughput; the distributed monolith is the whole topology being coupled despite looking like independent services.
 - _complements_ **Multi-Agent on Sequential Workloads** — Sequential degradation is quality decay over a chain; the distributed monolith is the architectural coupling that produces those synchronous chains in the first place.
 - _complements_ **Cascading Agent Failures** — No failure isolation means one agent's failure is not contained — a direct consequence of the hidden coupling this anti-pattern names.
+- _complements_ **Epistemic Fault-Domain Quorum** — The same false decoupling found in the deployment topology; this pattern finds it in the evidence the members read.
 
 ## References
 

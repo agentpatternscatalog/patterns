@@ -56,6 +56,11 @@ A user uploads their resume to a career-assistant agent to get feedback. To enri
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: one simple chat interface hides tool routing, so the product feels clean and needs no disclosure work.
+- Naming it lets a team map and disclose which tools and third parties receive personal data and keep an auditable record of each flow.
+
 **Liabilities**
 
 - Personal data reaches third parties the user never knew were involved, outside their consent.

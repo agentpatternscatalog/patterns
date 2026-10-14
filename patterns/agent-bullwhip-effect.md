@@ -56,6 +56,11 @@ A grocery chain runs a replenishment agent per store and per depot. A short prom
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: letting each node's agent optimise its own stock is simple to build and each agent's choices look correct on their own.
+- Naming it lets a team look at the collective ordering policy and add dampening and staggering at the system level.
+
 **Liabilities**
 
 - Supplier stockouts and overstock swings grow with the network, driven by the agents' own ordering rather than real demand.

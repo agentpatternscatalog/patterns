@@ -56,6 +56,11 @@ A medical-coding task is given to a five-agent team that includes one agent fine
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: letting the team reach consensus feels fair and balanced, and adding members looks like adding capability.
+- Naming it lets a team design how answers are aggregated and check that each added member actually raises team output.
+
 **Liabilities**
 
 - Team output falls below what the single best member would have produced alone.
@@ -120,6 +125,8 @@ A team's answer must not be formed by averaging all members' views equally; cont
 - _complements_ **Dynamic Expert Recruitment** — Recruitment names the expert for the task; consensus-averaging is the failure to use that expert because the team compromises toward the average.
 - _complements_ **Same-Model Self-Critique** — Both are multi-agent aggregation failures; self-critique assumes false independence, consensus-averaging dilutes a genuinely better member by compromise.
 - _complements_ **Multi-Agent on Sequential Workloads** — Sequential degradation loses accuracy splitting a sequential task; consensus-averaging loses it by compromising away the expert's advantage.
+- _complements_ **Epistemic Fault-Domain Quorum** — There the cost of averaging is dilution of a known expert; here it is double-counting of a hidden shared ancestor.
+- _complements_ **Prior-Estimate Anchoring** — Both manufacture agreement, one by averaging expert and non-expert views, the other by showing the second judge what the first judge decided.
 
 ## References
 

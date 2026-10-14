@@ -24,20 +24,6 @@ Every provider has its own request schema, its own streaming semantics, its own 
 - Per-provider quirks (streaming chunks, tool-call shapes, rate-limit headers) are non-trivial to unify.
 - Switching providers for quality, cost, or compliance reasons is a normal lifecycle event, not a hypothetical.
 
-## Applicability
-
-**Use when**
-
-- Cite this entry when application code is coupled to one provider's SDK, request shape, or proprietary features.
-- You are already here if a provider outage or price change would require rewriting application code rather than swapping an adapter.
-- Bind to a provider-agnostic abstraction from the first commit and isolate provider-specific features behind capability flags.
-
-**Do not use when**
-
-- The application is expected to live longer than one provider contract cycle (twelve to twenty-four months).
-- Compliance, cost, or quality may push the team to a different provider in future.
-- The application reads provider headers, error shapes, or rate-limit semantics directly — those will diverge.
-
 ## Therefore
 
 Therefore: code against a provider-agnostic interface (a unified language-model spec, a `provider/model` string router, or a thin adapter), so that swapping providers is a configuration change rather than a code rewrite.
@@ -46,9 +32,11 @@ Therefore: code against a provider-agnostic interface (a unified language-model 
 
 Don't couple application code to one provider's surface. Use a provider-agnostic abstraction (Vercel AI SDK's language model spec, LiteLLM, Mastra's `provider/model` string, OpenAI-API-compatible adapters) and keep provider-specific extensions behind capability flags. Where a feature only exists on one provider, isolate it in a feature module rather than threading it through the agent loop. See provider-string-routing, provider-fallback, multi-model-routing.
 
-## Example scenario
+## Structure
 
-A startup builds its agent product against one provider's SDK, threading provider-specific objects through the agent loop and reading provider-specific error fields in retry logic. Two years later, the provider doubles per-token price and tightens rate limits; the team wants to fall back to a competitor for cheap traffic and keep the incumbent for hard tasks. The migration takes three months because tool-call shapes, streaming chunk formats, and error semantics are all wired into application code. They rebuild against a provider-agnostic adapter and a `provider/model` string router; the next vendor evaluation is a config change.
+```
+Anti-pattern: Application code -> provider SDK called directly everywhere -> provider shape leaks through codebase -> switching means rewrite. Corrected: Application code -> provider-agnostic adapter (+ capability flags / feature modules) -> any provider.
+```
 
 ## Diagram
 
@@ -64,7 +52,16 @@ flowchart TD
   R --> P3[Provider Z]
 ```
 
+## Example scenario
+
+A startup builds its agent product against one provider's SDK, threading provider-specific objects through the agent loop and reading provider-specific error fields in retry logic. Two years later, the provider doubles per-token price and tightens rate limits; the team wants to fall back to a competitor for cheap traffic and keep the incumbent for hard tasks. The migration takes three months because tool-call shapes, streaming chunk formats, and error semantics are all wired into application code. They rebuild against a provider-agnostic adapter and a `provider/model` string router; the next vendor evaluation is a config change.
+
 ## Consequences
+
+**Benefits**
+
+- Short-term: calling one provider's SDK directly is the quickest path and gives early access to its proprietary features.
+- Naming it lets a team keep provider switching a normal adapter change and review imports for leaks.
 
 **Liabilities**
 
@@ -73,24 +70,64 @@ flowchart TD
 - Compliance moves (regional providers, sovereign inference) require invasive rewrites.
 - Negotiating-leverage with the incumbent provider erodes over time.
 
+## Failure modes
+
+- Outage stall — the single provider goes down, and the whole application goes offline because no other provider can be swapped in.
+- Rewrite to compare — testing a cheaper or stronger rival model turns into a fork of the codebase, so the comparison never happens.
+- Blocked compliance move — a requirement to use a regional provider forces invasive changes across the agent loop.
+- Leaked shapes — provider-specific tool-call and streaming formats spread through business logic until every module depends on them.
+
 ## What this pattern constrains
 
 Avoiding it imposes an isolation rule: application code must not import a provider's SDK surface directly; all model access goes through a provider-agnostic adapter, with proprietary features behind capability checks or feature modules.
 
+## Applicability
+
+**Use when**
+
+- Cite this entry when application code is coupled to one provider's SDK, request shape, or proprietary features.
+- You are already here if a provider outage or price change would require rewriting application code rather than swapping an adapter.
+- Bind to a provider-agnostic abstraction from the first commit and isolate provider-specific features behind capability flags.
+
+**Do not use when**
+
+- The application is expected to live longer than one provider contract cycle (twelve to twenty-four months).
+- Compliance, cost, or quality may push the team to a different provider in future.
+- The application reads provider headers, error shapes, or rate-limit semantics directly — those will diverge.
+
+## Components
+
+- Application code — calls one provider's SDK directly throughout the codebase
+- Provider-specific request and streaming shapes — leak into agent loops, retry logic, and tool-call handlers
+- Provider error fields and rate-limit headers — read by name from one vendor's response shape
+- Missing provider-agnostic adapter — would isolate vendor surface behind a unified language-model spec
+
+## Tools
+
+- Single-provider SDK — sole inference surface, threaded through application code without abstraction
+- Provider-string router or unified adapter — missing layer that would make swaps a config change
+
+## Evaluation metrics
+
+- Provider-coupled call-site count — number of code locations that import or reference one vendor's SDK by name
+- Time-to-swap-provider estimate — engineering days needed to redirect traffic to an alternative vendor
+- Outage blast radius — share of traffic that goes offline when the bound provider has an incident
+- Cross-provider eval coverage — fraction of evals runnable against an alternative model without code changes
+
 ## Known uses
 
-- **Vercel AI SDK (named as a deliberate design rejection)** — Vercel AI SDK explicitly frames its standardised language-model specification against vendor lock-in. *Available* — [link](https://ai-sdk.dev/docs/foundations/providers-and-models)
-- **LiteLLM** — OpenAI-compatible proxy across 100+ providers, marketed as the lock-in avoidance layer. *Available* — [link](https://docs.litellm.ai/)
+- **[Vercel AI SDK (named as a deliberate design rejection)](https://ai-sdk.dev/docs/foundations/providers-and-models)** _available_ — Vercel AI SDK explicitly frames its standardised language-model specification against vendor lock-in.
+- **[LiteLLM](https://docs.litellm.ai/)** _available_ — OpenAI-compatible proxy across 100+ providers, marketed as the lock-in avoidance layer.
 
 ## Related patterns
 
-- *alternative-to* → [provider-string-routing](provider-string-routing.md)
-- *alternative-to* → [provider-fallback](provider-fallback.md)
-- *alternative-to* → [multi-model-routing](multi-model-routing.md)
-- *complements* → [sovereign-inference-stack](sovereign-inference-stack.md)
+- _alternative-to_ **Provider-String Routing**
+- _alternative-to_ **Provider Fallback**
+- _alternative-to_ **Multi-Model Routing**
+- _complements_ **Sovereign Inference Stack**
+- _alternative-to_ **MCP Bidirectional Bridge**
+- _complements_ **Channel-Decoupled Agent Core** — Same adapter discipline on a different boundary: vendor-lock-in is solved by a model-provider adapter, this by a delivery-channel adapter; applying both keeps the core independent of providers and channels.
 
 ## References
 
-- *doc*: [Vercel AI SDK — Providers and Models](https://ai-sdk.dev/docs/foundations/providers-and-models) — Vercel
-
-**Tags:** anti-pattern, routing-composition, provider-agnostic, vercel-ai-sdk
+- [Vercel AI SDK — Providers and Models](https://ai-sdk.dev/docs/foundations/providers-and-models) — Vercel

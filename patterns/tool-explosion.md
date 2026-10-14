@@ -23,6 +23,60 @@ Past roughly twenty tools in a single request, function-calling accuracy drops s
 - Discovery is push-style; filter is pull-style.
 - Frontier models tolerate larger palettes; the threshold drifts.
 
+## Therefore
+
+Therefore: select a per-task tool subset via a loadout step, cap the exposed palette at a tested threshold around twenty, and gate releases on function-calling accuracy, so that the model is never asked to choose from a registry it cannot navigate reliably.
+
+## Solution
+
+Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a tested threshold. Measure function-calling accuracy as a release gate.
+
+## Structure
+
+```
+Anti-pattern: all registered tools -> exposed in every request -> selection accuracy drops, cost rises. Corrected: task -> tool loadout selects subset under tested cap -> function-calling accuracy as release gate.
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Reg[Tool registry: 80+ tools] --> Exp[Expose ALL to model]
+  Exp --> Pick[Model picks tool]
+  Pick -.>20 tools.-> Wrong[Wrong tool / wrong args]
+  Wrong --> Drop[Accuracy collapse]
+  Exp -.fix.-> LO[tool-loadout: pick per-task subset]
+  LO --> Cap[Cap exposed set at tested threshold]
+  Cap --> OK[Stable selection accuracy]
+```
+
+## Example scenario
+
+A team exposes all 80 tools to the agent on every request, expecting the model to pick the right one. Function-calling accuracy collapses past 20 tools and the agent picks wrong tools or invents wrong arguments. They stop doing this and add a tool-loadout step that selects a small task-relevant subset per request, cap the exposed set at a tested threshold, and add function-calling accuracy as a release gate.
+
+## Consequences
+
+**Benefits**
+
+- Short-term: registering a new tool is cheap, and exposing all of them avoids building a selection step.
+- Naming it lets a team cap the tool count per request and measure selection accuracy.
+
+**Liabilities**
+
+- Selection accuracy degradation.
+- Token cost from large tool definitions in every prompt.
+- Latency from prompt-caching cache-misses on tool changes.
+
+## Failure modes
+
+- Wrong pick — with many tools in the prompt, the agent picks a tool that does not fit the task.
+- Bad arguments — the agent calls the right tool with invented or wrong arguments.
+- No call at all — the agent answers without calling the tool it needed.
+- Hidden prompt cost — large tool definitions ride along on every request, raising token cost and latency.
+
+## What this pattern constrains
+
+Avoiding it caps the exposed palette: a request must not carry the full tool registry; tools pass through a per-task loadout step, stay under a tested threshold (around twenty for current models), and function-calling accuracy is a release gate.
 
 ## Applicability
 
@@ -38,57 +92,39 @@ Past roughly twenty tools in a single request, function-calling accuracy drops s
 - Tool selection accuracy is on the release-gate dashboard.
 - A tool-loadout or routing layer is available to filter per request.
 
-## Therefore
+## Components
 
-Therefore: select a per-task tool subset via a loadout step, cap the exposed palette at a tested threshold around twenty, and gate releases on function-calling accuracy, so that the model is never asked to choose from a registry it cannot navigate reliably.
+- Tool registry — dozens or hundreds of registered tools exposed in every request
+- MCP or plugin ecosystem — makes adding tools cheap and removing them politically expensive
+- Per-request prompt assembly — concatenates every tool definition without filtering
+- Missing loadout step — would select a per-task subset capped at a tested threshold
 
-## Solution
+## Tools
 
-Don't. Use tool-loadout to select per-task subsets. Cap exposed tools at a tested threshold. Measure function-calling accuracy as a release gate.
+- Unfiltered tool palette — exposes the full registry on every call past the accuracy threshold
+- Function-calling-accuracy gate — missing release control that would block bloated palettes
 
-## Example scenario
+## Evaluation metrics
 
-A team exposes all 80 tools to the agent on every request, expecting the model to pick the right one. Function-calling accuracy collapses past 20 tools and the agent picks wrong tools or invents wrong arguments. They stop doing this and add a tool-loadout step that selects a small task-relevant subset per request, cap the exposed set at a tested threshold, and add function-calling accuracy as a release gate.
-
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Reg[Tool registry: 80+ tools] --> Exp[Expose ALL to model]
-  Exp --> Pick[Model picks tool]
-  Pick -.>20 tools.-> Wrong[Wrong tool / wrong args]
-  Wrong --> Drop[Accuracy collapse]
-  Exp -.fix.-> LO[tool-loadout: pick per-task subset]
-  LO --> Cap[Cap exposed set at tested threshold]
-  Cap --> OK[Stable selection accuracy]
-```
-
-## Consequences
-
-**Liabilities**
-
-- Selection accuracy degradation.
-- Token cost from large tool definitions in every prompt.
-- Latency from prompt-caching cache-misses on tool changes.
-
-## What this pattern constrains
-
-Avoiding it caps the exposed palette: a request must not carry the full tool registry; tools pass through a per-task loadout step, stay under a tested threshold (around twenty for current models), and function-calling accuracy is a release gate.
+- Exposed tool count per request — passes roughly twenty and keeps growing
+- Function-calling accuracy — drops sharply past the model-specific threshold and stays there
+- Wrong-tool-selected rate — share of calls where the agent picks a tool that does not match the user intent
+- Tool-definition token share — fraction of prompt tokens consumed by unused tool descriptions
 
 ## Known uses
 
-- **[Early MCP multi-server setups (2025)](https://www.anthropic.com/engineering/code-execution-with-mcp)** — *Available* — Documented by Anthropic engineering: loading every connected server's full tool definitions into context bloats prompts and degrades tool selection; code execution over MCP was published as the corrective.
+- **[Early MCP multi-server setups (2025)](https://www.anthropic.com/engineering/code-execution-with-mcp)** _available_ — Documented by Anthropic engineering: loading every connected server's full tool definitions into context bloats prompts and degrades tool selection; code execution over MCP was published as the corrective.
 
 ## Related patterns
 
-- *conflicts-with* → [tool-loadout](tool-loadout.md)
-- *complements* → [hero-agent](hero-agent.md) — Two flavours of the same problem: too much in one prompt.
+- _conflicts-with_ **Tool Loadout**
+- _complements_ **Hero Agent** — Two flavours of the same problem: too much in one prompt.
+- _alternative-to_ **MCP-as-Code-API**
+- _complements_ **Tool Loadout Hot-Swap**
+- _complements_ **Authorized Tool Misuse**
 
 ## References
 
-- (paper) Patil, Zhang, Wang, Gonzalez, *Gorilla: Large Language Model Connected with Massive APIs (Berkeley Function-Calling Leaderboard)*, 2023, <https://arxiv.org/abs/2305.15334>
-- (blog) *Drew Breunig: How Long Contexts Fail*, 2025, <https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html>
-- (blog) *Drew Breunig: How to Fix Your Context*, 2025, <https://www.dbreunig.com/2025/06/26/how-to-fix-your-context.html>
-
-**Tags:** anti-pattern, tool-use
+- [Gorilla: Large Language Model Connected with Massive APIs (Berkeley Function-Calling Leaderboard)](https://arxiv.org/abs/2305.15334) — Patil, Zhang, Wang, Gonzalez, 2023
+- [Drew Breunig: How Long Contexts Fail](https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html) — 2025
+- [Drew Breunig: How to Fix Your Context](https://www.dbreunig.com/2025/06/26/how-to-fix-your-context.html) — 2025

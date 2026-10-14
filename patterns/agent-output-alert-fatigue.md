@@ -24,20 +24,6 @@ When an agent floods reviewers with findings that are mostly low-value, the huma
 - Higher precision usually costs more per finding, which a volume-oriented metric discourages.
 - Once reviewers disengage, re-earning attention is far harder than it was to lose it.
 
-## Applicability
-
-**Use when**
-
-- Reviewing an assistive agent whose output is high-volume and gated by a human.
-- Reviewer engagement with the agent is falling — rising mute or auto-approve rates.
-- The agent is measured by output volume rather than usefulness per finding.
-
-**Do not use when**
-
-- The agent's findings are already high-precision and reviewers act on them.
-- There is no human-oversight layer to desensitise (fully autonomous action with other controls).
-- Volume is genuinely required and a downstream filter, not the human, absorbs it.
-
 ## Therefore
 
 Therefore: hold the agent to a precision bar rather than a volume target — suppress low-confidence findings, measure usefulness per finding, and treat falling reviewer engagement as the control failing — so the human-oversight layer stays attentive.
@@ -45,6 +31,12 @@ Therefore: hold the agent to a precision bar rather than a volume target — sup
 ## Solution
 
 Gate the agent's output on confidence so it raises fewer, higher-precision findings; measure usefulness-per-finding, not findings-per-review. A documented post-mortem cut a review agent from 8.3 comments per pull request at 35 percent usefulness to 4.1 at 72 percent and restored reviewer engagement, accepting higher cost per review. Monitor reviewer engagement (resolve rate, mute rate, time-to-skim) as a first-class signal that the oversight control is decaying. Mitigation patterns: cross-encoder reranking or a verifier stage to filter low-value findings before they reach a human; confidence thresholds tuned to the asymmetry. Treat a rising comment count at flat usefulness as an alarm, not progress.
+
+## Structure
+
+```
+Anti-pattern: Agent emits high-volume, low-precision findings -> reviewer skims -> disengages -> mutes agent -> correct findings discarded and oversight gone. Corrected: Agent findings -> confidence gate or verifier filter -> fewer, higher-precision findings -> reviewer -> engagement metrics (resolve rate, mute rate) monitored.
+```
 
 ## Diagram
 
@@ -65,6 +57,11 @@ A team adds an LLM code-review bot that posts every possible concern on each pul
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: more findings per review looks like more coverage and is easy to show as agent value.
+- Naming it lets a team measure usefulness per finding and treat reviewer disengagement as the oversight control failing.
+
 **Liabilities**
 
 - The human-in-the-loop safeguard disappears in practice while still existing on the org chart.
@@ -80,6 +77,20 @@ A team adds an LLM code-review bot that posts every possible concern on each pul
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is a precision floor on agent findings and an engagement signal that treats reviewer disengagement as the oversight control failing.
+
+## Applicability
+
+**Use when**
+
+- Reviewing an assistive agent whose output is high-volume and gated by a human.
+- Reviewer engagement with the agent is falling — rising mute or auto-approve rates.
+- The agent is measured by output volume rather than usefulness per finding.
+
+**Do not use when**
+
+- The agent's findings are already high-precision and reviewers act on them.
+- There is no human-oversight layer to desensitise (fully autonomous action with other controls).
+- Volume is genuinely required and a downstream filter, not the human, absorbs it.
 
 ## Components
 
@@ -103,19 +114,20 @@ No useful constraint; the missing constraint is a precision floor on agent findi
 
 ## Known uses
 
-- **[Habr production post-mortem — LLM code-review agent](https://habr.com/ru/articles/1031352/)** — *Available* — 8.3 comments per PR at 35 percent usefulness trained reviewers to tune the agent out, named as the boy-who-cried-wolf effect; raising precision to 72 percent at 4.1 comments per PR restored engagement.
-- **[Atomic Robot — AI review fatigue](https://atomicrobot.com/blog/ai-review-fatigue/)** — *Available* — Describes automation complacency where everything starts looking correct and edge cases stop triggering alarm.
-- **[CodeAnt — false positives in AI code review](https://www.codeant.ai/blogs/ai-code-review-false-positives)** — *Available* — Finds alert fatigue from irrelevant warnings erodes trust faster than missed issues.
+- **[Habr production post-mortem — LLM code-review agent](https://habr.com/ru/articles/1031352/)** _available_ — 8.3 comments per PR at 35 percent usefulness trained reviewers to tune the agent out, named as the boy-who-cried-wolf effect; raising precision to 72 percent at 4.1 comments per PR restored engagement.
+- **[Atomic Robot — AI review fatigue](https://atomicrobot.com/blog/ai-review-fatigue/)** _available_ — Describes automation complacency where everything starts looking correct and edge cases stop triggering alarm.
+- **[CodeAnt — false positives in AI code review](https://www.codeant.ai/blogs)** _available_ — Finds alert fatigue from irrelevant warnings erodes trust faster than missed issues.
 
 ## Related patterns
 
-- *complements* → [hidden-validation-work-amplification](hidden-validation-work-amplification.md)
-- *complements* → [supervisor-cognitive-overload](supervisor-cognitive-overload.md)
+- _complements_ **Hidden Validation-Work Amplification** — That anti-pattern is effort inflation from checking agent output; this one is reviewers disengaging from it entirely.
+- _complements_ **Supervisor Cognitive Overload** — Overload is the supervisor exceeding capacity; alert fatigue is desensitisation eroding the verification control even within capacity.
+- _complements_ **Advisory-to-Mandate Escalation** — Alert fatigue desensitises from alert volume; advisory-to-mandate is the opposite social failure — an advisory alert is over-empowered into a mandate and overriding it is punished.
+- _complements_ **Observability Fail-Open** — Alert fatigue drowns real alerts in noise; fail-open monitoring is the opposite blind spot — no alert at all, because absence of signal is read as health.
+- _complements_ **Oversight as Legitimation** — Alert fatigue is oversight decaying over time under volume; this failure is present at the first case, because the reviewer never had the counterfactual, time, or authority the mandate assumed.
 
 ## References
 
-- (blog) *AI-агенты в продакшене: почему demo не равно реальность*, <https://habr.com/ru/articles/1031352/>
-- (blog) Atomic Robot, *AI Writes Better Code. We're Getting Worse at Reviewing It.*, <https://atomicrobot.com/blog/ai-review-fatigue/>
-- (blog) CodeAnt, *How Many False Positives Are Too Many in AI Code Review*, <https://www.codeant.ai/blogs/ai-code-review-false-positives>
-
-**Tags:** anti-pattern, human-in-the-loop, code-review, precision, alert-fatigue
+- [AI-агенты в продакшене: почему demo не равно реальность](https://habr.com/ru/articles/1031352/)
+- [AI Writes Better Code. We're Getting Worse at Reviewing It.](https://atomicrobot.com/blog/ai-review-fatigue/) — Atomic Robot
+- [How Many False Positives Are Too Many in AI Code Review](https://www.codeant.ai/blogs) — CodeAnt

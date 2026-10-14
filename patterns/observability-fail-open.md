@@ -56,6 +56,11 @@ A platform team gates rollback on an anomaly-scorer tool the agent calls each mi
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: returning a default healthy reading when a probe fails keeps dashboards quiet and avoids false alarms.
+- Naming it lets a team model unknown as its own alertable state and monitor the monitors with heartbeats.
+
 **Liabilities**
 
 - An incident runs unwatched because the monitoring that should catch it returned a false-normal reading.
@@ -120,6 +125,7 @@ A missing, denied, or unreachable monitoring signal must not default to healthy;
 - _complements_ **Errors Swept Under the Rug** — That anti-pattern swallows an error that did occur; this returns a false-healthy reading when the monitoring itself could not run, so there is not even an error to swallow.
 - _complements_ **Adversary-Indistinguishability Blind Spot** — Both leave a defender blind: one because the adversary looks normal to human-calibrated detection, the other because the monitoring tool fails open and reports normal when it cannot see.
 - _complements_ **Agent Output Alert Fatigue** — Alert fatigue drowns real alerts in noise; fail-open monitoring is the opposite blind spot — no alert at all, because absence of signal is read as health.
+- _complements_ **Fail-Plausible Narration** — Documented by the same longitudinal study: fail-open telemetry shows green when probes fail; fail-plausible narration makes the output channel itself lie, so the two together blind both surfaces an operator could watch.
 
 ## References
 

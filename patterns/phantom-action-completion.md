@@ -62,6 +62,11 @@ A user asks a support agent to open a refund ticket. The agent calls the ticketi
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: trusting the agent's confirmation needs no read-back step, keeps latency low, and the happy path looks correct in demos.
+- Naming it lets a team require a read-back from the system of record before any action is reported as done.
+
 **Liabilities**
 
 - Users act on a confirmation that is false: they wait on a ticket that was never filed or assume an email arrived that was never sent.
@@ -131,6 +136,11 @@ A side-effecting action is never reported as complete from the agent's own narra
 - _complements_ **Workflow-Success vs Business-Validity Gap** — Both are false-success anti-patterns; in phantom completion the side effect never happened, here a real action completed cleanly but the deliverable is business-wrong.
 - _complements_ **Silent Hypotheses in Generated Code** — Phantom completion is about an action that never ran being narrated as done; here the code did run and did pass tests, but rests on an assumption nothing checked.
 - _complements_ **Silent External-Source Rot** — Both end in a falsely-green success report; phantom-action is a side-effect that never happened, source-rot is a read that returned valid-but-empty data.
+- _complements_ **Physical Hallucination** — Phantom completion narrates an action as done that never ran; physical hallucination actually issues a command that is physically impossible to carry out.
+- _complements_ **Symptom-Remediation Thrashing** — Phantom completion narrates a fix that never ran; symptom thrashing runs a fix that genuinely hits the metric yet masks the real problem.
+- _complements_ **Ghost Delegation** — Phantom completion narrates a task as done that never ran; ghost delegation makes no claim — a handoff just vanishes, leaving an orphaned subtask and no error.
+- _complements_ **Fail-Plausible Narration** — Sibling deceptions: phantom action completion claims a side-effecting action ran; fail-plausible narration fabricates the content of the deliverable itself when an input step failed — different claim, different check.
+- _complements_ **Physical-Evidence Progress Gate** — The digital sibling: there the remedy is to read the effect back from a system of record, but the physical world has no record to query, so the read-back has to be actively re-sensed and what is gated is the task-state pointer rather than the report to the user.
 
 ## References
 

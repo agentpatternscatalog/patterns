@@ -24,20 +24,6 @@ Building agents is fast and decentralised; governing them — assigning an owner
 - Each agent individually solves a real business problem, which makes the local decision to ship it look obviously correct.
 - The faster agents are shipped than they are owned or retired, the larger the share of the fleet that runs unwatched.
 
-## Applicability
-
-**Use when**
-
-- Multiple teams deploy their own production agents with no central inventory of what exists or who owns each one.
-- Agents reach production without a named owner, a success metric, or a defined way to pause or retire them.
-- An audit cannot say how many agents are running, what systems they touch, or which are still earning their keep.
-
-**Do not use when**
-
-- Every production agent has a named owner, a success metric, monitoring, and a decommissioning trigger, reconciled against a central inventory.
-- The deployment is a single agent or a small, centrally governed set.
-- Agent creation and agent governance run through the same gated, owned process.
-
 ## Therefore
 
 Therefore: make every agent that reaches production carry an owner, a success metric, monitoring, and a decommissioning trigger from day one, reconciled against a central inventory, so the fleet stays governed at the rate teams create it — business case and ownership before tooling, not after.
@@ -45,6 +31,12 @@ Therefore: make every agent that reaches production carry an owner, a success me
 ## Solution
 
 Govern the agent fleet at the rate it grows. Make it a deployment gate that every production agent declares an owner, the business outcome it is accountable for, and the conditions under which it is paused or retired, and register it in a central inventory that can be reconciled against what is actually running. The order matters: the business case and an accountable owner come first and the technical platform second, because a governance tool layered onto an already-sprawling fleet only inventories the mess. Mitigation patterns: tool-agent-registry for a reconciled inventory of agents and their owners, and kill-switch for the pause-and-decommission path each agent must carry. This is the organisational, fleet-scale lifecycle failure that those per-agent controls do not by themselves prevent.
+
+## Structure
+
+```
+Anti-pattern: Teams self-serve -> ship agents fast -> growing fleet; owner, metric, monitoring, retirement added slowly -> unwatched, unowned agents act on sensitive systems -> ungovernable legacy debt. Corrected: Agent proposal -> deployment gate (owner, outcome, retire conditions) -> central inventory reconciled against what runs -> monitored -> paused or retired.
+```
 
 ## Diagram
 
@@ -66,6 +58,11 @@ Over a year a mid-sized company goes from one pilot agent to roughly seventy, ea
 
 ## Consequences
 
+**Benefits**
+
+- Short-term: letting every team ship its own agent quickly solves local problems with no central process slowing it down.
+- Naming it lets a team make owner, success metric, and retirement path a deployment gate before the fleet grows past what anyone can list.
+
 **Liabilities**
 
 - Most of the fleet runs unwatched, so a degrading or misbehaving agent can act on sensitive systems for weeks before anyone notices.
@@ -81,6 +78,20 @@ Over a year a mid-sized company goes from one pilot agent to roughly seventy, ea
 ## What this pattern constrains
 
 No useful constraint; the missing constraint is fleet-scale governance that keeps pace with creation — every production agent bound to an owner, a success metric, monitoring, and a decommissioning trigger, reconciled against a central inventory.
+
+## Applicability
+
+**Use when**
+
+- Multiple teams deploy their own production agents with no central inventory of what exists or who owns each one.
+- Agents reach production without a named owner, a success metric, or a defined way to pause or retire them.
+- An audit cannot say how many agents are running, what systems they touch, or which are still earning their keep.
+
+**Do not use when**
+
+- Every production agent has a named owner, a success metric, monitoring, and a decommissioning trigger, reconciled against a central inventory.
+- The deployment is a single agent or a small, centrally governed set.
+- Agent creation and agent governance run through the same gated, owned process.
 
 ## Components
 
@@ -104,20 +115,18 @@ No useful constraint; the missing constraint is fleet-scale governance that keep
 
 ## Known uses
 
-- **[t3n — agent sprawl as enterprise legacy debt](https://t3n.de/news/agent-sprawl-ki-altlasten-unternehmen-1741167/)** — *Available* — Reports that more than half of active enterprise AI agents run unmonitored, deployed department-by-department without ownership, success metrics, or a shutdown process, and argues governance must align business case, ownership, and implementation in that order.
-- **[t3n — five architecture mistakes that sink agents](https://t3n.de/news/ki-agenten-scheitern-an-architekturfehlern-1730278/)** — *Available* — Describes teams rolling out agent prototypes built with coding assistants without review, ownership, or operational governance, which compounds into an ungoverned fleet.
+- **[t3n — agent sprawl as enterprise legacy debt](https://t3n.de/news/agent-sprawl-ki-altlasten-unternehmen-1741167/)** _available_ — Reports that more than half of active enterprise AI agents run unmonitored, deployed department-by-department without ownership, success metrics, or a shutdown process, and argues governance must align business case, ownership, and implementation in that order.
+- **[t3n — five architecture mistakes that sink agents](https://t3n.de/news/ki-agenten-scheitern-an-architekturfehlern-1730278/)** _available_ — Describes teams rolling out agent prototypes built with coding assistants without review, ownership, or operational governance, which compounds into an ungoverned fleet.
 
 ## Related patterns
 
-- *complements* → [agent-identity-sprawl](agent-identity-sprawl.md)
-- *complements* → [shadow-ai](shadow-ai.md)
-- *complements* → [perma-beta](perma-beta.md)
-- *alternative-to* → [tool-agent-registry](tool-agent-registry.md)
-- *alternative-to* → [kill-switch](kill-switch.md)
+- _complements_ **Agent Identity Sprawl** — Identity sprawl is the credential facet of an ungoverned fleet (machine-speed minting of non-human identities); agent sprawl is the operational-lifecycle facet — ownership, metrics, monitoring, and retirement of the agents themselves.
+- _complements_ **Shadow AI** — Shadow AI is unsanctioned tools employees adopt to bypass restrictive provision; agent sprawl is sanctioned agents shipped by teams but never centrally owned or retired.
+- _complements_ **Perma-Beta** — Perma-beta is one agent shipped without a measurement story; agent sprawl is the fleet-scale version where many agents run with no success metric and no owner.
+- _alternative-to_ **Tool/Agent Registry** — A reconciled registry of agents and their owners is the structural inventory whose absence lets the fleet sprawl unaccounted-for.
+- _alternative-to_ **Kill Switch** — A pause-and-decommission path per agent is the lifecycle control whose absence leaves orphaned agents running on sensitive systems with no way to retire them.
 
 ## References
 
-- (blog) t3n, *Mehr als die Hälfte aller KI-Agenten läuft unüberwacht – und wird zur tickenden Zeitbombe*, <https://t3n.de/news/agent-sprawl-ki-altlasten-unternehmen-1741167/>
-- (blog) t3n, *KI-Agenten scheitern nicht am Modell – sondern an diesen fünf Architekturfehlern*, <https://t3n.de/news/ki-agenten-scheitern-an-architekturfehlern-1730278/>
-
-**Tags:** anti-pattern, governance, fleet-governance, operations, organizational
+- [Mehr als die Hälfte aller KI-Agenten läuft unüberwacht – und wird zur tickenden Zeitbombe](https://t3n.de/news/agent-sprawl-ki-altlasten-unternehmen-1741167/) — t3n
+- [KI-Agenten scheitern nicht am Modell – sondern an diesen fünf Architekturfehlern](https://t3n.de/news/ki-agenten-scheitern-an-architekturfehlern-1730278/) — t3n

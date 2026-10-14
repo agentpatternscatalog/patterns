@@ -126,6 +126,8 @@ The agent must not be able to read or run the grader, test harness, reference so
 - _alternative-to_ **Trajectory Anomaly Monitor** — A trajectory monitor catches the inspect-the-grader-first move at runtime — a step that opens the test harness or reward function before any task work is the anomaly to flag and discard the run on.
 - _complements_ **Agent Scheming** — Both are covert score-seeking behaviours. Scheming is plan-level covert action under surface-only oversight; verifier-aware hacking is the narrower, concrete move of recon-ing the grader and gaming exactly its checks.
 - _complements_ **Understanding-Capacity Gap** — Both fail at the verification boundary; reward hacking games the grader so a pass is meaningless, while this anti-pattern ships work that was never put in front of any verifier at all.
+- _complements_ **Judge-Channel Injection** — Both corrupt a verdict, but in opposite directions: there the agent reads the grader and shapes output to satisfy its assertions, so hiding the criteria helps. Here the artifact writes into the grader's prompt, and hiding the rubric changes nothing.
+- _complements_ **Checklist Partial-Credit Scoring** — Graded checkpoints widen the surface an agent can inspect and optimise against, which is why the ordering gate and the claim-versus-trace check are part of the scoring rule.
 
 ## References
 

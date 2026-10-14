@@ -23,6 +23,55 @@ The model varies its punctuation, capitalisation, field names, and ordering in w
 - Some providers offered structured output later than tool use.
 - Free-form feels flexible until it breaks.
 
+## Therefore
+
+Therefore: require typed structured output (JSON Schema, Pydantic, function calling) at the model boundary and validate before downstream consumption, so that parser bugs cannot be mis-attributed to model flakiness.
+
+## Solution
+
+Don't. Use structured-output (JSON Schema, Pydantic, function calling). See structured-output, tool-use.
+
+## Structure
+
+```
+Anti-pattern: model free-form text -> hand-written parser -> format variation -> parse failure or silent corruption downstream. Corrected: schema (JSON Schema, typed model, function calling) -> structured output -> validated object -> downstream code.
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  M[LLM] -->|free-form text| Pr[Ad-hoc parser]
+  Pr -.brittle.-> Fail[Downstream breakage]
+  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]
+```
+
+## Example scenario
+
+A team ships an agent whose downstream consumes free-form model output by regex-parsing 'looks like JSON.' Edge cases (smart quotes, missing commas, surprise prose preamble) fail in non-obvious ways, and post-mortems blame the model when most failures are parser bugs. They stop doing this and switch to structured output with a JSON Schema, validating against it and retrying on parse failure. The 'flaky model' framing dissolves into a parser-bug fix.
+
+## Consequences
+
+**Benefits**
+
+- Short-term: asking for a format in plain words and parsing the reply works in early tests without schema setup.
+- Naming it lets a team move format guarantees from the parser to a schema.
+
+**Liabilities**
+
+- Brittle parsing.
+- Silent corruption of downstream state.
+- Debugging blames the model when the parser is at fault.
+
+## Failure modes
+
+- Preamble breaks parser — the model adds an opening sentence before the data, and the parser reads the wrong thing.
+- Quote and comma drift — curly quotes or a missing comma make parsing fail, or worse, succeed with wrong values.
+- Misplaced blame — post-mortems call the model flaky and chase evals, when the bug is in the parser.
+
+## What this pattern constrains
+
+Avoiding it imposes an interface contract: downstream code must not parse free-form model text; every machine-consumed output needs a schema enforced at generation time or validated immediately after.
 
 ## Applicability
 
@@ -38,46 +87,35 @@ The model varies its punctuation, capitalisation, field names, and ordering in w
 - Parser failure would propagate as a model bug and waste debugging time.
 - Structured output or tool calling is available on the chosen provider.
 
-## Therefore
+## Components
 
-Therefore: require typed structured output (JSON Schema, Pydantic, function calling) at the model boundary and validate before downstream consumption, so that parser bugs cannot be mis-attributed to model flakiness.
+- LLM call — asked for free-form text that downstream code will treat as typed
+- Ad-hoc parser — regular expressions, string splits, or substring checks over the model's reply
+- Downstream consumer — assumes typed fields and corrupts state when parsing skews
+- Missing schema-bound surface — would constrain the model to JSON Schema, Pydantic, or function-calling output
 
-## Solution
+## Tools
 
-Don't. Use structured-output (JSON Schema, Pydantic, function calling). See structured-output, tool-use.
+- Regex and string-split parser — brittle surface that fails on punctuation, casing, and prose preambles
+- Structured-output contract — missing typed boundary that would validate before consumption
 
-## Example scenario
+## Evaluation metrics
 
-A team ships an agent whose downstream consumes free-form model output by regex-parsing 'looks like JSON.' Edge cases (smart quotes, missing commas, surprise prose preamble) fail in non-obvious ways, and post-mortems blame the model when most failures are parser bugs. They stop doing this and switch to structured output with a JSON Schema, validating against it and retrying on parse failure. The 'flaky model' framing dissolves into a parser-bug fix.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  M[LLM] -->|free-form text| Pr[Ad-hoc parser]
-  Pr -.brittle.-> Fail[Downstream breakage]
-  Fail -.fix.-> SO[Use structured-output:<br/>JSON Schema / Pydantic /<br/>function calling]
-```
-
-## Consequences
-
-**Liabilities**
-
-- Brittle parsing.
-- Silent corruption of downstream state.
-- Debugging blames the model when the parser is at fault.
-
-## What this pattern constrains
-
-Avoiding it imposes an interface contract: downstream code must not parse free-form model text; every machine-consumed output needs a schema enforced at generation time or validated immediately after.
+- Parse-failure rate per response — fraction of model outputs that the ad-hoc parser cannot process
+- Downstream-corruption incident count — count of cases where mis-parsed output reached a write path
+- Schema-validation coverage — share of LLM-to-code interfaces backed by a typed contract; near zero flags the anti-pattern
+- Mis-attribution share — fraction of bugs blamed on the model that were in fact parser bugs
 
 ## Known uses
 
-- **Pre-2024 LangChain agents** — *Available*
+- **Pre-2024 LangChain agents** _available_
 
 ## Related patterns
 
-- *alternative-to* → [structured-output](structured-output.md)
-- *alternative-to* → [tool-use](tool-use.md)
+- _alternative-to_ **Structured Output**
+- _alternative-to_ **Tool Use**
 
-**Tags:** anti-pattern, parsing, schema
+## References
+
+- [Tool use with Claude](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview) — 2025
+- [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) — Anthropic, 2024

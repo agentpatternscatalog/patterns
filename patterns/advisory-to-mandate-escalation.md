@@ -15,7 +15,7 @@ A decision-support system gives advice — a sepsis alert, a risk score, a recom
 
 ## Problem
 
-The institution's process quietly converts the advice into a command. A protocol says to act on the alert, a workflow makes following it the default and overriding it an exception that must be justified, and overriding it comes to be treated as defiance rather than expertise. The advisory label still exists on paper, but the running social process treats the output as mandatory, so the expert is pressured to comply even when their own evidence says otherwise — and automation bias, the documented tendency to over-rely on automated suggestions especially under time pressure, pushes the same way. The human is nominally in control while being punished for exercising it.
+The institution's process quietly converts the advice into a command. A protocol says to act on the alert, a workflow makes following it the default and overriding it an exception that must be justified, and overriding it comes to be treated as defiance rather than expertise. The advisory label still exists on paper, but the running social process treats the output as mandatory, so the expert is pressured to comply even when their own evidence says otherwise. Automation bias — the documented tendency to over-rely on automated suggestions, especially under time pressure — pushes the same way. The human is nominally in control while being punished for exercising it.
 
 ## Forces
 
@@ -55,6 +55,11 @@ flowchart TD
 An AI sepsis model flags a dialysis patient and the unit's protocol says to start IV fluids on the alert. The nurse, who knows fluids are dangerous for this patient, refuses — and is treated as non-compliant until a physician backs the judgement. The model was only ever advisory, but the protocol around it had quietly made the alert an order, and overriding it counted as defiance rather than expertise.
 
 ## Consequences
+
+**Benefits**
+
+- Short-term: making the recommendation the default path gives consistent, easy-to-audit behaviour and less friction per case.
+- Naming it lets a team keep overrides a legitimate, recorded path and audit override rates to confirm human judgement still governs.
 
 **Liabilities**
 
@@ -121,6 +126,7 @@ An advisory output must not be made binding by the surrounding process; followin
 - _complements_ **Accountability Laundering via Algorithm** — Accountability laundering deflects blame onto the algorithm; advisory-to-mandate makes the algorithm's advice binding and reframes a correct human override as defiance.
 - _complements_ **Human-in-the-Loop** — Human-in-the-loop keeps a human approval point; advisory-to-mandate is the failure where the human is nominally in the loop but punished for exercising judgement against the output.
 - _complements_ **Mandatory Red-Flag Escalation** — Mandatory-red-flag-escalation deliberately makes certain triggers binding; advisory-to-mandate is the unintended version where ordinary advisory output silently acquires that binding force.
+- _complements_ **Oversight as Legitimation** — There an advisory output is promoted by protocol into a binding order and a correct override is punished; here the reviewer is nominally free to dissent but has no means of knowing when to.
 
 ## References
 

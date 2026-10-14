@@ -15,7 +15,7 @@ A learning agent helps a user acquire a skill — solving problems, writing code
 
 ## Problem
 
-The struggle of working through a hard problem is what builds durable skill, and handing the learner a correct answer removes that struggle while looking like good service. Because the answer is right and within scope, none of the usual safety or correctness checks fire — the harm is not a wrong answer but the absence of the learner's own effort, which is invisible at the moment of help and shows up later as weaker retention and dependence. An agent tuned purely for helpfulness therefore erodes learning precisely by being maximally helpful.
+The struggle of working through a hard problem is what builds durable skill, and handing the learner a correct answer removes that struggle while looking like good service. Because the answer is right and within scope, none of the usual safety or correctness checks fire. The harm is not a wrong answer but the absence of the learner's own effort, which is invisible at the moment of help and shows up later as weaker retention and dependence. An agent tuned purely for helpfulness therefore erodes learning precisely by being maximally helpful.
 
 ## Forces
 
@@ -55,6 +55,11 @@ flowchart TD
 A student learning algebra asks the tutoring agent to solve an equation. The agent, tuned to be helpful, prints the full worked solution. The student copies it, feels helped, and moves on — but on the test, facing a similar equation alone, cannot reproduce the steps, because the agent did the reasoning the practice was supposed to build.
 
 ## Consequences
+
+**Benefits**
+
+- Short-term: giving the correct answer resolves the learner's request fast, scores well on helpfulness, and the learner feels helped.
+- Naming it lets a team measure learning by what the learner can do without the agent and design for graduated scaffolding.
 
 **Liabilities**
 
