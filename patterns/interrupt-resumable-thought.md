@@ -2,7 +2,7 @@
 
 **Also known as:** Pausable Thought Stream, Continuation-Preserving Interrupt, Suspendable Cognition
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,6 +32,26 @@ Therefore: push a named thought-frame onto a bounded stack at the start of a mul
 
 Introduce an explicit thought-frame: when starting a multi-step chain, push a frame onto a stack with the goal, the steps completed, and the next step. On interrupt: acknowledge briefly ('hold on — finishing X first' or 'switching: Y'), handle the interrupt, then look at the top frame and explicitly resume ('back to X — I was at step 3 / 6'). Cap stack depth to prevent infinite suspension. Frames older than a configurable window expire (the agent admits the resume would be reconstruction, not continuation).
 
+## Structure
+
+```
+Start multi-step chain --push frame (goal, steps done, next step)--> Working --new message--> brief acknowledgement --> handle interrupt --> read top frame --> announce and resume at step k | frame too old -> admit reconstruction or abandon explicitly
+```
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Working: push frame (goal, steps)
+  Working --> Interrupted: new message arrives
+  Interrupted --> Handling: ack briefly
+  Handling --> Resuming: handle complete
+  Resuming --> Working: pop top frame, announce step
+  Working --> [*]: chain complete
+  Interrupted --> Switched: explicit switch
+  Switched --> [*]
+```
+
 ## Example scenario
 
 A research agent is on step 4 of a 7-step literature synthesis when the user fires off 'oh, also, what was that paper from Tuesday?'. The current agent either ignores the interrupt and looks rude, or starts answering it and loses the synthesis state. The team adds interrupt-resumable-thought: the synthesis pushes a thought-frame onto a stack, the agent acknowledges the interrupt with 'one sec — finishing the synthesis section, then I'll grab Tuesday's paper', completes the step, then pops the frame and resumes. Long thinking survives mid-flight questions.
@@ -49,6 +69,13 @@ A research agent is on step 4 of a 7-step literature synthesis when the user fir
 - Stack management adds complexity to the agent loop.
 - Token cost of holding paused frames in context.
 - Resume distortion over long pauses is a real failure.
+
+## Failure modes
+
+- Resume distortion — the agent comes back to a frame after a long pause and continues from a step whose premises no longer hold.
+- Stack pile-up — repeated interrupts push frames faster than they resolve, and the depth cap starts dropping work without telling the user.
+- Silent drop — the agent handles the interrupt and never names the paused chain, so the frame expires unseen.
+- Wrong frame resumed — with several frames paused, the agent resumes the top one when the user meant an older thread.
 
 ## What this pattern constrains
 
@@ -68,61 +95,40 @@ Interrupts cannot silently discard in-flight multi-step reasoning; all paused ch
 - Reasoning chains are short enough that restarting them is cheaper than paging them out.
 - The user expects every new message to fully reset the agent's working state.
 
-## Variants
+## Components
 
-### Frame stack
+- Thought Frame — named record with goal, steps completed, and next step
+- Frame Stack — bounded LIFO stack of paused chains
+- Interrupt Handler — acknowledges, handles, then pops and resumes the top frame
+- Frame Expiry — clock-bounded window after which resume becomes reconstruction
+- Resume Announcer — visibly names the frame being resumed in the reply
 
-Push the current reasoning frame onto an explicit stack on interrupt; pop and resume after the new turn finishes.
+## Tools
 
-*Distinguishing factor:* LIFO discipline
+- Structured JSON store — durable frame stack across process restarts
+- LLM API — generation that emits the acknowledge, handle, and resume turns
 
-*When to use:* Default. Maps cleanly to nested reasoning.
+## Evaluation metrics
 
-### Named pause register
-
-Each paused chain gets a name; the agent or user can choose which to resume.
-
-*Distinguishing factor:* user-addressable
-
-*When to use:* When multiple long-running threads coexist and the user steers between them.
-
-### Persisted resume token
-
-Pause writes the chain state to durable storage with a token; a future run can resume from the token even after restart.
-
-*Distinguishing factor:* durability
-
-*When to use:* When agent processes are not long-lived but reasoning chains span process boundaries.
-
-## Diagram
-
-```mermaid
-stateDiagram-v2
-  [*] --> Working: push frame (goal, steps)
-  Working --> Interrupted: new message arrives
-  Interrupted --> Handling: ack briefly
-  Handling --> Resuming: handle complete
-  Resuming --> Working: pop top frame, announce step
-  Working --> [*]: chain complete
-  Interrupted --> Switched: explicit switch
-  Switched --> [*]
-```
+- Resume-completion rate — share of pushed frames that are popped and finished, not abandoned
+- Un-popped frame count — leaked frames sitting on the stack past their expiry window
+- Resume distortion — semantic drift between the paused frame's next step and the actual resume
+- Acknowledge latency — wall-clock from interrupt arrival to brief acknowledgement
 
 ## Known uses
 
-- **Self-observed in long-running cognitive agents** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — In-flight plans are preserved across user interrupts (chat arrives mid-tick) so the agent can resume the prior thread on a later tick rather than losing the train of thought.
+- **Self-observed in long-running cognitive agents** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — In-flight plans are preserved across user interrupts (chat arrives mid-tick) so the agent can resume the prior thread on a later tick rather than losing the train of thought.
 
 ## Related patterns
 
-- *complements* → [agent-resumption](agent-resumption.md)
-- *complements* → [conversation-handoff](conversation-handoff.md)
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
-- *uses* → [short-term-memory](short-term-memory.md)
+- _complements_ **Agent Resumption**
+- _complements_ **Conversation Handoff to Human**
+- _complements_ **Decision Log**
+- _complements_ **Append-Only Thought Stream**
+- _uses_ **Short-Term Thread Memory**
+- _complements_ **Interruptible Agent Execution**
 
 ## References
 
-- (doc) *LangGraph — interrupts and human-in-the-loop*, 2025, <https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/>
-
-**Tags:** interruption, continuation, tick-loop, context
+- [LangGraph — interrupts and human-in-the-loop](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/) — 2025

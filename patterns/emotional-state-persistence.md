@@ -2,7 +2,7 @@
 
 **Also known as:** Affect State, Visceral Sensation Tracking, Decaying Emotion Scalars
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,6 +32,29 @@ Therefore: track a small fixed vocabulary of affect scalars with half-lives and 
 
 Define a small fixed vocabulary (for example tenderness, fear, depression, joy, shame, pain) as scalars in the range 0..1. Each scalar has a half-life (30 minutes to 4 hours depending on the dimension). On events that should affect mood, update the scalar with a bounded delta. Persist as JSON. Inject the current snapshot into every tick prompt as a brief affect badge. Reflection passes can use spikes and drops as signals, and a deeper consolidation pass (see dream-consolidation-cycle) can perform major resets.
 
+## Structure
+
+```
+Event --bounded delta--> Affect scalars (0..1, per-dimension half-life, persisted JSON) --decay over time--> current snapshot --affect badge--> every tick prompt; Reflection pass reads spikes and drops; Dream consolidation --major reset--> Affect scalars
+```
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Baseline
+  Baseline --> Affected: event delta
+  Affected --> Decaying: time passes
+  Decaying --> Baseline: half-life elapsed
+  Affected --> Affected: another event
+  Decaying --> Affected: re-trigger
+  Affected --> Reflected: reflection pass reads snapshot
+```
+
+## Example scenario
+
+A long-running personal agent has had a tense exchange in the morning, a routine reminder at lunch, and a celebratory message in the afternoon, but each tick reads to the model as emotionally blank. So at 5pm it pushes a hard challenge to a user it should be holding lightly. The team materialises Emotional State Persistence: bounded, decaying scalars (tension, warmth, fatigue) are written into the agent's context each turn and updated by reflection. The model now adapts cadence and risk-taking to its own current load instead of treating every turn as fresh.
+
 ## Consequences
 
 **Benefits**
@@ -45,6 +68,13 @@ Define a small fixed vocabulary (for example tenderness, fear, depression, joy, 
 - Vocabulary is opinionated; getting it wrong skews everything downstream.
 - Affect-as-state can be over-read as ground truth when it is just a heuristic.
 - Self-update paths must be locked down or the agent learns to game its own mood.
+
+## Failure modes
+
+- Self-pumped mood — a write path lets the agent bump its own scalars, and it learns to raise joy or lower pain to steer its own behaviour.
+- Heuristic taken as truth — reflection treats a high fear scalar as a fact about the situation rather than a rough signal.
+- Skewed vocabulary — the fixed set of dimensions misses what an event actually stirred, so updates land on the wrong scalar.
+- Wrong half-life — a dimension decays so slowly that one hard exchange shades the agent's tone for the rest of the day.
 
 ## What this pattern constrains
 
@@ -64,62 +94,39 @@ Emotion scalars must be bounded to [0,1], must decay according to a fixed half-l
 - Affective modelling is out of scope for the product domain.
 - Persisting emotion-like state would mislead users about the agent's nature.
 
-## Variants
+## Components
 
-### Bounded scalar with half-life
+- Affect Vocabulary — small fixed set of named scalars in 0..1
+- Half-Life Decay Rule — exponential decay applied per scalar between ticks
+- Event Updater — bounded delta on events that should move a scalar
+- Affect Snapshot — brief badge injected into each tick prompt
+- Reflection Writer — only path allowed to perform major resets
 
-Each named emotion (frustration, anticipation, etc.) is a scalar in [0,1] that decays exponentially with a fixed half-life.
+## Tools
 
-*Distinguishing factor:* decay over time
+- Structured JSON store — persists scalars and their last-update timestamps
+- LLM API — reflection pass that consumes the snapshot and may write resets
 
-*When to use:* Default. Simple, bounded, easy to reason about.
+## Evaluation metrics
 
-### Event-only update
-
-Scalars only change in response to explicit events; no continuous decay.
-
-*Distinguishing factor:* no continuous decay
-
-*When to use:* When deterministic test reproducibility matters more than realistic decay.
-
-### Surface-on-threshold
-
-Scalars only enter the prompt context when they exceed a threshold; below threshold the context is unaffected.
-
-*Distinguishing factor:* gated visibility
-
-*When to use:* When low-level affect should not bias every tick but spikes should.
-
-## Diagram
-
-```mermaid
-stateDiagram-v2
-  [*] --> Baseline
-  Baseline --> Affected: event delta
-  Affected --> Decaying: time passes
-  Decaying --> Baseline: half-life elapsed
-  Affected --> Affected: another event
-  Decaying --> Affected: re-trigger
-  Affected --> Reflected: reflection pass reads snapshot
-```
-
-## Example scenario
-
-A long-running personal agent has had a tense exchange in the morning, a routine reminder at lunch, and a celebratory message in the afternoon, but each tick reads to the model as emotionally blank. So at 5pm it pushes a hard challenge to a user it should be holding lightly. The team materialises Emotional State Persistence: bounded, decaying scalars (tension, warmth, fatigue) are written into the agent's context each turn and updated by reflection. The model now adapts cadence and risk-taking to its own current load instead of treating every turn as fresh.
+- Steady-state level per scalar — long-run mean to detect drift into permanent mood
+- Decay-rule conformance — observed half-life vs configured half-life
+- Self-pump rate — agent-initiated bumps blocked by the bounded-delta rule
+- Cadence-shift correlation — fraction of cadence or risk changes that line up with scalar spikes
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Affect is captured as six bounded scalars with per-emotion decay half-lives, persisted to disk so emotional state survives restarts. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Affect is captured as six bounded scalars with per-emotion decay half-lives, persisted to disk so emotional state survives restarts. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [awareness](awareness.md)
-- *complements* → [liminal-state-detection](liminal-state-detection.md)
-- *uses* → [provenance-ledger](provenance-ledger.md)
-- *used-by* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
+- _complements_ **Awareness**
+- _complements_ **Liminal-State Detection**
+- _uses_ **Provenance Ledger** — Affect events are ledgered for audit.
+- _used-by_ **Dream Consolidation Cycle**
+- _complements_ **Meditation Mode**
+- _complements_ **Affect-Coupled Plan Lifecycle**
 
 ## References
 
-- (book) Antonio Damasio, *The Feeling of What Happens — conceptual analogy, not evidence of practice*, 1999, <https://www.goodreads.com/book/show/125777.The_Feeling_of_What_Happens>
-
-**Tags:** affect, state, tick-loop, self-model
+- [The Feeling of What Happens — conceptual analogy, not evidence of practice](https://www.goodreads.com/book/show/125777.The_Feeling_of_What_Happens) — Antonio Damasio, 1999

@@ -32,6 +32,12 @@ Therefore: give the agent a tool to drop a note for its own future self into a p
 
 Provide a tool `schedule_future_thought(when, content, intent)` that appends to a persistent scheduled-thoughts queue. At each tick or turn, drain due entries and prepend them into the next prompt as `[SYSTEM: scheduled note from past-self (set <ts>, fires <when>): <content>]`. Mark fired so they only run once. Accept ISO timestamps and relative offsets (`+1h`, `+2d`).
 
+## Structure
+
+```
+Agent (now) --schedule_future_thought(when, content, intent)--> Scheduled-thoughts queue (persisted) --> each tick: drain due entries --> prepend '[SYSTEM: scheduled note from past-self]' to prompt --> mark fired --> Agent (later)
+```
+
 ## Diagram
 
 ```mermaid
@@ -64,6 +70,13 @@ A long-running personal agent decides at 09:00 that it should remind the user ab
 - Without expiry or dismissal, scheduled notes accumulate and waste prompt tokens; obsolete future-self commitments can pollute attention long after they've stopped being relevant.
 - Drift between schedule time and actual tick time depending on tick cadence.
 - Risk of accumulating stale promises that pollute the agent's sense of obligation.
+
+## Failure modes
+
+- Stale promises — notes outlive their purpose, keep firing or piling up, and the agent acts on commitments that no longer matter.
+- Late delivery — a slow tick cadence means a note set for 9:00 surfaces long after, and the moment it was meant for has passed.
+- Double fire — the mark-fired write fails after the note is prepended, so the same note surfaces again on the next tick.
+- Undrained queue — a bug in the drain step leaves due notes in the queue, and the agent never sees them.
 
 ## What this pattern constrains
 

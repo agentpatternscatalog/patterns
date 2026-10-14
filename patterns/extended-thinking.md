@@ -31,12 +31,11 @@ Therefore: spend a configurable budget of provider-native reasoning tokens befor
 
 Use the provider's reasoning-mode API (OpenAI o-series reasoning effort, Anthropic Claude extended thinking budget_tokens, Gemini thinking budget). Set budget per request based on task difficulty (cheap for routing, expensive for hard reasoning). Monitor reasoning-token consumption.
 
-## Variants
+## Structure
 
-- **Token-budget thinking** — Caller sets an integer token budget for hidden reasoning (Anthropic Claude `budget_tokens`, Gemini thinking budget).
-- **Effort-level thinking** — Caller picks a qualitative effort level (low/medium/high) and the provider decides the underlying budget (OpenAI o-series `reasoning.effort`).
-- **Interleaved thinking** — Reasoning blocks may be emitted between tool calls within one turn rather than only at the start (Anthropic interleaved thinking).
-- **Summary-exposed thinking** — Hidden reasoning is kept private but a short summary of it is returned to the caller for UX (OpenAI reasoning summaries).
+```
+Caller --request + thinking budget (per task difficulty)--> Provider API --> Model reasoning mode (internal reasoning tokens within budget) --> visible answer --> Caller + reasoning-token usage --> monitoring
+```
 
 ## Diagram
 
@@ -69,6 +68,13 @@ An agent answering 'is this contract fair to my client?' produces a one-paragrap
 - Cost spikes with budget.
 - Opaque reasoning blocks are harder to debug than visible CoT.
 
+## Failure modes
+
+- Flat budget — every request gets the same large thinking budget, and cost rises on easy routing calls.
+- Truncated reasoning — the budget is too small for a hard task, reasoning is cut off, and the model answers before finishing.
+- Opaque failure — a wrong answer comes out of hidden reasoning blocks, and the team has little trace to debug it.
+- Unwatched spend — reasoning-token usage is not monitored, so cost spikes go unnoticed until the bill arrives.
+
 ## What this pattern constrains
 
 Reasoning happens within the declared token budget; exceeding it terminates reasoning and forces an answer.
@@ -87,24 +93,45 @@ Reasoning happens within the declared token budget; exceeding it terminates reas
 - The provider does not expose a separate reasoning budget.
 - The user must see the reasoning verbatim (use chain-of-thought instead, since extended thinking is opaque).
 
+## Components
+
+- Reasoning-capable model — provider model that supports a hidden thinking phase (o-series, Claude extended thinking, Gemini 2.5, DeepSeek-R1)
+- Budget controller — caller-side policy that picks token budget or effort level per request
+- Difficulty classifier — upstream signal that maps task class to budget tier
+- Usage telemetry — collector for reasoning-token counts returned by the API
+
+## Tools
+
+- Provider reasoning API — Anthropic budget_tokens, OpenAI reasoning.effort, or Gemini thinking budget parameter
+- Cost and latency dashboard — per-request reasoning-token accounting
+
+## Evaluation metrics
+
+- Quality lift per extra reasoning token — accuracy gain as a function of budget on the target task class
+- Budget-hit rate — fraction of requests that exhaust the declared budget before answering
+- User-visible latency at p95 — wall-clock impact of the hidden thinking phase
+- Cost per resolved task — combined visible and reasoning tokens against task completion
+- Easy-task overspend rate — share of low-difficulty requests that received a high budget
+
 ## Known uses
 
-- **Anthropic Claude extended thinking (budget_tokens)** — *Available*
-- **Gemini 2.5 thinking budget** — *Available*
-- **DeepSeek-R1** — *Available*
-- **OpenAI reasoning effort (o1, o3, o4-mini)** — *Available*. Qualitative low/medium/high control.
+- **Anthropic Claude extended thinking (budget_tokens)** _available_
+- **Gemini 2.5 thinking budget** _available_
+- **DeepSeek-R1** _available_
+- **OpenAI reasoning effort (o1, o3, o4-mini)** _available_ — Qualitative low/medium/high control.
 
 ## Related patterns
 
-- *complements* → [chain-of-thought](chain-of-thought.md)
-- *complements* → [scratchpad](scratchpad.md)
-- *complements* → [cost-gating](cost-gating.md)
-- *specialises* → [test-time-compute-scaling](test-time-compute-scaling.md)
-- *complements* → [reasoning-trace-carry-forward](reasoning-trace-carry-forward.md)
+- _complements_ **Chain of Thought**
+- _complements_ **Scratchpad**
+- _complements_ **Cost Gating**
+- _specialises_ **Test-Time Compute Scaling**
+- _complements_ **Reasoning Trace Carry-Forward**
+- _complements_ **Rumination Agent**
+- _composes-with_ **Talker-Reasoner**
+- _complements_ **Large Reasoning Model (LRM) Paradigm**
 
 ## References
 
-- (doc) *Anthropic: Extended thinking*, <https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking>
-- (doc) *OpenAI: Reasoning models*, <https://platform.openai.com/docs/guides/reasoning>
-
-**Tags:** reasoning, budget, tokens
+- [Anthropic: Extended thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking)
+- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)

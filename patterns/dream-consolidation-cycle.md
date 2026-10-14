@@ -2,7 +2,7 @@
 
 **Also known as:** Dream Pass, Slow Sleep Reflection, Emotional Reset Cycle
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,6 +32,12 @@ Therefore: schedule a slower, stronger reflection pass that distils themes, deca
 
 On a slow timer (every few hours, or when an affect scalar crosses a threshold), pause normal ticking. Load the last few hours of thoughts and affect history. Run a stronger model with a dream-pass prompt that distils themes into journal entries, applies decay to all affect scalars, optionally clears workspace focus, and appends the dream summary to a dedicated dream-journal surface. Persistent learning (rules, charter, insights) is not edited here; the dream pass produces proposals that a subsequent reflection pass can ratify.
 
+## Structure
+
+```
+Normal ticking --timer or affect threshold--> Pause ticking --> Load hours of thoughts and affect history --> Stronger model dream pass --> {themes -> dream journal, decay all affect scalars, optional focus clear, proposals} --> Resume ticking; proposals --> later reflection pass --ratify--> persistent learning
+```
+
 ## Diagram
 
 ```mermaid
@@ -43,6 +49,10 @@ stateDiagram-v2
   Dreaming --> Ticking : resume
   Ticking --> [*]
 ```
+
+## Example scenario
+
+A long-running personal agent has been talking with its user daily for three months. Per-tick reflection keeps it coherent within a session; weekly insight extraction is too coarse. Affective residue from a tense conversation last Tuesday still colours its tone today. The team adds a Dream Consolidation Cycle: once a night the agent reads its last twenty-four hours of thoughts, promotes recurring themes into long-term memory, and writes off the affective residue, clearing working memory before the next day. The agent stops ruminating on stale items.
 
 ## Consequences
 
@@ -57,6 +67,13 @@ stateDiagram-v2
 - Stronger-model passes are expensive; cadence has to be tuned.
 - Quality of the dream summary depends heavily on the prompt.
 - If proposals are not ratified by a follow-up pass, the dream pass becomes journaling without learning.
+
+## Failure modes
+
+- Journaling without learning — the dream pass writes proposals, but no follow-up reflection pass ratifies them, so nothing changes in rules or insights.
+- Bad cadence — the pass runs so often that cost climbs, or so rarely that affect residue piles up between passes.
+- Over-clearing — the pass wipes workspace focus while a live task still needs it, and the agent resumes with no thread.
+- Prompt-shaped themes — a weak dream prompt promotes surface repetition as a theme and misses what actually recurred.
 
 ## What this pattern constrains
 
@@ -76,50 +93,48 @@ A dream pass cannot edit charter, rules, or insights directly — its only write
 - There is no idle window long enough to run the deeper pass without disturbing user-facing latency.
 - Per-tick reflection is already sufficient.
 
-## Variants
+## Components
 
-### Scheduled idle pass
+- Per-Tick Reflection — shallow pass that runs after every tick
+- Dream Pass — stronger-model pass over hours of recent thoughts and affect
+- Dream Journal — dedicated write surface that receives the dream summary
+- Affect Substrate — receives decay updates from the dream pass
+- Trigger — slow timer or affect-threshold event that initiates the pass
 
-Run the dream pass on a fixed cadence during low-salience periods (e.g. nightly).
+## Tools
 
-*Distinguishing factor:* time-driven
+- LLM API — stronger model with a long-context dream-pass prompt
+- Frontmatter store — dream-journal directory keyed by date
+- Affect-state file — bounded scalars that the dream pass decays
 
-*When to use:* Default. Predictable and easy to budget.
+## Evaluation metrics
 
-### Pressure-triggered
-
-Run the dream pass when accumulated affective load or working-memory size crosses a threshold, regardless of clock time.
-
-*Distinguishing factor:* load-driven
-
-*When to use:* When load varies day-to-day and a fixed schedule wastes or starves the pass.
-
-### Theme-promoting pass
-
-Dream pass surfaces recurring themes from recent thoughts and writes them to the journal as candidate insights, without auto-promoting to charter.
-
-*Distinguishing factor:* candidate-only writes
-
-*When to use:* Default safety stance: humans or higher-level reflection promote candidates to durable rules.
-
-## Example scenario
-
-A long-running personal agent has been talking with its user daily for three months. Per-tick reflection keeps it coherent within a session; weekly insight extraction is too coarse. Affective residue from a tense conversation last Tuesday still colours its tone today. The team adds a Dream Consolidation Cycle: once a night the agent reads its last twenty-four hours of thoughts, promotes recurring themes into long-term memory, and writes off the affective residue, clearing working memory before the next day. The agent stops ruminating on stale items.
+- Affect-residue half-life — wall-clock until baseline affect is restored after a stressful exchange
+- Theme-promotion rate — recurring themes the dream pass surfaces per cycle
+- Ratification share — dream proposals that a subsequent reflection pass actually promotes
+- Cost per dream pass — tokens and latency spent per cycle
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Periodic deeper passes consolidate short and mid-term thoughts into long-term insights and clear working state; framed publicly as 'System 2 sleep'. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Periodic deeper passes consolidate short and mid-term thoughts into long-term insights and clear working state; framed publicly as 'System 2 sleep'. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [episodic-summaries](episodic-summaries.md)
-- *complements* → [frozen-rubric-reflection](frozen-rubric-reflection.md)
-- *uses* → [emotional-state-persistence](emotional-state-persistence.md)
+- _complements_ **Episodic Summaries**
+- _complements_ **Frozen Rubric Reflection**
+- _uses_ **Emotional State Persistence**
+- _complements_ **Multi-Axis Promotion Scoring**
+- _complements_ **Cluster-Capped Insight Store**
+- _alternative-to_ **Meditation Mode**
+- _alternative-to_ **Sleep-Time Compute**
+- _complements_ **Fragment Juxtaposition**
+- _complements_ **Self-Corpus Vocabulary**
+- _alternative-to_ **Rogue Agent Drift**
+- _complements_ **Procedural Memory**
+- _complements_ **Adaptive Memory Decay** — Idle-time consolidation pairs with continuous reinforcement-modulated decay.
 
 ## References
 
-- (paper) McClelland, McNaughton, O'Reilly, *Why there are complementary learning systems in the hippocampus and neocortex: insights from the successes and failures of connectionist models of learning and memory*, 1995, <https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf>
-- (paper) Susanne Diekelmann, Jan Born, *The memory function of sleep*, 2010, <https://pubmed.ncbi.nlm.nih.gov/20046194/>
-- (paper) Robert Stickgold, J. Allan Hobson, Roar Fosse, Magdalena Fosse, *Sleep, learning, and dreams: off-line memory reprocessing*, 2001, <https://pubmed.ncbi.nlm.nih.gov/11691983/>
-
-**Tags:** reflection, consolidation, affect, tick-loop
+- [Why there are complementary learning systems in the hippocampus and neocortex: insights from the successes and failures of connectionist models of learning and memory](https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf) — McClelland, McNaughton, O'Reilly, 1995
+- [The memory function of sleep](https://pubmed.ncbi.nlm.nih.gov/20046194/) — Susanne Diekelmann, Jan Born, 2010
+- [Sleep, learning, and dreams: off-line memory reprocessing](https://pubmed.ncbi.nlm.nih.gov/11691983/) — Robert Stickgold, J. Allan Hobson, Roar Fosse, Magdalena Fosse, 2001

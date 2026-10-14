@@ -31,6 +31,12 @@ Therefore: factor the family into a core schema with a discriminator plus namesp
 
 Define a core schema with the common fields and a discriminator (e.g. `material_type`). Sub-type fields live in a namespaced extension block (e.g. `yarn: {...}` for yarn-specific). Clients that do not understand a sub-type still read the core fields and round-trip the rest without data loss.
 
+## Structure
+
+```
+Record core (id, discriminator e.g. material_type, common fields) + namespaced extension per sub-type (yarn: {...} | fabric: {...}) -> client reads core -> known sub-type: validate and use extension; unknown sub-type: keep and round-trip extension untouched
+```
+
 ## Diagram
 
 ```mermaid
@@ -67,6 +73,13 @@ A textile-trading platform has yarn, fabric, and trim records, each with shared 
 
 - Validation logic per sub-type adds complexity.
 - Discriminator-driven code paths can be hard to debug.
+
+## Failure modes
+
+- Core pollution — a sub-type field is added at the top level for convenience, and other sub-types start carrying a meaningless value for it.
+- Lossy round-trip — an old client reads a record with an unknown sub-type, drops the extension block on save, and the type-specific data is gone.
+- Discriminator mismatch — `material_type` says one sub-type while the extension block belongs to another, and per-type validation does not catch it.
+- Branch sprawl — code switches on the discriminator in many places, and a new sub-type is handled in some branches but missed in others.
 
 ## What this pattern constrains
 

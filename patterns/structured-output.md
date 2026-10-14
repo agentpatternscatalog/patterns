@@ -23,21 +23,6 @@ When the model is asked to emit JSON via natural-language instructions alone, th
 - Schema evolution is a real concern.
 - Provider implementations of structured output differ in fidelity.
 
-
-## Applicability
-
-**Use when**
-
-- Downstream code consumes typed data and free-form text would break parsers.
-- A JSON Schema or equivalent typed shape can be defined for the output.
-- The provider supports structured-output mode or function calling.
-
-**Do not use when**
-
-- Output is for human consumption only and structure adds no value.
-- The schema would be so loose it provides no real type safety.
-- Strict schema enforcement triggers excessive retries that hurt UX.
-
 ## Therefore
 
 Therefore: hand the schema to the provider's constrained-decoding mode and validate-and-retry on failure, so that the model cannot emit content that does not type-check.
@@ -46,17 +31,11 @@ Therefore: hand the schema to the provider's constrained-decoding mode and valid
 
 Define a JSON Schema (or Pydantic / Zod / equivalent). Pass it to the model via the provider's structured-output mode. Validate the output. Reject and retry on validation failure. Cap retries.
 
-## Variants
+## Structure
 
-- **Provider strict JSON mode** — Provider-side constrained decoding against a JSON Schema (OpenAI Structured Outputs, Anthropic tool-use schemas).
-- **Tool/function-call schema** — Schema is declared as a tool's input shape; the model emits a tool call rather than free-form text.
-- **Local grammar-constrained decoding** — Open-weights stack constrains decoding to a regex/CFG/JSON Schema (Outlines, llama.cpp grammars, Guidance).
-- **Validate-and-retry** — Generate free-form, validate against schema, on failure prompt the model with the validator error and retry up to N times.
-
-## Example scenario
-
-A pipeline that consumes model output as JSON keeps breaking on smart quotes, surprise prose preambles, and trailing commas. Post-hoc parsing is a tar pit. The team defines a JSON Schema, passes it via the provider's structured-output mode, validates the result, and retries on validation failure with a low cap. The 'flaky model' bug class disappears because the model is now constrained to the typed shape at decode time.
-
+```
+Schema (JSON Schema / Pydantic / Zod) + Prompt -> provider structured-output mode -> model output -> validate --pass--> typed consumer; --fail--> retry (capped) --cap reached--> schema error
+```
 
 ## Diagram
 
@@ -72,6 +51,10 @@ flowchart TD
   Retry -- no --> Err[Schema error]
 ```
 
+## Example scenario
+
+A pipeline that consumes model output as JSON keeps breaking on smart quotes, surprise prose preambles, and trailing commas. Post-hoc parsing is a tar pit. The team defines a JSON Schema, passes it via the provider's structured-output mode, validates the result, and retries on validation failure with a low cap. The 'flaky model' bug class disappears because the model is now constrained to the typed shape at decode time.
+
 ## Consequences
 
 **Benefits**
@@ -84,38 +67,91 @@ flowchart TD
 - Provider lock-in for the strictest modes.
 - Some tasks resist schema-fitting; the schema becomes the bottleneck.
 
+## Failure modes
+
+- Retry loop burn — a schema the model cannot satisfy for some input triggers retries up to the cap on every call, adding cost and latency before a schema error.
+- Schema as bottleneck — a task that does not fit the shape is forced into it, and the model fills required fields with weak or made-up values that still validate.
+- Valid but wrong — the output passes the schema while the content is incorrect, and downstream code trusts it because it parsed.
+- Provider lock-in — the code depends on one provider's strict mode, and moving to another provider brings back malformed output.
+
 ## What this pattern constrains
 
 The model cannot return content that does not validate against the schema.
 
+## Applicability
+
+**Use when**
+
+- Downstream code consumes typed data and free-form text would break parsers.
+- A JSON Schema or equivalent typed shape can be defined for the output.
+- The provider supports structured-output mode or function calling.
+
+**Do not use when**
+
+- Output is for human consumption only and structure adds no value.
+- The schema would be so loose it provides no real type safety.
+- Strict schema enforcement triggers excessive retries that hurt UX.
+
+## Components
+
+- Schema definition — JSON Schema, Pydantic model, or Zod schema that declares the typed output shape
+- Constrained-decoding mode — provider-side or local grammar that prevents the model from emitting non-conforming tokens
+- Validator — runs after decoding and rejects outputs that do not type-check against the schema
+- Retry controller — re-prompts with the validator error on failure, capped at N attempts
+- Typed consumer — downstream code that can rely on the schema and skip ad-hoc parsing
+
+## Tools
+
+- Provider structured-output mode (OpenAI Structured Outputs, Anthropic tool-use schemas) — constrained decoding against a supplied schema
+- Pydantic or Zod — defines the schema in code and produces the JSON Schema the provider consumes
+- Local grammar-constrained decoder (Outlines, llama.cpp grammars, Guidance) — enforces shape on open-weights stacks
+- Guardrails AI or similar validator — wraps generation with validate-and-retry when the provider lacks strict mode
+
+## Evaluation metrics
+
+- First-attempt schema-validation pass rate — fraction of outputs that type-check without any retry
+- Mean retries per successful output — overhead the retry loop adds; high values point at schema/model mismatch
+- Final failure rate at the retry cap — outputs that never validate; surfaces tasks the schema cannot fit
+- Task-quality delta vs free-form baseline — does constraining the shape hurt the underlying answer quality
+- Schema-evolution break rate — proportion of past outputs that stop validating when the schema changes
+
 ## Known uses
 
-- **ConvArch** — *Available*. Strict JSON schema for every architecture-edit tool call.
-- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. Frozen 6-item rubric output schema.
-- **Guardrails AI** — *Available*
+- **ConvArch** _available_ — Strict JSON schema for every architecture-edit tool call.
+- **Knitting-DSL Pipeline (Stash2Go)** _available_ — Frozen 6-item rubric output schema.
+- **Guardrails AI** _available_
 
 ## Related patterns
 
-- *used-by* → [tool-use](tool-use.md)
-- *used-by* → [frozen-rubric-reflection](frozen-rubric-reflection.md)
-- *used-by* → [deterministic-llm-sandwich](deterministic-llm-sandwich.md)
-- *alternative-to* → [schema-free-output](schema-free-output.md)
-- *complements* → [plan-and-execute](plan-and-execute.md)
-- *used-by* → [dspy-signatures](dspy-signatures.md)
-- *used-by* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [streaming-typed-events](streaming-typed-events.md)
-- *alternative-to* → [hallucinated-tools](hallucinated-tools.md)
-- *alternative-to* → [tool-output-trusted-verbatim](tool-output-trusted-verbatim.md)
-- *used-by* → [sop-encoded-multi-agent](sop-encoded-multi-agent.md)
-- *used-by* → [mobile-ui-agent](mobile-ui-agent.md)
-- *used-by* → [dual-system-gui-agent](dual-system-gui-agent.md)
-- *complements* → [code-as-action](code-as-action.md)
-- *used-by* → [multilingual-voice-agent](multilingual-voice-agent.md)
-- *complements* → [code-switching-aware-agent](code-switching-aware-agent.md)
+- _used-by_ **Tool Use**
+- _used-by_ **Frozen Rubric Reflection**
+- _used-by_ **Deterministic-LLM Sandwich**
+- _alternative-to_ **Schema-Free Output**
+- _complements_ **Plan-and-Execute**
+- _used-by_ **DSPy Signatures**
+- _used-by_ **Input/Output Guardrails**
+- _complements_ **Streaming Typed Events**
+- _alternative-to_ **Hallucinated Tools**
+- _alternative-to_ **Tool Output Trusted Verbatim**
+- _used-by_ **SOP-Encoded Multi-Agent Workflow**
+- _used-by_ **Mobile UI Agent**
+- _used-by_ **Dual-System GUI Agent**
+- _complements_ **Code-as-Action Agent**
+- _used-by_ **Multilingual Voice Agent Stack**
+- _complements_ **Code-Switching-Aware Agent**
+- _composes-with_ **Prompt/Response Optimiser**
+- _complements_ **Citation Attribution**
+- _complements_ **Deterministic Control Flow, Not Prompt**
+- _complements_ **Context Minimization**
+- _complements_ **LLM Map-Reduce Isolation**
+- _complements_ **Missing max_tokens Cap**
+- _used-by_ **Performative Message**
+- _composes-with_ **Attentive Reasoning Queries** — ARQ blueprints emit each reasoning step as a structured field, making them individually checkable.
+- _complements_ **Machine-Checkable Tool Contract** — Constrains what the model emits; this constrains what the tool accepts and what its failures look like.
+- _used-by_ **Solver-Ready Formulation Handoff** — The formulation is emitted as a typed artefact that must validate before compilation, not as free prose describing a model.
+- _used-by_ **Semantic Decision Node** — The typed answer schema is structured output taken to its limit: a closed set of options plus a probability, with no free text.
 
 ## References
 
-- (doc) *OpenAI Structured Outputs*, <https://platform.openai.com/docs/guides/structured-outputs>
-- (doc) *Pydantic*, <https://docs.pydantic.dev>
-
-**Tags:** schema, json, typed-output
+- [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
+- [Pydantic](https://docs.pydantic.dev)

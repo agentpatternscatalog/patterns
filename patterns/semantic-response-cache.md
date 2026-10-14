@@ -134,6 +134,7 @@ A query is answered from the cache only when its nearest stored neighbour clears
 - _alternative-to_ **Tool Result Caching** — Tool-result caching keys on exact (tool, normalised args); the semantic cache keys on embedding similarity rather than an exact match.
 - _complements_ **Naive RAG** — The cache sits in front of the retrieve-then-generate pipeline and short-circuits it on near-duplicate queries before any retrieval runs.
 - _complements_ **Agentic RAG** — A similarity hit returns the stored answer before the iterative plan-retrieve-reflect loop is entered, saving its repeated model calls.
+- _alternative-to_ **Mirrored Tool Environment** — A cache replays responses that were really observed and returns nothing below its threshold; a mirror generates unseen responses and is steered to degrade them on purpose. Virtual API servers usually run both, cache first.
 
 ## References
 

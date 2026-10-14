@@ -131,7 +131,14 @@
         "GPU utilisation — share of GPU pod time on real inference",
         "Cross-service tail latency — added ms from the network hop",
         "Deploy decoupling — independent deploy frequency per service"
-      ]
+      ],
+      "failure_modes": [
+        "Leaky contract — business logic such as prompt templating creeps into the GPU service, and a retrieval change once again forces a GPU redeploy.",
+        "Hop latency pile-up — an orchestration step calls the LLM service many times in sequence, and the extra network hop per call adds up to a slow response.",
+        "Blind spot between services — without cross-service tracing, a slow request cannot be pinned on retrieval, queueing or generation.",
+        "Unbounded queue — the LLM service has no admission control, a traffic spike fills its queue, and tail latency climbs for every caller."
+      ],
+      "structure": "User request -> CPU business service (retrieval via vector DB/cache, prompt assembly, orchestration) --REST generate(prompt, params)--> GPU LLM service (batching, queueing, admission control; scales on token throughput) --completion--> business service (post-processing) -> response"
     },
     {
       "id": "code-switching-aware-agent",
@@ -280,7 +287,13 @@
         "Refusal rate on mixed-language turns — should approach zero; the pattern's whole point is not refusing natural input",
         "Eval-set code-switching coverage — proportion of the held-out set that actually mixes languages, not just multilingual monolingual turns"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Utterance-level detection creeps back — a component tags the whole message with one language, and the clause in the other language is routed to a stack that cannot read it.",
+        "Normalising too early — a place name in Latin script is converted before slot extraction, and the tool receives a mangled entity.",
+        "Untested mix — the eval set covers each language alone but no code-switched turns, so regressions on mixed input ship unnoticed.",
+        "Quiet downgrade — the agent does not refuse outright but answers mixed input with a shorter, less helpful reply than it gives single-language input."
+      ]
     },
     {
       "id": "dspy-signatures",
@@ -409,7 +422,14 @@
         "Assertion-violation rate at inference — for assertion-guarded signatures, how often dspy.Assert triggers backtracking",
         "Signature coverage — fraction of pipeline steps expressed as signatures vs ad-hoc prompt strings"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Stale compiled prompts — the model is upgraded but the module is not recompiled, and the few-shot examples tuned for the old model now hurt quality.",
+        "Weak metric — the held-out metric rewards surface features, and the optimizer compiles prompts that score well but answer poorly.",
+        "Too little data — compilation runs on a handful of labelled examples, and the chosen few-shot set fits them rather than the real task.",
+        "String escape hatch — a developer patches behaviour with ad-hoc prompt text outside the signature, and the next compile silently overwrites or conflicts with it."
+      ],
+      "structure": "Typed signatures (input fields -> output fields) -> composed into Modules -> Teleprompter compiles against held-out metric (generates few-shot examples, refines instructions) -> compiled artefact replaces hand-written prompts -> recompile on model or data change"
     },
     {
       "id": "fti-llm-pipeline-split",
@@ -542,7 +562,14 @@
         "Deploy decoupling — independent deploy frequency per pipeline",
         "Cross-pipeline lag — staleness between feature update and inference visibility",
         "Schema-change incidents — breaking changes across the feature-store boundary"
-      ]
+      ],
+      "failure_modes": [
+        "Back-channel call — one pipeline calls another directly instead of going through the store or registry, and the independent deploy cadence is lost.",
+        "Schema ripple — the feature pipeline changes chunk or embedding format, and the training and inference pipelines break because nothing versioned the change.",
+        "Model and index mismatch — inference loads a new model from the registry while the feature store still holds embeddings from an older setup, and retrieval quality drops.",
+        "Overkill split — a small one-off system pays for three pipelines and two integration surfaces it never needed."
+      ],
+      "structure": "Raw data -> Feature pipeline (clean, chunk, embed) -> Feature store; Feature store -> Training pipeline (SFT, DPO) -> Model registry; Feature store + Model registry -> Inference pipeline -> User; no direct calls between pipelines, each deploys on its own cadence"
     },
     {
       "id": "llm-as-periphery",
@@ -678,7 +705,14 @@
         "LLM-regression blast radius — share of edges affected when the LLM model or prompt changes (low = inversion is working)",
         "Boundary-violation count — flagged attempts to push state decisions into the LLM"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Edge creep — a convenient LLM call starts deciding a state transition or threshold, and the core is no longer deterministic or testable.",
+        "Hidden state in the edge — an LLM call carries memory across turns through its prompt history, so outputs no longer follow from the event store alone.",
+        "Bad typed event — the input edge misreads free text and writes a wrong but valid event, and the core acts on it with full confidence.",
+        "Forced inversion — a workflow where the dialog itself drives state is squeezed into the pattern, and the state machine grows awkward cases to mimic what the model was doing."
+      ],
+      "structure": "User input -> LLM edge (free text -> typed event) -> Deterministic core (state machine + event store, property-tested thresholds and safety checks) -> LLM edge (typed state -> user-facing text) -> output; event store is the only state and supports replay and audit"
     },
     {
       "id": "polymorphic-record",
@@ -819,7 +853,14 @@
         "Core-field pollution count — sub-type-specific fields that leaked into the core schema and need to be moved",
         "Sub-type proliferation rate — new sub-types added per release; flags governance drift"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Core pollution — a sub-type field is added at the top level for convenience, and other sub-types start carrying a meaningless value for it.",
+        "Lossy round-trip — an old client reads a record with an unknown sub-type, drops the extension block on save, and the type-specific data is gone.",
+        "Discriminator mismatch — `material_type` says one sub-type while the extension block belongs to another, and per-type validation does not catch it.",
+        "Branch sprawl — code switches on the discriminator in many places, and a new sub-type is handled in some branches but missed in others."
+      ],
+      "structure": "Record core (id, discriminator e.g. material_type, common fields) + namespaced extension per sub-type (yarn: {...} | fabric: {...}) -> client reads core -> known sub-type: validate and use extension; unknown sub-type: keep and round-trip extension untouched"
     },
     {
       "id": "prompt-response-optimiser",
@@ -954,7 +995,13 @@
         "Inter-template behaviour drift — variance in agent behaviour across template versions for the same intent",
         "Consumer-side parser complexity — lines of ad-hoc parsing each consumer still needs; should trend to zero"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Stripped intent — the rewrite into the template drops a detail the user meant, and the model answers a cleaner but different question.",
+        "Template lag — goals or consumers change while the templates stay the same, so rewritten prompts and shaped responses no longer fit.",
+        "Unversioned registry — templates change without being versioned with the agent, and behaviour shifts with no record of why.",
+        "Bypass path — one consumer reads raw model output instead of the optimised response, and the ad-hoc parsing the pattern removed comes back."
+      ]
     },
     {
       "id": "schema-extensibility",
@@ -1065,7 +1112,14 @@
         "Unknown-field drop rate — extensions silently lost on round-trip, which defeats the pattern",
         "Schema-version cadence — how often genuine breaking changes ship; informs deprecation policy"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Extension sprawl — every vendor adds its own `x-` fields, nobody retires them, and the payload fills with overlapping extensions.",
+        "Silent breaking change — a producer changes the meaning of a core field without bumping schema_version, and old clients misread it.",
+        "Cross-namespace reliance — a client starts depending on another vendor's extension field, and breaks when that vendor changes it.",
+        "Typo as extension — a misspelled field lands in the extensions block, is ignored by clients, and the intended value is lost without an error."
+      ],
+      "structure": "Producer -> Envelope {schema_version, type, payload, extensions: {x-vendor.*}} -> Client: known version -> validate core payload; unknown extension -> ignore; schema_version bump -> treat as breaking change"
     },
     {
       "id": "structured-output",
@@ -1300,7 +1354,14 @@
         "Task-quality delta vs free-form baseline — does constraining the shape hurt the underlying answer quality",
         "Schema-evolution break rate — proportion of past outputs that stop validating when the schema changes"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Retry loop burn — a schema the model cannot satisfy for some input triggers retries up to the cap on every call, adding cost and latency before a schema error.",
+        "Schema as bottleneck — a task that does not fit the shape is forced into it, and the model fills required fields with weak or made-up values that still validate.",
+        "Valid but wrong — the output passes the schema while the content is incorrect, and downstream code trusts it because it parsed.",
+        "Provider lock-in — the code depends on one provider's strict mode, and moving to another provider brings back malformed output."
+      ],
+      "structure": "Schema (JSON Schema / Pydantic / Zod) + Prompt -> provider structured-output mode -> model output -> validate --pass--> typed consumer; --fail--> retry (capped) --cap reached--> schema error"
     },
     {
       "id": "channel-decoupled-agent-core",

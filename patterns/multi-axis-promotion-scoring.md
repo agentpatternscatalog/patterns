@@ -2,7 +2,7 @@
 
 **Also known as:** Insight-Promotion Gate, Tier-Promotion Score, Consolidation-Weighted Score
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: score each thought on a fixed set of axes — frequency, relevance, d
 
 Six axes (frequency, relevance, diversity, recency, consolidation, conceptual). Each axis returns a value in 0..1 through a saturating curve. Total score is a weighted sum; weights sum to one and live in a config that is revisable through a documented decision. Append every score event to a JSONL metadata log (separate file from the thoughts) with event-type tags such as recall, grounding, dream-survival. Thoughts whose score crosses the promotion threshold are candidates; the deep consolidation pass makes the final call on what crosses to long-term.
 
-## Example scenario
+## Structure
 
-A long-running personal agent has been writing thoughts for months. Recency-only promotion lifts whatever is freshest into the long-term store; frequency-only promotion rewards rumination loops. The team adds Multi-Axis Promotion Scoring: six axes (frequency, relevance, diversity, recency, consolidation, conceptual) with weights that sum to one and live in a config the agent helped tune — consolidation weighted at 0.18 because dreams have proved to be the deepest integration mechanism. Thoughts above 0.5 become promotion candidates; the dream pass makes the final call.
+```
+Short-term thought --> six-axis score (frequency, relevance, diversity, recency, consolidation, conceptual; config weights) --score event--> metadata log; score >= threshold --> promotion candidate --> consolidation pass --select--> long-term insight | reject --> stays short-term
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ flowchart TD
 
 *Thoughts get a six-axis score; above-threshold become candidates; the consolidation pass is the only writer to the long-term tier.*
 
+## Example scenario
+
+A long-running personal agent has been writing thoughts for months. Recency-only promotion lifts whatever is freshest into the long-term store; frequency-only promotion rewards rumination loops. The team adds Multi-Axis Promotion Scoring: six axes (frequency, relevance, diversity, recency, consolidation, conceptual) with weights that sum to one and live in a config the agent helped tune — consolidation weighted at 0.18 because dreams have proved to be the deepest integration mechanism. Thoughts above 0.5 become promotion candidates; the dream pass makes the final call.
+
 ## Consequences
 
 **Benefits**
@@ -64,6 +70,13 @@ flowchart TD
 - Axis curves and weights are empirical and per-deployment.
 - Computing scores is itself work and must stay cheap to run often.
 - A bad axis curve can silently suppress real insight.
+
+## Failure modes
+
+- Suppressed insight — a badly shaped axis curve keeps scores low for a real insight, and it never becomes a candidate.
+- Rumination wins — the frequency weight is set too high, and repeated loops outscore thoughts that survived consolidation.
+- Expensive scoring — the axes call slow lookups, so scoring cannot run as often as promotion needs.
+- Threshold taken as final — a component writes candidates straight to long-term memory instead of waiting for the consolidation pass.
 
 ## What this pattern constrains
 
@@ -83,19 +96,37 @@ Score weights cannot be changed mid-session by the model; weights are loaded fro
 - Per-thought scoring overhead is not affordable.
 - There is no consolidation pass to do the final selection.
 
+## Components
+
+- Six-Axis Scorer — frequency, relevance, diversity, recency, consolidation, conceptual
+- Weight Config — fixed weights summing to one, loaded at run start
+- Score Metadata Log — JSONL of every score event, separate from the thought corpus
+- Promotion Threshold — score above which thoughts become candidates
+- Consolidation Pass — the only writer allowed to promote candidates to long-term
+
+## Tools
+
+- Structured JSON store — JSONL log of score events with event-type tags
+- LLM API — consolidation pass that selects from above-threshold candidates
+
+## Evaluation metrics
+
+- Promotion-rate per axis — share of long-term insights whose marginal axis was each axis
+- Consolidation weight effectiveness — survival of high-consolidation thoughts vs high-frequency ones
+- Score-event volume per tick — scoring overhead per thought generated
+- Long-term churn — additions vs sweeps in the long-term tier over a window
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [salience-attention-mechanism](salience-attention-mechanism.md)
-- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
+- _complements_ **Salience Attention Mechanism**
+- _complements_ **Append-Only Thought Stream**
+- _complements_ **Dream Consolidation Cycle**
 
 ## References
 
-- (paper) Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, Michael S. Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
-- (paper) James L. McClelland, Bruce L. McNaughton, Randall C. O'Reilly, *Why there are complementary learning systems in the hippocampus and neocortex*, 1995, <https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf>
-
-**Tags:** cognition, memory-tier, promotion, scoring
+- [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442) — Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, Michael S. Bernstein, 2023
+- [Why there are complementary learning systems in the hippocampus and neocortex](https://stanford.edu/~jlmcc/papers/McCMcNaughtonOReilly95.pdf) — James L. McClelland, Bruce L. McNaughton, Randall C. O'Reilly, 1995

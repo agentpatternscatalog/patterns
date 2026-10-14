@@ -31,6 +31,12 @@ Therefore: expose retrieval as a tool the agent chooses, reformulates, and bound
 
 Treat retrieval as a tool. The agent decides whether to retrieve, formulates and reformulates the query, picks among multiple retrievers (vector, graph, keyword, web), evaluates retrieved evidence, and re-queries on insufficient results. Composes naturally with reflection, planning, and tool-use patterns.
 
+## Structure
+
+```
+Query --> Planning agent --no retrieval needed--> Generator --> Answer | --retrieve--> Pick retriever (vector / graph / keyword / web) --> Retrieve evidence --> Evidence evaluator --insufficient--> reformulate --> Pick retriever (within step budget) | --sufficient--> Generator --> Answer
+```
+
 ## Diagram
 
 ```mermaid
@@ -60,6 +66,13 @@ A consulting agent is asked, 'Compare our 2023 and 2024 revenue by region.' Naiv
 - Cost and latency rise with loop iterations.
 - Loop quality depends on agent self-evaluation.
 
+## Failure modes
+
+- Premature stop — the agent judges thin evidence as enough, stops retrieving, and answers a multi-hop question with half the facts.
+- Retrieval loop — the agent keeps reformulating and re-querying without new evidence until the step budget runs out.
+- Wrong source pick — the agent's description of the retrievers is vague, so it searches the vector store for a question only the web or graph can answer.
+- Needless retrieval — the agent retrieves for questions it could answer directly, adding cost and latency for no gain.
+
 ## What this pattern constrains
 
 Retrieval is one tool among many; the agent decides invocation, but each retrieval is bounded by the step budget.
@@ -78,170 +91,58 @@ Retrieval is one tool among many; the agent decides invocation, but each retriev
 - Latency budgets cannot afford iterative retrieval rounds.
 - There is only one retriever and no meaningful query reformulation possible.
 
+## Components
+
+- Planning agent — decides whether to retrieve, picks a retriever, reformulates the query, and judges sufficiency
+- Retriever pool — multiple backends (vector, graph, keyword, web) exposed as tools the agent can select between
+- Evidence evaluator — scores accumulated chunks against the open question and signals continue-or-stop
+- Step-budget controller — caps loop iterations so retrieval cannot run away
+- Generator LLM — produces the final answer once evidence is judged sufficient
+
+## Tools
+
+- Vector index — semantic retrieval backend invoked by the agent
+- Web search API — fallback retriever for queries the local corpus cannot answer
+- LLM API — drives planning, query reformulation, and final generation
+
+## Evaluation metrics
+
+- Multi-hop answer accuracy — fraction of cross-document questions resolved correctly compared with single-shot RAG
+- Average retrieval rounds per query — how often the loop actually fires, sanity check on budget controller
+- Re-query rate after evaluator rejection — share of retrievals graded insufficient, signalling retriever quality
+- p95 end-to-end latency — cost of the loop relative to one-shot retrieval
+- Tool-call cost per resolved query — combined LLM and retriever spend per answered question
+
 ## Known uses
 
-- **Self-RAG, CRAG implementations** — *Available*
-- **LangGraph Agentic RAG tutorials** — *Available*
-- **Perplexity** — *Available*
-- **ChatGPT Search** — *Available*
-- **Glean** — *Available*
-- **Notion AI** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent retrieves over its own Markdown corpus (and external sources) inside a reasoning loop rather than via a one-shot fetch-then-answer step.
+- **Self-RAG, CRAG implementations** _available_
+- **[LangGraph Agentic RAG tutorials](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_agentic_rag/)** _available_
+- **[Perplexity](https://www.perplexity.ai/)** _available_
+- **[ChatGPT Search](https://chat.openai.com/)** _available_
+- **[Glean](https://www.glean.com/)** _available_
+- **[Notion AI](https://www.notion.so/product/ai)** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The agent retrieves over its own Markdown corpus (and external sources) inside a reasoning loop rather than via a one-shot fetch-then-answer step.
 
 ## Related patterns
 
-- *generalises* → [naive-rag](naive-rag.md)
-- *uses* → [react](react.md)
-- *uses* → [reflection](reflection.md)
-- *uses* → [tool-use](tool-use.md) — Retrieval is exposed as a tool the agent decides to invoke.
-- *composes-with* → [cross-encoder-reranking](cross-encoder-reranking.md) — Reranking is a near-universal RAG companion.
-- *generalises* → [self-rag](self-rag.md)
-- *generalises* → [crag](crag.md)
-
-## Code examples
-
-Source of truth: [`examples-src/retrieval.json`](../examples-src/retrieval.json) (entry `agentic-rag`). The Pages site renders these as a tabbed code panel; below they appear sequentially because GitHub-flavoured Markdown has no tab primitive.
-
-All examples below ship with `verified: false` and link the upstream source URL — a verifier re-runs each one against its `source_url` at the pinned `sdk_version` before flipping the flag.
-
-### Pseudo-code
-
-```text
-function answer(question):
-    messages = [system_prompt, user(question)]
-    for step in 1..MAX_STEPS:
-        reply = llm.generate(
-            messages=messages,
-            tools=[retrieve_vector, retrieve_graph, retrieve_web],
-        )
-        messages.append(reply)
-
-        if not reply.tool_calls:
-            return reply.content              # agent answered
-
-        for call in reply.tool_calls:
-            evidence = dispatch(call.name, call.args)
-            messages.append(tool_result(call.id, evidence))
-        # next iteration: agent sees evidence and either answers,
-        # reformulates the query, or picks a different retriever.
-
-    return abort("step budget exhausted")     # bounded by MAX_STEPS
-```
-
-### LangChain (Python) — `langchain>=1.0`
-
-Source: <https://docs.langchain.com/oss/python/langchain/rag>
-
-```python
-from langchain.agents import create_agent
-from langchain.chat_models import init_chat_model
-from langchain.tools import tool
-
-vector_store = ...  # built once at startup
-
-@tool(response_format="content_and_artifact")
-def retrieve_context(query: str):
-    """Retrieve information to help answer a query."""
-    docs = vector_store.similarity_search(query, k=2)
-    serialized = "\n\n".join(
-        f"Source: {d.metadata}\nContent: {d.page_content}" for d in docs
-    )
-    return serialized, docs
-
-model = init_chat_model("gpt-4o-mini")
-agent = create_agent(
-    model,
-    tools=[retrieve_context],
-    system_prompt=(
-        "You have access to a tool that retrieves context. Use it when "
-        "answering needs grounding; if retrieval returns nothing useful, "
-        "say you don't know."
-    ),
-)
-
-for event in agent.stream(
-    {"messages": [{"role": "user", "content": "What is task decomposition?"}]},
-    stream_mode="values",
-):
-    event["messages"][-1].pretty_print()
-```
-
-### LlamaIndex (Python) — `llama-index>=0.12`
-
-Source: <https://developers.llamaindex.ai/python/examples/agent/agent_workflow_basic/>
-
-```python
-import asyncio
-from llama_index.core.agent.workflow import FunctionAgent
-from llama_index.llms.openai import OpenAI
-
-index = ...  # built once at startup
-
-async def search_corpus(query: str) -> str:
-    """Search the indexed corpus for passages relevant to the query.
-
-    The agent calls this only when it judges retrieval is needed; the
-    docstring is what the LLM reads to decide.
-    """
-    nodes = await index.as_retriever().aretrieve(query)
-    return "\n\n".join(n.get_content() for n in nodes)
-
-agent = FunctionAgent(
-    tools=[search_corpus],
-    llm=OpenAI(model="gpt-4o-mini"),
-    system_prompt=(
-        "You are a helpful assistant. Use search_corpus when the user's "
-        "question needs information you do not already have."
-    ),
-)
-
-async def main():
-    response = await agent.run(user_msg="What is task decomposition?")
-    print(str(response))
-
-asyncio.run(main())
-```
-
-### Haystack (Python) — `haystack-ai>=2.0`
-
-Source: <https://docs.haystack.deepset.ai/docs/agent>
-
-```python
-from typing import Annotated
-from haystack.components.agents import Agent
-from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage
-from haystack.tools import tool
-
-retrieval_pipeline = ...  # built once at startup
-
-@tool
-def retrieve_documents(query: Annotated[str, "Search query"]) -> str:
-    """Retrieve documents relevant to the query.
-
-    The Agent calls this only when the user's message needs grounding
-    in the indexed corpus.
-    """
-    result = retrieval_pipeline.run({"query": query})
-    return "\n\n".join(d.content for d in result["documents"])
-
-agent = Agent(
-    chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
-    tools=[retrieve_documents],
-    system_prompt=(
-        "You are a helpful assistant. Use retrieve_documents when the "
-        "user's message needs information from the indexed corpus."
-    ),
-)
-
-response = agent.run(
-    messages=[ChatMessage.from_user("What is task decomposition?")]
-)
-print(response["last_message"].text)
-```
+- _generalises_ **Naive RAG**
+- _uses_ **ReAct**
+- _uses_ **Reflection**
+- _uses_ **Tool Use** — Retrieval is exposed as a tool the agent decides to invoke.
+- _composes-with_ **Cross-Encoder Reranking** — Reranking is a near-universal RAG companion.
+- _generalises_ **Self-RAG**
+- _generalises_ **CRAG**
+- _generalises_ **Co-Located Memory Surfacing**
+- _alternative-to_ **Modular RAG**
+- _alternative-to_ **Over-Search and Under-Search**
+- _specialises_ **Hierarchical Retrieval**
+- _complements_ **CDC-Driven Vector Sync**
+- _uses_ **Vectorless Reasoning-Based Retrieval** — An agentic RAG loop can drive a tree navigator as its retrieval tool instead of a vector search tool.
+- _complements_ **Tenant-Scoped Tool Binding** — Retrieval must carry the tenant id before it reaches the index.
+- _complements_ **Canonical-Entity Grounding** — Retrieval finds context; resolution pins exact identity.
+- _complements_ **Semantic Response Cache** — A similarity hit returns the stored answer before the iterative plan-retrieve-reflect loop is entered, saving its repeated model calls.
+- _alternative-to_ **Table-Augmented Generation** — Agentic RAG loops an agent over retrievers as tools; TAG instead compiles the question into one executable query whose execution layer itself invokes the model.
 
 ## References
 
-- (paper) Singh, Ehtesham, Kumar, Khoei, *Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG*, 2025, <https://arxiv.org/abs/2501.09136>
-
-**Tags:** rag, agentic, iterative
+- [Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG](https://arxiv.org/abs/2501.09136) — Singh, Ehtesham, Kumar, Khoei, 2025

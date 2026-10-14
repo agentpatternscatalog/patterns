@@ -7,7 +7,7 @@
 
 ## Intent
 
-Treat mixed-language input (e.g. Hinglish — Hindi-English code-switching, often in Roman script) as the expected input shape, not an error, and design tokenisation, language tagging, and tool routing to handle it natively without forcing the user to commit to one language.
+Treat mixed-language input (e.g. Hinglish in Roman script) as the expected shape, and design tokenisation, language tagging, and tool routing to handle it natively without forcing the user to commit to one language.
 
 ## Context
 
@@ -32,16 +32,6 @@ Therefore: treat code-switched input as the default shape — tokenise script-ag
 
 Adopt a three-part discipline. (1) Tokenise on Unicode + Latin without assuming a single script per turn. (2) Run language detection at clause level, not utterance level, so mixed-language tagging is preserved. (3) Choose models trained explicitly on code-switched corpora for the relevant language pair; if not available, prompt-engineer with code-switched few-shot examples. Tool slot extraction (entities like place names, times) must accept either script; normalise *after* extraction, not before.
 
-## Variants
-
-- **Native code-switched model** — Use a foundation model explicitly trained on code-switched corpora (Sarvam, IndicLLM); no extra detection layer.
-- **Per-clause language tagging** — Run a clause-level language detector and route each clause to the appropriate sub-pipeline before recombining.
-- **Few-shot code-switched prompting** — When no code-switched-trained model is available, supply few-shot exemplars in the same code-switched register as expected input.
-
-## Example scenario
-
-A consumer-finance assistant in India keeps mishandling messages like 'mera EMI kab due hai bhai?' — Roman-script Hindi mixed with English. A mono-language tokeniser splits 'EMI' awkwardly and the language detector flips between turns, sending replies to the wrong NLU pipeline. The team rebuilds the front of the agent as Code-Switching Aware: tokenisation handles Latin and Devanagari indistinguishably, each token gets a language tag, and tool routing uses the mixed signal directly. Users stop being asked to 'please use one language'.
-
 ## Structure
 
 ```
@@ -59,6 +49,10 @@ flowchart TD
   R --> Out[Response in user's mix]
 ```
 
+## Example scenario
+
+A consumer-finance assistant in India keeps mishandling messages like 'mera EMI kab due hai bhai?' — Roman-script Hindi mixed with English. A mono-language tokeniser splits 'EMI' awkwardly and the language detector flips between turns, sending replies to the wrong NLU pipeline. The team rebuilds the front of the agent as Code-Switching Aware: tokenisation handles Latin and Devanagari indistinguishably, each token gets a language tag, and tool routing uses the mixed signal directly. Users stop being asked to 'please use one language'.
+
 ## Consequences
 
 **Benefits**
@@ -72,6 +66,13 @@ flowchart TD
 - Per-clause language detection is harder than utterance-level.
 - Few foundation models are explicitly evaluated on code-switching.
 - Eval sets need multilingual + code-switched coverage.
+
+## Failure modes
+
+- Utterance-level detection creeps back — a component tags the whole message with one language, and the clause in the other language is routed to a stack that cannot read it.
+- Normalising too early — a place name in Latin script is converted before slot extraction, and the tool receives a mangled entity.
+- Untested mix — the eval set covers each language alone but no code-switched turns, so regressions on mixed input ship unnoticed.
+- Quiet downgrade — the agent does not refuse outright but answers mixed input with a shorter, less helpful reply than it gives single-language input.
 
 ## What this pattern constrains
 
@@ -91,23 +92,44 @@ The agent may not refuse or downgrade a request because the user mixed languages
 - No code-switched-trained model exists for the language pair and quality would regress.
 - Forcing one language is acceptable in the deployment context (e.g. internal English-only tooling).
 
+## Components
+
+- Script-agnostic tokeniser — splits on Unicode and Latin without assuming a single script per turn
+- Clause-level language detector — tags each clause rather than the whole utterance so mixed input is preserved
+- Mixed-script slot extractor — pulls entities like place names and times from either script before normalisation
+- Tool router — dispatches by tagged span so tools see content in the language they expect
+- Slot normaliser — canonicalises extracted entities after extraction, never before
+
+## Tools
+
+- Code-switched-trained foundation model (e.g. Sarvam, IndicTrans, Krutrim) — primary inference for the relevant language pair
+- Clause-level language identifier — replaces utterance-level langid that flips between turns
+- Unicode-aware tokeniser — handles Latin and Devanagari (or other native script) indistinguishably
+
+## Evaluation metrics
+
+- Code-switched intent accuracy vs monolingual baseline — does treating mixed input as in-spec actually help
+- Per-clause language-tag F1 — quality of the clause-level detector that the rest of the pipeline depends on
+- Entity recall across scripts — fraction of place names / times correctly extracted whether typed in Latin or native script
+- Refusal rate on mixed-language turns — should approach zero; the pattern's whole point is not refusing natural input
+- Eval-set code-switching coverage — proportion of the held-out set that actually mixes languages, not just multilingual monolingual turns
+
 ## Known uses
 
-- **[Sarvam (Indic LLMs and conversational agents)](https://www.sarvam.ai/)** — *Available*. Models and pipelines explicitly trained for Indic-English code-switching.
-- **AI4Bharat IndicTrans / IndicLLM family** — *Available*. Indic-focused models with code-switching coverage.
-- **Krutrim (Ola)** — *Available*. Indic-first foundation model targeting mixed-language input.
+- **[Sarvam (Indic LLMs and conversational agents)](https://www.sarvam.ai/)** _available_ — Models and pipelines explicitly trained for Indic-English code-switching.
+- **AI4Bharat IndicTrans / IndicLLM family** _available_ — Indic-focused models with code-switching coverage.
+- **Krutrim (Ola)** _available_ — Indic-first foundation model targeting mixed-language input.
 
 ## Related patterns
 
-- *complements* → [structured-output](structured-output.md)
-- *alternative-to* → [translation-layer](translation-layer.md)
-- *complements* → [input-output-guardrails](input-output-guardrails.md)
-- *complements* → [multilingual-voice-agent](multilingual-voice-agent.md)
-- *conflicts-with* → [refusal](refusal.md)
+- _complements_ **Structured Output**
+- _alternative-to_ **Translation Layer**
+- _complements_ **Input/Output Guardrails**
+- _complements_ **Multilingual Voice Agent Stack**
+- _conflicts-with_ **Refusal**
+- _complements_ **Liminal-State Detection**
 
 ## References
 
-- (doc) *Sarvam AI*, <https://www.sarvam.ai/>
-- (doc) *AI4Bharat*, <https://github.com/AI4Bharat>
-
-**Tags:** structure-data, multilingual, india-origin, code-switching
+- [Sarvam AI](https://www.sarvam.ai/)
+- [AI4Bharat](https://github.com/AI4Bharat)

@@ -25,21 +25,6 @@ When the call site is written as a typed provider object such as `OpenAI(...)` o
 - Per-call provider selection lets experiments, A/B routing, and cost lanes share a single call site.
 - String-typed identifiers lose compile-time checking of valid combinations.
 
-## Applicability
-
-**Use when**
-
-- The application targets multiple providers and may change the mix over time.
-- Per-call routing (experiments, A/B, cost lanes) shares a single call site.
-- Credentials are managed by environment, not by application code.
-- A central capability registry is acceptable to track which providers support which features.
-
-**Do not use when**
-
-- The application is single-provider with no realistic switch in the planning horizon.
-- Compile-time guarantees on valid model identifiers are essential and a typed enum is preferred.
-- The provider exposes features that the unified spec cannot represent and the team accepts the lock-in for them.
-
 ## Therefore
 
 Therefore: take a single `provider/model` string at the call site, resolve credentials from environment, and dispatch through a provider-agnostic interface, so that swapping providers is a string change rather than a typed-object change.
@@ -50,11 +35,9 @@ Define a unified language-model interface and a registry of providers keyed by s
 
 ## Structure
 
+```
 Call site → `generate(model='provider/model', ...)` → ProviderRegistry → ProviderAdapter → upstream API.
-
-## Example scenario
-
-A team builds an agent that should route easy tasks to a cheap small model, hard tasks to a frontier model, and a long-context task to a third provider entirely. With a typed provider object hierarchy, each lane needs its own client construction and credential plumbing. The team switches to provider-string routing: the agent receives a `model` string (`'openai/gpt-5-mini'`, `'anthropic/claude-opus-4-7'`, `'google/gemini-2.5-pro'`) and the registry handles credentials and capability discovery. Adding a new provider for one experiment is a string change plus an env-var.
+```
 
 ## Diagram
 
@@ -73,6 +56,10 @@ flowchart TD
   E --> APIn[(...)]
 ```
 
+## Example scenario
+
+A team builds an agent that should route easy tasks to a cheap small model, hard tasks to a frontier model, and a long-context task to a third provider entirely. With a typed provider object hierarchy, each lane needs its own client construction and credential plumbing. The team switches to provider-string routing: the agent receives a `model` string (`'openai/gpt-5-mini'`, `'anthropic/claude-opus-4-7'`, `'google/gemini-2.5-pro'`) and the registry handles credentials and capability discovery. Adding a new provider for one experiment is a string change plus an env-var.
+
 ## Consequences
 
 **Benefits**
@@ -89,26 +76,71 @@ flowchart TD
 - Misspelled identifiers fail at runtime rather than at edit time.
 - Credential rotation depends on the env-var convention being consistent across providers.
 
+## Failure modes
+
+- Runtime typo — a misspelled `provider/model` string passes code review and fails only when that path is first called in production.
+- Capability mismatch — a string is switched to a model that lacks tool calls or structured output, and the call site breaks because nothing checked capability flags first.
+- Credential convention gap — one provider reads a differently named env var, so a rotated key is picked up by some adapters and not others.
+- SDK leak — a call site imports a provider SDK class directly for a special feature, and the single routing interface stops being the only path.
+
 ## What this pattern constrains
 
 Application code is not allowed to import provider-specific SDK classes at call sites; all model invocations must go through the `provider/model` string interface and the central registry.
 
+## Applicability
+
+**Use when**
+
+- The application targets multiple providers and may change the mix over time.
+- Per-call routing (experiments, A/B, cost lanes) shares a single call site.
+- Credentials are managed by environment, not by application code.
+- A central capability registry is acceptable to track which providers support which features.
+
+**Do not use when**
+
+- The application is single-provider with no realistic switch in the planning horizon.
+- Compile-time guarantees on valid model identifiers are essential and a typed enum is preferred.
+- The provider exposes features that the unified spec cannot represent and the team accepts the lock-in for them.
+
+## Components
+
+- Provider registry — keyed by short prefix (`openai/`, `anthropic/`, `google/`, `xai/`, `openrouter/`)
+- Provider adapter — per-provider class that translates the unified call into the upstream API
+- Credential resolver — reads provider-specific env vars at adapter instantiation time
+- Capability flags — runtime descriptor (tool calls, structured output, vision, context window) per model
+- Unified call site — single `generate(model='provider/model', ...)` entry point all code must use
+
+## Tools
+
+- Mastra, Vercel AI SDK, or LiteLLM — existing implementations of the unified model interface
+- Environment configuration store — dotenv, AWS Secrets Manager, or HashiCorp Vault holding provider keys
+- Capability catalog — JSON or YAML file mapping model strings to supported features
+
+## Evaluation metrics
+
+- Provider-switch effort — lines changed to move a workload from one provider to another (target: a string)
+- Call-site SDK-import count — direct imports of provider SDKs that bypass the registry (target zero)
+- Misspelled-identifier failure rate at runtime — gap left by losing compile-time checking
+- Capability-mismatch incidents — production errors where a model was called for a feature it does not support
+- Provider mix in production — share of traffic per provider as evidence the abstraction is exercised
+
 ## Known uses
 
-- **Mastra (provider/model string across 4000+ models)** — Mastra exposes a single `provider/model` string for selection across 120+ providers; credentials and capability flags resolve at the registry level. *Available* — [link](https://mastra.ai/models)
-- **Vercel AI SDK** — Standardised language-model specification abstracts provider differences so the same call site addresses any provider. *Available* — [link](https://ai-sdk.dev/docs/foundations/providers-and-models)
-- **LiteLLM** — OpenAI-shaped proxy over 100+ providers, addressed by `provider/model` style strings. *Available* — [link](https://docs.litellm.ai/)
+- **[Mastra (provider/model string across 4000+ models)](https://mastra.ai/models)** _available_ — Mastra exposes a single `provider/model` string for selection across 120+ providers; credentials and capability flags resolve at the registry level.
+- **[Vercel AI SDK](https://ai-sdk.dev/docs/foundations/providers-and-models)** _available_ — Standardised language-model specification abstracts provider differences so the same call site addresses any provider.
+- **[LiteLLM](https://docs.litellm.ai/)** _available_ — OpenAI-shaped proxy over 100+ providers, addressed by `provider/model` style strings.
 
 ## Related patterns
 
-- *complements* → [multi-model-routing](multi-model-routing.md)
-- *complements* → [provider-fallback](provider-fallback.md)
-- *alternative-to* → [vendor-lock-in](vendor-lock-in.md)
-- *uses* → [translation-layer](translation-layer.md)
+- _complements_ **Multi-Model Routing**
+- _complements_ **Provider Fallback**
+- _alternative-to_ **Vendor Lock-In**
+- _uses_ **Translation Layer**
+- _complements_ **Unified Voice Interface**
+- _complements_ **Complexity-Based Routing**
+- _complements_ **Serving-Stack Attestation** — The provider/model string is the claim this pattern tests; routing by string makes the claim easy to write and makes verifying it necessary.
 
 ## References
 
-- *doc*: [Mastra Models](https://mastra.ai/models) — Mastra
-- *doc*: [Vercel AI SDK — Providers and Models](https://ai-sdk.dev/docs/foundations/providers-and-models) — Vercel
-
-**Tags:** routing-composition, provider-agnostic, mastra, vercel-ai-sdk, litellm
+- [Mastra Models](https://mastra.ai/models) — Mastra
+- [Vercel AI SDK — Providers and Models](https://ai-sdk.dev/docs/foundations/providers-and-models) — Vercel

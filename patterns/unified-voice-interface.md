@@ -25,21 +25,6 @@ Each provider ships its own software development kit, with its own streaming chu
 - Latency budgets in voice are tight (sub-300ms turn-taking); abstraction overhead must be small.
 - Voice-event vocabulary (turn-start, partial-transcript, barge-in, voice-activity) needs to be unified across providers.
 
-## Applicability
-
-**Use when**
-
-- Building voice agents that may switch providers for cost, quality, or latency reasons.
-- Multiple voice modes (TTS, STT, realtime STS) are in play in the same product.
-- The application UI consumes a uniform voice-event vocabulary independent of provider.
-- Provider capability gaps must be discoverable at runtime.
-
-**Do not use when**
-
-- The application is locked to one provider's realtime offering and that lock is acceptable.
-- Latency budgets are so tight that any abstraction layer is suspect — measure before rejecting.
-- Only one mode is needed and a thin per-provider client suffices.
-
 ## Therefore
 
 Therefore: define one Voice interface that spans TTS, STT, and STS with capability flags, so that the agent loop addresses voice as one resource and the provider becomes a configuration choice rather than a code shape.
@@ -50,11 +35,9 @@ Define a Voice interface with three primary methods — `speak(text) -> AudioStr
 
 ## Structure
 
+```
 Agent loop ↔ Voice interface { speak, listen, converse, capabilities } ↔ Provider adapter (OpenAI realtime, ElevenLabs, Deepgram, Azure, ...) ↔ provider API.
-
-## Example scenario
-
-A consumer voice assistant team wants to ship realtime speech-to-speech on iOS, fall back to TTS+STT on platforms where realtime is unavailable, and run STT-only for transcription-mode users. They build their agent loop against a unified Voice interface with `speak`, `listen`, and `converse` methods plus a capability flag for `realtime_sts`. On iOS the loop picks the realtime provider; on Android it falls back to TTS+STT through the same interface; transcription-mode disables `speak` entirely. When a cheaper TTS provider lands, the change is a configuration switch — the agent loop does not move.
+```
 
 ## Diagram
 
@@ -72,6 +55,10 @@ flowchart TD
   A4 --> Pn[(...)]
 ```
 
+## Example scenario
+
+A consumer voice assistant team wants to ship realtime speech-to-speech on iOS, fall back to TTS+STT on platforms where realtime is unavailable, and run STT-only for transcription-mode users. They build their agent loop against a unified Voice interface with `speak`, `listen`, and `converse` methods plus a capability flag for `realtime_sts`. On iOS the loop picks the realtime provider; on Android it falls back to TTS+STT through the same interface; transcription-mode disables `speak` entirely. When a cheaper TTS provider lands, the change is a configuration switch — the agent loop does not move.
+
 ## Consequences
 
 **Benefits**
@@ -88,26 +75,69 @@ flowchart TD
 - Adding another mode (avatar, lip-sync) means evolving the interface.
 - Voice-event vocabulary across providers drifts; the adapter layer has to keep up.
 
+## Failure modes
+
+- Lowest-common-denominator voice — the interface exposes only what every provider supports, so provider-specific voices and effects become unreachable.
+- Faked realtime — a provider that offers only text-to-speech and speech-to-text is wired in as if it supported speech-to-speech, and barge-in and turn timing break.
+- Capability flag lies — an adapter claims a mode it handles poorly, and the agent loop picks it and fails at runtime.
+- Adapter drift — a provider changes its event names or chunk format, the adapter is not updated, and events like barge_in stop arriving.
+
 ## What this pattern constrains
 
 The agent loop must call voice operations through the unified interface and must read provider capability via capability flags; the loop is not allowed to import provider-specific voice SDK classes.
 
+## Applicability
+
+**Use when**
+
+- Building voice agents that may switch providers for cost, quality, or latency reasons.
+- Multiple voice modes (TTS, STT, realtime STS) are in play in the same product.
+- The application UI consumes a uniform voice-event vocabulary independent of provider.
+- Provider capability gaps must be discoverable at runtime.
+
+**Do not use when**
+
+- The application is locked to one provider's realtime offering and that lock is acceptable.
+- Latency budgets are so tight that any abstraction layer is suspect — measure before rejecting.
+- Only one mode is needed and a thin per-provider client suffices.
+
+## Components
+
+- Voice interface — unified contract exposing speak, listen, and converse plus capability flags
+- Capability registry — declares per-provider support for TTS, STT, and realtime STS modes and voices
+- Provider adapter — translates the unified interface into one vendor's SDK and audio framing
+- Voice-event normaliser — maps each provider's events to the uniform vocabulary (turn_start, partial_transcript, final_transcript, barge_in, voice_activity_start/stop)
+- Audio I/O pipeline — microphone capture and speaker playback feeding the unified streams
+
+## Tools
+
+- TTS service — text-to-audio streaming engine bound through a `speak` adapter
+- ASR service — audio-to-transcript streaming engine bound through a `listen` adapter
+- Realtime speech-to-speech API — bidirectional audio engine bound through a `converse` adapter
+- Voice-pipeline framework — host (e.g. LiveKit, Pipecat) that runs the adapters and audio plumbing
+
+## Evaluation metrics
+
+- Voice-pipeline end-to-end latency — wall-clock from user speech end to agent audio start, per mode
+- Provider-swap effort — code diff size required to change the active TTS, STT, or STS provider
+- Capability-flag accuracy — agreement between declared capabilities and runtime behaviour
+- Event-vocabulary parity across providers — share of voice events that map cleanly to the unified set
+- Barge-in handling rate — fraction of mid-speech interruptions the pipeline detects and honours
+
 ## Known uses
 
-- **Mastra Voice** — Mastra's Voice system documents a unified interface spanning TTS, STT, and real-time STS. *Available* — [link](https://mastra.ai/docs/voice/overview)
-- **LiveKit Agents** — Voice-AI framework with pluggable TTS/STT and realtime model providers behind a uniform agent interface. *Available* — [link](https://docs.livekit.io/agents/)
-- **Pipecat** — Open-source voice-AI pipeline with provider-agnostic TTS/STT/realtime stages. *Available* — [link](https://github.com/pipecat-ai/pipecat)
+- **[Mastra Voice](https://mastra.ai/docs/voice/overview)** _available_ — Mastra's Voice system documents a unified interface spanning TTS, STT, and real-time STS.
+- **[LiveKit Agents](https://docs.livekit.io/agents/)** _available_ — Voice-AI framework with pluggable TTS/STT and realtime model providers behind a uniform agent interface.
+- **[Pipecat](https://github.com/pipecat-ai/pipecat)** _available_ — Open-source voice-AI pipeline with provider-agnostic TTS/STT/realtime stages.
 
 ## Related patterns
 
-- *complements* → [streaming-typed-events](streaming-typed-events.md)
-- *specialises* → [multilingual-voice-agent](multilingual-voice-agent.md)
-- *complements* → [provider-string-routing](provider-string-routing.md)
-- *uses* → [translation-layer](translation-layer.md)
+- _complements_ **Streaming Typed Events**
+- _specialises_ **Multilingual Voice Agent Stack**
+- _complements_ **Provider-String Routing**
+- _uses_ **Translation Layer**
 
 ## References
 
-- *doc*: [Mastra — Voice overview](https://mastra.ai/docs/voice/overview) — Mastra
-- *doc*: [LiveKit Agents](https://docs.livekit.io/agents/) — LiveKit
-
-**Tags:** streaming-ux, voice, tts, stt, sts, mastra, livekit
+- [Mastra — Voice overview](https://mastra.ai/docs/voice/overview) — Mastra
+- [LiveKit Agents](https://docs.livekit.io/agents/) — LiveKit

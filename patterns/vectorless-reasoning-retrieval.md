@@ -24,22 +24,6 @@ Vector similarity is a proxy for relevance, and on long professional documents t
 - Reasoning over structure is more accurate but spends an LLM call per navigation step, where a vector lookup is a single cheap nearest-neighbour query.
 - Retrieval that cannot be explained cannot be audited, which matters most in the regulated domains where these documents live.
 
-## Applicability
-
-**Use when**
-
-- Documents are long and carry a clear, reliable hierarchy of parts, sections, and subsections worth navigating.
-- The domain is one where vocabulary overlap misleads similarity search — finance, law, regulatory, technical manuals.
-- Retrieval must be auditable, with each result pointing to a named page and section.
-- Keeping spans intact — tables, clauses, definitions — matters more than embedding-window economy.
-
-**Do not use when**
-
-- The corpus is large and unstructured and queries are broad lookups that similarity search already serves well.
-- Documents are flat or have no usable section structure for the model to navigate.
-- Per-query latency and cost budgets cannot absorb an LLM call per navigation step.
-- Queries are corpus-wide sensemaking that needs cross-document aggregation rather than within-document navigation.
-
 ## Therefore
 
 Therefore: build a tree index from the document's own section hierarchy and let the model reason from node to node down that tree to the answer, so retrieval is driven by relevance judgements over structure rather than by similarity over embeddings.
@@ -48,11 +32,11 @@ Therefore: build a tree index from the document's own section hierarchy and let 
 
 At index time, parse the document into a tree that mirrors its natural structure — parts, sections, subsections — and write a short summary at each node, keeping the leaf text intact rather than splitting it into fixed-size chunks. No embeddings are computed and no vector store is built. At query time, present the model with the tree as a table of contents and have it judge which branch is most likely to hold the answer, descend into that node, and repeat — a tree search in which the model, not a similarity score, decides each step. The walk ends at the leaf sections the model judges relevant, and retrieval returns those sections together with their page and section identifiers, so every result is traceable to a named location in the source. Compose with a generator that reads the returned sections, and with citation-attribution since the page and section references are already in hand.
 
-## Variants
+## Structure
 
-- **Single-pass tree selection** — The model is shown the whole table-of-contents tree at once and selects the relevant node set in one call, then reads those leaves. Use when the tree fits in context and a single reasoning pass can pick the right sections.
-- **Iterative tree descent** — The model descends one level at a time, choosing a branch, reading its children's summaries, and recursing, like a depth-first tree search. Use when the tree is large or deep and showing it whole would not fit or would dilute the decision.
-- **Agentic tree navigation** — An agent loop drives the tree navigator as one tool among others, deciding when to descend, backtrack, or stop. Use when retrieval needs to interleave with other tools or to recover from a wrong branch.
+```
+Index: Long structured document --> Tree indexer (section hierarchy, summary per node, leaf text kept whole; no embeddings). Query: Query + table-of-contents tree --> Navigator LLM reads child summaries --choose branch--> descend --> repeat --relevant leaves reached--> Leaf reader --> Sections with page and section refs --> Generator answers with citations
+```
 
 ## Diagram
 
@@ -67,6 +51,8 @@ flowchart TD
   L --> R[Return sections with page and section refs]
   R --> G[Generator answers with citations]
 ```
+
+*Index time builds a tree from the document's own structure; query time is a model-driven tree search, not a vector lookup.*
 
 ## Example scenario
 
@@ -88,26 +74,73 @@ An analyst asks a question over a 200-page annual report — what was the year-o
 - The approach assumes the document has a usable hierarchy; flat or poorly structured sources give the model little to navigate.
 - It targets retrieval within structured documents and does not address corpus-wide retrieval across many unstructured sources, where similarity search still earns its place.
 
+## Failure modes
+
+- Wrong branch high in the tree — the model picks the wrong section early and the answer is unreachable for that walk
+- Misparsed hierarchy — a bad table-of-contents extraction gives the model a tree that does not match the document
+- Navigation cost blow-out — deep or wide trees turn each query into many sequential LLM calls
+- Summary drift — node summaries that misdescribe their subtree send the model down the wrong path
+
 ## What this pattern constrains
 
 Retrieval may only return sections the model reaches by reasoning down the document tree; a passage the walk never descends into is not retrievable, and there is no similarity-ranked fallback over the whole corpus.
 
+## Guardrails
+
+- Cap the navigation depth or step budget so a walk cannot loop or descend indefinitely
+- Require every returned section to carry a resolvable page and section reference before it reaches the generator
+
+## Applicability
+
+**Use when**
+
+- Documents are long and carry a clear, reliable hierarchy of parts, sections, and subsections worth navigating.
+- The domain is one where vocabulary overlap misleads similarity search — finance, law, regulatory, technical manuals.
+- Retrieval must be auditable, with each result pointing to a named page and section.
+- Keeping spans intact — tables, clauses, definitions — matters more than embedding-window economy.
+
+**Do not use when**
+
+- The corpus is large and unstructured and queries are broad lookups that similarity search already serves well.
+- Documents are flat or have no usable section structure for the model to navigate.
+- Per-query latency and cost budgets cannot absorb an LLM call per navigation step.
+- Queries are corpus-wide sensemaking that needs cross-document aggregation rather than within-document navigation.
+
+## Components
+
+- Tree indexer — parses the document into a node tree mirroring its section hierarchy and writes a summary per node
+- Node summaries — short descriptions at each node that the model reads to judge which branch to enter
+- Navigator — the LLM step that, given a node and its children's summaries, chooses which child to descend into or whether to stop
+- Leaf reader — returns the intact text of the selected leaf sections together with their page and section identifiers
+
+## Tools
+
+- LLM — performs both the index-time node summarisation and the query-time navigation decisions
+- Document parser — extracts the section hierarchy and page mapping from the source, for example from PDF structure
+- Tree index store — holds the node tree and summaries; no vector store or embedding model is involved
+
+## Evaluation metrics
+
+- Section-hit rate — fraction of queries whose returned sections contain the answer span
+- Navigation steps per query — LLM calls spent walking the tree, the cost signal for this approach
+- Citation resolvability — share of returned results whose page and section references resolve to the right location
+- Accuracy vs vector-RAG baseline — end-to-end answer quality against an embedding pipeline on the same documents
+
 ## Known uses
 
-- **[PageIndex (VectifyAI)](https://github.com/VectifyAI/PageIndex)** — *Available* — Open-source (MIT) reference implementation: builds a table-of-contents tree from a document and has an LLM tree-search it for retrieval, returning page and section references rather than vector hits. Ships an MCP server and an OpenAI Agents SDK example that expose the tree navigator as a retrieval tool.
+- **[PageIndex (VectifyAI)](https://github.com/VectifyAI/PageIndex)** _available_ — Open-source (MIT) reference implementation: builds a table-of-contents tree from a document and has an LLM tree-search it for retrieval, returning page and section references rather than vector hits. Ships an MCP server and an OpenAI Agents SDK example that expose the tree navigator as a retrieval tool.
 
 ## Related patterns
 
-- *alternative-to* → [naive-rag](naive-rag.md)
-- *alternative-to* → [hierarchical-retrieval](hierarchical-retrieval.md)
-- *alternative-to* → [graphrag](graphrag.md)
-- *used-by* → [agentic-rag](agentic-rag.md)
-- *complements* → [citation-attribution](citation-attribution.md)
+- _alternative-to_ **Naive RAG** — Replaces the embed-chunk-similarity pipeline with reasoning-driven navigation of the document's section tree.
+- _alternative-to_ **Hierarchical Retrieval** — Both descend a coarse-to-fine document tree, but hierarchical retrieval's leaves are vector or BM25 retrievers chosen by similarity, whereas this navigates by LLM reasoning with no embeddings at any tier.
+- _alternative-to_ **GraphRAG** — Both build explicit structure over the corpus at index time; GraphRAG extracts an entity-relation graph, this reuses the document's own table-of-contents tree and navigates it by reasoning.
+- _used-by_ **Agentic RAG** — Agentic retrieval loops drive the tree navigator as their retrieval tool, deciding when to descend, backtrack, or stop.
+- _complements_ **Citation Attribution** — The page and section references returned by the walk feed verifiable citations directly.
+- _complements_ **Table-Augmented Generation** — Both push reasoning into retrieval rather than ranking embeddings; vectorless walks a document tree, while TAG reasons over database rows through an executable query.
 
 ## References
 
-- (repo) VectifyAI, *PageIndex — Vectorless, Reasoning-based RAG*, 2025, <https://github.com/VectifyAI/PageIndex>
-- (blog) VectifyAI, *PageIndex: Reasoning-Based RAG*, <https://pageindex.ai/blog/pageindex-intro>
-- (doc) *PageIndex documentation*, <https://docs.pageindex.ai>
-
-**Tags:** rag, retrieval, vectorless, tree-search, reasoning, long-document
+- [PageIndex — Vectorless, Reasoning-based RAG](https://github.com/VectifyAI/PageIndex) — VectifyAI, 2025
+- [PageIndex: Reasoning-Based RAG](https://pageindex.ai/blog/pageindex-intro) — VectifyAI
+- [PageIndex documentation](https://docs.pageindex.ai)

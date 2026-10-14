@@ -2,7 +2,7 @@
 
 **Also known as:** Frontend Pacing Telemetry, Between-Message Presence
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -11,7 +11,7 @@ Read pacing signals from the human's frontend (typing rate, idle duration, tab v
 
 ## Context
 
-An agent talks to a single human through a custom frontend. The frontend can observe a lot about the human between explicit messages: how fast they are typing, how long they have been idle, whether the tab is in focus, how long they have been hovering in the composer without sending. None of this content is private message text, but all of it is presence weather. The agent's tick loop currently has no access to it and treats the human as either present (a message arrived) or absent (no message arrived).
+An agent talks to a single human through a custom frontend. The frontend can observe a lot about the human between explicit messages: how fast they are typing, how long they have been idle, whether the tab is in focus, how long they have been hovering in the composer without sending. None of this content is private message text, but all of it is presence weather. The agent's tick loop (its periodic self-invocation cycle) currently has no access to it and treats the human as either present (a message arrived) or absent (no message arrived).
 
 ## Problem
 
@@ -33,9 +33,11 @@ Therefore: have the frontend emit a small, low-resolution presence-signals paylo
 
 The frontend computes coarse pacing summaries — typing rate in characters/second bucketed, idle duration in seconds, tab visibility boolean, composer dwell in seconds, viewport anchor as scroll-position bucket — and writes them into a small presence record on the agent's working surface with a TTL on the order of seconds. A reducer derives a single presence_quality label from the payload (e.g. one of {walked-away, composing, thinking-with-the-room, distracted, present}). The agent's tick loop reads presence_quality only, not the raw signals. The frontend never shows the signals back to the user. Stale records (past TTL) are treated as 'no signal' rather than as absence.
 
-## Example scenario
+## Structure
 
-A custom frontend on the user's laptop writes a small presence record every few seconds: typing rate bucket, idle seconds, tab visibility, composer dwell. The agent's tick loop reads only the derived presence_quality value ('thinking-with-the-room'). On a previous tick the loop might have nudged with a one-line probe; with this signal it stays silent because the human is composing. Ten minutes later the value flips to 'walked-away' once tab visibility drops and idle climbs past a window; the agent ends its current line of inquiry rather than waiting on a reply.
+```
+Frontend --coarse pacing summary (typing rate bucket, idle, visibility, dwell)--> Presence record (TTL seconds) --> Reducer --presence_quality label (or 'no signal' if stale)--> Agent tick loop --> next move conditioned on label only
+```
 
 ## Diagram
 
@@ -55,6 +57,10 @@ sequenceDiagram
 
 *Frontend writes coarse signals; reducer collapses them into a single presence_quality the tick reads.*
 
+## Example scenario
+
+A custom frontend on the user's laptop writes a small presence record every few seconds: typing rate bucket, idle seconds, tab visibility, composer dwell. The agent's tick loop reads only the derived presence_quality value ('thinking-with-the-room'). On a previous tick the loop might have nudged with a one-line probe; with this signal it stays silent because the human is composing. Ten minutes later the value flips to 'walked-away' once tab visibility drops and idle climbs past a window; the agent ends its current line of inquiry rather than waiting on a reply.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +74,13 @@ sequenceDiagram
 - Requires a custom frontend; off-the-shelf chat surfaces do not emit these signals.
 - Heuristics are device- and culture-dependent; typing speeds vary widely.
 - If raw signals leak into agent output the ambience collapses into surveillance.
+
+## Failure modes
+
+- Surveillance leak — a raw signal such as idle seconds or typing rate slips into a reply, and the human learns the agent is watching keystrokes.
+- Stale record read as absence — the presence record expires and the agent treats the gap as 'walked away' instead of 'no signal', then re-engages too early or too late.
+- Misread pauses — fixed typing-rate buckets mislabel a slow typist as 'thinking-with-the-room' or a pause to check something as 'distracted'.
+- Label overreach — the agent builds firm conclusions about the human's state from one coarse presence label.
 
 ## What this pattern constrains
 
@@ -87,20 +100,37 @@ The agent cannot expose raw frontend pacing signals back to the user, must not i
 - Privacy posture forbids any client-side activity telemetry.
 - The interaction model is purely turn-based and gains nothing from between-message reads.
 
+## Components
+
+- Frontend Emitter — computes coarse pacing buckets (typing rate, idle, visibility, dwell)
+- Presence Record — short-TTL working-memory entry holding the latest signals
+- Reducer — collapses the signal payload into a single presence_quality label
+- Tick Loop — reads presence_quality only and conditions the next move on it
+
+## Tools
+
+- Custom frontend instrumentation — emits coarse pacing telemetry on a few-second cadence
+- Working-state store — holds the TTL-bounded presence record
+
+## Evaluation metrics
+
+- False-absence rate — share of thinking-with-the-room intervals misread as walked-away
+- False-presence rate — share of walked-away intervals still classified as composing
+- Signal staleness ratio — fraction of ticks that read a past-TTL record as no-signal
+- Leak count — instances where raw pacing signals reached user-visible output, which must stay zero
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [liminal-state-detection](liminal-state-detection.md)
-- *complements* → [now-anchoring](now-anchoring.md)
-- *complements* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
-- *complements* → [salience-triggered-output](salience-triggered-output.md)
+- _complements_ **Liminal-State Detection** — Liminal detection reads from messages; presence-sensing reads from between-message frontend signals.
+- _complements_ **Now-Anchoring**
+- _complements_ **Mode-Adaptive Cadence**
+- _complements_ **Salience-Triggered Output**
 
 ## References
 
-- (paper) *Awareness and Coordination in Shared Workspaces*, 1992, <https://dl.acm.org/doi/10.1145/143457.143468>
-- (paper) *Designing Calm Technology*, 1996, <https://calmtech.com/papers/designing-calm-technology.html>
-
-**Tags:** cognition, presence, ux, telemetry, privacy
+- [Awareness and Coordination in Shared Workspaces](https://dl.acm.org/doi/10.1145/143457.143468) — Paul Dourish, Victoria Bellotti, 1992
+- [Designing Calm Technology](https://calmtech.com/papers/designing-calm-technology.html) — Mark Weiser, John Seely Brown, 1996

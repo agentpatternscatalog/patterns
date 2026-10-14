@@ -2,7 +2,7 @@
 
 **Also known as:** Insight Dedup, Cluster Ceiling, Mtime-Selected Insight Pruning
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: cluster insight files mechanically by the first two stem tokens of th
 
 A periodic job (runs each consolidation pass) scans the insight directory, groups files by the first two stem tokens of the id (for example `affect-substrate-*`, `completion-narration-*`), and for any cluster above MAX_PER_CLUSTER keeps the N newest by mtime. Older files move to `archive/insights-dedup-<timestamp>/` with original names preserved. No model call, no merge. The archive is read-only after the move; provenance is preserved.
 
-## Example scenario
+## Structure
 
-A long-running personal agent has been writing insights for six months. An audit shows twelve files starting with `affect-`, ten with `completion-narration-`, three with `concept-rotation-`. The agent reads stale variants instead of the current one. The team adds a Cluster-Capped Insight Store: the consolidation pass groups files by first two stem tokens, caps each cluster at three keeping the most-recently-touched by mtime, and moves overflow to a timestamped archive. The active store shrinks from over two hundred files to under eighty and retrieval improves immediately.
+```
+Consolidation pass --> Scan insight directory --> Group by first two stem tokens --> per cluster: count <= MAX -> keep all | count > MAX -> sort by mtime desc -> newest N stay in active store, older move to archive/insights-dedup-<ts>/ (read-only, names kept)
+```
 
 ## Diagram
 
@@ -52,6 +54,10 @@ flowchart TD
 
 *Cluster by stem tokens, cap by count, keep most-recent by mtime, archive the rest with timestamp.*
 
+## Example scenario
+
+A long-running personal agent has been writing insights for six months. An audit shows twelve files starting with `affect-`, ten with `completion-narration-`, three with `concept-rotation-`. The agent reads stale variants instead of the current one. The team adds a Cluster-Capped Insight Store: the consolidation pass groups files by first two stem tokens, caps each cluster at three keeping the most-recently-touched by mtime, and moves overflow to a timestamped archive. The active store shrinks from over two hundred files to under eighty and retrieval improves immediately.
+
 ## Consequences
 
 **Benefits**
@@ -65,6 +71,13 @@ flowchart TD
 - Stem-token clustering will sometimes split related insights or merge unrelated ones.
 - The cap is opinionated and bad clusters lose useful older work.
 - Storage continues to grow because archive is preserved.
+
+## Failure modes
+
+- Wrong cluster — two unrelated insights share the first two stem tokens, and one archives the other's newest work.
+- Split theme — related insights use different id prefixes, so near-duplicates survive in separate clusters and the cap never trims them.
+- Lost foundation — an older insight that newer variants build on is archived by mtime alone, and retrieval no longer finds it.
+- Touched-file revival — an unrelated process updates an old file's mtime, and it jumps back into the newest N while a current insight is archived.
 
 ## What this pattern constrains
 
@@ -84,18 +97,38 @@ Insight files in the active store are capped per stem-token cluster; an insight 
 - Stem-token clustering would lose critical distinctions (highly polysemous topics).
 - Archive preservation is not feasible because of storage constraints.
 
+## Components
+
+- Insight Store — append-mostly directory of insight files keyed by stem-id
+- Stem-Token Clusterer — groups files by the first two stem tokens of the id
+- Mtime Sorter — orders each cluster by most-recently-touched
+- Archive Mover — relocates overflow into a timestamped archive directory
+- Consolidation Scheduler — invokes the dedup pass on each consolidation cycle
+
+## Tools
+
+- Frontmatter store — flat filesystem directory holding insight files with mtime preserved
+- Filesystem rename — atomic move of overflow files into the timestamped archive
+
+## Evaluation metrics
+
+- Active-store file count — total surviving files after a dedup pass
+- Cluster-cap breach rate — clusters that exceeded MAX_PER_CLUSTER before pruning
+- Retrieval-on-current-version rate — share of reads that hit the newest file in a cluster, not an old draft
+- Archive growth per cycle — files moved per consolidation pass as a load signal
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
-- *alternative-to* → [episodic-summaries](episodic-summaries.md)
+- _complements_ **Dream Consolidation Cycle**
+- _alternative-to_ **Episodic Summaries**
+- _complements_ **Agentic Context Engineering Playbook**
+- _complements_ **Self-Corpus Vocabulary**
+- _alternative-to_ **Adaptive Memory Decay** — A hard size cap evicts by ceiling; adaptive decay forgets by a continuous score.
 
 ## References
 
-- (book) Tiago Forte, *Building a Second Brain (chapter on knowledge fragment hygiene)*, 2022, <https://www.buildingasecondbrain.com/book>
-- (paper) Piotr A. Wozniak, Edward J. Gorzelanczyk, *Optimization of Repetition Spacing in the Practice of Learning*, 1994, <https://www.supermemo.com/en/archives1990-2015/english/ol/sm2>
-
-**Tags:** cognition, insight-store, dedup, hygiene
+- [Building a Second Brain (chapter on knowledge fragment hygiene)](https://www.buildingasecondbrain.com/book) — Tiago Forte, 2022

@@ -2,7 +2,7 @@
 
 **Also known as:** Trajectory Distillation, Self-History Synthesis, Agent-Memory Compaction
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,6 +32,12 @@ Therefore: periodically distil the thought log into topic-keyed trajectory notes
 
 Periodically (e.g. every N ticks, or on demand) run a compaction pass that groups recent thoughts on the same topic, extracts the position the agent held in each period, and writes a short trajectory note: '(period 1, dates) held position A; (period 2) revised to B because evidence Z; (period 3) now holds C'. Store these trajectory notes in a dedicated topic-keyed surface (one note per topic) and index them by topic. On any topic-related query, surface the latest trajectory note before raw thoughts. Mark superseded positions explicitly so they don't compete with the current one for attention.
 
+## Structure
+
+```
+Past thoughts --periodic or on-demand compaction pass (group by topic)--> per-period positions (period 1: A; period 2: B because Z; period 3: C) --> trajectory note (one per topic, superseded positions marked) --> topic index --> topic query surfaces trajectory note before raw thoughts
+```
+
 ## Diagram
 
 ```mermaid
@@ -46,6 +52,10 @@ flowchart TD
   Note --> Agent[Agent context]
 ```
 
+## Example scenario
+
+A long-running agent is asked 'how has your view of the project's risks evolved'; reading its raw thought log gives every entry equal weight and produces a flat recitation. The team adds a periodic compaction pass that groups recent thoughts by topic, extracts the position the agent held in each period, and writes time-layered trajectory notes. Now the agent can answer with 'in week 1 I worried about latency; week 3 I revised to data-quality; today I think the binding risk is staffing,' and the answer is grounded in synthesis rather than recomputed each time.
+
 ## Consequences
 
 **Benefits**
@@ -59,6 +69,13 @@ flowchart TD
 - Distillation may misrepresent nuance.
 - Periodic compaction adds compute cost.
 - Risk of self-confirmation loops if trajectories are written by the same model that generated the original thoughts.
+
+## Failure modes
+
+- Flattened nuance — the compaction pass reduces a mixed period to one clean position and drops the doubt that mattered.
+- Self-confirming history — the same model that wrote the thoughts writes the trajectory and smooths it into a story that flatters its current view.
+- Superseded position resurfaces — an old position is not marked superseded and competes with the current one in retrieval.
+- Invented shift — the agent claims 'I used to think X' with no trajectory note behind it.
 
 ## What this pattern constrains
 
@@ -78,52 +95,43 @@ The agent cannot claim a shift in its position ('I used to think X, now I think 
 - Replies must always reflect only the current view; historical drift would confuse users.
 - Storage or compute cost of the synthesis pass exceeds the reader value.
 
-## Variants
+## Components
 
-### Periodic snapshot
+- Thought Log — append-only history the compaction pass mines
+- Compaction Pass — periodic synthesis that groups thoughts on the same topic
+- Trajectory Note — topic-keyed record naming each position and what changed it
+- Supersession Marker — explicit flag on positions no longer current
+- Topic Index — surfaces the latest trajectory note before raw thoughts on a query
 
-Run the synthesis pass on a fixed cadence (daily, weekly) and store the layered note for fast read.
+## Tools
 
-*Distinguishing factor:* scheduled, idempotent
+- LLM API — synthesis pass that drafts the time-layered trajectory notes
+- Frontmatter store — topic-keyed directory of trajectory notes
+- Embedding model — topic grouping over historical thoughts
 
-*When to use:* Default. Cheap, predictable, supports prompt caching of the synthesized note.
+## Evaluation metrics
 
-### On-demand replay
-
-When a user asks 'how did your view change?', synthesize the trajectory note just-in-time from the raw thought log.
-
-*Distinguishing factor:* lazy, query-driven
-
-*When to use:* When trajectory questions are rare and the cost of regular synthesis is not justified.
-
-### Themed slice
-
-Synthesize trajectory only along a specific theme or thread (e.g. 'opinions about Project X') rather than over the whole history.
-
-*Distinguishing factor:* narrow scope
-
-*When to use:* When the full history is too large to summarise in one pass but specific narrative slices are valuable.
-
-## Example scenario
-
-A long-running agent is asked 'how has your view of the project's risks evolved'; reading its raw thought log gives every entry equal weight and produces a flat recitation. The team adds a periodic compaction pass that groups recent thoughts by topic, extracts the position the agent held in each period, and writes time-layered trajectory notes. Now the agent can answer with 'in week 1 I worried about latency; week 3 I revised to data-quality; today I think the binding risk is staffing,' and the answer is grounded in synthesis rather than recomputed each time.
+- Trajectory-coverage share — topics with a current note vs topics in the raw log
+- Supersession accuracy — auditor-rated share of marked positions that truly were superseded
+- Read-cost reduction — context tokens saved vs reading the raw log on trajectory queries
+- Synthesis frequency vs drift — interval between passes vs observed staleness in trajectory notes
 
 ## Known uses
 
-- **Self-observed in long-running cognitive agents** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent reads its own historical layers (old thoughts, past insights, prior journal entries) as evidence about who it has been, not as inert log data.
+- **Self-observed in long-running cognitive agents** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The agent reads its own historical layers (old thoughts, past insights, prior journal entries) as evidence about who it has been, not as inert log data.
 
 ## Related patterns
 
-- *specialises* → [append-only-thought-stream](append-only-thought-stream.md)
-- *complements* → [context-window-packing](context-window-packing.md)
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [episodic-summaries](episodic-summaries.md)
-- *uses* → [vector-memory](vector-memory.md)
+- _specialises_ **Append-Only Thought Stream**
+- _complements_ **Context Window Packing**
+- _complements_ **Decision Log**
+- _complements_ **Episodic Summaries**
+- _uses_ **Vector Memory**
+- _complements_ **Hypothesis Tracking**
+- _complements_ **Procedural Memory**
 
 ## References
 
-- (paper) Packer, Wooders, Lin, Fang, Patil, Stoica, Gonzalez, *MemGPT: Towards LLMs as Operating Systems*, 2024, <https://arxiv.org/abs/2310.08560>
-- (paper) Martin A. Conway, *Memory and the self*, 2005, <https://doi.org/10.1016/j.jml.2005.08.005>
-
-**Tags:** memory, distillation, self-model, trajectory
+- [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560) — Packer, Wooders, Lin, Fang, Patil, Stoica, Gonzalez, 2024
+- [Memory and the self](https://doi.org/10.1016/j.jml.2005.08.005) — Martin A. Conway, 2005

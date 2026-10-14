@@ -2,7 +2,7 @@
 
 **Also known as:** Crash-Safe Streaming, Tmp-Replace Thought Recovery, Recovered-Partial Marker
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: stream every chunk to a tmp file with periodic atomic rename to the c
 
 Mechanical finite-state machine. On stream start: open `partial.tmp`, write a start marker with thought-id, timestamp, model id. On each chunk: append to tmp, periodically `os.rename(tmp, partial)` for atomicity. On normal stream end: rename to the canonical thought path, delete partial. On startup: scan for orphan `partial.*` files, finalize each with a typed RecoveryStatus enum (RECOVERED_FROM_PARTIAL for hard kill, TIMEOUT_PARTIAL for watchdog timeout). The next prompt's system context includes `last_partial_recovery: <status>` so the model can adjust.
 
-## Example scenario
+## Structure
 
-A long-running personal agent runs on a machine where the OOM killer occasionally takes the process. A four-minute reasoning trace gets killed at the three-minute mark and the entire stream is lost — the agent has no idea anything happened on the next run. The team adds Partial-Output Salvage: each chunk streams to `partial.tmp` with periodic atomic rename. On startup, orphan partials are finalized with a RECOVERED_FROM_PARTIAL marker that appears in the next prompt's system context. The agent sees the salvage, knows it was reading a partial, and decides whether to continue or restart the line of thought.
+```
+Stream start --> partial.tmp (thought-id, timestamp, model id) --each chunk: append + periodic atomic rename--> partial --normal end--> rename to canonical thought, delete partial | crash --> startup scan finds orphan partial --> finalize with RecoveryStatus (RECOVERED_FROM_PARTIAL | TIMEOUT_PARTIAL) --> last_partial_recovery in next prompt
+```
 
 ## Diagram
 
@@ -52,6 +54,10 @@ stateDiagram-v2
 
 *Tmp-plus-rename keeps the partial file consistent at all times; startup salvage finalizes orphans with a typed marker.*
 
+## Example scenario
+
+A long-running personal agent runs on a machine where the OOM killer occasionally takes the process. A four-minute reasoning trace gets killed at the three-minute mark and the entire stream is lost — the agent has no idea anything happened on the next run. The team adds Partial-Output Salvage: each chunk streams to `partial.tmp` with periodic atomic rename. On startup, orphan partials are finalized with a RECOVERED_FROM_PARTIAL marker that appears in the next prompt's system context. The agent sees the salvage, knows it was reading a partial, and decides whether to continue or restart the line of thought.
+
 ## Consequences
 
 **Benefits**
@@ -65,6 +71,13 @@ stateDiagram-v2
 - Rename overhead per N chunks is non-zero.
 - Partials add filesystem clutter if not periodically cleaned.
 - Recovery surfaced in the prompt costs tokens every time it fires.
+
+## Failure modes
+
+- Partial treated as finished — a recovered fragment is loaded as a completed thought, and the agent builds on half a sentence.
+- Torn write — the rename runs too rarely, so the crash loses everything since the last rename even though tokens were streamed.
+- Orphan clutter — partial files that were salvaged are never cleaned, and the startup scan gets slower each run.
+- Missing marker — the recovery status is not placed in the next prompt, so the model returns to the topic unaware a prior attempt died.
 
 ## What this pattern constrains
 
@@ -84,18 +97,36 @@ Partial thought files cannot be silently consumed; every salvaged partial carrie
 - Partial output has no semantic value (e.g. binary embeddings only).
 - The model cannot be trusted with a typed recovery marker without spiralling.
 
+## Components
+
+- Stream Writer — emits each chunk to partial.tmp
+- Periodic Atomic Rename — replaces the canonical partial path with the tmp file
+- Startup Scanner — finds orphan partial.* files after a crash
+- Recovery Marker — typed enum distinguishing hard kill from watchdog timeout
+- Next-Prompt Injector — surfaces last_partial_recovery into system context
+
+## Tools
+
+- Filesystem rename — atomic replacement of the partial canonical path
+- Structured JSON store — finalized thought files with recovery markers
+
+## Evaluation metrics
+
+- Mid-stream loss rate — chars lost between last rename and crash, vs ungated baseline
+- Salvage finalisation count — orphan partials promoted per restart
+- Marker-consumption rate — share of recovered partials whose marker actually shifted the next reply
+- Rename overhead — wall-clock cost of the periodic atomic rename per N chunks
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [agent-resumption](agent-resumption.md)
-- *composes-with* → [append-only-thought-stream](append-only-thought-stream.md)
+- _complements_ **Agent Resumption**
+- _composes-with_ **Append-Only Thought Stream**
 
 ## References
 
-- (paper) C. Mohan, Don Haderle, Bruce Lindsay, Hamid Pirahesh, Peter Schwarz, *ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging*, 1992, <https://cs.stanford.edu/people/chrismre/cs345/rl/aries.pdf>
-- (spec) IEEE / The Open Group, *POSIX rename(2) atomicity*, 2018, <https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html>
-
-**Tags:** cognition, crash-safety, streaming, recovery
+- [ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging](https://cs.stanford.edu/people/chrismre/cs345/rl/aries.pdf) — C. Mohan, Don Haderle, Bruce Lindsay, Hamid Pirahesh, Peter Schwarz, 1992
+- [POSIX rename(2) atomicity](https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html) — IEEE / The Open Group, 2018

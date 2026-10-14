@@ -31,16 +31,11 @@ Therefore: prompt the model to produce intermediate steps before its final answe
 
 Prompt the model with exemplars showing intermediate reasoning, or use a zero-shot trigger ('Let's think step by step') before answering. The reasoning trace is visible and parseable.
 
-## Variants
+## Structure
 
-- **Few-shot CoT** — Provide exemplars with full reasoning traces in the prompt; the model imitates the trace format on the new instance (Wei et al. 2022).
-- **Zero-shot CoT** — Skip exemplars; trigger reasoning with a phrase like 'Let's think step by step' (Kojima et al. 2022).
-- **Self-consistency CoT** — Sample many CoT traces at temperature, then take the majority-vote answer rather than the first trace (Wang et al. 2023).
-- **Auto-CoT** — Automatically construct exemplars by clustering questions and generating zero-shot CoT for each cluster representative (Zhang et al. 2022).
-
-## Example scenario
-
-A maths-tutoring assistant keeps blurting wrong answers to multi-step word problems because it tries to jump straight from 'Maria has...' to a single number. The team adds Chain-of-Thought prompting with a few worked exemplars, asking the model to write out each intermediate quantity before stating the final answer. Accuracy on the same problem set improves substantially because the answer now depends on reasoning steps the model can attend to one at a time, instead of being collapsed into a single output token.
+```
+Question --> prompt with step-by-step exemplars or zero-shot trigger --> Model --> Step 1 --> Step 2 --> ... --> Step N --> Final answer (trace visible and parseable)
+```
 
 ## Diagram
 
@@ -53,6 +48,10 @@ flowchart TD
   SN --> A[Final Answer]
 ```
 
+## Example scenario
+
+A maths-tutoring assistant keeps blurting wrong answers to multi-step word problems because it tries to jump straight from 'Maria has...' to a single number. The team adds Chain-of-Thought prompting with a few worked exemplars, asking the model to write out each intermediate quantity before stating the final answer. Accuracy on the same problem set improves substantially because the answer now depends on reasoning steps the model can attend to one at a time, instead of being collapsed into a single output token.
+
 ## Consequences
 
 **Benefits**
@@ -64,6 +63,13 @@ flowchart TD
 
 - Single linear trace; no branching or self-correction.
 - Cost scales with trace length.
+
+## Failure modes
+
+- Early wrong step — an error in step 2 carries through the whole linear trace, and the final answer follows it with confidence.
+- Plausible but disconnected trace — the reasoning reads well, yet the final answer does not actually follow from the steps.
+- Trace bloat — the model writes long reasoning on simple questions, raising cost and latency with no gain.
+- Parsing failure — the final answer is buried in the trace with no clear marker, and downstream code extracts the wrong value.
 
 ## What this pattern constrains
 
@@ -83,24 +89,41 @@ The model is required to emit reasoning before the final answer; one-shot answer
 - Latency or token budget cannot absorb the longer outputs.
 - A reasoning model is in use that already runs internal chain-of-thought (use extended-thinking instead).
 
+## Components
+
+- LLM — generator of the reasoning trace and final answer
+- Prompt template — few-shot exemplars or a zero-shot trigger phrase
+- Output parser — separates intermediate steps from the final answer when needed
+
+## Tools
+
+- LLM API — primary inference with a token budget large enough to fit the reasoning trace
+
+## Evaluation metrics
+
+- Accuracy lift over a zero-shot baseline — does CoT help on this task class
+- Reasoning-step presence rate — fraction of outputs that actually emit intermediate steps
+- Faithfulness gap — divergence between the stated reasoning and the final answer, sample-audited
+- p95 token cost per response — overhead the trace adds vs zero-shot
+
 ## Known uses
 
-- **OpenAI Reasoning prompts** — *Available*
-- **Most production agents (CoT inside system prompts)** — *Available*
+- **[OpenAI Reasoning prompts](https://platform.openai.com/docs/guides/reasoning)** _available_
+- **Most production agents (CoT inside system prompts)** _available_
 
 ## Related patterns
 
-- *complements* → [self-consistency](self-consistency.md)
-- *generalises* → [tree-of-thoughts](tree-of-thoughts.md)
-- *alternative-to* → [least-to-most](least-to-most.md)
-- *complements* → [extended-thinking](extended-thinking.md)
-- *generalises* → [zero-shot-cot](zero-shot-cot.md)
-- *used-by* → [scratchpad](scratchpad.md)
-- *used-by* → [star-bootstrapping](star-bootstrapping.md)
+- _complements_ **Self-Consistency**
+- _generalises_ **Tree of Thoughts**
+- _alternative-to_ **Least-to-Most Prompting**
+- _complements_ **Extended Thinking**
+- _generalises_ **Zero-Shot Chain-of-Thought**
+- _used-by_ **Scratchpad**
+- _used-by_ **STaR Bootstrapping**
+- _alternative-to_ **Latent-Space Reasoning** — Latent-space reasoning keeps the chain in continuous hidden states instead of decoding each step to text tokens.
+- _alternative-to_ **Attentive Reasoning Queries** — ARQs replace free-form chain-of-thought with a prescribed, attention-anchoring query sequence.
 
 ## References
 
-- (paper) Wei, Wang, Schuurmans, Bosma, Ichter, Xia, Chi, Le, Zhou, *Chain-of-Thought Prompting Elicits Reasoning in Large Language Models*, 2022, <https://arxiv.org/abs/2201.11903>
-- (paper) Kojima, Gu, Reid, Matsuo, Iwasawa, *Large Language Models are Zero-Shot Reasoners*, 2022, <https://arxiv.org/abs/2205.11916>
-
-**Tags:** reasoning, cot, prompting
+- [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903) — Wei, Wang, Schuurmans, Bosma, Ichter, Xia, Chi, Le, Zhou, 2022
+- [Large Language Models are Zero-Shot Reasoners](https://arxiv.org/abs/2205.11916) — Kojima, Gu, Reid, Matsuo, Iwasawa, 2022

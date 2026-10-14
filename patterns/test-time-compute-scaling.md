@@ -23,21 +23,6 @@ A single-pass call to even a strong model under-uses the compute available at in
 - Cost rises linearly or worse with sample count.
 - Best technique (samples / search / deeper thinking) is task-dependent.
 
-
-## Applicability
-
-**Use when**
-
-- Parameter scaling has saturated and inference-time techniques deliver further lift.
-- The task is amenable to a known technique (best-of-N, self-consistency, tree search, extended thinking).
-- Compute budget at inference time is available and worth spending for quality.
-
-**Do not use when**
-
-- Latency or cost budgets cannot absorb extra inference-time compute.
-- The task does not benefit from any of the inference-time techniques.
-- A larger or better model is cheaper than scaling test-time compute.
-
 ## Therefore
 
 Therefore: spend more compute at inference (samples, search, deeper thinking) instead of more parameters, so that quality lifts on hard tasks without retraining.
@@ -46,17 +31,11 @@ Therefore: spend more compute at inference (samples, search, deeper thinking) in
 
 Pick the inference-time technique that fits: best-of-N for verifier-amenable tasks, self-consistency for sampling-amenable tasks, tree search for combinatorial tasks, extended thinking for sequential reasoning. Compose techniques where complementary. Tune the compute budget per task class.
 
-## Variants
+## Structure
 
-- **Parallel sampling (best-of-N)** — Draw N independent samples and pick the best by a verifier or majority vote.
-- **Sequential revision** — One sample is iteratively revised by the same model conditioned on its previous attempt.
-- **Tree / beam search** — Explore a branching search tree with a value model pruning low-promise branches (ToT, LATS, MCTS-style).
-- **Compute-optimal routing** — Pick parallel vs sequential vs deeper-thinking per question based on difficulty estimate (Snell et al. 2024).
-
-## Example scenario
-
-A team has a hard math benchmark where their current model underperforms; the obvious move is to wait for a larger model. Instead they apply test-time compute scaling: best-of-N sampling with a verifier for verifier-amenable items, self-consistency for sampling-amenable items, tree search for combinatorial items, extended thinking for sequential reasoning. Per-item cost rises but accuracy on the benchmark beats the next-tier model at lower total cost.
-
+```
+Request --> classify task --> {verifier-amenable -> best-of-N | sampling-amenable -> self-consistency | combinatorial -> tree search | sequential -> extended thinking} --> compose where complementary --> answer within tuned per-class compute budget (over-budget cut off)
+```
 
 ## Diagram
 
@@ -74,6 +53,10 @@ flowchart TD
   Comp --> Out[Answer at tuned compute budget]
 ```
 
+## Example scenario
+
+A team has a hard math benchmark where their current model underperforms; the obvious move is to wait for a larger model. Instead they apply test-time compute scaling: best-of-N sampling with a verifier for verifier-amenable items, self-consistency for sampling-amenable items, tree search for combinatorial items, extended thinking for sequential reasoning. Per-item cost rises but accuracy on the benchmark beats the next-tier model at lower total cost.
+
 ## Consequences
 
 **Benefits**
@@ -86,26 +69,73 @@ flowchart TD
 - Latency-sensitive use cases cannot afford much.
 - Token cost can dominate.
 
+## Failure modes
+
+- Wrong technique — tree search runs on a task that self-consistency would have handled, and the cost buys no extra quality.
+- Latency breach — a user-facing flow gets a large sample count and the response arrives too late to be useful.
+- No verifier — best-of-N is used where no reliable verifier exists, and the picked sample is no better than a random one.
+- Untuned budget — one compute budget serves every task class, so easy requests overspend and hard ones are cut off.
+
 ## What this pattern constrains
 
 Each request specifies its compute budget; over-budget requests are cut off.
 
+## Applicability
+
+**Use when**
+
+- Parameter scaling has saturated and inference-time techniques deliver further lift.
+- The task is amenable to a known technique (best-of-N, self-consistency, tree search, extended thinking).
+- Compute budget at inference time is available and worth spending for quality.
+
+**Do not use when**
+
+- Latency or cost budgets cannot absorb extra inference-time compute.
+- The task does not benefit from any of the inference-time techniques.
+- A larger or better model is cheaper than scaling test-time compute.
+
+## Components
+
+- Task router — classifies a request as verifier-amenable, sampling-amenable, combinatorial, or sequential
+- Best-of-N sampler — draws N candidates and picks the highest-scoring
+- Self-consistency voter — majority-vote aggregator across sampled traces
+- Tree-search controller — beam, BFS, or MCTS-style explorer with a value model
+- Extended-thinking caller — provider-native deeper-thinking invocation
+- Compute-budget policy — per-class budget table that the router enforces
+
+## Tools
+
+- LLM API — supports parallel sampling, repeated revision, and provider-native deeper thinking
+- Verifier — task-specific scorer (executable test, math grader, learned reward model) for best-of-N
+- Value model — partial-state scorer used by tree-search variants
+
+## Evaluation metrics
+
+- Accuracy as a function of compute — curve of solve-rate against tokens spent per request
+- Compute-optimal frontier — best-achieved accuracy at each budget tier vs alternative techniques
+- Per-class routing precision — share of requests sent to the technique that actually performed best
+- Cost per resolved task — combined inference spend relative to next-tier-model baseline
+- Latency at p95 — wall-clock impact of the chosen technique under production load
+
 ## Known uses
 
-- **OpenAI o-series scaling-with-effort** — *Available*
-- **DeepMind AlphaCode/AlphaProof scaling** — *Available*
+- **OpenAI o-series scaling-with-effort** _available_
+- **DeepMind AlphaCode/AlphaProof scaling** _available_
 
 ## Related patterns
 
-- *generalises* → [extended-thinking](extended-thinking.md)
-- *generalises* → [best-of-n](best-of-n.md)
-- *generalises* → [self-consistency](self-consistency.md)
-- *generalises* → [lats](lats.md)
-- *generalises* → [process-reward-model](process-reward-model.md)
+- _generalises_ **Extended Thinking**
+- _generalises_ **Best-of-N Sampling**
+- _generalises_ **Self-Consistency**
+- _generalises_ **Language Agent Tree Search**
+- _generalises_ **Process Reward Model**
+- _alternative-to_ **Sleep-Time Compute**
+- _generalises_ **Adaptive Branching Tree Search**
+- _generalises_ **Adaptive Compute Allocation**
+- _complements_ **Large Reasoning Model (LRM) Paradigm**
+- _generalises_ **Trajectory-Summary Test-Time Scaling** — The general principle is spend-more-inference-compute; this specialises it for outputs that are long trajectories rather than short answers.
 
 ## References
 
-- (paper) Snell, Lee, Xu, Kumar, *Scaling LLM Test-Time Compute Optimally Can Be More Effective Than Scaling Model Parameters*, 2024, <https://arxiv.org/abs/2408.03314>
-- (paper) Brown, Juravsky, Ehrlich, Clark, Le, Ré, Mirhoseini, *Large Language Monkeys: Scaling Inference Compute with Repeated Sampling*, 2024, <https://arxiv.org/abs/2407.21787>
-
-**Tags:** reasoning, scaling, compute
+- [Scaling LLM Test-Time Compute Optimally Can Be More Effective Than Scaling Model Parameters](https://arxiv.org/abs/2408.03314) — Snell, Lee, Xu, Kumar, 2024
+- [Large Language Monkeys: Scaling Inference Compute with Repeated Sampling](https://arxiv.org/abs/2407.21787) — Brown, Juravsky, Ehrlich, Clark, Le, Ré, Mirhoseini, 2024

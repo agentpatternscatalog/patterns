@@ -2,7 +2,7 @@
 
 **Also known as:** Tension Ledger, Unresolved-Pull Stack, Curiosity Inbox
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: record each unresolved pull as a typed entry with curiosity, intrusiv
 
 Maintain an append-only ledger of tensions. Each entry carries id, opened-at, topic, source, curiosity (0..1), intrusiveness (0..1), and expiry. On each idle tick the agent reads the top entries by curiosity times intrusiveness as candidates for the next move. Intrusiveness gates ask-the-user-now versus store-quietly. Entries below a curiosity floor expire after a TTL. Resolution writes a closing event into the same ledger; the original entry is never edited.
 
-## Example scenario
+## Structure
 
-A long-running personal agent notices in passing that the user mentioned a half-read book by an author the agent has never encountered. Without somewhere to put that, the moment passes and the agent never returns to it. The team adds an Open-Question Tension Store: the agent appends a tension with topic 'who is this author', curiosity 0.6, intrusiveness 0.2, expiry seven days. Three idle ticks later the move-selector picks the tension, the agent does a targeted lookup, writes a small note, and closes the tension — instead of having forgotten the moment.
+```
+Thought or observation --notices unresolved pull--> append tension (id, topic, source, curiosity, intrusiveness, expiry) --> Tension ledger (append-only) --top by curiosity x intrusiveness--> idle-tick candidate --> cognitive move --close event--> ledger; low curiosity past TTL or cap overflow --> expired
+```
 
 ## Diagram
 
@@ -50,6 +52,10 @@ flowchart TD
 
 *Tensions enter the ledger, rank by curiosity times intrusiveness, drive the next idle move, and close via a new append rather than edit.*
 
+## Example scenario
+
+A long-running personal agent notices in passing that the user mentioned a half-read book by an author the agent has never encountered. Without somewhere to put that, the moment passes and the agent never returns to it. The team adds an Open-Question Tension Store: the agent appends a tension with topic 'who is this author', curiosity 0.6, intrusiveness 0.2, expiry seven days. Three idle ticks later the move-selector picks the tension, the agent does a targeted lookup, writes a small note, and closes the tension — instead of having forgotten the moment.
+
 ## Consequences
 
 **Benefits**
@@ -63,6 +69,13 @@ flowchart TD
 - Score weights are opinionated and a bad calibration suppresses real curiosity.
 - Self-write of tensions invites gaming unless the agent's training discourages it.
 - Ledger growth is real even with expiry; archive paths must be planned.
+
+## Failure modes
+
+- Muted curiosity — weights are miscalibrated, so real open questions sit below the curiosity floor and expire unread.
+- Pushy intrusiveness — high intrusiveness scores send too many questions straight to the user instead of storing them quietly.
+- Gamed tensions — the agent writes inflated tensions to pull its own idle ticks toward favourite topics.
+- Ledger sprawl — expiry and the open cap still leave a growing tail, and no archive path was planned.
 
 ## What this pattern constrains
 
@@ -82,19 +95,40 @@ The tension store is append-only; tensions cannot be silently rewritten or back-
 - There is no mechanism for the agent to act on its own initiative.
 - Persisting open-question state across sessions creates privacy or alignment risks.
 
+## Components
+
+- Tension Ledger — append-only entries with curiosity, intrusiveness, expiry
+- Ranking Function — curiosity times intrusiveness picks the next candidate
+- Idle-Tick Reader — pulls top entries on quiet ticks to drive the next move
+- Expiry Sweep — drops entries below a curiosity floor past their TTL
+- Close-Event Writer — resolution writes a new append rather than editing the entry
+
+## Tools
+
+- Structured JSON store — append-only ledger of tension entries
+- LLM API — drafts tension entries and resolution notes
+
+## Evaluation metrics
+
+- Net-open tension count — open vs closed tensions over time, against the configured cap
+- Mean time to close — wall-clock from open to close per tension
+- Self-write rate — tensions opened by the agent vs by observation events, surfacing gaming
+- Resolution-quality sample — auditor-rated share of closures that named an actual resolution
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Unresolved questions ('tensions') are kept as a typed ledger separate from thoughts and from hypotheses; they drive what the next idle tick attends to instead of dissolving when the prompt ends. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Unresolved questions ('tensions') are kept as a typed ledger separate from thoughts and from hypotheses; they drive what the next idle tick attends to instead of dissolving when the prompt ends. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [preoccupation-tracking](preoccupation-tracking.md)
-- *complements* → [cognitive-move-selector](cognitive-move-selector.md)
-- *complements* → [append-only-thought-stream](append-only-thought-stream.md)
+- _complements_ **Preoccupation Tracking**
+- _complements_ **Cognitive-Move Selector**
+- _complements_ **Append-Only Thought Stream**
+- _complements_ **Fragment Juxtaposition**
+- _complements_ **Hypothesis Tracking**
+- _used-by_ **Socratic Questioning Agent**
 
 ## References
 
-- (paper) Leon Festinger, *A Theory of Cognitive Dissonance*, 1957, <https://www.sup.org/books/title/?id=3850>
-- (paper) Jürgen Schmidhuber, *Formal Theory of Creativity, Fun, and Intrinsic Motivation*, 2010, <https://people.idsia.ch/~juergen/ieeecreative.pdf>
-
-**Tags:** cognition, self-guidance, tick-loop, append-only
+- [A Theory of Cognitive Dissonance](https://www.sup.org/books/title/?id=3850) — Leon Festinger, 1957
+- [Formal Theory of Creativity, Fun, and Intrinsic Motivation](https://people.idsia.ch/~juergen/ieeecreative.pdf) — Jürgen Schmidhuber, 2010

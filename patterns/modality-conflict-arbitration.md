@@ -148,6 +148,8 @@ An answer may not be emitted from a fused representation while the channels disa
 - _complements_ **Epistemic Fault-Domain Quorum** — Counts how many independent roots a coalition really rests on; a shared encoder or a transcript-conditioned acoustic branch is exactly the collapsed root that makes cross-channel agreement worthless.
 - _complements_ **Confidence Reporting** — Supplies the surface for the uncertainty this pattern computes, turning an inter-channel disagreement into a stated confidence rather than an introspective guess.
 - _complements_ **Mandatory Red-Flag Escalation** — Gives the handoff route for a conflict the authority table cannot resolve, so abstention has somewhere to go.
+- _complements_ **Foveated Perception Escalation** — When channels disagree about a claim, re-observing the disputed region at higher fidelity is one way to settle it without falling back on an implicit modality preference.
+- _complements_ **Physical-Evidence Progress Gate** — Supplies the rule for the case this gate runs into often, where the proprioceptive cue and the visual comparison disagree about whether the subgoal was achieved.
 
 ## References
 

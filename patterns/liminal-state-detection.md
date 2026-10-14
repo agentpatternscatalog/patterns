@@ -2,7 +2,7 @@
 
 **Also known as:** Transitional-State Awareness, Mode-Shift Reading
 
-**Category:** Streaming & UX
+**Category:** Streaming & UX  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,6 +32,27 @@ Therefore: classify each incoming turn into an attentional-state code (just-woke
 
 On every incoming user message, compute a small feature set: time-of-day relative to a known anchor, gap since last message, message length and punctuation density, presence of a single emoji or interjection. Map to one of a small mode set ('just-woke', 'focused', 'winding-down', 'distracted', 'present'). Adjust response shape: shorter on winding-down; one anchor surface on just-woke; deeper engagement on focused; hold on distracted. Make the mode visible in agent telemetry so it can be tuned.
 
+## Structure
+
+```
+Incoming message -> features (time vs anchor, gap since last message, length, punctuation, emoji/interjection) -> mode {just-woke | focused | winding-down | distracted | present} -> response shape (one anchor | deeper | shorter | hold) -> reply; mode logged to telemetry for tuning
+```
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Present
+  Present --> JustWoke: long gap + early hour
+  Present --> Focused: dense + punctuated
+  Present --> WindingDown: late hour + short
+  Present --> Distracted: fragmentary tone
+  JustWoke --> Present: re-engage
+  Focused --> WindingDown: time passes
+  WindingDown --> [*]
+  Distracted --> Focused: regains focus
+```
+
 ## Example scenario
 
 A personal agent that the user talks to all day suddenly gets a single 'hi' at 06:12 after twelve hours of silence and replies with the same chirpy 'hi! what can I help you with today?' it would use mid-afternoon. The user finds it grating. The team adds liminal-state-detection: time-of-day, gap since last message, message length, and tone classify the moment as 'just-woke', so the agent answers softer and shorter — 'morning. tea before we look at the calendar?' — and saves the chirpy mode for the focused window an hour later.
@@ -49,6 +70,13 @@ A personal agent that the user talks to all day suddenly gets a single 'hi' at 0
 - Heuristics may overfit to demographic priors and misattribute tiredness as disinterest. Calibration is per-human and slow to generalize; user-visible state inference is preferable to hidden inference.
 - Risk of feeling presumptuous when the read is wrong.
 - Calibration requires longitudinal data.
+
+## Failure modes
+
+- Misread mode — a terse message from a focused user is classed as winding-down, and the agent cuts its answer short when depth was wanted.
+- Biased heuristics — timing and tone cues reflect one group's habits, so tiredness or a different writing style is read as disinterest.
+- Presumptuous tone — the agent acts on a wrong inferred state in a visible way, and the user feels watched rather than helped.
+- Hidden inference — the detected mode never appears in telemetry, so nobody can see why reply shape changed or tune the mapping.
 
 ## What this pattern constrains
 
@@ -68,61 +96,41 @@ The agent cannot send identically shaped replies across detected attentional sta
 - The cost of mis-detecting state is greater than the benefit of adapting.
 - The agent has no access to timing or tone signals (e.g. batched offline jobs).
 
-## Variants
+## Components
 
-### Time-of-day heuristic
+- Feature extractor — pulls time-of-day, gap since last message, length, punctuation density, and emoji cues from the incoming turn
+- Mode classifier — maps the feature vector to one of {just-woke, focused, winding-down, distracted, present}
+- Response shaper — keys reply length, density, and tone off the detected mode
+- Telemetry surface — exposes the detected mode in agent logs so it can be tuned per human
+- Per-human calibration store — longitudinal baseline of timing and tone signatures for the same user
 
-Use absolute clock time and message gap to bin the user into morning/focus-block/evening/late-night.
+## Tools
 
-*Distinguishing factor:* purely temporal
+- Lightweight classifier or rules engine — runs in-process on each turn without slowing the reply
+- Per-user telemetry log — records detected mode and signals for offline calibration
 
-*When to use:* Default. Cheap and works without language analysis.
+## Evaluation metrics
 
-### Tone-and-length classifier
-
-Score message tone (terse, rambling, polished) and adapt reply density to match.
-
-*Distinguishing factor:* linguistic features
-
-*When to use:* When users span timezones or schedules and clock-time alone is uninformative.
-
-### Composite signal
-
-Combine clock, gap, message length, and tone into a single attentional-state code; reply template is keyed off the code.
-
-*Distinguishing factor:* multi-signal fusion
-
-*When to use:* When neither single signal is sufficient and the product can afford the extra complexity.
-
-## Diagram
-
-```mermaid
-stateDiagram-v2
-  [*] --> Present
-  Present --> JustWoke: long gap + early hour
-  Present --> Focused: dense + punctuated
-  Present --> WindingDown: late hour + short
-  Present --> Distracted: fragmentary tone
-  JustWoke --> Present: re-engage
-  Focused --> WindingDown: time passes
-  WindingDown --> [*]
-  Distracted --> Focused: regains focus
-```
+- Mode-classification agreement with self-report — sampled turns where the user labels their own state
+- Shape variance across modes — measurable difference in reply length and density between just-woke and focused
+- Misread cost — frequency of user pushback after a wrong attentional read
+- Detection overhead per turn — added latency from feature extraction and classification
+- Calibration convergence time — turns required before per-human signatures stabilise
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — The agent reads the human partner's attentional state (just-woke, focused, winding-down, walked-away) from timing and tone signals and adapts its register accordingly — the same engagement is not appropriate in every state. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — The agent reads the human partner's attentional state (just-woke, focused, winding-down, walked-away) from timing and tone signals and adapts its register accordingly — the same engagement is not appropriate in every state. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [awareness](awareness.md)
-- *complements* → [code-switching-aware-agent](code-switching-aware-agent.md)
-- *complements* → [embodied-proxy-handoff](embodied-proxy-handoff.md)
-- *complements* → [now-anchoring](now-anchoring.md)
-- *complements* → [emotional-state-persistence](emotional-state-persistence.md)
+- _complements_ **Awareness**
+- _complements_ **Code-Switching-Aware Agent**
+- _complements_ **Embodied-Proxy Handoff**
+- _complements_ **Now-Anchoring**
+- _complements_ **Emotional State Persistence**
+- _complements_ **Ambient Presence Sensing**
+- _complements_ **Semantic Turn Endpointing** — Both read paralinguistic timing cues; liminal-state detection infers the user's attentional state, this one infers end-of-turn.
 
 ## References
 
-- (paper) Sacks, Schegloff, Jefferson, *A Simplest Systematics for the Organization of Turn-Taking for Conversation*, 1974, <https://www.jstor.org/stable/412243>
-
-**Tags:** human-agent, context, ux, state-detection
+- [A Simplest Systematics for the Organization of Turn-Taking for Conversation](https://www.jstor.org/stable/412243) — Sacks, Schegloff, Jefferson, 1974

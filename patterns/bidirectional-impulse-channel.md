@@ -31,15 +31,11 @@ Therefore: pair sigil-prefixed user commands that bypass the model with salience
 
 A single CLI/chat surface where the user can send sigil-prefixed commands (e.g. `!<verb> ...`) that bypass the model and write directly to memory, while the agent can push messages when salience clears a threshold (insight, stuck focus, contradiction, goal complete). Hygiene rule: at most one unsolicited message per window.
 
-## Variants
+## Structure
 
-- **Command-prefix channel** — User commands begin with a sigil (e.g. `!`) that bypasses the model and writes directly to memory; the agent pushes inline messages.
-- **Out-of-band push** — User and agent share the same chat for prompts, but the agent sends salience-triggered pushes through a separate notification surface (toast, email).
-- **Always-on REPL channel** — User and agent both type into a shared REPL with the agent running a continuous loop; both can interrupt the other.
-
-## Example scenario
-
-A user has asked their personal agent to monitor a slow scientific computation overnight and 'tell me when it's interesting'. Pure request/response would force the user to keep polling; pure push notifications wake them for trivia. They build a bidirectional impulse channel: the agent can send messages at any time, but the user can also reach in mid-run with 'stop watching the temperature, watch the residual'. The agent picks up the impulse on its next tick and changes what it pushes.
+```
+User --!<verb> command--> Channel --direct write (bypass model)--> Memory; Agent reads Memory -> scores salience (insight, stuck focus, contradiction, goal complete) --over threshold, max one per window--> Channel -> User
+```
 
 ## Diagram
 
@@ -49,12 +45,16 @@ sequenceDiagram
   participant Channel as CLI / Chat
   participant Mem as Memory
   participant Agent
-  User->>Channel: !&lt;verb&gt; ... (sigil-prefixed command)
+  User->>Channel: !<verb> ... (sigil-prefixed command)
   Channel->>Mem: write directly (bypass model)
   Agent->>Mem: read salient context
   Agent->>Channel: push message on salience spike
   Channel-->>User: notification
 ```
+
+## Example scenario
+
+A user has asked their personal agent to monitor a slow scientific computation overnight and 'tell me when it's interesting'. Pure request/response would force the user to keep polling; pure push notifications wake them for trivia. They build a bidirectional impulse channel: the agent can send messages at any time, but the user can also reach in mid-run with 'stop watching the temperature, watch the residual'. The agent picks up the impulse on its next tick and changes what it pushes.
 
 ## Consequences
 
@@ -67,6 +67,13 @@ sequenceDiagram
 
 - Salience threshold tuning is empirical.
 - Direct memory edits bypass the LLM and can encode wrong rules.
+
+## Failure modes
+
+- Wrong rule written straight to memory — a hasty `!` command skips the model and stores a bad rule, and the agent follows it until someone notices.
+- Threshold set too low — the agent pushes on minor events, the one-per-window cap is always used up, and the user starts to mute the channel.
+- Threshold set too high — real contradictions and stuck focus never clear the bar, so the agent falls back to silence until prompted.
+- Sigil collision — ordinary user text that starts with `!` is treated as a command and lands in memory instead of reaching the model.
 
 ## What this pattern constrains
 
@@ -86,17 +93,38 @@ The agent may push at most one unsolicited message per window; user commands beg
 - Push notifications are always intrusive in the deployment context (e.g. shared work surface).
 - There is no salience function and the agent would push noise.
 
+## Components
+
+- Shared channel — single CLI or chat surface carrying both user impulses and agent pushes
+- Sigil parser — recognises commands beginning with the prefix (e.g. `!`) and routes them around the model
+- Memory store — direct write target for sigil commands and read source for salience-gated pushes
+- Salience gate — scores agent-side candidate messages and blocks pushes below threshold
+- Push hygiene limiter — caps unsolicited agent messages to at most one per window
+
+## Tools
+
+- REPL or chat transport — terminal or chat surface that stays open between turns
+- Persistent memory file — durable store the sigil parser writes to without invoking the model
+
+## Evaluation metrics
+
+- Unsolicited-message rate per window — checks the hygiene cap actually holds in production
+- Sigil-command share of user turns — how often users bypass the model versus prompt it
+- Mute or close-channel rate — proxy for whether agent pushes are landing as signal or noise
+- Impulse-to-effect latency — gap between a sigil write and the next agent tick that reads it
+- Reversal rate on direct memory edits — fraction of `!`-writes the user later undoes
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *uses* → [salience-triggered-output](salience-triggered-output.md)
-- *complements* → [streaming-typed-events](streaming-typed-events.md)
+- _uses_ **Salience-Triggered Output**
+- _complements_ **Streaming Typed Events**
+- _complements_ **Embodied-Proxy Handoff**
+- _complements_ **Channel-Decoupled Agent Core** — That pattern carries request and push within one channel; this spans many channels, and a bidirectional channel is one adapter the core can drive.
 
 ## References
 
-- (paper) Liu, Fang, Shi, Wu, Igarashi, Chen, *Proactive Conversational Agents with Inner Thoughts*, 2024, <https://arxiv.org/abs/2501.00383>
-
-**Tags:** ux, long-running, agent-initiated
+- [Proactive Conversational Agents with Inner Thoughts](https://arxiv.org/abs/2501.00383) — Liu, Fang, Shi, Wu, Igarashi, Chen, 2024
