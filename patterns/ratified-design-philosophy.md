@@ -65,7 +65,7 @@ flowchart TD
 
 ## Example scenario
 
-A coding agent is asked to restyle the settings screen of a hobby app. Its design guide tells it that one meaning gets one look, so instead of giving the screen its own green selected chip it fixes the shared chip, which changes twenty other screens too. It is unsure whether a new badge counts as a status or a label, so it asks the owner, who answers that status colours never colour words. The agent writes that answer into the guide with the date and the owner's words, and the design check now fails any new coloured status text.
+A coding agent is asked to restyle the settings screen of a handcraft-related app. Its design guide tells it that one meaning gets one look, so instead of giving the screen its own green selected chip it fixes the shared chip, which changes twenty other screens too. It is unsure whether a new badge counts as a status or a label, so it asks the owner, who answers that status colours never colour words. The agent writes that answer into the guide with the date and the owner's words, and the design check now fails any new coloured status text.
 
 ## Consequences
 
