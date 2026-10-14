@@ -152,6 +152,7 @@ A judge may not gate a release, a rollout, a leaderboard position or an escape f
 - _complements_ **Eval as Contract** — If the eval suite is the release contract, the judge behind it needs a published agreement number before it can hold that contract.
 - _complements_ **False Confidence Syndrome** — Uniform confidence over near-chance discrimination is the same failure moved from the generator to the evaluator.
 - _complements_ **Judge-Channel Injection** — Injection corrupts the judge's inputs; validation measures its baseline discrimination, and a judge can fail either way independently.
+- _complements_ **Simulated-User Rollout Evaluation** — The same validation duty applied to the interlocutor rather than the grader: a simulated-user score should carry a measured agreement figure against human-run episodes before it gates anything.
 
 ## References
 

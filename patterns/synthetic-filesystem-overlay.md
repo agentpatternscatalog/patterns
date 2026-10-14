@@ -2,12 +2,12 @@
 
 **Also known as:** Virtual Filesystem for Agents, Unified-Tree Data Surface, FS-as-Tool-API
 
-**Category:** Tool Use & Environment
-**Status in practice:** emerging
+**Category:** Tool Use & Environment  
+**Status in practice:** experimental
 
 ## Intent
 
-Project heterogeneous enterprise data sources into a single navigable Unix-like tree exposed through a small set of filesystem primitives so the agent reuses path semantics it already knows instead of learning a bespoke API per source.
+Project heterogeneous enterprise data sources into a single Unix-like tree exposed through filesystem primitives so the agent reuses path semantics it already knows instead of learning a bespoke API per source.
 
 ## Context
 
@@ -80,6 +80,13 @@ An on-call engineer asks the assistant to summarize last week's incident. The ag
 - Full-text search quality depends on each adapter; uneven coverage frustrates the agent.
 - Listing very large directories needs careful pagination defaults.
 
+## Failure modes
+
+- Path breakage — an upstream source renames a channel or page, and paths the agent remembered now point at nothing.
+- ACL flattening — the unified tree shows a file to an agent that the source system would deny, because the adapter does not enforce per-source permissions.
+- Invented path — the agent guesses a plausible path instead of resolving it with locate_in_tree, and acts on the wrong node or a missing one.
+- Unbounded listing — a list call on a huge directory returns too many children, and the result floods the context.
+
 ## What this pattern constrains
 
 The agent must access enterprise data only through the five primitives — direct per-source API calls are forbidden once the overlay is mounted. It must treat paths as the canonical identifier and not invent paths that locate_in_tree has not validated.
@@ -100,20 +107,42 @@ The agent must access enterprise data only through the five primitives — direc
 - Per-source APIs already share a clean uniform shape.
 - Real-time streaming dominates over snapshot reads.
 
+## Components
+
+- Path-Routing Layer — maps a virtual path to the correct connector adapter
+- Connector Adapters — per-source modules (Slack, Notion, Drive, GitHub) that materialise paths into source-specific calls
+- Five-Primitive Interface — fixed action set: list, find, cat, search, locate_in_tree
+- Agent — reuses Unix path semantics it already knows to navigate heterogeneous sources
+- Search Index — backs the full-text search primitive, optionally scoped by subtree
+
+## Tools
+
+- Full-text search backend (Elasticsearch, OpenSearch, or BM25 library) — answers the search primitive
+- Per-source SDKs (Slack, Notion, Drive, GitHub) — back the connector adapters
+- Path-resolver index — maps opaque source IDs back to their virtual paths for locate_in_tree
+
+## Evaluation metrics
+
+- Cross-source task success — share of tasks completed that touch more than one connector
+- Path-resolution accuracy — fraction of locate_in_tree calls returning the correct virtual path
+- Tokens per observation — cost of the five-primitive surface versus per-source tool APIs
+- Search-precision at k — relevance of search results scoped by subtree
+- Adapter error rate per connector — where the overlay leaks source-specific failures
+
 ## Known uses
 
-- **[Dust.tt production agents (Paris)](https://blog.dust.tt/)** — *Available* — Five-primitive synthetic filesystem across Notion, Slack, GitHub, Drive and others. Internal logs documented agents inventing file-path syntax before the FS existed.
+- **[Dust.tt production agents (Paris)](https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/)** _available_ — Five-primitive synthetic filesystem across Notion, Slack, GitHub, Drive and others. Internal logs documented agents inventing file-path syntax before the FS existed.
 
 ## Related patterns
 
-- *alternative-to* → [mcp](mcp.md) — MCP exposes per-source tool surfaces; this overlay collapses them into one filesystem-shaped interface.
-- *specialises* → [agent-computer-interface](agent-computer-interface.md) — Inverts ACI: instead of designing agent-friendly APIs per source, design one universal filesystem all sources project into.
-- *alternative-to* → [tool-discovery](tool-discovery.md) — Discovery becomes ls/find against a tree rather than runtime tool enumeration.
-- *alternative-to* → [knowledge-graph-memory](knowledge-graph-memory.md) — Graph-of-triples vs tree-of-paths — different shapes for the same cross-source navigation problem.
-- *alternative-to* → [naive-rag-first](naive-rag-first.md) — Preserves source structure where vector RAG flattens it into chunks.
+- _alternative-to_ **Model Context Protocol** — MCP exposes per-source tool surfaces; this overlay collapses them into one filesystem-shaped interface.
+- _specialises_ **Agent-Computer Interface** — Inverts ACI: instead of designing agent-friendly APIs per source, design one universal filesystem all sources project into.
+- _alternative-to_ **Tool Discovery** — Discovery becomes ls/find against a tree rather than runtime tool enumeration.
+- _alternative-to_ **Knowledge Graph Memory** — Graph-of-triples vs tree-of-paths — different shapes for the same cross-source navigation problem.
+- _alternative-to_ **Naive-RAG-First** — Preserves source structure where vector RAG flattens it into chunks.
+- _complements_ **Filesystem as Context**
+- _complements_ **Shadow Workspace** — An overlay presents a virtual filesystem surface; the shadow adds version history and diff-based rollback over the edits made through it.
 
 ## References
 
-- (blog) Dust, *Building Deep Dive: Infrastructure for AI Agents That Actually Go Deep*, 2025, <https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/>
-
-**Tags:** tool-design, enterprise, data-access, filesystem, unified-interface
+- [Building Deep Dive: Infrastructure for AI Agents That Actually Go Deep](https://blog.dust.tt/building-deep-dive-infrastructure-for-ai-agents-that-actually-go-deep/) — Dust, 2025

@@ -31,9 +31,11 @@ Therefore: stage memory across sensory, working, short-term, episodic, and long-
 
 Five tiers. Sensory: raw input per tick. Working: top-N items in active focus (Global Workspace Theory, ≤7 items). Short-term: recent verbatim (1-7 days). Episodic: compressed summaries (5-10x). Long-term: distilled rules and insights. Compaction promotes upward on a schedule; decay archives downward; rehearsal lifts archived items back when re-attended.
 
-## Example scenario
+## Structure
 
-A personal agent that runs continuously needs to track the user's last sentence (sensory), the current task (working), today's session (short-term), the last few weeks of episodes (episodic), and stable preferences (long-term). A flat append-only log either grows unboundedly or loses the immediate signal. The team builds a Five-Tier Memory Cascade with explicit promotion (today's confirmed preference moves to long-term) and decay (yesterday's sensory buffer is dropped). Each tier serves the timescale it's good at.
+```
+Sensory (raw input per tick) --promote--> Working (top-N focus) --promote--> Short-term (recent verbatim) --compact--> Episodic (compressed summaries) --distill--> Long-term (rules, insights); decay archives downward; rehearsal lifts archived items back to Working
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ classDiagram
   LongTerm ..> Working : rehearsal lifts back
 ```
 
+## Example scenario
+
+A personal agent that runs continuously needs to track the user's last sentence (sensory), the current task (working), today's session (short-term), the last few weeks of episodes (episodic), and stable preferences (long-term). A flat append-only log either grows unboundedly or loses the immediate signal. The team builds a Five-Tier Memory Cascade with explicit promotion (today's confirmed preference moves to long-term) and decay (yesterday's sensory buffer is dropped). Each tier serves the timescale it's good at.
+
 ## Consequences
 
 **Benefits**
@@ -62,6 +68,13 @@ classDiagram
 
 - Architecturally heavy; only earns its seat in long-running agents.
 - Tuning the promotion thresholds is empirical work.
+
+## Failure modes
+
+- Threshold mistuning — promotion rules are set by guess, so trivial items reach long-term memory while important ones decay out of short-term.
+- Stale working set — working memory keeps old items in its few slots, and new salient input has no room.
+- Lost cross-tier link — a question needs a recent fact and a distilled rule together, but reads stay inside one tier and the join never happens.
+- Overbuilt for short runs — a short-lived agent carries five tiers of machinery it never uses.
 
 ## What this pattern constrains
 
@@ -81,24 +94,44 @@ Reads at each tier may only return items at that tier's compaction level; cross-
 - No salience or decay function exists to drive promotion and archival cleanly.
 - Storage and compaction cost across tiers exceeds the quality lift.
 
+## Components
+
+- Five tiered stores — sensory buffer, working memory (≤7 slots, Global Workspace Theory), short-term verbatim, episodic summaries at 5-10x, and long-term distilled rules
+- Promotion/decay scheduler — moves items upward when salience or repetition justifies it and archives downward when access falls off
+- Summariser — compresses short-term blocks into episodic entries and episodic clusters into distilled long-term rules
+- Salience scorer — drives promotion decisions and feeds the rehearsal path that lifts archived items back
+- Cross-tier reconciler — resolves conflicts between tiers when the same fact appears at different compaction levels
+
+## Tools
+
+- Tiered storage — fast key-value for sensory/working, document store for short-term, vector + summary store for episodic, structured store for long-term
+- Summarisation LLM — compresses short-term blocks into episodic entries and episodic clusters into distilled rules
+- Salience scorer — drives promotion decisions and feeds the rehearsal path that lifts archived items back
+
+## Evaluation metrics
+
+- Per-tier hit rate — fraction of reads served at each tier; signals whether promotion thresholds are tuned
+- Promotion precision — sampled audit of items moved to long-term that genuinely belong there
+- Cross-tier conflict rate — frequency of contradictions between tiers requiring rehearsal or reconciliation
+- Working-set overflow — how often working memory tries to exceed its cap, indicating noise above the salience floor
+- Tier-storage cost ratio — relative spend across tiers, used to justify the architectural weight
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Memory is staged across sensory / working / short-term / episodic / long-term tiers with explicit decay between tiers, rather than one flat store retrieved by similarity. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Memory is staged across sensory / working / short-term / episodic / long-term tiers with explicit decay between tiers, rather than one flat store retrieved by similarity. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *uses* → [episodic-summaries](episodic-summaries.md)
-- *uses* → [hippocampal-rehearsal](hippocampal-rehearsal.md)
-- *composes-with* → [append-only-thought-stream](append-only-thought-stream.md)
-- *alternative-to* → [memgpt-paging](memgpt-paging.md)
-- *composes-with* → [salience-attention-mechanism](salience-attention-mechanism.md)
-- *complements* → [preoccupation-tracking](preoccupation-tracking.md)
+- _uses_ **Episodic Summaries**
+- _uses_ **Hippocampal Rehearsal**
+- _composes-with_ **Append-Only Thought Stream**
+- _alternative-to_ **MemGPT-Style Paging**
+- _composes-with_ **Salience Attention Mechanism**
+- _complements_ **Preoccupation Tracking**
 
 ## References
 
-- (paper) Park et al., *Generative Agents (memory stream + reflection)*, 2023, <https://arxiv.org/abs/2304.03442>
-- (book) Bernard Baars, *A Cognitive Theory of Consciousness (Global Workspace Theory)*, 1988, <https://www.goodreads.com/book/show/1148175.A_Cognitive_Theory_of_Consciousness>
-- (book) Richard C. Atkinson, Richard M. Shiffrin, *Human Memory: A Proposed System and Its Control Processes*, 1968, <https://www.sciencedirect.com/science/article/abs/pii/S0079742108604223>
-- (book) Endel Tulving, *Episodic and Semantic Memory*, 1972, <https://www.semanticscholar.org/paper/Episodic-and-semantic-memory-Tulving/d792562462dbb687015954805d31620240db57a1>
-
-**Tags:** memory, cognitive-architecture
+- [Generative Agents (memory stream + reflection)](https://arxiv.org/abs/2304.03442) — Park et al., 2023
+- [A Cognitive Theory of Consciousness (Global Workspace Theory)](https://www.goodreads.com/book/show/1148175.A_Cognitive_Theory_of_Consciousness) — Bernard Baars, 1988
+- [Human Memory: A Proposed System and Its Control Processes](https://www.sciencedirect.com/science/article/abs/pii/S0079742108604223) — Richard C. Atkinson, Richard M. Shiffrin, 1968
+- [Episodic and Semantic Memory](https://www.semanticscholar.org/paper/Episodic-and-semantic-memory-Tulving/d792562462dbb687015954805d31620240db57a1) — Endel Tulving, 1972

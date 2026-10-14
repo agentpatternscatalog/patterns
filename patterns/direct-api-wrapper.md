@@ -25,21 +25,6 @@ Agents cannot call a raw HTTP API through MCP; something must translate the API 
 - Generated wrappers stay in sync with the contract but inherit its granularity.
 - Auth and rate limits of the underlying API now apply per individual tool call.
 
-## Applicability
-
-**Use when**
-
-- An existing API is stable and described by an OpenAPI document or typed SDK.
-- The goal is the fastest route to making the API agent-callable.
-- The API surface is small enough that one tool per operation does not overwhelm the model.
-- The team wants the tool set to track the API automatically rather than be hand-maintained.
-
-**Do not use when**
-
-- The API is large and a one-to-one mapping would produce an unwieldy tool list — see composite-service-mcp.
-- Tasks span several endpoints that the model would have to orchestrate itself — see composite-service-mcp.
-- The endpoint names and error shapes are too programmer-oriented for reliable tool selection without re-design.
-
 ## Therefore
 
 Therefore: generate one MCP tool per API operation directly from the API's contract, so the existing API becomes agent-callable without a hand-maintained translation layer.
@@ -50,11 +35,9 @@ Map each API operation to a single MCP tool, deriving the tool name, input schem
 
 ## Structure
 
+```
 OpenAPI document / typed SDK -> [generator] -> MCP server (one tool per operation) -> agent host -> underlying API.
-
-## Example scenario
-
-A team owns a stable customer API described by an OpenAPI document. Rather than hand-write an MCP tool per endpoint, they run a generator that emits one tool for each operation — createCustomer, getCustomer, listInvoices — and serve them over MCP. An agent in Claude Desktop can now call the API the same day, and when the API adds an endpoint the team regenerates the server instead of editing tool code by hand.
+```
 
 ## Diagram
 
@@ -70,6 +53,12 @@ flowchart LR
   T2 --> API
   T3 --> API
 ```
+
+*Each API operation is generated into exactly one MCP tool; the server adds no logic of its own.*
+
+## Example scenario
+
+A team owns a stable customer API described by an OpenAPI document. Rather than hand-write an MCP tool per endpoint, they run a generator that emits one tool for each operation — createCustomer, getCustomer, listInvoices — and serve them over MCP. An agent in Claude Desktop can now call the API the same day, and when the API adds an endpoint the team regenerates the server instead of editing tool code by hand.
 
 ## Consequences
 
@@ -88,30 +77,74 @@ flowchart LR
 - Inherits the API's chattiness; token cost rises with the number of round-trips.
 - Per-call auth and rate-limit handling is duplicated across every generated tool.
 
+## Failure modes
+
+- Tool sprawl — a large API becomes hundreds of low-level tools, and the model picks the wrong one among similar names.
+- Programmer names mislead — an operation called by an internal code name is skipped by the model even when it is the right tool.
+- Chatty chains — a simple task needs many sequential calls, and token cost and failure points grow with each hop.
+- Logic creep — someone adds orchestration to one generated tool by hand, and the next regeneration silently drops it.
+
 ## What this pattern constrains
 
 The server may expose only the operations the underlying API already provides, one tool per operation; it must not add orchestration, merge endpoints, or invent capabilities the API does not have.
 
+## Guardrails
+
+- Restrict generated tools to read-only operations unless the host explicitly grants write scope.
+- Propagate the underlying API's auth failures and rate limits back as typed tool errors.
+
+## Applicability
+
+**Use when**
+
+- An existing API is stable and described by an OpenAPI document or typed SDK.
+- The goal is the fastest route to making the API agent-callable.
+- The API surface is small enough that one tool per operation does not overwhelm the model.
+- The team wants the tool set to track the API automatically rather than be hand-maintained.
+
+**Do not use when**
+
+- The API is large and a one-to-one mapping would produce an unwieldy tool list — see composite-service-mcp.
+- Tasks span several endpoints that the model would have to orchestrate itself — see composite-service-mcp.
+- The endpoint names and error shapes are too programmer-oriented for reliable tool selection without re-design.
+
+## Components
+
+- API Contract — the OpenAPI document or typed SDK that defines the operations to expose
+- Generator — reads the contract and emits one MCP tool per operation
+- MCP Server — hosts the generated tools and speaks the protocol to agent hosts
+- Underlying API — the existing service whose endpoints the generated tools call through to
+
+## Tools
+
+- OpenAPI-to-MCP generator — converts each operation into a typed MCP tool (for example FastMCP.from_openapi)
+- Schema validator — enforces each operation's input and output types at the tool boundary
+
+## Evaluation metrics
+
+- Operation coverage — fraction of API operations exposed as callable MCP tools
+- Spec-to-server drift incidents — count of tools out of sync with the current API contract
+- Tool-selection accuracy — how often the model picks the correct generated tool for a request
+- Per-call rejection rate — share of tool calls rejected by the underlying API's auth or rate limits
+
 ## Known uses
 
-- **FastMCP (from_openapi / from_fastapi)** — Generates an MCP server with one tool per route directly from an OpenAPI 3.x document or a running FastAPI app. *Available* — [link](https://gofastmcp.com/integrations/fastapi)
-- **FastAPI-MCP (tadata-org)** — Exposes existing FastAPI endpoints as MCP tools, reusing the app's dependencies and auth, as a native extension rather than a separate converter. *Available* — [link](https://github.com/tadata-org/fastapi_mcp)
-- **Speakeasy MCP server generation** — Generates a standalone MCP server whose tools wrap the SDK methods produced from an OpenAPI document. *Available* — [link](https://www.speakeasy.com/product/mcp-server)
-- **Stainless MCP from OpenAPI** — Produces an MCP server from an OpenAPI specification, bundled with the generated SDK package. *Available* — [link](https://www.stainless.com/docs/mcp/)
-- **Kong AI Gateway** — Autogenerates an MCP server from any RESTful API at the gateway layer, adding traffic governance and observability. *Available* — [link](https://github.com/Kong/kong)
+- **[FastMCP (from_openapi / from_fastapi)](https://gofastmcp.com/integrations/fastapi)** _available_ — Generates an MCP server with one tool per route directly from an OpenAPI 3.x document or a running FastAPI app.
+- **[FastAPI-MCP (tadata-org)](https://github.com/tadata-org/fastapi_mcp)** _available_ — Exposes existing FastAPI endpoints as MCP tools, reusing the app's dependencies and auth, as a native extension rather than a separate converter.
+- **[Speakeasy MCP server generation](https://www.speakeasy.com/product/mcp-server)** _available_ — Generates a standalone MCP server whose tools wrap the SDK methods produced from an OpenAPI document.
+- **[Stainless MCP from OpenAPI](https://www.stainless.com/docs/mcp/)** _available_ — Produces an MCP server from an OpenAPI specification, bundled with the generated SDK package.
+- **[Kong AI Gateway](https://github.com/Kong/kong)** _available_ — Autogenerates an MCP server from any RESTful API at the gateway layer, adding traffic governance and observability.
 
 ## Related patterns
 
-- *specialises* → [mcp](mcp.md)
-- *alternative-to* → [composite-service-mcp](composite-service-mcp.md)
-- *complements* → [translation-layer](translation-layer.md)
-- *complements* → [agent-adapter](agent-adapter.md)
-- *complements* → [mcp-as-code-api](mcp-as-code-api.md)
+- _specialises_ **Model Context Protocol**
+- _alternative-to_ **Composite Service** — Composite Service aggregates several operations behind one tool; Direct API Wrapper keeps the one-to-one surface.
+- _complements_ **Translation Layer** — A direct wrapper is the thinnest possible translation layer from API contract to tool contract.
+- _complements_ **Agent Adapter**
+- _complements_ **MCP-as-Code-API**
 
 ## References
 
-- *doc*: [FastMCP — FastAPI & OpenAPI integration](https://gofastmcp.com/integrations/fastapi) — Prefect / jlowin
-- *blog*: [Should you wrap MCP around your existing API? (direct translation pattern)](https://www.scalekit.com/blog/wrap-mcp-around-existing-api) — Scalekit
-- *doc*: [Generating MCP tools from OpenAPI: benefits, limits and best practices](https://www.speakeasy.com/mcp/tool-design/generate-mcp-tools-from-openapi) — Speakeasy
-
-**Tags:** tool-use, mcp, openapi, api, code-generation, fastmcp
+- [FastMCP — FastAPI & OpenAPI integration](https://gofastmcp.com/integrations/fastapi) — Prefect / jlowin
+- [Should you wrap MCP around your existing API? (direct translation pattern)](https://www.scalekit.com/blog/wrap-mcp-around-existing-api) — Scalekit, 2025
+- [Generating MCP tools from OpenAPI: benefits, limits and best practices](https://www.speakeasy.com/mcp/tool-design/generate-mcp-tools-from-openapi) — Speakeasy

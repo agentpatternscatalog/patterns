@@ -139,6 +139,7 @@ The service must not be made available to the public before the regulator certif
 - _complements_ **Sovereign Inference Stack** — Both are jurisdiction-driven; the sovereign stack keeps data inside a controlled boundary, while this gate certifies the service's content safety to the same jurisdiction's regulator before launch.
 - _conflicts-with_ **Silent Pilot-to-Production Promotion** — The launch gate forbids public serving before a declared, certified go-live and re-certifies on any scope change; silent promotion subverts exactly that gate by never declaring go-live, so the certification it mandates is never triggered.
 - _complements_ **Formal-Proof Compliance Gate** — Launch certification gates whether a system may go live; this gate runs per action at runtime, so a certified system can still prove each individual action compliant before it executes.
+- _alternative-to_ **Agent Liability Insurance** — Both gate deployment on external attestation: the launch gate is a regulator's permission to operate, insurance is a market mechanism that prices residual risk instead of forbidding it.
 
 ## References
 

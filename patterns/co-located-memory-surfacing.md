@@ -2,7 +2,7 @@
 
 **Also known as:** Proper-Noun Recall, Shared-Map Push
 
-**Category:** Memory
+**Category:** Memory  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,6 +32,12 @@ Therefore: on every user message, extract concrete named entities, match them ag
 
 On every user message, extract concrete proper nouns and significant named phrases. Grep / embedding-match against the agent's persistent memory (thoughts, notes, insights, project files). If matches exist, surface ≤ 2 most relevant fragments inline in the reply — time-stamped, briefly framed — and let the human steer whether to pursue. Suppress the surface if it would feel like a lecture or if the human's use was clearly incidental.
 
+## Structure
+
+```
+User message --extract proper nouns--> Entity list --grep / embedding match--> Persistent memory --top <=2 fragments (time-stamped)--> Reply with surfaced memory --> User steers whether to pursue
+```
+
 ## Diagram
 
 ```mermaid
@@ -46,6 +52,10 @@ sequenceDiagram
   Agent-->>User: response with surfaced memory
 ```
 
+## Example scenario
+
+A user starts a new chat with their assistant: 'I'm thinking about taking the Berlin job.' The assistant has six months of prior conversations on file, including the user's earlier reservations about relocating, but says nothing about them — because the user didn't search for them. The team adds Co-located Memory Surfacing: when the user names a concrete entity (Berlin job) the agent recognises, it proactively surfaces 'You mentioned in March that the commute would be a deal-breaker — has that changed?'. The shared map becomes shared without the user having to remember what's in it.
+
 ## Consequences
 
 **Benefits**
@@ -59,6 +69,13 @@ sequenceDiagram
 - Risk of surfacing irrelevant matches that derail.
 - Context window cost when many matches exist.
 - Privacy risk if shared memory contains sensitive details.
+
+## Failure modes
+
+- Derailing recall — a name the human used in passing matches an old note, and the agent pulls the conversation toward a topic nobody asked about.
+- Lecturing — the agent surfaces memory on every mention, and the human feels watched instead of helped.
+- Sensitive echo — a stored private detail is repeated inline in a context where others can read it.
+- Silent miss — entity extraction skips a nickname or misspelling, so known context stays buried and the human repeats themselves.
 
 ## What this pattern constrains
 
@@ -78,49 +95,39 @@ When user input contains a proper noun the agent has prior memory of, the agent 
 - Privacy or sensitivity rules forbid surfacing prior knowledge unless explicitly requested.
 - False positives on entity matching would be more disruptive than silence.
 
-## Variants
+## Components
 
-### Proper-noun trigger
+- Entity extractor — pulls proper nouns and significant named phrases from each incoming user message
+- Persistent memory store — keyed by entity, holds prior notes, insights, transcripts, and project artefacts
+- Match layer — runs grep or embedding lookup against the store and ranks candidate fragments
+- Surface gate — caps inclusions to one or two time-stamped fragments and suppresses lectures or incidental hits
+- Reply composer — weaves the surfaced fragment inline with the agent's normal response
 
-Detect capitalised tokens or named entities in the user message and look up matches in the memory index.
+## Tools
 
-*Distinguishing factor:* lexical match on entity surface form
+- Named-entity recogniser — spaCy, GLiNER, or a small LLM call to extract proper nouns cheaply per turn
+- Vector index — Chroma, Weaviate, or FAISS for semantic recall when surface-form match is too brittle
+- Keyword index — inverted index or grep over a flat note store for the lexical-trigger variant
 
-*When to use:* Default. Cheap to implement; works without an embedding store.
+## Evaluation metrics
 
-### Embedding-similarity trigger
-
-Embed the user message and retrieve top-k memory items whose embeddings are nearest, then surface a short excerpt.
-
-*Distinguishing factor:* semantic similarity, not surface form
-
-*When to use:* When the entity may be referred to obliquely or by paraphrase rather than by exact name.
-
-### Proactive recap
-
-On every reply, append a short 'I remember: ...' block whenever a recognised entity has unread updates since last surface.
-
-*Distinguishing factor:* always-on suffix
-
-*When to use:* When users explicitly want continuity over discretion.
-
-## Example scenario
-
-A user starts a new chat with their assistant: 'I'm thinking about taking the Berlin job.' The assistant has six months of prior conversations on file, including the user's earlier reservations about relocating, but says nothing about them — because the user didn't search for them. The team adds Co-located Memory Surfacing: when the user names a concrete entity (Berlin job) the agent recognises, it proactively surfaces 'You mentioned in March that the commute would be a deal-breaker — has that changed?'. The shared map becomes shared without the user having to remember what's in it.
+- Surface precision — fraction of surfaced fragments the user finds relevant rather than noise
+- Missed-recall rate — turns where a relevant prior memory existed but was never surfaced
+- Lecture suppression — fraction of suppressed surfaces that human review confirms would have felt intrusive
+- Per-turn surface latency — milliseconds added to the user-visible turn by entity extract + match
+- Continuity lift — user-reported sense of being remembered, measured against a no-surfacing baseline
 
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [awareness](awareness.md)
-- *specialises* → [agentic-rag](agentic-rag.md)
-- *uses* → [vector-memory](vector-memory.md)
-- *complements* → [short-term-memory](short-term-memory.md)
+- _complements_ **Awareness**
+- _specialises_ **Agentic RAG**
+- _uses_ **Vector Memory**
+- _complements_ **Short-Term Thread Memory**
 
 ## References
 
-- (blog) *OpenAI — Memory and new controls for ChatGPT*, 2024, <https://openai.com/index/memory-and-new-controls-for-chatgpt/>
-
-**Tags:** memory, recall, human-agent, continuity
+- [OpenAI — Memory and new controls for ChatGPT](https://openai.com/index/memory-and-new-controls-for-chatgpt/) — 2024

@@ -23,6 +23,58 @@ Agent runs depend on non-deterministic model outputs, accumulated conversation s
 - Storage of full traces is expensive.
 - Modified replays diverge from original; comparison logic is non-trivial.
 
+## Therefore
+
+Therefore: capture per-step inputs, outputs, prompts, model ids, and tool calls in a trace, and expose a replay tool that resumes from any step with optional substitutions, so that past runs become debuggable artefacts rather than write-once logs.
+
+## Solution
+
+Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.
+
+## Structure
+
+```
+Original run --capture per step (inputs, outputs, prompts, model id, tool calls)--> Trace store --> Step selector (pick step N) --> Substitution layer (modify prompt / model / tool result) --> Replay forward (captured state before N, live calls after) --> Branch trace --> Compare branches
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]
+  Tr --> Sel[Pick step N]
+  Sel --> Mod[Modify prompt /<br/>model / tool result]
+  Mod --> Rep[Replay forward]
+  Rep --> Br[(Branch trace)]
+  Br --> Cmp[Compare branches]
+```
+
+## Example scenario
+
+A support agent gives a strange reply to a user three days ago and the team cannot reproduce it locally because too much state has changed. They open the trace store, jump to step 7, swap in the new system prompt, and re-run forward; the new prompt fixes the issue, the old one reproduces it exactly. They commit the fix with the trace ID in the changelog. Replay turns 'this happened once' bugs into deterministic tests.
+
+## Consequences
+
+**Benefits**
+
+- Debugging cycle drops from hours to minutes.
+- A/B comparison of fixes becomes trivial.
+
+**Liabilities**
+
+- Trace storage overhead.
+- Non-deterministic external dependencies (network) limit fidelity.
+
+## Failure modes
+
+- Live call leak — the replay re-calls a real tool for a step before N instead of reading the captured result, and the branch diverges for reasons unrelated to the change.
+- Incomplete capture — the trace misses the exact prompt or model id for some steps, so the replay starts from a state the original run never had.
+- Network-dependent drift — the modified branch calls an external service whose answers have changed, and the comparison mixes the fix with outside drift.
+- Trace store bloat — full per-step capture is kept for every run, and storage cost leads to short retention that drops the traces needed for old bugs.
+
+## What this pattern constrains
+
+Replay reads from captured state; live model and tool calls happen only for the modified branch from step N forward.
 
 ## Applicability
 
@@ -38,61 +90,49 @@ Agent runs depend on non-deterministic model outputs, accumulated conversation s
 - Privacy or retention rules forbid keeping per-step traces.
 - The agent has no externally observable failures worth reproducing.
 
-## Therefore
+## Components
 
-Therefore: capture per-step inputs, outputs, prompts, model ids, and tool calls in a trace, and expose a replay tool that resumes from any step with optional substitutions, so that past runs become debuggable artefacts rather than write-once logs.
+- Per-Step Trace Capture — records inputs, outputs, prompts, model id, and tool calls for each step of every run
+- Trace Store — durable storage of full historical traces
+- Step Selector — UI or API for picking step N of a past run as the branch point
+- Substitution Layer — applies prompt, model, or tool-result overrides for the replay
+- Branch Trace — separate stored run that holds the replay output for comparison
 
-## Solution
+## Tools
 
-Capture per-step inputs, outputs, prompts, model id, tool calls. Provide a replay tool that loads a trace at step N and re-runs forward with optional modifications (different model, different prompt, different tool result). Store branches for comparison.
+- LangSmith replay — UI for branching past runs at any step
+- Langfuse playground replay — trace-driven re-execution against modified prompts or models
+- Inspect AI — agent eval framework with run replay
+- Braintrust playground — branch-and-compare interface tied to trace storage
 
-## Example scenario
+## Evaluation metrics
 
-A support agent gives a strange reply to a user three days ago and the team cannot reproduce it locally because too much state has changed. They open the trace store, jump to step 7, swap in the new system prompt, and re-run forward; the new prompt fixes the issue, the old one reproduces it exactly. They commit the fix with the trace ID in the changelog. Replay turns 'this happened once' bugs into deterministic tests.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Run[Original run] -->|capture per step:<br/>inputs, outputs,<br/>prompts, model, tools| Tr[(Trace)]
-  Tr --> Sel[Pick step N]
-  Sel --> Mod[Modify prompt /<br/>model / tool result]
-  Mod --> Rep[Replay forward]
-  Rep --> Br[(Branch trace)]
-  Br --> Cmp[Compare branches]
-```
-
-## Consequences
-
-**Benefits**
-
-- Debugging cycle drops from hours to minutes.
-- A/B comparison of fixes becomes trivial.
-
-**Liabilities**
-
-- Trace storage overhead.
-- Non-deterministic external dependencies (network) limit fidelity.
-
-## What this pattern constrains
-
-Replay reads from captured state; live model and tool calls happen only for the modified branch from step N forward.
+- Trace-completeness rate — share of past runs that can actually be replayed end-to-end
+- Replay fidelity gap — divergence between an unmodified replay and the original output (signals non-determinism leakage)
+- Mean time to reproduce a reported bug — debug latency from report to deterministic repro
+- Branch-vs-original lift — number of replays that demonstrably improve on the original after a fix
+- Trace storage cost per run — bytes per run retained for replay
 
 ## Known uses
 
-- **LangSmith replay** — *Available*
-- **Langfuse playground replay** — *Available*
-- **Inspect AI** — *Available*
-- **Claude Code conversation rewind** — *Available*. Transcript-level rewind, not full trace replay.
-- **Braintrust playground** — *Available*
+- **LangSmith replay** _available_
+- **Langfuse playground replay** _available_
+- **Inspect AI** _available_
+- **Claude Code conversation rewind** _available_ — Transcript-level rewind, not full trace replay.
+- **Braintrust playground** _available_
 
 ## Related patterns
 
-- *uses* → [decision-log](decision-log.md)
-- *complements* → [lineage-tracking](lineage-tracking.md)
+- _uses_ **Decision Log**
+- _complements_ **Lineage Tracking**
+- _complements_ **Durable Workflow Snapshot**
+- _alternative-to_ **Journaled LLM Call**
+- _complements_ **Determinism-Tiered Replay Gate** — Replay/time-travel re-runs a captured trace for debugging; this pattern re-runs paired cases to classify a reproducibility tier and turns that tier into a release gate.
+- _complements_ **Replay Divergence** — Replay / time-travel re-runs a past trace to debug or branch; this is the failure where that re-run silently diverges from the trace it was meant to reproduce.
+- _alternative-to_ **Forkable Agent Sandbox** — That re-runs a recorded trace of model and tool calls with modifications for retrospective debugging; this forks the live environment forward for exploration, and restores process and session state a trace cannot reconstruct.
+- _complements_ **As-Of Information-Set Pinning** — Replay re-runs a stored trace from a chosen step but still resolves live tools against today's data; pinning is what makes those reads return the original information set.
+- _complements_ **Harness-Native Rollout Capture** — Replay consumes captured traces to debug or branch a run; this consumes them for a policy update, which is why the record has to carry token ids rather than rendered steps.
 
 ## References
 
-- (doc) *LangSmith: Replay*, <https://docs.smith.langchain.com/observability/how_to_guides/replay>
-
-**Tags:** debug, replay, observability
+- [LangSmith: Replay](https://docs.smith.langchain.com/observability/how_to_guides/replay)

@@ -76,6 +76,13 @@ A coding agent works through a multi-hour refactor, accumulating dozens of file 
 - Choosing what to keep is a judgement the model can get wrong under pressure.
 - Too small a recent-verbatim window blurs the agent's sense of what just happened.
 
+## Failure modes
+
+- Rewritten commitment — the digest states an open commitment in a weaker form, and the agent later acts against the original.
+- Unpinned task — the task statement sits inside the compactable region and gets summarised into something vaguer.
+- Lost detail — a file name or value dropped from the digest is needed several steps later and cannot be recovered.
+- Thin recent window — too few turns stay verbatim, and the agent loses track of what it just did.
+
 ## What this pattern constrains
 
 The agent must not shrink older context by blind truncation; reduction has to go through a summarisation pass that is instructed to preserve decisions, open commitments, and active constraints. Pinned content — the task statement and hard constraints — must be excluded from the compactable region and never summarised away.
@@ -96,21 +103,45 @@ The agent must not shrink older context by blind truncation; reduction has to go
 - An external memory store already offloads history and the live window stays small.
 - The extra summarisation call costs more than carrying the raw history would.
 
+## Components
+
+- Token-budget monitor — tracks context-window utilisation and fires the trigger at the high-water mark
+- Compaction pass — the model call that folds the older span into a decision-preserving digest
+- Pinned preamble — task statement and hard constraints held outside the compactable region
+- Recent-verbatim window — the most recent turns kept uncompacted so local continuity survives
+- Digest store — the compacted summary that replaces the older span in working context
+
+## Tools
+
+- Token counter — measures window utilisation to drive the threshold, e.g. tiktoken or a provider token-count API
+- Summarisation LLM — runs the compaction pass, usually the same model driving the agent
+- Agent runtime — Claude Code, the Agent SDK, or an equivalent loop that swaps the older span for the digest
+
+## Evaluation metrics
+
+- Turns-to-overflow — how far past the nominal window the agent runs before failing
+- Decision-retention rate — sampled checks that compacted digests kept the commitments they should
+- Post-compaction regression rate — tasks that went wrong because compaction dropped a needed detail
+- Compaction overhead — extra tokens and latency spent on summarisation passes per task
+
 ## Known uses
 
-- **[Claude Code](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** — *Available* — Automatically compacts the conversation as it nears the context-window limit, summarising earlier turns to free space while the session continues.
-- **[Anthropic Agent SDK](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** — *Available* — Describes compaction as a core context-management technique for long-horizon agents.
-- **[上下文工程 (Chico's Tech Blog)](https://realtime-ai.chat/posts/context-engineering/)** — *Available* — Names the technique 压实 (compaction): when the window is nearly full, condense an earlier span into a tight summary that keeps decisions and conclusions and drops process noise.
+- **[Claude Code](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** _available_ — Automatically compacts the conversation as it nears the context-window limit, summarising earlier turns to free space while the session continues.
+- **[Anthropic Agent SDK](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)** _available_ — Describes compaction as a core context-management technique for long-horizon agents.
+- **[上下文工程 (Chico's Tech Blog)](https://realtime-ai.chat/posts/context-engineering/)** _available_ — Names the technique 压实 (compaction): when the window is nearly full, condense an earlier span into a tight summary that keeps decisions and conclusions and drops process noise.
 
 ## Related patterns
 
-- *complements* → [context-window-packing](context-window-packing.md) — Packing chooses what to place into the window; compaction condenses what is already there once it fills.
-- *complements* → [sleep-time-compute](sleep-time-compute.md) — Sleep-time compute distils standing context offline; compaction distils the live conversation at runtime.
-- *complements* → [tool-result-eviction](tool-result-eviction.md) — Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest.
+- _complements_ **Context Window Packing** — Packing chooses what to place into the window; compaction condenses what is already there once it fills.
+- _complements_ **Sleep-Time Compute** — Sleep-time compute distils standing context offline; compaction distils the live conversation at runtime.
+- _complements_ **Tool-Result Eviction** — Eviction removes a single consumed tool result; compaction folds a whole span of turns into a digest.
+- _alternative-to_ **Filesystem as Context**
+- _alternative-to_ **Context Folding** — Compaction digests the older span reactively when the window nears its limit; folding is a learned, agent-issued operation scoped to a self-chosen subtask.
+- _conflicts-with_ **Guardrail Erosion Through Compaction** — This is the failure mode of compaction: when the digesting pass is allowed to touch the safety span, the very mechanism that preserves the thread erodes the guardrail. The corrective is the compaction pattern's own pinned-region rule, enforced strictly.
+- _complements_ **Standing State Injection** — Compaction reduces the bloated history; a standing state block guarantees the goal and next step survive the reduction in a fixed high-salience slot.
+- _alternative-to_ **Execution-State Ledger** — Compaction answers a long trajectory with a model-written digest that preserves decisions and commitments; this pattern answers it with a runtime-maintained record of current execution status. A digest is still an account of what happened.
 
 ## References
 
-- (blog) Anthropic, *Effective context engineering for AI agents*, 2025, <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents>
-- (blog) Chico's Tech Blog, *上下文工程：2026 年比 prompt engineering 更重要的事*, 2026, <https://realtime-ai.chat/posts/context-engineering/>
-
-**Tags:** memory, context-engineering, summarization, long-horizon, context-window
+- [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic, 2025
+- [上下文工程：2026 年比 prompt engineering 更重要的事](https://realtime-ai.chat/posts/context-engineering/) — Chico's Tech Blog, 2026

@@ -140,7 +140,14 @@
         "Tool-call validity rate — fraction of calls that pass the typed signature without retry",
         "Lint-or-test feedback latency — time from edit to the linter result being visible to the agent",
         "Context-overflow incidents — runs aborted because a single observation blew the window"
-      ]
+      ],
+      "failure_modes": [
+        "Human tool passed through — a raw shell or editor is exposed as a primary tool, and one unbounded output fills the context before the agent reaches the lines it needs.",
+        "Silent edit — the edit tool writes the change but does not re-run the linter, so the agent moves on with a syntax error it never saw.",
+        "Interface drift — the agent-facing tool and the human-facing tool are changed separately, and the agent ends up with stale arguments or missing features.",
+        "Untested affordances — the tool shapes are guessed once and never revised, so the agent keeps paginating and re-reading in the same wasteful way."
+      ],
+      "structure": "Agent --view--> File viewer (windowed slice + line numbers) | --edit--> Edit tool (re-runs linter) | --run--> Shell (stdout, stderr, exit code) --> Structured observation --> Agent (next step)"
     },
     {
       "id": "agent-skills",
@@ -276,7 +283,14 @@
         "Context tokens saved versus monolithic prompt — reduction from loading only relevant skills",
         "Skill load latency — time from task arrival to executable procedure in context",
         "Skill churn rate — how often a skill is edited per week, signal of instability or active iteration"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong skill loaded — the matcher picks a procedure for a similar-looking task, and the agent follows steps that do not fit the real one.",
+        "Skill rot — a procedure is not updated after the tools or the codebase change, and the agent faithfully runs outdated steps.",
+        "Off-script improvisation — the agent drifts away from the loaded procedure mid-task and blends it with steps from another workflow.",
+        "Missed match — no skill is picked for a task that has one, and the agent falls back to guessing the procedure."
+      ],
+      "structure": "Task arrives --> Match task to skill (Skills directory) --> Load skill markdown + resources on demand --> Agent executes following the procedure --> Result"
     },
     {
       "id": "app-exploration-phase",
@@ -392,6 +406,12 @@
         "Task success lift over no-exploration baseline — headline value of the exploration phase",
         "Doc staleness rate — fraction of docs invalidated by the latest UI version",
         "Exploration cost amortisation point — task volume at which exploration compute pays back"
+      ],
+      "failure_modes": [
+        "Stale knowledge base — the app ships a new screen, the element docs still describe the old one, and the agent clicks with confidence on the wrong control.",
+        "Shallow exploration — the exploration phase never reaches rare screens, so tasks that need them hit missing docs and stall in re-exploration.",
+        "Bad element notes — exploration writes a vague or wrong description of a button, and every later task that retrieves it inherits the mistake.",
+        "Improvised click — the agent acts on an element with no documentation instead of triggering re-exploration, and a sensitive action fires by accident."
       ]
     },
     {
@@ -548,6 +568,12 @@
         "Memory read-write consistency — share of writes later read back without contradiction",
         "End-to-end task success — headline quality across composed augmentations",
         "p95 step latency — time per augmented step including retrieval, tool, or memory hops"
+      ],
+      "failure_modes": [
+        "Wrong augmentation — without guidance on when each one fires, the model retrieves documents when it should call a tool, or skips a memory write it later needs.",
+        "Augmentation on every call — each block runs retrieval, tools, and memory on every request, and cost grows with no gain in answer quality.",
+        "Hardcoded bypass — surrounding code decides which capability to call, so the block stops being swappable and the model can no longer choose.",
+        "Blind subsystem — tracing covers tool calls but not retrieval or memory, so a bad answer cannot be traced back to the step that caused it."
       ]
     },
     {
@@ -690,7 +716,14 @@
         "Tokens per page observation — cost of the structured surface versus raw HTML",
         "Layout-shift recovery rate — share of runs that survive a DOM change between observation and action",
         "p95 step latency — time per click-or-type round trip including extraction"
-      ]
+      ],
+      "failure_modes": [
+        "Dynamic page blindness — a heavy JavaScript app re-renders after the tree is read, and the numbered element the agent clicks no longer points at the same control.",
+        "Bot wall — the site serves a CAPTCHA or blocks the automated browser, and the agent loops on a page it cannot get past.",
+        "Missing element — the control the task needs is not in the accessibility tree, so the agent reasons over a page that looks complete but is not.",
+        "Vocabulary gap — the task needs an action outside click, type, scroll, and navigate, and the agent cannot finish it within the allowed surface."
+      ],
+      "structure": "Page --> Playwright library --> Accessibility tree + numbered elements --> Agent (reasons over structured state) --click / type / scroll / navigate--> Playwright library --> Page"
     },
     {
       "id": "code-as-action",
@@ -850,6 +883,12 @@
         "Tool-composition depth per snippet — how often the agent actually chains multiple tools in one step",
         "Sandbox containment incidents — number of attempted escapes or disallowed imports caught",
         "End-to-end task success on agent benchmarks — headline quality of the code-action channel"
+      ],
+      "failure_modes": [
+        "Sandbox escape — the interpreter allows an import or system call that should be blocked, and a generated snippet runs arbitrary code on the host.",
+        "Silent snippet failure — a loop inside the snippet swallows an error or skips items, and the printed output looks fine while half the refunds never ran.",
+        "Over-long snippet — the agent packs a whole workflow into one script, so a bug in the middle is hard to locate and the trace shows only the final print.",
+        "Injected data as code input — untrusted tool output flows into later calls inside the snippet with no model check in between."
       ]
     },
     {
@@ -1031,7 +1070,14 @@
         "Sandbox-violation rate — attempted escapes or resource-cap breaches per 1000 runs",
         "Code-validity rate — fraction of emitted code blocks that execute without exception",
         "p95 execution latency — time from emit to result available to the model"
-      ]
+      ],
+      "failure_modes": [
+        "Weak sandbox — the interpreter can reach the network or file system it should not, and model-written code does real damage.",
+        "Head math anyway — the model skips the code step for a simple-looking sum and states a number it never ran.",
+        "Budget exhaustion — the agent keeps fixing the same failing code block until the step budget runs out without an answer.",
+        "Wrong program, right run — the code executes cleanly but computes the wrong quantity, and the run output is trusted as the answer."
+      ],
+      "structure": "Agent --code block--> Sandbox (Python / JS VM / container) --stdout, stderr, return value--> Agent --(repeat until done or step budget)--> Answer = run output"
     },
     {
       "id": "computer-use",
@@ -1176,7 +1222,14 @@
         "Click accuracy — fraction of clicks landing on the intended UI element",
         "Recovery rate from misclicks — share of runs that complete despite at least one wrong action",
         "Vision token cost per step — prompt-side cost of feeding the screenshot back each loop"
-      ]
+      ],
+      "failure_modes": [
+        "Layout shift — a dialog or animation moves the target between screenshot and click, and the agent clicks the wrong control.",
+        "Screen-borne injection — text on a web page or document in the screenshot carries instructions, and the model follows them as if they came from the user.",
+        "Slow loop — every step needs a fresh screenshot and a model call, so a short task takes many minutes and times out.",
+        "Lost state — the agent misreads where it is in a multi-window flow and repeats or skips a step."
+      ],
+      "structure": "Desktop --screenshot--> Controller --image (+ accessibility tree)--> Model (think) --click / type / scroll--> Controller --virtual mouse / keyboard--> Desktop --(loop until done)"
     },
     {
       "id": "crawler-dispatcher",
@@ -1301,7 +1354,14 @@
         "Source-add cost — engineer-hours to add a new source",
         "Per-source success rate — fraction of URLs each crawler resolves cleanly",
         "Dispatcher ambiguity incidents — URLs that matched multiple crawlers"
-      ]
+      ],
+      "failure_modes": [
+        "Ambiguous match — two sources share a host, the first matching pattern wins, and pages go to the wrong crawler.",
+        "Unregistered crawler — a new crawler class is written but its registration lives in a file that never loads, so its URLs fall through to no handler.",
+        "Uncoordinated rate limits — each crawler respects its own budget, but together they hit a shared upstream too hard because nothing above the dispatcher tracks the total.",
+        "If-else creep — a quick fix adds a host check back into the ingestion code, and dispatch logic starts to live in two places."
+      ],
+      "structure": "Incoming URL --> Dispatcher --lookup--> Registry (URL pattern -> crawler class) --> Matching crawler (LinkedIn / Medium / GitHub ...) --fetch(url)--> Document"
     },
     {
       "id": "dual-system-gui-agent",
@@ -1447,6 +1507,12 @@
         "Cost split decision-vs-grounding — how much of total compute each role consumes",
         "End-to-end task success versus single-model baseline — headline value of the split",
         "Latency per step — added overhead of routing through two models per action"
+      ],
+      "failure_modes": [
+        "Lost in hand-off — the decision model says \"open the cart\" and the grounding model taps a different cart icon, and neither side notices the mismatch.",
+        "Local retry loop — the grounding step keeps retrying a failed click instead of reporting back, so the decision model never gets the chance to replan.",
+        "Vocabulary too coarse — the typed intent set lacks a needed action, and the decision model squeezes it into an intent that grounds to the wrong gesture.",
+        "Doubled latency — two model calls per step make long tasks slow enough that the screen changes between planning and action."
       ]
     },
     {
@@ -1586,7 +1652,14 @@
         "Token cost per tool call — tokens spent presenting tools",
         "Selection accuracy — fraction of tool picks reviewers judge correct",
         "Dead-end rate — share where wrong top-level pick blocks the right tool"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong branch — the agent picks the billing category when the needed tool sits under identity, and it reaches a dead end with no way to see the right tool.",
+        "Straddling tool — a tool that belongs to two domains is placed in only one, and the agent never finds it from the other side.",
+        "Vague category names — one-line descriptions at the top level do not separate branches clearly, so the first pick is close to a guess.",
+        "Extra hop on hot paths — a simple, frequent call pays the category step every time and adds latency the flat list did not have."
+      ],
+      "structure": "Prompt (category names only) --> Agent picks category --> Tools in chosen branch (billing / identity / scheduling ...) --> Agent picks tool --> Tool call"
     },
     {
       "id": "mcp",
@@ -1805,7 +1878,14 @@
         "Initialization latency — time to complete capability negotiation per connection",
         "Tool catalogue churn — how often advertised tools change between sessions",
         "Auth-failure rate — share of calls rejected for credential or permission reasons"
-      ]
+      ],
+      "failure_modes": [
+        "Schema mismatch — a server updates a tool's argument shape, an older host still sends the old one, and calls fail or misbehave.",
+        "Orphaned call — the connection drops mid-call, the server finishes the operation, and the host never learns the result.",
+        "Buffer pile-up — the model reads a streaming tool more slowly than it produces output, and server buffers fill until the call stalls.",
+        "Invisible tool — a capability exists in the organisation but no server advertises it, so the agent cannot see or use it."
+      ],
+      "structure": "Host --initialize--> MCP server --capabilities (tools, resources, prompts)--> Host --tools/list--> typed tool catalog --tools/call(name, args)--> MCP server --typed result--> Host"
     },
     {
       "id": "mcp-as-code-api",
@@ -1974,6 +2054,12 @@
         "Inter-tool data size kept in sandbox — payload that never enters the model context",
         "Generated-script validity rate — share of authored scripts that parse and run end to end",
         "End-to-end task success on data-heavy workflows — headline value of moving plumbing into code"
+      ],
+      "failure_modes": [
+        "Wrapper drift — an upstream MCP schema changes and the generated file still has the old signature, so the agent's script fails on a call that looked valid.",
+        "Invented module — the agent imports a wrapper that was never generated, guessing from tool names instead of reading the file tree.",
+        "Raw output in context — the script prints a whole spreadsheet instead of a summary, and the token saving is lost.",
+        "Unchecked data path — untrusted content moves between tools inside the sandbox with no model checkpoint, and an injected instruction reaches a write tool."
       ]
     },
     {
@@ -2135,6 +2221,12 @@
         "Bidirectional call success rate — fraction of cross-boundary calls returning a typed non-error result",
         "Registry-to-MCP drift incidents — mismatches between internal artefacts and what the server advertises",
         "Auth-bridge failure rate — share of calls failing at the credential mapping step"
+      ],
+      "failure_modes": [
+        "Credential bleed — a token the framework holds as a client is reachable from a request that arrived through its server side, and an outside caller gets access it was never granted.",
+        "Broken public contract — an internal agent or workflow is renamed or reshaped, and external peers that call it over MCP break without warning.",
+        "Split registry — consumed and published capabilities are tracked in two places, so the framework advertises tools it can no longer reach.",
+        "Call loop — the framework calls a peer over MCP, the peer calls back into the framework's server side, and the request circles until it times out."
       ]
     },
     {
@@ -2295,6 +2387,12 @@
         "Swipe-direction success rate — share of swipes producing the expected scroll or navigation",
         "Cross-platform parity — delta in task success between Android and iOS runs",
         "Vision tokens per step — prompt-side cost of feeding screenshots back each loop"
+      ],
+      "failure_modes": [
+        "Coordinate miss — a tap computed on one screen size or theme lands on the wrong element on another device.",
+        "Misread screen — pure-vision grounding takes a decorative icon for a button, and the agent taps nothing useful or the wrong control.",
+        "Mis-fired sensitive action — a swipe or tap confirms a payment or deletion that the agent meant only to open.",
+        "Platform leak — an Android-only action like back is used on iOS, and the loop stalls on a screen it cannot leave."
       ]
     },
     {
@@ -2440,6 +2538,12 @@
         "End-to-end response latency — time from user audio end to first TTS frame",
         "Code-switching handling rate — share of mixed-language turns answered in the right languages",
         "User-rated naturalness per language — subjective quality of replies versus an English-only baseline"
+      ],
+      "failure_modes": [
+        "Silent pivot — a stage translates to English mid-pipeline, and the reply comes back in the right language but with the wrong dialect and lost meaning.",
+        "Dropped language tag — the detected language is not passed to the model, so it answers a code-switching caller in a single default language.",
+        "Weakest-link coverage — the speech-to-text model handles a dialect the text-to-speech voice does not, and the caller hears an unnatural or wrong accent.",
+        "Batch hop — one stage waits for complete input instead of streaming, and turn-taking slows past what a phone conversation tolerates."
       ]
     },
     {
@@ -2597,6 +2701,12 @@
         "Validator precision and recall — how reliably the validator catches premature stops and missed completions",
         "Cost split across three models — how much budget each specialist consumes",
         "End-to-end task success versus single-model baseline — headline value of the three-role split"
+      ],
+      "failure_modes": [
+        "Miscalibrated validator — the Validator reports the task complete while the confirmation screen has not loaded, and the agent stops early.",
+        "Contract drift — the Policy starts phrasing action descriptions in a new way, and the Localizer grounds them to the wrong elements.",
+        "Policy self-stop — the loop ends on the Policy saying it is done, bypassing the Validator's independent check.",
+        "Cold-start judgments — on a new app domain the untrained Validator keeps the loop running long after the task finished."
       ]
     },
     {
@@ -2746,7 +2856,14 @@
         "Time-to-first-token reduction — latency improvement attributable to cache hits",
         "Prefix-mutation incidents — number of accidental cache-busting changes caught by the auditor",
         "Cache TTL utilisation — share of cached prefixes reused before they expire"
-      ]
+      ],
+      "failure_modes": [
+        "Timestamp in the prefix — the system prompt includes the current time or a request ID, so every call misses the cache with no error.",
+        "Reordered tools — tool definitions are built from an unordered map or dynamic registration, the prefix changes between calls, and the cache never warms.",
+        "Breakpoint misplaced — the cache marker sits after variable content or ignores provider rules, so only a small part of the prefix is reused.",
+        "Unmonitored misses — nobody tracks the cache hit rate, and months of full-price calls go unnoticed."
+      ],
+      "structure": "Stable prefix (system prompt + tool definitions + charter) --cache breakpoint--> Cached prefix --> Variable tail (state + user message) --> LLM call --> Response (cheaper, faster)"
     },
     {
       "id": "sandbox-isolation",
@@ -2938,7 +3055,14 @@
         "Per-call sandbox setup latency — cold-start cost of provisioning the isolated environment",
         "Disallowed-syscall rate — share of runs that hit the syscall filter",
         "Policy drift incidents — cases where the deployed filesystem or network policy diverged from intent"
-      ]
+      ],
+      "failure_modes": [
+        "Over-broad mount — the working directory is mapped to a path that includes secrets or the home folder, and injected code reads them.",
+        "Open egress — network rules allow more hosts than needed, and data leaves through a call that looks legitimate.",
+        "Sandbox opened for convenience — a workflow needs network or file access, the policy is loosened for all runs, and the protection is gone.",
+        "Leaky persistence — state that should be ephemeral survives between runs, and one task's files are visible to the next."
+      ],
+      "structure": "Agent-emitted code or action --> Sandbox (container / microVM / WASM / restricted subprocess): filesystem read-only or scoped, network allowlisted or blocked, CPU/memory/time limits, ephemeral state --> Result"
     },
     {
       "id": "skill-library",
@@ -3079,7 +3203,14 @@
         "Skill-induced task success lift — accuracy delta on tasks for which a skill exists versus does not",
         "Skill churn rate — edits per skill per week as a signal of instability",
         "Library size and dead-skill share — count of skills and fraction never invoked over a horizon"
-      ]
+      ],
+      "failure_modes": [
+        "Silent shadowing — a new skill takes the name of an existing one, and later runs call the new version without anyone noticing the change.",
+        "Library decay — skills written for old tasks pile up untested, and the agent keeps calling routines that no longer work.",
+        "Weak critic — the gate passes a skill with a hidden bug, and every later run that reuses it repeats the same error.",
+        "Near-duplicates — the agent writes a new skill instead of finding an existing one, and the library fills with overlapping routines."
+      ],
+      "structure": "Agent run --(repeating routine)--> Write new skill module --> Critic gate --pass--> skills/ directory (versioned) --> Loader (dynamic import) --> Next run calls skill; --fail--> Reject or revise"
     },
     {
       "id": "synthetic-filesystem-overlay",
@@ -3220,6 +3351,12 @@
         "Tokens per observation — cost of the five-primitive surface versus per-source tool APIs",
         "Search-precision at k — relevance of search results scoped by subtree",
         "Adapter error rate per connector — where the overlay leaks source-specific failures"
+      ],
+      "failure_modes": [
+        "Path breakage — an upstream source renames a channel or page, and paths the agent remembered now point at nothing.",
+        "ACL flattening — the unified tree shows a file to an agent that the source system would deny, because the adapter does not enforce per-source permissions.",
+        "Invented path — the agent guesses a plausible path instead of resolving it with locate_in_tree, and acts on the wrong node or a missing one.",
+        "Unbounded listing — a list call on a huge directory returns too many children, and the result floods the context."
       ]
     },
     {
@@ -3380,6 +3517,12 @@
         "Time-to-onboard a new capability — delay from registration to first successful dispatch",
         "Cost-aware selection lift — dollar saving from picking cheaper sufficient capabilities",
         "Ranking latency per query — time the coordinator spends in the registry per task"
+      ],
+      "failure_modes": [
+        "Overstated capability — a registry entry claims a skill the tool or agent does not have, and the coordinator dispatches work it cannot do.",
+        "Stale metadata — cost or latency figures are not updated, and ranking keeps picking a candidate that has become slow or expensive.",
+        "Registry outage — the catalogue is down, and the coordinator has nothing it is allowed to call.",
+        "Lock-in by catalogue — every selection depends on one registry owner, and replacing it means rewiring all agents."
       ]
     },
     {
@@ -3547,7 +3690,14 @@
         "Schema-validation failure rate — share of advertised tools rejected as malformed",
         "Cross-agent drift — how often two agents see different tool lists at the same moment",
         "Discovery-induced cold-start latency — added time agents spend at startup"
-      ]
+      ],
+      "failure_modes": [
+        "Registry down at startup — the agent boots with an empty palette and cannot do its job until the next refresh.",
+        "Untrusted tool loaded — the registry advertises a tool from an unvetted source, and the agent calls it like any other.",
+        "Stale cache — the cached tool list misses a newly added tool, or still lists a removed one that fails on call.",
+        "Schema change mid-session — a tool's schema is updated after discovery, and the agent keeps sending the old arguments."
+      ],
+      "structure": "Agent --list_tools (startup / refresh)--> Tool registry (MCP server / directory) --advertised tools + typed schemas--> Agent (loads into palette) --call(args)--> Tool --typed result--> Agent"
     },
     {
       "id": "tool-loadout",
@@ -3696,7 +3846,14 @@
         "Context tokens saved versus full-registry baseline — prompt-side reduction from a small palette",
         "Out-of-loadout request rate — share of requests where the right tool was excluded",
         "Classifier latency — added overhead before the main call begins"
-      ]
+      ],
+      "failure_modes": [
+        "Filtered-out tool — the classifier drops the one tool the request needed, and the agent works around it or gives up.",
+        "Misrouted request — the request is classified into the wrong lane, and the agent gets a full loadout of irrelevant tools.",
+        "Loadout too wide — the selected subset is still large, so tool confusion returns.",
+        "Mid-task intent shift — the user's goal changes during the request, and the fixed subset no longer covers it."
+      ],
+      "structure": "Request + full tool registry --> Classifier (rule or model) --> Selected subset (N tools) --> Main agent inference --> Tool calls within subset (tools outside subset unavailable)"
     },
     {
       "id": "tool-result-caching",
@@ -3818,7 +3975,14 @@
         "Cross-subject leak incidents — cache hits served to a caller other than the original subject (should be zero)",
         "Staleness complaints — reports where cached data was wrong because the TTL was too long",
         "Cache memory footprint — storage cost of keeping the hottest results warm"
-      ]
+      ],
+      "failure_modes": [
+        "Cross-user leak — the key omits caller identity, and one user receives a cached result built from another user's data.",
+        "Stale hit — the underlying data changes inside the TTL, and the agent reasons over an old value.",
+        "Cached non-deterministic tool — a tool that returns different results per call is marked deterministic, and the agent sees a frozen answer.",
+        "Key normalisation gap — the same arguments in a different order or case produce different keys, and the cache rarely hits."
+      ],
+      "structure": "Tool call --> Key (tool_name + normalised_args + auth_subject) --> Cache hit? --yes--> Return cached result; --no--> Invoke tool --> Store with TTL --> Return result"
     },
     {
       "id": "tool-search-lazy-loading",
@@ -3992,7 +4156,14 @@
         "Extra-step overhead — added latency from the search-then-call round trip",
         "Tool-discovery hit rate — share of needed tools the model successfully finds via search",
         "Search-recall gap — fraction of tasks failing because the right tool was not retrieved"
-      ]
+      ],
+      "failure_modes": [
+        "Overlooked tool — a weak description or poor ranking keeps the right tool out of search results, and the model concludes it does not exist.",
+        "Called before loaded — the model calls a tool by a guessed name without searching, and the call fails.",
+        "Session bloat — schemas loaded early stay in context all session, and the prompt grows back toward the eager size.",
+        "Unreproducible runs — two sessions with the same input search differently and end up with different tool surfaces, so behaviour is hard to replay."
+      ],
+      "structure": "Model --ToolSearch(query)--> Host --> Tool index (rank by query) --matching schemas--> Model (schemas kept for session) --call tool(args)--> Host --> Tool --result--> Model"
     },
     {
       "id": "tool-transition-fusion",
@@ -4109,7 +4280,14 @@
         "Tool-call log warehouse — durable store of every (tool, args, result) event",
         "Mining job runner — periodic batch computing transition probabilities",
         "Tool catalog registry — surface the agent loads each session"
-      ]
+      ],
+      "failure_modes": [
+        "Noise fused — the threshold is set too low, a pair that only sometimes follows is merged, and the composite does the wrong second step on the other cases.",
+        "Entrenched path — the task mix shifts but the sweep is not re-run, and the planner keeps reaching for a composite that no longer fits.",
+        "Hidden boundary — a failure inside the composite shows up as one opaque call in the trace, and the reviewer cannot tell whether X or Y broke.",
+        "Intuition fusion — a pair is fused because it looked obvious to an author, with no telemetry behind it, and the composite is rarely the right choice."
+      ],
+      "structure": "Tool-call telemetry --> Sweep P(Y|X) --(>= threshold)--> Compose X then Y into one tool --> Add to tool catalog --> Planner; --(< threshold)--> Keep X and Y separate"
     },
     {
       "id": "tool-use",
@@ -4373,6 +4551,12 @@
         "Argument-correctness rate — share of valid calls that also pass semantic checks downstream",
         "End-to-end task success — headline quality of typed tool calling versus prose parsing",
         "Retry rate on tool errors — how often the model self-corrects after a typed error result"
+      ],
+      "failure_modes": [
+        "Bad tool, everywhere — a poorly designed tool in the palette is called from every flow, and its flaw shows up in all of them.",
+        "Schema drift by model — a model with weaker function-calling support emits calls that almost match the schema, and loose validation lets them through.",
+        "Over-strict schema — the schema is so tight that valid intents fail validation, and the agent loops on rejected calls.",
+        "Side-door effect — a code path lets model text change state outside a registered tool, and the audit trail misses it."
       ]
     },
     {
@@ -4483,7 +4667,14 @@
         "Wrong-argument rate — share of post-fine-tuning calls with invalid or unhelpful arguments",
         "Filtered-trace yield — fraction of candidate insertions kept after scoring",
         "Training compute per percentage-point gain — efficiency of the self-supervised pipeline"
-      ]
+      ],
+      "failure_modes": [
+        "Train-serve tool drift — the tools available at serving time differ from those used to build the training data, and the model calls tools that no longer exist or have changed.",
+        "Weak scoring signal — a perplexity drop on the gold continuation rewards calls that help wording but not correctness, and the model learns to call tools that do not fix its answer.",
+        "Missed positions — the candidate generator never proposes a call where one was needed, so the model never learns to call there.",
+        "Pipeline breakage — the multi-stage data generation fails part-way, and the fine-tune runs on a skewed or partial set."
+      ],
+      "structure": "Training context --> Generate candidate tool calls --> Insert into context --> Score (perplexity drop on gold continuation) --helpful--> Keep as training example --> Fine-tune model to emit calls there; --not helpful--> Drop"
     },
     {
       "id": "translation-layer",
@@ -4614,7 +4805,14 @@
         "Tokens per tool result — prompt-side cost of the cleaned domain shape versus raw vendor JSON",
         "Backend-swap effort — engineer time to add or replace a vendor behind the same domain shape",
         "End-to-end task success on multi-backend workflows — value of presenting one shape over many"
-      ]
+      ],
+      "failure_modes": [
+        "Lossy write — a domain edit maps to a vendor call that drops a field the domain model does not have, and the record is quietly damaged.",
+        "Mapping lag — the vendor changes its schema, the translation module is not updated, and reads return empty or wrong domain values.",
+        "Vendor shape leak — an error message or unmapped field passes through raw, and vendor terminology appears in the model's reasoning again.",
+        "Divergent backends — two backends behind the layer map the same domain field slightly differently, and the agent sees inconsistent data."
+      ],
+      "structure": "Agent / tool palette --domain shape--> Translation layer --signed vendor call--> Vendor or legacy API --vendor JSON--> Translation layer --domain shape--> Agent"
     },
     {
       "id": "wasm-skill-runtime",
@@ -4731,6 +4929,12 @@
         "Escape incidents — confirmed or attempted breaches of the Wasm boundary (should be zero)",
         "Manifest accuracy — fraction of skills whose declared capabilities match observed needs",
         "Cross-language skill share — count of skills authored in each source language as a portability signal"
+      ],
+      "failure_modes": [
+        "Over-broad manifest — a skill declares more paths or hosts than it needs, the runtime grants them, and a hostile skill uses the extra access.",
+        "Manifest drift unnoticed — the skill's code starts needing a capability its manifest lacks, and calls fail at the boundary in production instead of at load.",
+        "Poor language fit — a skill written in a language with a heavy Wasm toolchain starts slowly, and per-call instantiation misses the request budget.",
+        "Workload mismatch — a GPU or large-data skill is forced into Wasm and either fails or runs far too slowly."
       ]
     },
     {
@@ -4862,7 +5066,14 @@
         "Adapter coverage — share of tools normalized",
         "Per-adapter latency overhead",
         "Schema drift detection — adapter vs native"
-      ]
+      ],
+      "failure_modes": [
+        "Adapter lag — a native tool changes its schema and the adapter is not updated, so canonical calls start failing or returning wrong fields.",
+        "Canonical schema too narrow — a tool's key option has no place in the canonical shape, and the agent cannot use it.",
+        "Lost error detail — the adapter maps every native error to one generic code, and the agent cannot tell a retryable failure from a permanent one.",
+        "Native call bypass — agent code calls one ecosystem directly for convenience, and the uniform interface starts to split."
+      ],
+      "structure": "Agent code --canonical call--> Adapter layer --native call--> REST / gRPC / MCP / library / CLI tool --native response--> Adapter layer --canonical response--> Agent code"
     },
     {
       "id": "large-action-models",
@@ -4978,7 +5189,14 @@
         "Action completion rate vs LLM-driven scaffolding baseline",
         "LAM cost per action",
         "Routing accuracy"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong route — a mixed request is sent to the action model, and its written reply comes out weaker than a text-tuned model would give.",
+        "Ecosystem gap — the chosen action model lacks tooling for the target system, and integration stalls.",
+        "Implicit per-step routing — a workflow mixing writing and acting does not decide routing per step, and one model handles both badly.",
+        "Assumed reliability — the team trusts the action model to commit actions correctly and drops checks that the text model needed."
+      ],
+      "structure": "Request --> Routing decision --(action completion)--> Large action model --> Action commits; --(generation)--> Text-tuned LLM --> Generated text"
     },
     {
       "id": "agent-initiated-payment",
@@ -5152,7 +5370,13 @@
         "Unattributed-payment rate — share of settlements missing a run id or triggering action in the ledger",
         "Off-allow-list payment attempts — count of blocked payments to counterparties not on the allow-list"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Wallet key theft — the agent's signing key is exposed, and an attacker spends the balance directly.",
+        "Budget drain — an adversarial or mispriced resource keeps issuing payment challenges, and the agent pays up to the run cap for little value.",
+        "Unrecoverable charge — an on-chain settlement goes to the wrong counterparty, and there is no way to reverse it.",
+        "Untraced spend — a payment settles without a ledger entry or with a missing run id, and nobody can later say which action caused it."
+      ]
     },
     {
       "id": "tool-result-eviction",
@@ -5299,7 +5523,13 @@
         "mermaid": "flowchart TD\n  TC[Tool call] --> OBS[Raw observation in window]\n  OBS --> EX[Agent extracts needed values]\n  EX --> Q{Consumed?}\n  Q -->|no| OBS\n  Q -->|yes| EV[Evictor]\n  EV --> MK[Replace payload with marker:<br/>call + conclusion]\n  EV -.offload.-> ST[(External payload store)]\n  ST -.restore by id.-> OBS",
         "caption": "Consumed observations are swapped for compact markers; full payloads are offloaded and restored on demand."
       },
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Premature eviction — a result is cleared before the agent has extracted every value it needs, and it has to re-issue the same call.",
+        "Lossy marker — the one-line marker drops a key number, and later steps reason from an incomplete summary.",
+        "No offload — the payload is evicted without being saved, and a later step that needs it verbatim cannot get it back.",
+        "Erased record — eviction removes the whole tool turn instead of only its body, and the agent repeats work it already did."
+      ]
     },
     {
       "id": "full-desktop-computer-use",
@@ -5418,7 +5648,14 @@
         "Desktop provisioning latency — cold-start time to a ready credentialed desktop",
         "Containment incidents — confirmed reaches outside the desktop boundary per million runs"
       ],
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Credential exposure — a prompt-injected page drives the agent to open the password manager, and stored logins are used for the wrong site.",
+        "Persistent contamination — a malicious download stays on the persistent disk, and later steps run it.",
+        "Image rot — an app or driver in the desktop image falls out of date, and workflows break on a dialog the agent has never seen.",
+        "Slow provisioning — booting and snapshotting a whole OS per task makes short jobs costly and slow."
+      ],
+      "structure": "Agent --mouse / keyboard--> Containerized OS desktop --screenshot--> Agent; Desktop contains native apps (mail / editor / terminal / browser) + persistent filesystem + password manager with 2FA, all bounded by the sandbox isolation boundary"
     },
     {
       "id": "direct-api-wrapper",
@@ -5584,7 +5821,13 @@
         "mermaid": "flowchart LR\n  Spec[OpenAPI document /<br/>typed SDK] --> Gen[Generator]\n  Gen --> Srv[MCP server<br/>one tool per operation]\n  Srv --> T1[createUser]\n  Srv --> T2[getUser]\n  Srv --> T3[deleteUser]\n  Agent[Agent host] --> Srv\n  T1 --> API[(Underlying API)]\n  T2 --> API\n  T3 --> API",
         "caption": "Each API operation is generated into exactly one MCP tool; the server adds no logic of its own."
       },
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Tool sprawl — a large API becomes hundreds of low-level tools, and the model picks the wrong one among similar names.",
+        "Programmer names mislead — an operation called by an internal code name is skipped by the model even when it is the right tool.",
+        "Chatty chains — a simple task needs many sequential calls, and token cost and failure points grow with each hop.",
+        "Logic creep — someone adds orchestration to one generated tool by hand, and the next regeneration silently drops it."
+      ]
     },
     {
       "id": "composite-service-mcp",
@@ -5734,7 +5977,13 @@
         "mermaid": "flowchart LR\n  Agent[Agent host] --> CT[Composite MCP tool<br/>deploy_project]\n  CT --> A1[POST /projects]\n  CT --> A2[PUT /env-vars]\n  CT --> A3[POST /deployments]\n  A1 --> R[single typed result]\n  A2 --> R\n  A3 --> R\n  R --> Agent",
         "caption": "One task-level tool owns the call sequence and error handling; the agent never sequences the endpoints itself."
       },
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Opaque mega-tool — one tool bundles too much, and when it fails nobody can tell which inner step broke.",
+        "Cascade on change — one underlying API changes, and every composite that bundles it breaks at once.",
+        "Undefined partial failure — two of three inner calls succeed, the tool reports a plain error, and the agent retries and creates duplicates.",
+        "Missing piece — the agent needs only one step of a composite but has no separate tool for it, so it runs the whole bundle."
+      ]
     },
     {
       "id": "canonical-entity-grounding",
@@ -5927,7 +6176,13 @@
         "Misposting rate — entries posted to a wrong-but-valid identifier, caught in reconciliation",
         "Resolution latency — added time per identifier, watched in high-volume batch runs"
       ],
-      "last_updated": "2026-06-10"
+      "last_updated": "2026-06-10",
+      "failure_modes": [
+        "Resolver skipped — the model writes an account code from memory into a write call, format checks pass, and the posting lands on the wrong ledger.",
+        "Ambiguous match accepted — the description fits two suppliers, the resolver returns one with moderate confidence, and the agent proceeds instead of asking.",
+        "Dirty master data — duplicate or retired records in the system of record make the resolver return a stale id.",
+        "Masked data problem — the resolver quietly maps a bad input to some valid entity, hiding an upstream data-entry error a human should have fixed."
+      ]
     },
     {
       "id": "on-demand-tool-synthesis",

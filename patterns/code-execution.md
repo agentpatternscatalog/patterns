@@ -31,9 +31,11 @@ Therefore: route any step that requires computation through a sandboxed interpre
 
 The agent emits a code block; a controlled interpreter (Python sandbox, JS VM, container) runs it; stdout/stderr/return value flow back. Repeat under a step budget. CodeAct treats code as the action language directly.
 
-## Example scenario
+## Structure
 
-A finance agent answers 'what was the average gross margin across these 47 orders?' by reading the rows and trying to compute the answer in its head, getting it wrong by 1.4 percentage points. The team enables Code Execution: the agent emits a short Python snippet that loads the data and computes the average in a sandbox, and the run's stdout becomes the answer. The model's strength stays at constructing the right calculation; the arithmetic stops being something it has to hallucinate.
+```
+Agent --code block--> Sandbox (Python / JS VM / container) --stdout, stderr, return value--> Agent --(repeat until done or step budget)--> Answer = run output
+```
 
 ## Diagram
 
@@ -48,6 +50,10 @@ sequenceDiagram
   Agent-->>Agent: answer = run output
 ```
 
+## Example scenario
+
+A finance agent answers 'what was the average gross margin across these 47 orders?' by reading the rows and trying to compute the answer in its head, getting it wrong by 1.4 percentage points. The team enables Code Execution: the agent emits a short Python snippet that loads the data and computes the average in a sandbox, and the run's stdout becomes the answer. The model's strength stays at constructing the right calculation; the arithmetic stops being something it has to hallucinate.
+
 ## Consequences
 
 **Benefits**
@@ -59,6 +65,13 @@ sequenceDiagram
 
 - Sandbox security is its own engineering problem.
 - Very flexible action space increases failure modes versus a curated tool palette.
+
+## Failure modes
+
+- Weak sandbox — the interpreter can reach the network or file system it should not, and model-written code does real damage.
+- Head math anyway — the model skips the code step for a simple-looking sum and states a number it never ran.
+- Budget exhaustion — the agent keeps fixing the same failing code block until the step budget runs out without an answer.
+- Wrong program, right run — the code executes cleanly but computes the wrong quantity, and the run output is trusted as the answer.
 
 ## What this pattern constrains
 
@@ -78,30 +91,53 @@ Computation happens in the sandbox; the model's free-form numeric output is not 
 - No safe execution environment is available and the security risk is unacceptable.
 - Latency or sandbox cost outweighs the accuracy gain over in-context computation.
 
+## Components
+
+- Agent — emits a code block and treats the run result as the answer
+- Sandbox Runtime — executes the code with capped CPU, memory, and time
+- Result Capture — collects stdout, stderr, and return value for the agent
+- Step Budget — bounds how many execute-observe loops a task may consume
+
+## Tools
+
+- Python interpreter sandbox (Pyodide, Deno, or container) — runs the emitted code under resource limits
+- Standard library and pinned scientific packages — provide arithmetic, parsing, and numeric primitives the model offloads to
+
+## Evaluation metrics
+
+- Accuracy on numeric and code-grounded benchmarks (GSM8K, HumanEval) — lift from offloading computation to the interpreter
+- Runs per task — how many code-observe iterations are needed on average
+- Sandbox-violation rate — attempted escapes or resource-cap breaches per 1000 runs
+- Code-validity rate — fraction of emitted code blocks that execute without exception
+- p95 execution latency — time from emit to result available to the model
+
 ## Known uses
 
-- **OpenAI Code Interpreter / Advanced Data Analysis** — *Available*
-- **Anthropic Claude with code execution tool** — *Available*
-- **CodeAct paper implementations** — *Available*
-- **Claude Code (Bash tool)** — *Available*
-- **Replit Agent** — *Available*
-- **v0** — *Available*
-- **E2B Sandboxes** — *Available*
+- **OpenAI Code Interpreter / Advanced Data Analysis** _available_
+- **Anthropic Claude with code execution tool** _available_
+- **CodeAct paper implementations** _available_
+- **[Claude Code (Bash tool)](https://docs.claude.com/en/docs/claude-code/overview)** _available_
+- **[Replit Agent](https://replit.com/ai)** _available_
+- **[v0](https://v0.app/)** _available_
+- **E2B Sandboxes** _available_
 
 ## Related patterns
 
-- *specialises* → [tool-use](tool-use.md)
-- *composes-with* → [react](react.md)
-- *composes-with* → [deterministic-llm-sandwich](deterministic-llm-sandwich.md)
-- *composes-with* → [skill-library](skill-library.md)
-- *complements* → [sandbox-isolation](sandbox-isolation.md)
-- *complements* → [wasm-skill-runtime](wasm-skill-runtime.md)
-- *used-by* → [code-as-action](code-as-action.md)
+- _specialises_ **Tool Use**
+- _composes-with_ **ReAct**
+- _composes-with_ **Deterministic-LLM Sandwich**
+- _composes-with_ **Skill Library**
+- _complements_ **Sandbox Isolation**
+- _complements_ **WebAssembly Skill Runtime**
+- _used-by_ **Code-as-Action Agent**
+- _complements_ **Code-Then-Execute with Dataflow Analysis**
+- _complements_ **Vibe-Coding Without Security Review**
+- _complements_ **Recursive Language Model** — The recursive language model runs the root model in a code/REPL environment that holds the prompt as data.
+- _alternative-to_ **Tool-Output Arithmetic Trust** — Code Execution is the corrected counterpart: it runs the computation in a sandbox and treats the run as the answer, which is exactly the offload this anti-pattern omits.
+- _alternative-to_ **Solver-Ready Formulation Handoff** — Both take the computation away from the model, but there the artefact is imperative code and the run is the answer; here the artefact is a declarative model that is separately validated, and the solver rather than the execution is the authority.
 
 ## References
 
-- (paper) Gao et al., *PAL: Program-aided Language Models*, 2022, <https://arxiv.org/abs/2211.10435>
-- (paper) Wang et al., *Executable Code Actions Elicit Better LLM Agents (CodeAct)*, 2024, <https://arxiv.org/abs/2402.01030>
-- (paper) Chen, Ma, Wang, Cohen, *Program of Thoughts Prompting*, 2022, <https://arxiv.org/abs/2211.12588>
-
-**Tags:** code-execution, sandbox, tool-use
+- [PAL: Program-aided Language Models](https://arxiv.org/abs/2211.10435) — Gao et al., 2022
+- [Executable Code Actions Elicit Better LLM Agents (CodeAct)](https://arxiv.org/abs/2402.01030) — Wang et al., 2024
+- [Program of Thoughts Prompting](https://arxiv.org/abs/2211.12588) — Chen, Ma, Wang, Cohen, 2022

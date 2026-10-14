@@ -32,10 +32,6 @@ Therefore: perturb the model's attention token by token and measure how each sup
 
 Run a structured perturbation pass over the model's attention: for each input token (or chunk), suppress its attention contribution and measure the change in the output token probabilities. Tokens whose suppression most reduces the output probability are the most relevant. Surface this as a heat-map alongside the answer. Keep the attribution method on the inference side; avoid asking the model to self-explain in prose.
 
-## Example scenario
-
-A medical-summarisation agent recommends a contraindicated drug and the clinician asks why. Asking the model to justify itself produces a polished but invented rationale that doesn't actually match the input that swayed it. The team layers Attention-Manipulation Explainability: they perturb attention to each input token across all transformer layers and measure how the output probability shifts, producing a per-token relevance map served alongside the response. Now the clinician can see that the recommendation hinged on a single ambiguous lab value, not on the patient history the prose claimed.
-
 ## Structure
 
 ```
@@ -56,6 +52,10 @@ flowchart TD
   D --> R[Rank tokens by influence]
 ```
 
+## Example scenario
+
+A medical-summarisation agent recommends a contraindicated drug and the clinician asks why. Asking the model to justify itself produces a polished but invented rationale that doesn't actually match the input that swayed it. The team layers Attention-Manipulation Explainability: they perturb attention to each input token across all transformer layers and measure how the output probability shifts, producing a per-token relevance map served alongside the response. Now the clinician can see that the recommendation hinged on a single ambiguous lab value, not on the patient history the prose claimed.
+
 ## Consequences
 
 **Benefits**
@@ -69,6 +69,13 @@ flowchart TD
 - Requires white-box access to attention; not available for hosted black-box APIs.
 - Compute overhead per request (one forward pass per token group).
 - Token-level attribution can mislead when reasoning spans many tokens.
+
+## Failure modes
+
+- Black-box dead end — the team adopts a hosted API with no attention access, and the attribution pass cannot run at all, so prose self-explanations quietly come back.
+- Scattered reasoning misread — the answer depends on an argument spread over many tokens, and the per-token heat-map shows no clear hot spot, which reviewers read as no influence.
+- Per-request compute spike — one extra forward pass per token group makes long inputs slow and costly, and teams start skipping attribution on exactly the large cases.
+- Unmarked self-explanation — the interface shows a generated rationale next to the heat-map without labelling it, and users trust the prose over the measured map.
 
 ## What this pattern constrains
 
@@ -88,20 +95,38 @@ The agent may not present generated text as the explanation of its own output wh
 - The latency cost of a structured perturbation pass per output is unacceptable.
 - A heat-map UI is not actionable for the user and explanations need to be in natural language anyway.
 
+## Components
+
+- Transformer Model — open-weights or attention-exposing inference target
+- Attention Perturber — suppresses one token's attention contribution per pass across all layers
+- Baseline Probability Capture — records output probabilities of the unperturbed run
+- Delta Aggregator — measures shift in output probability caused by each token suppression
+- Relevance Map — ranked per-token influence surface rendered alongside the answer
+
+## Tools
+
+- Aleph Alpha PhariaAI — production inference stack exposing the AtMan perturbation method
+- Open-weights transformer runtime — required for layer-level attention access
+
+## Evaluation metrics
+
+- Attribution faithfulness — agreement between AtMan-ranked tokens and counterfactual ablation tests
+- Confabulation gap — divergence between AtMan attributions and the model's free-text self-explanation on the same output
+- Per-token attribution latency — forward-pass overhead added per output
+- Auditor-acceptance rate — share of explanations the auditor accepts as input-grounded evidence
+- Top-k stability — variance of the top-k ranked input tokens across paraphrases of the same input
+
 ## Known uses
 
-- **[Aleph Alpha AtMan](https://aleph-alpha.com/)** — *Available*. Original attention-perturbation explainability method shipped in PhariaAI.
+- **[Aleph Alpha AtMan](https://aleph-alpha.com/)** _available_ — Original attention-perturbation explainability method shipped in PhariaAI.
 
 ## Related patterns
 
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [confidence-reporting](confidence-reporting.md)
-- *complements* → [lineage-tracking](lineage-tracking.md)
-- *alternative-to* → [citation-streaming](citation-streaming.md) — Citations attribute to retrieved docs; AtMan attributes to input tokens.
-- *complements* → [model-card](model-card.md)
+- _complements_ **Decision Log**
+- _complements_ **Confidence Reporting**
+- _complements_ **Lineage Tracking**
+- _alternative-to_ **Citation Streaming** — Citations attribute to retrieved docs; AtMan attributes to input tokens.
 
 ## References
 
-- (paper) *AtMan: Understanding Transformer Predictions Through Memory Efficient Attention Manipulation*, 2023, <https://arxiv.org/abs/2301.08110>
-
-**Tags:** governance, explainability, germany-origin, aleph-alpha
+- [AtMan: Understanding Transformer Predictions Through Memory Efficient Attention Manipulation](https://arxiv.org/abs/2301.08110) — 2023

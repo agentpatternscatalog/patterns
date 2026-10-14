@@ -152,6 +152,7 @@ A mirrored responder may occupy the tool slot only during training and benchmark
 - _used-by_ **Eval Harness** — A regression harness needs a responder that does not change between runs; the mirror supplies one for tools whose live endpoint would.
 - _complements_ **Dual Evaluation (Offline + Online)** — Mirror results are the offline track; the live-service holdout and production monitoring are what keep a mirror score honest.
 - _complements_ **Demo-to-Production Cliff** — Shipping on a mirror-only score, with no holdout against the live service, is one route onto that cliff.
+- _complements_ **Learnability-Frontier Task Sampling** — A mirrored environment makes episode difficulty controllable and cheap to run; this pattern decides which difficulty the next batch should actually sample.
 
 ## References
 

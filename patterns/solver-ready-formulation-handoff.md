@@ -154,6 +154,7 @@ The agent must not emit the decision itself; it emits only the formulation, no p
 - _uses_ **Structured Output** — The formulation is emitted as a typed artefact that must validate before compilation, not as free prose describing a model.
 - _complements_ **Tool-Output Arithmetic Trust** — That anti-pattern is the agent computing over tool data in its head; this pattern moves the whole decision, not just the arithmetic, into a deterministic tool.
 - _complements_ **Formal-Proof Compliance Gate** — Both make a machine-checkable artefact the condition of acting; there a proof gates an action, here a solver certificate accompanies the plan.
+- _alternative-to_ **Feasibility-Negotiated Intent Contract** — Both turn a declaratively stated problem over to a deterministic component, but there an exact solver produces the decision and its certificate, while here a handler decides only whether the caller's goal is reachable and may answer with a counter-offer the caller then chooses to accept or not.
 
 ## References
 

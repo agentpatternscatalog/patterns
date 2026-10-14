@@ -24,20 +24,6 @@ An append-only long-term store treats a fact written once and never used again t
 - A decaying score must be cheap to update on every access without a heavyweight consolidation pass.
 - Staleness in high-relevance items is not fixed by decay alone, since they keep being reinforced.
 
-## Applicability
-
-**Use when**
-
-- A long-term memory store grows across sessions and stale items degrade retrieval.
-- Importance varies and is better inferred from use than declared at write time.
-- Per-item retention scoring can be updated cheaply on access.
-
-**Do not use when**
-
-- The store is small and bounded, so forgetting buys nothing.
-- Every item must be retained for audit or compliance regardless of use.
-- The dominant problem is staleness in frequently-used items, which decay does not address.
-
 ## Therefore
 
 Therefore: attach a decaying retention score to each memory item, modulate the decay by relevance, access frequency, and recency, and let items fall below thresholds to be demoted, fused, or forgotten unless use reinforces them.
@@ -46,11 +32,11 @@ Therefore: attach a decaying retention score to each memory item, modulate the d
 
 On write, give each item a retention score and a decay function — typically exponential — whose rate is modulated by signals: semantic relevance to the agent's active goals, how often the item is accessed, and how recently. Each access reinforces the score; neglect lets it decay. When a score crosses a low threshold the item is demoted to colder storage, fused with similar items, or dropped. The result is a forgetting curve per item rather than a global cap or a fixed time-to-live. Production memory layers such as Mem0 and Zep apply decay of this kind; FadeMem formalises the biologically-inspired version. Note the open limitation: decay handles low-relevance items well but does not by itself fix staleness in items that stay high-relevance and keep being reinforced. Compose with dream-consolidation-cycle for idle-time fusion and with cluster-capped-insight-store where a hard ceiling is also needed.
 
-## Variants
+## Structure
 
-- **Exponential decay with reinforcement** — Each item decays exponentially and each access resets or boosts the score, producing a classic forgetting curve. Use when access frequency is the strongest available importance signal.
-- **Relevance-modulated decay** — The decay rate is scaled by semantic relevance to the agent's active goals, so off-topic items fade faster than on-topic ones. Use when the agent has a clear, shifting notion of what is currently relevant.
-- **Decay-to-fusion** — Items nearing threshold are merged with similar items rather than dropped, preserving the gist while shedding volume. Use when losing the gist of faded items is costlier than the space they take.
+```
+Write memory item --> Retention score + decay function; time passes --decay (rate modulated by relevance, frequency, recency)--> score; access --reinforce--> score; score below threshold --> demote / fuse / forget, else keep
+```
 
 ## Diagram
 
@@ -83,9 +69,30 @@ A personal-assistant agent has remembered, over a year, thousands of facts about
 - Tuning the decay rate and the modulation weights is its own ongoing calibration problem.
 - Decay does not fix staleness in high-relevance items that keep being reinforced while their content goes out of date.
 
+## Failure modes
+
+- Quiet loss — an important fact that is rarely accessed decays below threshold and is dropped.
+- Reinforced staleness — an outdated fact keeps being accessed, so its score stays high and it is never questioned.
+- Bad fusion — two similar items are fused, and a detail that set them apart is lost.
+- Mistuned rate — decay is too fast and the store forgets useful items, or too slow and the store keeps growing.
+
 ## What this pattern constrains
 
 A memory item may not persist on age alone; it is retained only while its reinforcement-modulated score stays above threshold, and an unreinforced item must decay toward demotion, fusion, or removal.
+
+## Applicability
+
+**Use when**
+
+- A long-term memory store grows across sessions and stale items degrade retrieval.
+- Importance varies and is better inferred from use than declared at write time.
+- Per-item retention scoring can be updated cheaply on access.
+
+**Do not use when**
+
+- The store is small and bounded, so forgetting buys nothing.
+- Every item must be retained for audit or compliance regardless of use.
+- The dominant problem is staleness in frequently-used items, which decay does not address.
 
 ## Components
 
@@ -109,19 +116,17 @@ A memory item may not persist on age alone; it is retained only while its reinfo
 
 ## Known uses
 
-- **[Mem0](https://mem0.ai/blog/state-of-ai-agent-memory-2026)** — *Available* — Production memory layer that applies decay to low-relevance memories; its 2026 state-of-memory report names staleness in high-relevance memories as an open problem.
-- **[FadeMem](https://arxiv.org/abs/2601.18642)** — *Pure-future* — Formalises biologically-inspired forgetting with adaptive exponential decay modulated by semantic relevance, access frequency, and temporal patterns.
+- **[Mem0](https://mem0.ai/blog/state-of-ai-agent-memory-2026)** _available_ — Production memory layer that applies decay to low-relevance memories; its 2026 state-of-memory report names staleness in high-relevance memories as an open problem.
+- **[FadeMem](https://arxiv.org/abs/2601.18642)** _pure-future_ — Formalises biologically-inspired forgetting with adaptive exponential decay modulated by semantic relevance, access frequency, and temporal patterns.
 
 ## Related patterns
 
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
-- *alternative-to* → [cluster-capped-insight-store](cluster-capped-insight-store.md)
-- *alternative-to* → [tool-result-eviction](tool-result-eviction.md)
-- *complements* → [sleep-time-compute](sleep-time-compute.md)
+- _complements_ **Dream Consolidation Cycle** — Consolidation runs at idle to fuse and compress; adaptive decay runs continuously on the retention score.
+- _alternative-to_ **Cluster-Capped Insight Store** — A hard size cap evicts by ceiling; adaptive decay forgets by a continuous reinforcement-modulated score.
+- _alternative-to_ **Tool-Result Eviction** — Tool-result eviction trims the live context window; adaptive decay governs the long-term store.
+- _complements_ **Sleep-Time Compute** — Sleep-time compute decides when consolidation work happens; adaptive decay decides what is forgotten.
 
 ## References
 
-- (paper) *FadeMem: Biologically-Inspired Forgetting for Efficient Agent Memory* 2026,, <https://arxiv.org/abs/2601.18642>
-- (blog) Mem0, *State of AI Agent Memory 2026: Benchmarks, Architectures & Production Gaps* 2026,, <https://mem0.ai/blog/state-of-ai-agent-memory-2026>
-
-**Tags:** memory, forgetting, decay, long-term-memory, consolidation
+- [FadeMem: Biologically-Inspired Forgetting for Efficient Agent Memory](https://arxiv.org/abs/2601.18642) — 2026
+- [State of AI Agent Memory 2026: Benchmarks, Architectures & Production Gaps](https://mem0.ai/blog/state-of-ai-agent-memory-2026) — Mem0, 2026

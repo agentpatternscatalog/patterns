@@ -24,22 +24,6 @@ When only permissions are delegated, the obligations attached to a task evaporat
 - Formalising duties as tokens adds protocol weight that simple credential-passing avoids.
 - Provenance of a delegation chain is most needed precisely when the chain is longest and hardest to reconstruct.
 
-## Applicability
-
-**Use when**
-
-- Tasks carry obligations or prohibitions — consent, retention, refusal duties — that must survive being delegated across a chain of agents.
-- Accountability has to be traceable: you must be able to say which agent held which duty and where it came from.
-- Permissions alone are insufficient because the system needs to enforce what agents must and must not do, not only what they may do.
-- The delegation chain is long enough that reconstructing responsibility from logs after the fact is unreliable.
-
-**Do not use when**
-
-- Delegation only needs to pass permissions or credentials, with no duties that must travel with the task.
-- The system is a single agent or a flat set with no hand-offs, so there is no chain to trace.
-- The protocol overhead of reifying and transferring tokens is not justified by the accountability requirement.
-- Obligations are static and globally known, so every agent already shares them without needing transfer.
-
 ## Therefore
 
 Therefore: encapsulate each obligation, permission, and prohibition as a deontic token carrying its origin and its delegation history, and require that handing work to another agent transfers the relevant tokens with it, so duty and accountability move with the task and any obligation traces back through every hand-off to its source.
@@ -48,11 +32,11 @@ Therefore: encapsulate each obligation, permission, and prohibition as a deontic
 
 Represent each deontic relation — an obligation, a permission, a prohibition — as a token: a structured object naming the duty, the agent currently bearing it, the principal it originates from, and the chain of agents it has passed through. When an agent delegates work, it transfers the tokens for the duties that delegation carries and appends itself to each token's provenance; it cannot pass authority for a task without also passing the obligations bound to it. Receiving agents evaluate their held tokens before acting — prohibitions override obligations override permissions, following deontic-logic precedence — and refuse actions their tokens forbid. Because every token carries its full chain, any obligation can be traced from its current bearer back through each hand-off to the originating principal, and a breach can be attributed to the agent that held the token when the duty was dropped. Compose with a provenance ledger that records token transfers, and with delegated-agent-authorization, which carries the permissions this pattern binds duties to.
 
-## Variants
+## Structure
 
-- **Provenance-chained token** — Each token carries the ordered list of agents it has passed through, appended at every hand-off, so the full delegation history is readable from the token itself. Use when after-the-fact attribution back to the originating principal is the primary requirement.
-- **Prohibition-priority evaluation** — Agents evaluate held tokens with deontic precedence — prohibitions over obligations over permissions — before acting, refusing forbidden operations regardless of permissions held. Use when forbidden actions must be blocked even when an agent is otherwise authorised.
-- **Smart-contract-anchored token** — Tokens and their transfers are anchored on a tamper-evident substrate such as a ledger or contract, so the chain cannot be rewritten. Use when the delegation record must be non-repudiable across organisational boundaries.
+```
+Principal sets goal + obligations --> Mint deontic tokens (obligation, permission, prohibition) --> Agent 1 bears tokens --delegate work + transfer tokens, append provenance--> Agent 2 --> Agent 3 --> Deontic evaluator (prohibition > obligation > permission) --forbidden--> Refuse / --allowed--> Act; token chain --trace back--> Principal; transfers --> Provenance ledger
+```
 
 ## Diagram
 
@@ -67,6 +51,8 @@ flowchart TD
   E -->|allowed| Act[Act]
   A3 -.trace chain back.-> P
 ```
+
+*Duties are minted as tokens at the principal, transferred with each delegation, and traceable back through the chain for attribution.*
 
 ## Example scenario
 
@@ -88,26 +74,78 @@ A procurement workflow runs across agents: an orchestrator takes a buyer's goal,
 - The model is largely research-grade for LLM agents; the mature lineage is in formal-methods and enterprise-distributed-systems standards, not yet in production agent stacks.
 - Authoring the deontic rules and precedence correctly is its own design burden, separate from the delegation mechanism.
 
+## Failure modes
+
+- Obligation stripping — authority is passed but the duty tokens are not, so the sub-agent acts without inheriting the obligation
+- Provenance gap — a hand-off fails to append to the chain, breaking traceability back to the principal
+- Token forgery or tampering — without anchoring, an agent rewrites a token to shed an obligation it should hold
+- Precedence error — an evaluator that does not honour prohibition-over-obligation lets a forbidden action through
+
 ## What this pattern constrains
 
 An agent may not accept delegated authority for a task without also accepting the deontic tokens bound to it, and it may not perform an action a held prohibition token forbids; authority cannot be passed stripped of its obligations.
 
+## Guardrails
+
+- Refuse delegation that strips obligations — reject accepting authority for a task without its bound duty tokens
+- Block any action a held prohibition token forbids, regardless of permissions held
+
+## Applicability
+
+**Use when**
+
+- Tasks carry obligations or prohibitions — consent, retention, refusal duties — that must survive being delegated across a chain of agents.
+- Accountability has to be traceable: you must be able to say which agent held which duty and where it came from.
+- Permissions alone are insufficient because the system needs to enforce what agents must and must not do, not only what they may do.
+- The delegation chain is long enough that reconstructing responsibility from logs after the fact is unreliable.
+
+**Do not use when**
+
+- Delegation only needs to pass permissions or credentials, with no duties that must travel with the task.
+- The system is a single agent or a flat set with no hand-offs, so there is no chain to trace.
+- The protocol overhead of reifying and transferring tokens is not justified by the accountability requirement.
+- Obligations are static and globally known, so every agent already shares them without needing transfer.
+
+## Components
+
+- Deontic token — a structured object naming the duty (obligation, permission, or prohibition), its current bearer, and its originating principal
+- Provenance chain — the ordered record of agents the token has passed through, appended at each hand-off
+- Delegation transfer — the operation that moves the relevant tokens when work is handed to another agent
+- Deontic evaluator — checks held tokens with prohibition-over-obligation-over-permission precedence before an action
+- Attribution resolver — walks a token's chain back to the principal to assign responsibility for a breach
+
+## Tools
+
+- Token store — holds each agent's currently borne deontic tokens
+- Provenance ledger — records token transfers so the chain is independently auditable
+- Deontic-rule engine — evaluates obligations, permissions, and prohibitions in precedence order, as in XMPro MAGS or ODP enterprise-language implementations
+
+## Evaluation metrics
+
+- Obligation-transfer completeness — share of delegations where all bound duty tokens moved with the authority
+- Chain traceability rate — fraction of obligations that resolve back to an originating principal through an unbroken chain
+- Prohibition-enforcement rate — share of forbidden actions correctly blocked by a held prohibition token
+- Breach-attribution time — time to identify which agent held a dropped obligation when one is breached
+
 ## Known uses
 
-- **[ODP Enterprise Language (ISO/IEC 15414)](https://en.wikipedia.org/wiki/RM-ODP)** — *Available* — The Open Distributed Processing enterprise-language standard encapsulates obligation, permission, and prohibition within objects that can be handed across actors — the deontic tokens this pattern reifies for agent systems. Predates LLM agents; the formal-methods ancestor of the mechanism.
-- **[XMPro MAGS](https://github.com/XMPro/Multi-Agent/blob/main/docs/concepts/deontic-principles.md)** — *Available* — Implements deontic principles — obligations, permissions, prohibitions — as formal JSON rule specs with compliance checking and audit logging for multi-agent governance, though at single-agent rule-compliance level rather than token-based inter-agent obligation transfer.
+- **[ODP Enterprise Language (ISO/IEC 15414)](https://en.wikipedia.org/wiki/RM-ODP)** _available_ — The Open Distributed Processing enterprise-language standard encapsulates obligation, permission, and prohibition within objects that can be handed across actors — the deontic tokens this pattern reifies for agent systems. Predates LLM agents; the formal-methods ancestor of the mechanism.
+- **[XMPro MAGS](https://github.com/XMPro/Multi-Agent/blob/main/docs/concepts/deontic-principles.md)** _available_ — Implements deontic principles — obligations, permissions, prohibitions — as formal JSON rule specs with compliance checking and audit logging for multi-agent governance, though at single-agent rule-compliance level rather than token-based inter-agent obligation transfer.
 
 ## Related patterns
 
-- *complements* → [delegated-agent-authorization](delegated-agent-authorization.md)
-- *alternative-to* → [commitment-tracking](commitment-tracking.md)
-- *alternative-to* → [joint-commitment-team](joint-commitment-team.md)
-- *composes-with* → [provenance-ledger](provenance-ledger.md)
+- _complements_ **Delegated Agent Authorization** — That pattern delegates permissions and credentials; this one delegates the duties bound to them, so the two pair to carry both sides of a hand-off.
+- _alternative-to_ **Commitment Tracking** — Commitment-tracking records an agent's own stated intentions; deontic tokens transfer formal obligations between agents with provenance.
+- _alternative-to_ **Joint Commitment Team** — Joint commitment shares a goal across a team; deontic tokens delegate individual obligations down a chain while preserving accountability.
+- _composes-with_ **Provenance Ledger** — The ledger records each token transfer so the delegation chain is independently auditable.
+- _alternative-to_ **Accountability Laundering via Algorithm** — Deontic tokens make accountability travel with the work and stay attributable; laundering does the opposite, severing the decision from any owner while the firm's duty is unchanged.
+- _alternative-to_ **Decision Token** — Deontic tokens carry transferable obligations and permissions down a delegation chain; a Decision Token instead records why one already-authorized action was justified at the moment it ran.
+- _alternative-to_ **Blanket-Authorization Accountability Rupture** — Deontic tokens transfer duty and accountability with the work along the chain; blanket authorization transfers only the credentials, leaving the responsibility rupture this names.
+- _complements_ **Verifiable Purchase Mandate** — Both reify a permission as a transferable artifact; deontic tokens carry obligations along a delegation chain, the mandate carries a signed purchase authorization to the payment network.
+- _complements_ **Attenuating Delegation Chain** — Obligations and prohibitions travel with the work there; here it is the permitted authority that travels, under a monotone-narrowing invariant a verifier can check mechanically.
 
 ## References
 
-- (paper) Milosevic, Rabhi, *Architecting Agentic Communities using Design Patterns*, 2026, <https://arxiv.org/abs/2601.03624>
-- (doc) *Reference Model of Open Distributed Processing — Enterprise Language*, <https://en.wikipedia.org/wiki/RM-ODP>
-- (doc) *XMPro MAGS — Deontic Principles*, <https://github.com/XMPro/Multi-Agent/blob/main/docs/concepts/deontic-principles.md>
-
-**Tags:** governance, delegation, deontic, obligations, accountability, provenance, multi-agent
+- [Architecting Agentic Communities using Design Patterns](https://arxiv.org/abs/2601.03624) — Milosevic, Rabhi, 2026
+- [Reference Model of Open Distributed Processing — Enterprise Language](https://en.wikipedia.org/wiki/RM-ODP)
+- [XMPro MAGS — Deontic Principles](https://github.com/XMPro/Multi-Agent/blob/main/docs/concepts/deontic-principles.md)

@@ -3,7 +3,7 @@
 **Also known as:** Reasoning Inversion (MCP), createMessage Callback
 
 **Category:** Tool Use & Environment  
-**Status in practice:** emerging
+**Status in practice:** deprecated
 
 ## Intent
 
@@ -74,6 +74,7 @@ A document-fetcher MCP server exposes a 'summarise this contract' tool. Rather t
 - A server-constructed prompt is attacker-influenced if it folds in tool inputs or fetched content, turning the callback into a prompt-injection path into the host's model.
 - Nested completions are hard to attribute: spend and latency from a deep server call surface on the host's bill without obvious provenance.
 - Not every host implements the sampling primitive, so a server that relies on it is not portable across all clients.
+- Historical: the MCP specification deprecated Sampling — together with Roots and Logging — in revision 2026-07-28 (SEP-2577). The feature keeps working through the deprecation window, but new servers should call a model-provider API directly instead. Server-initiated requests are replaced by Multi Round-Trip Requests (SEP-2322): the server returns an input-required result carrying what it needs, and the client supplies it by retrying the original request.
 
 ## Failure modes
 
@@ -141,3 +142,4 @@ The server must not call any model or hold any model credential of its own; ever
 - [MCP Sampling and Elicitation: The Features That Make Servers Smart](https://mcginniscommawill.com/posts/2026-03-25-mcp-sampling-elicitation-guide/) — Will McGinnis, 2026
 - [A survey of agent interoperability protocols: Model Context Protocol (MCP), Agent Communication Protocol (ACP), Agent-to-Agent Protocol (A2A), and Agent Network Protocol (ANP)](https://arxiv.org/abs/2505.02279) — Abul Ehtesham, Aditi Singh, Gaurav Kumar Gupta, Saket Kumar, 2025
 - [Sampling — FastMCP documentation](https://gofastmcp.com/servers/sampling) — 2026
+- [Model Context Protocol — Key Changes, revision 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog) — 2026

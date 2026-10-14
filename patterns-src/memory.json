@@ -162,7 +162,14 @@
         "Stale-item rate — fraction of LTM items not RETRIEVEd within N turns (dead memory)",
         "Train-time variance — RL stability across seeds, given the discontinuous memory reward"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Reward hacking on memory actions — the step-wise credit rewards ADD or RETRIEVE calls themselves, so the trained agent fills memory with items that never help the task.",
+        "Unstable training — a naive RL setup cannot tie a sparse final reward back to an early DELETE or SUMMARY, and the memory policy oscillates instead of converging.",
+        "Distribution lock-in — the learned memory policy fits the training tasks and makes poor keep-or-delete choices on a different kind of task.",
+        "Out-of-band writes — a helper process edits memory outside the six tools, and the trace no longer explains why an item exists."
+      ],
+      "structure": "Agent step --LLM picks action--> {task tool call | ADD | UPDATE | DELETE | RETRIEVE (search LTM -> inject into STM) | SUMMARY (compress STM span) | FILTER (narrow STM)} --> next agent step; end-to-end RL credits each memory action against final task reward"
     },
     {
       "id": "append-only-thought-stream",
@@ -314,7 +321,14 @@
         "Redaction turnaround — wall-clock time from operator redaction request to forward-redaction applied",
         "Compaction-source divergence — sampled cases where summary tier contradicts the underlying originals"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Write-path leak — one tool or file handle still allows overwrite, and the agent quietly edits an old entry the audit trail relied on.",
+        "Compaction that mutates — the summariser rewrites or deletes originals instead of creating a new tier, so the raw history is gone.",
+        "Unbounded log growth — nobody plans for storage, and the log fills disk or slows every read.",
+        "Redaction backlog — sensitive content sits in the log because the operator-only redaction path is slow or rarely used."
+      ],
+      "structure": "Agent --append--> Thought log (append-only) --read--> Agent; Thought log -.read-only.-> Compaction --new summary--> Summary tier; Operator redaction --forward redaction--> Thought log"
     },
     {
       "id": "co-located-memory-surfacing",
@@ -444,7 +458,14 @@
         "Per-turn surface latency — milliseconds added to the user-visible turn by entity extract + match",
         "Continuity lift — user-reported sense of being remembered, measured against a no-surfacing baseline"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Derailing recall — a name the human used in passing matches an old note, and the agent pulls the conversation toward a topic nobody asked about.",
+        "Lecturing — the agent surfaces memory on every mention, and the human feels watched instead of helped.",
+        "Sensitive echo — a stored private detail is repeated inline in a context where others can read it.",
+        "Silent miss — entity extraction skips a nickname or misspelling, so known context stays buried and the human repeats themselves."
+      ],
+      "structure": "User message --extract proper nouns--> Entity list --grep / embedding match--> Persistent memory --top <=2 fragments (time-stamped)--> Reply with surfaced memory --> User steers whether to pursue"
     },
     {
       "id": "context-window-packing",
@@ -609,7 +630,14 @@
         "Behaviour drift across packing strategies — answer-quality delta when policies change, held against a fixed eval set",
         "Reserved-response saturation — how often the reply fills the reserved budget and gets truncated"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Reserve too small — the packer fills the window right up to the limit and the reply is cut off mid-answer.",
+        "Task eviction — a drop-oldest rule removes the original instruction, and the model drifts from the goal.",
+        "Summary distortion — compressed history loses a key detail and the model acts on a wrong version of earlier turns.",
+        "Count mismatch — the packer counts tokens with a different tokenizer than the model, and calls fail at the window edge."
+      ],
+      "structure": "Token budget T --reserve N--> System + tools + reply slot; remainder --packing policy--> {compressed history, top-k reranked chunks, current state} --token audit--> Context window --> Model call"
     },
     {
       "id": "cross-session-memory",
@@ -764,7 +792,14 @@
         "Memory hallucination rate — sampled cases where the agent acts on a fact never said by the user",
         "Per-session memory load cost — tokens added to each session prompt by injected memory slices"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Sticky false memory — the model stores a wrong fact about the user and repeats it in every later session.",
+        "Over-capture — passing remarks are saved as lasting preferences, and the assistant acts on them long after they stopped being true.",
+        "Cross-user bleed — a slice loaded for one user includes facts from another user's store.",
+        "Unhonoured forget — the user deletes an entry in the inspector, but a cached copy keeps showing up in context."
+      ],
+      "structure": "Session start --load_relevant(user)--> User memory store --> Session context; Session --add / forget tools--> User memory store; User --memory inspector (view / delete / disable / export)--> User memory store"
     },
     {
       "id": "episodic-summaries",
@@ -920,7 +955,14 @@
         "Fallback-to-original rate — how often reads have to drop down to the archive, signalling weak summaries",
         "Compaction cost per episode — money and latency spent on the summariser per closed block"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Summary drift — an error in one summary is reasoned over for many turns, and nobody checks the archived original.",
+        "Dropped constraint — the summariser treats an early user constraint as noise, and the agent later breaks it.",
+        "Poor thresholds — compaction runs too often and loses detail, or too rarely and the window still overflows.",
+        "Dead archive — originals are archived but the read path never falls back to them when detail is needed."
+      ],
+      "structure": "Recent thoughts / messages --threshold reached--> Summariser --> Higher-tier summary store + Archived originals; Read query --> Summaries first --need detail--> Originals"
     },
     {
       "id": "five-tier-memory-cascade",
@@ -1056,7 +1098,14 @@
         "Working-set overflow — how often working memory tries to exceed its cap, indicating noise above the salience floor",
         "Tier-storage cost ratio — relative spend across tiers, used to justify the architectural weight"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Threshold mistuning — promotion rules are set by guess, so trivial items reach long-term memory while important ones decay out of short-term.",
+        "Stale working set — working memory keeps old items in its few slots, and new salient input has no room.",
+        "Lost cross-tier link — a question needs a recent fact and a distilled rule together, but reads stay inside one tier and the join never happens.",
+        "Overbuilt for short runs — a short-lived agent carries five tiers of machinery it never uses."
+      ],
+      "structure": "Sensory (raw input per tick) --promote--> Working (top-N focus) --promote--> Short-term (recent verbatim) --compact--> Episodic (compressed summaries) --distill--> Long-term (rules, insights); decay archives downward; rehearsal lifts archived items back to Working"
     },
     {
       "id": "hippocampal-rehearsal",
@@ -1168,7 +1217,14 @@
         "Long-tail recall lift — answer-quality delta on questions about content older than the short-term horizon",
         "Working-tier flood incidents — counts of cycles where the rehearsal cap was breached"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "False reactivation — a loose keyword match lifts an unrelated archived item, and it takes a short-term slot from something useful.",
+        "Rehearsal storm — one broad cue matches many archived items at once and floods short-term memory.",
+        "Never-cued item — an important archived fact shares no words or embedding neighbours with current input, so it is never lifted.",
+        "Archive mutation — the reactivation step edits or moves the archive copy, so the original is lost."
+      ],
+      "structure": "New input / cue --> Salience scoring --embedding / keyword / reference match--> Archive item --reactivate--> Short-term memory (one or more cycles); archive copy stays untouched; no match --> no-op"
     },
     {
       "id": "knowledge-graph-memory",
@@ -1315,7 +1371,14 @@
         "Hybrid lift over pure vector — accuracy gain on relational benchmarks vs a vector-only baseline",
         "Stale-edge rate — sampled audit of edges that no longer reflect the source-of-truth system"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Bad extraction — the extractor misreads a sentence, adds a wrong edge, and every traversal through it returns a wrong answer.",
+        "Duplicate entities — the same person is stored under two names, so a path query stops halfway.",
+        "Schema mismatch — a new kind of relation has no place in the fixed schema and is dropped or forced into the wrong predicate.",
+        "Text fallback — callers run keyword search over node labels instead of traversal, and the relational structure is ignored."
+      ],
+      "structure": "Observations --extract entities + relations--> Graph store; Query --vector index finds entry points--> Entities --Cypher / SPARQL traversal--> Related nodes --> Answer"
     },
     {
       "id": "memgpt-paging",
@@ -1452,7 +1515,14 @@
         "Cross-window continuity — task completion on dialogues whose total tokens exceed the window many times over",
         "Archival recall@k — how often the right historical item appears in the top-k of search_archival"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Missed page-in — the model does not call search_archival when it should, and answers without facts it had stored.",
+        "Page thrashing — the model keeps loading and evicting the same items, adding latency on every turn.",
+        "Lost write — the model forgets to call write_archival before evicting, and the item is gone from both tiers.",
+        "Tool overhead — paging tool definitions take enough of the window that the working set shrinks."
+      ],
+      "structure": "Model --works in--> Main context (system prompt, working set, recent messages); Model --read_recall--> Recall (raw history); Model --write_archival / search_archival--> Archival (vector store) --page in--> Main context"
     },
     {
       "id": "now-anchoring",
@@ -1611,7 +1681,14 @@
         "Per-prompt token overhead — additional tokens added by the NOW block",
         "Stale-time incident rate — replies that reasoned from an out-of-date anchor (signals an assembly bug)"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Stale anchor — the NOW block is computed once and cached, so long sessions reason from an old time.",
+        "Wrong locale — the hemisphere or time zone is hard-coded, and the agent greets a user with the wrong season or hour.",
+        "Ignored anchor — the block sits in the prompt but the model still uses its training-time sense of the date for relative reasoning.",
+        "Overstated precision — the moon phase or season is approximate, yet the agent states it as exact fact."
+      ],
+      "structure": "Clock --> NOW block builder (ISO local, UTC, weekday, week, season, moon) --> ## NOW header --> System prompt --> LLM --> Time-aware reply"
     },
     {
       "id": "procedural-memory",
@@ -1774,7 +1851,14 @@
         "Update-governance violation rate — frequency of unsupervised self-rewrites of the procedural store",
         "Procedure staleness — share of stored procedures that fail validation against current environment"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Rogue drift — the agent rewrites its own playbook after a lucky success, and a bad procedure spreads to every later task.",
+        "Stale procedure — the environment changes, but the stored action sequence still matches the situation and is run as if nothing changed.",
+        "Wrong situation match — loose indexing retrieves a procedure for a situation that only looks similar, and the steps fail midway.",
+        "Ungated append — every successful run is saved as a new procedure, and near-duplicates crowd the store."
+      ],
+      "structure": "Current situation --retrieve by situation pattern--> Procedural store --match--> Stored procedure (A1 -> A2 -> A3) | --no match--> Plan from scratch; --> Execute --> Outcome --success + novel--> gated append | --failure--> mark procedure for review"
     },
     {
       "id": "reasoning-trace-carry-forward",
@@ -1897,7 +1981,13 @@
         "Boundary-detection precision — fraction of user-turn boundaries the loop correctly identifies for the drop step",
         "Provider portability — pass rate of the same agent loop across reasoning APIs from different vendors"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Misplaced boundary — the loop treats a tool result as a new user turn, drops the reasoning, and the next step forgets why the tool was called.",
+        "Boundary leak — prior-episode reasoning is passed along at a user turn, and the new task inherits stale thinking.",
+        "Expected reasoning gone — a later turn refers back to a past decision whose reasoning was dropped, and the model reconstructs it wrongly.",
+        "Provider mismatch — the carry-forward rule is ported to another API that handles the reasoning field differently, and traces are lost or rejected."
+      ]
     },
     {
       "id": "salience-attention-mechanism",
@@ -2058,7 +2148,14 @@
         "Rumination-suppression effect — drop in repeat attention to the same item once the fatigue term is enabled",
         "Weight-tuning stability — variance in answer quality as alpha/beta/gamma/delta/epsilon shift within plausible ranges"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Suppressed relevance — a poorly weighted score keeps a relevant old item below the top-k cut on every tick.",
+        "Rumination — the fatigue weight is too low, and the same items win attention tick after tick.",
+        "Costly scoring — the scorer runs heavy work over every candidate each tick and becomes the bottleneck it was meant to avoid.",
+        "Reflection overcorrection — the tuning pass swings the weights too far after a few ticks and attention becomes erratic."
+      ],
+      "structure": "Candidate memory items --salience score (novelty + goal + recency + prediction error - fatigue)--> Top-k --> Working set --> Next tick -.reflection.-> Tunable weights --> Salience score"
     },
     {
       "id": "scratchpad",
@@ -2202,7 +2299,14 @@
         "Shadow-state incidents — cases where an unpurged scratchpad polluted a fresh task",
         "Leak rate — scratchpad content that escaped into traces, logs, or the user-visible response"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Leak into response — scratch notes slip into the user-visible slot, and the user sees half-finished work.",
+        "Shadow state — the scratchpad is never purged, and old notes steer a new task.",
+        "Bloat — the agent keeps writing notes but never trims them, and token cost grows every turn.",
+        "Lost notes — the scratchpad lives only in trimmed history, so the notes vanish before the step that needs them."
+      ],
+      "structure": "Turn n --> Agent --write notes--> Scratchpad --read--> Turn n+1 --> Agent --> User-visible response (separate slot); Task done --purge--> Scratchpad"
     },
     {
       "id": "self-corpus-vocabulary",
@@ -2327,7 +2431,14 @@
         "Mining cost per refresh — wall-clock and compute spent generating the vocabulary",
         "Operator-audit signal — sampled human judgement on whether the cached vocabulary captures what the agent is currently 'about'"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Frame lock-in — a stale vocabulary keeps scoring familiar topics high, and new directions never reach attention.",
+        "Noisy vocabulary — the corpus is too small, so the top-N tokens are chance words rather than real concerns.",
+        "Tag skew — frontmatter tags are weighted too high, and the vocabulary reflects tagging habits instead of content.",
+        "Missed refresh — the cache is not rebuilt after a large shift in writing, and scores lag behind what the agent now cares about."
+      ],
+      "structure": "Own corpus (thoughts + insights) --periodic mining (tags + content frequency)--> Top-N vocabulary cache; New thought --> Salience scorer <-- vocabulary cache + generic embedding similarity --> Own-frame score"
     },
     {
       "id": "session-isolation",
@@ -2476,7 +2587,14 @@
         "Prompt-cache hit rate impact — measured cost of losing cross-user prefix reuse",
         "Authorisation-test pass rate — multi-tenant red-team suite exercising cache, vector, and prompt boundaries"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Cache key collision — a cache key omits the user identity, and user B gets user A's history.",
+        "Shared prompt prefix — a prompt-cache prefix holding user-specific context is reused for another user.",
+        "Unpartitioned search — a vector query runs without a per-user filter and returns another user's documents as relevant.",
+        "Dropped identity — one internal call loses the subject claim and falls back to a shared default scope."
+      ],
+      "structure": "User request --identity (OAuth/JWT sub)--> Identity carrier --scope by user--> Per-user state / cache --> Agent loop; reads and writes carry identity end-to-end; user A scope never crosses user B scope"
     },
     {
       "id": "short-term-memory",
@@ -2619,7 +2737,14 @@
         "Continuity quality — answer coherence across turns vs a stateless baseline on a labelled set",
         "Migration breakage — incidents where a schema change broke in-flight sessions"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Mid-task expiry — the TTL runs out while the user is still working, and the active plan vanishes.",
+        "Stale slice — the reloaded state holds an old screen or step, and the agent acts on it as current.",
+        "Schema break — a deploy changes the state object shape, and live sessions fail to reload.",
+        "Over-trust — the agent relies on a fact older than the TTL window without re-fetching it."
+      ],
+      "structure": "First turn --> Typed thread state (messages, screen, plan, step) --persist with TTL--> Store --reload--> Next turn --update--> Store; TTL elapsed --> expire --> reset to empty"
     },
     {
       "id": "sleep-time-compute",
@@ -2789,7 +2914,13 @@
         "Offline-to-test cost ratio — total offline spend per saved test-time dollar",
         "Prediction-coverage growth — improvement in hit rate as the predictor learns from misses over time"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Stale pre-answer — a source file changes after the idle pass, and the cache returns an answer that is no longer true.",
+        "Wasted idle spend — the predictor guesses questions nobody asks, and offline compute is spent for nothing.",
+        "Low-effort hit — a cheap speculative answer is returned in place of a better live answer, and quality drops unnoticed.",
+        "Unmarked origin — pre-answers are not tagged in the trace, so evaluation cannot tell them apart from live inference."
+      ]
     },
     {
       "id": "vector-memory",
@@ -2951,7 +3082,14 @@
         "Temporal-query miss rate — fraction of 'what did I do yesterday' style questions where similarity alone fails",
         "Storage and index cost per million items — the operational floor under which the pattern stops paying off"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Temporal blind spot — a question like what happened yesterday returns similar items from any date, not the recent ones.",
+        "Embedding drift — the embedding model changes, and old vectors no longer match new queries well.",
+        "Near-miss retrieval — the top-k items share wording with the query but not its meaning, and the agent reasons from the wrong memories.",
+        "Decay mistuned — aging is too strong and older relevant items never surface, or too weak and stale items crowd out new ones."
+      ],
+      "structure": "New memory item --embed--> Vector index; Query / current state --embed--> Top-k similarity search over index --decay / salience weighting--> Prepend to context"
     },
     {
       "id": "semantic-memory",
@@ -3118,7 +3256,14 @@
         "Provenance coverage — share of stored assertions with traceable source episodes",
         "Substrate-swap cost — engineering days to change vector→graph or profile→collection without breaking the agent contract"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Sticky wrong fact — the extractor stores a misheard preference, and every later turn acts on it until someone invalidates it.",
+        "Unresolved conflict — two contradicting assertions about the same attribute coexist, and the agent picks one at random.",
+        "Event stored as fact — a raw event is written in place of an assertion, and lookups by entity and attribute miss it.",
+        "Missing provenance — a fact has no source attached, so nobody can tell why the agent believes it or whether to keep it."
+      ],
+      "structure": "Episode / interaction --extractor--> Assertion (entity, attribute, value, provenance) --> Semantic memory (substrate: vector store | knowledge graph | JSON profile); Query 'what is known about X' --entity/attribute lookup--> Fact + provenance --> Context; contradiction --> invalidate"
     },
     {
       "id": "episodic-memory",
@@ -3298,7 +3443,14 @@
         "Storage growth — episodes per day vs the compaction policy's target steady-state",
         "Privacy-boundary breach rate — incidents where episodes from one user surfaced to another"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Unbounded log — episodes pile up with no compaction, and retrieval slows and costs more over time.",
+        "Noisy injection — raw episodes are put into the prompt without salience scoring, and the model reasons from irrelevant detail.",
+        "Flattened causality — interactions are turned into facts at write time, and the order of events needed for debugging is lost.",
+        "Retention breach — event logs keep personal details past their allowed retention because no boundary is enforced on them."
+      ],
+      "structure": "Observation --stamp time + importance--> Episodic memory (vector store | append-only log | journal); Query --recency + similarity + importance--> Top-k episodes --> Context; Episodic memory --reflection pass--> {Semantic facts, Procedural recipes, Episodic summaries}"
     },
     {
       "id": "world-model-graph-memory",
@@ -3413,7 +3565,14 @@
         "Graph traversal cost per plan",
         "Graph staleness — time since last update",
         "Plan grounding rate — share of plan steps backed by graph entities"
-      ]
+      ],
+      "failure_modes": [
+        "Graph bypass — the model plans freely in text instead of querying the graph, and the plan cites relations that do not exist.",
+        "Missing preconditions — the schema lacks a needed precondition or effect, so a traversal finds a path that cannot be executed.",
+        "Unwritten effects — execution changes the world but the graph is not updated, and the next plan starts from a false state.",
+        "Slow planning — large traversals take longer than the task allows, and teams fall back to direct LLM planning."
+      ],
+      "structure": "Goal + Typed entity-relation graph --graph query (path from current state to goal)--> Plan as graph operations --> Execute --> Update graph --> next query"
     },
     {
       "id": "context-window-dumb-zone",
@@ -3556,7 +3715,14 @@
         "Cap-hit rate",
         "Quality vs utilization curve — measure the dumb-zone",
         "Trim-action distribution (summarize vs evict vs split)"
-      ]
+      ],
+      "failure_modes": [
+        "Untuned cap — the 40% starting value is kept for a model where degradation starts earlier or later, so quality drops or capacity is wasted.",
+        "Eviction of the wrong chunk — the trim step drops a retrieved chunk the answer depended on to get under the cap.",
+        "Unmeasured prompt — one code path builds prompts without the utilization check, and silent degradation returns.",
+        "Ignored signal — the cap-hit rate climbs, but nobody acts on it, and trimming keeps hiding a context design problem."
+      ],
+      "structure": "Prompt construction --> Measure utilization --under cap--> Send to model | --over cap--> Summarize / evict / split --> Prompt construction; cap-hit rate tracked"
     },
     {
       "id": "three-layers-agent-memory",
@@ -3666,7 +3832,14 @@
         "Per-layer coverage",
         "Promotion rate STM to LTM",
         "Feedback-driven refinement rate"
-      ]
+      ],
+      "failure_modes": [
+        "Disconnected feedback — ratings and corrections are collected but never written back, so neither memory layer improves.",
+        "Over-promotion — a loose rule copies most session content into long-term memory, and it fills with noise.",
+        "One-way flow — long-term memory is written but never loaded back into the session, so the agent stores knowledge it does not use.",
+        "Blurred layer blame — a failure is reported as a memory problem without saying which layer caused it."
+      ],
+      "structure": "User input --> Short-term memory (session context) --> Agent reasoning + action --> Outcome --> Feedback loops (explicit + implicit signals) --refine--> {Short-term memory, Long-term memory}; Short-term --promotion--> Long-term --load--> Short-term"
     },
     {
       "id": "memory-type-storage-specialization",
@@ -3777,7 +3950,14 @@
         "Per-type latency",
         "Per-type capacity utilization",
         "Cross-store consistency violation rate"
-      ]
+      ],
+      "failure_modes": [
+        "Cross-store drift — an episode is deleted in one store, but facts and procedures derived from it remain in the others.",
+        "Direct joins — a caller queries two stores directly and skips the memory-layer API, so routing rules break.",
+        "Uneven protection — backups or access controls are set up for one store and missed on another.",
+        "Wrong-store write — a type is written to the store meant for another, and it is missing where reads look for it."
+      ],
+      "structure": "Agent --> Memory layer API --route by type--> {Episodic: in-memory store, Semantic: vector DB, Procedural: relational DB / workflow engine}"
     },
     {
       "id": "information-chunking-memory",
@@ -3895,7 +4075,14 @@
         "Chunking-vs-baseline accuracy delta",
         "Per-chunk relevance score",
         "STM-overload incidents post-chunking"
-      ]
+      ],
+      "failure_modes": [
+        "Bad boundaries — the chunker splits a passage mid-thought, and neither half carries the meaning.",
+        "Weak tags — chunks get vague topic metadata, so selection feeds the wrong segments to short-term memory.",
+        "Bypass — a long input reaches short-term memory without passing the chunker, and overload returns.",
+        "Domain mismatch — a chunking rule tuned for one domain is reused on another with very different text shapes."
+      ],
+      "structure": "Long input --chunker (topic-coherent, size-bounded)--> Tagged chunks (topic, source) --select relevant per task--> Short-term memory --> Model"
     },
     {
       "id": "landmark-attention",
@@ -4013,7 +4200,14 @@
         "Effective context length improvement vs baseline",
         "Middle-section retrieval accuracy",
         "Landmark-placement quality score"
-      ]
+      ],
+      "failure_modes": [
+        "Untrained model — landmark tokens are inserted into a standard model, which ignores them and gains nothing.",
+        "Poor placement — landmarks sit at arbitrary offsets instead of real boundaries, so lookup lands in the wrong region.",
+        "Wrong region fan-out — the model attends to a nearby landmark and reads the section next to the one that holds the answer.",
+        "Serving friction — the non-standard attention does not fit the inference stack, and the team falls back to truncation."
+      ],
+      "structure": "Long input --insert landmark tokens at boundaries--> Landmark-aware model <-- Query; Model --attend to landmark--> Surrounding region --> Answer"
     },
     {
       "id": "test-time-memorization",
@@ -4129,7 +4323,14 @@
         "In-session learning lift vs static-model baseline",
         "Per-session memory-module cost",
         "Cross-session bleed incidents"
-      ]
+      ],
+      "failure_modes": [
+        "Cross-session bleed — module state is not reset, and one session's learned inputs shape another user's answers.",
+        "Bad update — an early wrong input changes the module's parameters, and later steps in the session build on it.",
+        "Compute blow-up — gradient steps at every input make long sessions too slow or costly to serve.",
+        "Unpromoted learning — useful in-session knowledge vanishes at session end because no promotion to long-term memory is defined."
+      ],
+      "structure": "Session input --> Model + memory module --gradient update at inference--> Module params --> next input benefits; End of session --> reset module (or explicit promotion to LTM)"
     },
     {
       "id": "context-compaction",
@@ -4292,7 +4493,13 @@
         "mermaid": "flowchart TD\n  T[New turn appended] --> M{Window > threshold?}\n  M -->|no| C[Continue normally]\n  M -->|yes| K[Compaction pass]\n  K --> D[Digest: goals, decisions,<br/>open commitments, constraints]\n  P[Pinned preamble<br/>task + hard constraints] --> W[Working context]\n  D --> W\n  R[Recent verbatim turns] --> W\n  W --> C",
         "caption": "When utilisation crosses the high-water mark, the older span is folded into a decision-preserving digest and the agent resumes."
       },
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "Rewritten commitment — the digest states an open commitment in a weaker form, and the agent later acts against the original.",
+        "Unpinned task — the task statement sits inside the compactable region and gets summarised into something vaguer.",
+        "Lost detail — a file name or value dropped from the digest is needed several steps later and cannot be recovered.",
+        "Thin recent window — too few turns stay verbatim, and the agent loses track of what it just did."
+      ]
     },
     {
       "id": "filesystem-as-context",
@@ -4449,7 +4656,14 @@
         "State-loss incidents — cases where a needed file was missing, stale, or never written",
         "Task completion rate on long-horizon runs — share of long tasks finished without window overflow"
       ],
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Stale view — the agent works from the one-line summary and never re-reads the file that changed.",
+        "Forgotten file — the agent loses track of which path holds the needed state and redoes the work.",
+        "File clutter — old plans and notes pile up, and the agent reads a contradicting version.",
+        "Sandbox escape — writes or reads reach paths outside the allowed area."
+      ],
+      "structure": "Agent step --> Plan / notes / large output --write--> File --> Live window keeps path + one-line summary --step needs it--> Re-read file into context --> Agent step"
     },
     {
       "id": "adaptive-memory-decay",
@@ -4596,7 +4810,14 @@
         "Long-term memory store — holds items with their retention scores, such as Mem0 or Zep",
         "Decay scheduler — applies the decay function and updates scores on access",
         "Relevance scorer — supplies the semantic-relevance signal that modulates the decay rate"
-      ]
+      ],
+      "failure_modes": [
+        "Quiet loss — an important fact that is rarely accessed decays below threshold and is dropped.",
+        "Reinforced staleness — an outdated fact keeps being accessed, so its score stays high and it is never questioned.",
+        "Bad fusion — two similar items are fused, and a detail that set them apart is lost.",
+        "Mistuned rate — decay is too fast and the store forgets useful items, or too slow and the store keeps growing."
+      ],
+      "structure": "Write memory item --> Retention score + decay function; time passes --decay (rate modulated by relevance, frequency, recency)--> score; access --reinforce--> score; score below threshold --> demote / fuse / forget, else keep"
     },
     {
       "id": "context-folding",

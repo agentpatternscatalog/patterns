@@ -2,7 +2,7 @@
 
 **Also known as:** Live Time Anchor, Time-of-Day Awareness, Wall-Clock Injection
 
-**Category:** Memory
+**Category:** Memory  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: inject a small precomputed time block (local, UTC, weekday, season, m
 
 On every prompt assembly, compute a small block: ISO local time, ISO UTC, weekday, day-of-year, ISO week, season (hemisphere-aware), moon phase. Inject as a `## NOW` section near the top of the system prompt. Cost is microseconds; benefit is the model never being temporally adrift.
 
-## Example scenario
+## Structure
 
-A long-running personal agent answers 'good morning!' at 22:00 because nothing in its prompt tells it what time the user is in. The user finds it disorienting. The team adds now-anchoring: every prompt assembly computes a small NOW block (ISO local time, weekday, day-of-year, season, moon phase) and prepends it near the top of the system prompt. The agent's replies become temporally grounded — 'evening — Friday, finally' — without any tool call, and time-aware reasoning costs microseconds.
+```
+Clock --> NOW block builder (ISO local, UTC, weekday, week, season, moon) --> ## NOW header --> System prompt --> LLM --> Time-aware reply
+```
 
 ## Diagram
 
@@ -46,6 +48,10 @@ flowchart TD
   SP --> M[LLM]
   M --> R[Time-aware reply]
 ```
+
+## Example scenario
+
+A long-running personal agent answers 'good morning!' at 22:00 because nothing in its prompt tells it what time the user is in. The user finds it disorienting. The team adds now-anchoring: every prompt assembly computes a small NOW block (ISO local time, weekday, day-of-year, season, moon phase) and prepends it near the top of the system prompt. The agent's replies become temporally grounded — 'evening — Friday, finally' — without any tool call, and time-aware reasoning costs microseconds.
 
 ## Consequences
 
@@ -60,6 +66,13 @@ flowchart TD
 - Adds a few hundred tokens per prompt.
 - Hemisphere/locale assumptions can be wrong if not configurable.
 - Astronomical accuracy has limits without real ephemeris data.
+
+## Failure modes
+
+- Stale anchor — the NOW block is computed once and cached, so long sessions reason from an old time.
+- Wrong locale — the hemisphere or time zone is hard-coded, and the agent greets a user with the wrong season or hour.
+- Ignored anchor — the block sits in the prompt but the model still uses its training-time sense of the date for relative reasoning.
+- Overstated precision — the moon phase or season is approximate, yet the agent states it as exact fact.
 
 ## What this pattern constrains
 
@@ -79,46 +92,44 @@ Prompts assembled for inference must include a freshly computed current-time anc
 - Strict prompt caching requires byte-identical prompts and the time block would invalidate the cache.
 - The host already provides a time-aware system prompt header.
 
-## Variants
+## Components
 
-### Minimal time block
+- System clock — host wall clock the prompt assembler reads at every call
+- NOW block builder — computes ISO local + UTC, weekday, day-of-year, ISO week, season, and moon phase
+- Prompt assembler — injects the rendered NOW block at the top of the system prompt before each call
+- Hemisphere/locale config — keeps season and time-zone logic configurable so southern-hemisphere or non-Gregorian deployments stay correct
+- Cache-aware placement rule — decides whether the NOW block sits inside or outside the cached prefix
 
-Inject only ISO local time and weekday into the system prompt at every assembly.
+## Tools
 
-*Distinguishing factor:* smallest possible footprint
+- datetime / zoneinfo library — host-side timezone-aware time formatting
+- Astronomical helpers — astral or skyfield for sunrise/sunset and lunar phase when the rich variant is enabled
 
-*When to use:* Default for cost-sensitive deployments.
+## Evaluation metrics
 
-### Rich temporal block
-
-Inject ISO local + UTC, weekday, day-of-year, ISO week, season (hemisphere-aware), and moon phase.
-
-*Distinguishing factor:* astronomical and calendrical context
-
-*When to use:* Long-running cognitive agents that benefit from grounding their thinking-aloud in seasonal/lunar context.
-
-### Cache-friendly stub
-
-Place the time block outside the cached prefix so the cache key is stable; inject it as a separate user-role preamble.
-
-*Distinguishing factor:* preserves prompt-cache hit rate
-
-*When to use:* When prompt caching is critical to cost and the cached prefix is large.
+- Temporal-awareness audit — fraction of replies that correctly use time-of-day and weekday context against a labelled set
+- Saved 'what time is it' tool calls — count eliminated per session vs a no-anchor baseline
+- Prompt-cache hit rate — measured under both inline and cache-friendly-stub placements
+- Per-prompt token overhead — additional tokens added by the NOW block
+- Stale-time incident rate — replies that reasoned from an out-of-date anchor (signals an assembly bug)
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Wall-clock and named-human context are injected on every tick so reasoning stays grounded in the current moment and in the one specific human the agent is in relation with. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Wall-clock and named-human context are injected on every tick so reasoning stays grounded in the current moment and in the one specific human the agent is in relation with. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *specialises* → [awareness](awareness.md)
-- *complements* → [scheduled-agent](scheduled-agent.md)
-- *complements* → [prompt-caching](prompt-caching.md)
-- *complements* → [embodied-proxy-handoff](embodied-proxy-handoff.md)
-- *complements* → [liminal-state-detection](liminal-state-detection.md)
+- _specialises_ **Awareness**
+- _complements_ **Scheduled Agent**
+- _complements_ **Prompt Caching**
+- _complements_ **Embodied-Proxy Handoff**
+- _complements_ **Liminal-State Detection**
+- _complements_ **Ambient Presence Sensing**
+- _complements_ **Rogue Agent Drift**
+- _complements_ **Standing State Injection** — Both inject a freshly computed block into every prompt assembly; now-anchoring restates the current time, standing-state-injection restates the current task state.
+- _complements_ **Tool-Result Reinforcement** — Both ride an existing channel with a freshly computed block; now-anchoring stamps the current time into the prompt, tool-result reinforcement stamps goal and status onto the tool return.
+- _complements_ **As-Of Information-Set Pinning** — Injects the current wall clock so replies are time-aware; a dated decision needs both that clock and its as-of timestamp, and must not read one for the other.
 
 ## References
 
-- (doc) *Anthropic — System prompts (date and context injection)*, 2025, <https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/system-prompts>
-
-**Tags:** temporal, awareness, always-on, prompt-engineering
+- [Anthropic — System Prompts (current date injected at the start of every conversation)](https://docs.claude.com/en/release-notes/system-prompts) — Anthropic, 2025

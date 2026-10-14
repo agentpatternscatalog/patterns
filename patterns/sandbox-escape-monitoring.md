@@ -23,6 +23,58 @@ Treating the sandbox as a pure prevention mechanism means a successful escape, o
 - False positives on legitimate boundary-pushing operations.
 - Egress patterns evolve faster than allowlists.
 
+## Therefore
+
+Therefore: instrument the sandbox to log every syscall, egress, and filesystem write outside the allowed set, stream to safety telemetry, and tie threshold breaches to the kill-switch, so that boundary violations become alertable signal rather than silent compromise.
+
+## Solution
+
+Instrument the sandbox: log every syscall outside the allowed set, every network egress not on the allowlist, every filesystem write outside the working directory. Stream to safety telemetry. Alert on threshold breaches. Pair with kill-switch for automatic halt on confirmed escape.
+
+## Structure
+
+```
+Instrumented sandbox --(syscall outside allowed set | egress not on allowlist | write outside workdir)--> Safety telemetry stream --> Threshold detector --alert--> Operators / --confirmed escape--> Kill-switch halts agent
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]
+  S -->|net egress not on allowlist| Tel
+  S -->|fs write outside workdir| Tel
+  Tel --> Det[Threshold detector]
+  Det -->|alert| Op[Operators]
+  Det -->|confirmed escape| KS[Kill-switch]
+```
+
+## Example scenario
+
+A code-execution agent runs user-emitted Python in a container that should have no network. One day a contractor's prompt-injected payload triggers an outbound DNS request; sandbox-isolation alone would have allowed the egress to fail silently. With escape monitoring, the unexpected syscall and the blocked egress both stream to safety telemetry, an alert fires within seconds, and the team locks the offending tenant before any further attempts.
+
+## Consequences
+
+**Benefits**
+
+- Detection of escape attempts and successes.
+- Forensic trail when incidents occur.
+
+**Liabilities**
+
+- Telemetry volume.
+- Alert fatigue if thresholds are mis-tuned.
+
+## Failure modes
+
+- Alert fatigue — thresholds are set too low, operators learn to ignore the stream of boundary alerts, and a real escape is lost among them.
+- Stale allowed set — a legitimate new tool needs a syscall or egress target that is not listed, and its normal behaviour floods the telemetry as violations.
+- Blind spot in instrumentation — the sandbox logs network and file events but not a class of syscalls, so one escape path produces no event.
+- Detected but not stopped — a confirmed escape raises an alert, but the kill-switch link is missing and the agent keeps running until a human acts.
+
+## What this pattern constrains
+
+Sandbox events outside the allowed set must be logged and inspectable; silent boundary violations are forbidden.
 
 ## Applicability
 
@@ -38,54 +90,39 @@ Treating the sandbox as a pure prevention mechanism means a successful escape, o
 - Telemetry volume would overwhelm the safety pipeline without thresholds.
 - Alerts have no responder and would be ignored.
 
-## Therefore
+## Components
 
-Therefore: instrument the sandbox to log every syscall, egress, and filesystem write outside the allowed set, stream to safety telemetry, and tie threshold breaches to the kill-switch, so that boundary violations become alertable signal rather than silent compromise.
+- Instrumented Sandbox — container, microVM, or syscall-filter that emits boundary events
+- Allowed-Set Definitions — explicit lists of permitted syscalls, egress destinations, and filesystem paths
+- Safety Telemetry Stream — receives every boundary-violation event in near real time
+- Threshold Detector — fires alerts on burst patterns and confirmed escape signatures
+- Kill-Switch Bridge — auto-halts the agent fleet when escape is confirmed
 
-## Solution
+## Tools
 
-Instrument the sandbox: log every syscall outside the allowed set, every network egress not on the allowlist, every filesystem write outside the working directory. Stream to safety telemetry. Alert on threshold breaches. Pair with kill-switch for automatic halt on confirmed escape.
+- E2B / Modal sandbox monitoring — production code-execution platforms with boundary telemetry
+- Linux seccomp / eBPF — syscall-level instrumentation for sandboxed workloads
+- Egress firewall with logging (Cilium, iptables) — captures network egress outside allowlist
 
-## Example scenario
+## Evaluation metrics
 
-A code-execution agent runs user-emitted Python in a container that should have no network. One day a contractor's prompt-injected payload triggers an outbound DNS request; sandbox-isolation alone would have allowed the egress to fail silently. With escape monitoring, the unexpected syscall and the blocked egress both stream to safety telemetry, an alert fires within seconds, and the team locks the offending tenant before any further attempts.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  S[Sandbox] -->|syscall outside allowset| Tel[Telemetry stream]
-  S -->|net egress not on allowlist| Tel
-  S -->|fs write outside workdir| Tel
-  Tel --> Det[Threshold detector]
-  Det -->|alert| Op[Operators]
-  Det -->|confirmed escape| KS[Kill-switch]
-```
-
-## Consequences
-
-**Benefits**
-
-- Detection of escape attempts and successes.
-- Forensic trail when incidents occur.
-
-**Liabilities**
-
-- Telemetry volume.
-- Alert fatigue if thresholds are mis-tuned.
-
-## What this pattern constrains
-
-Sandbox events outside the allowed set must be logged and inspectable; silent boundary violations are forbidden.
+- Boundary-violation detection rate — share of injected red-team violations that surface as alerts
+- False-positive rate on legitimate operations — alerts on benign boundary-pushing actions
+- Mean time from violation to alert — telemetry pipeline latency
+- Kill-switch trigger precision — share of auto-halts that turned out to be real escapes
+- Forensic-trail completeness on incidents — share of confirmed escapes with full event chain captured
 
 ## Known uses
 
-- **Production code-execution platforms (E2B, Modal sandbox monitoring)** — *Available*
+- **Production code-execution platforms (E2B, Modal sandbox monitoring)** _available_
 
 ## Related patterns
 
-- *complements* → [sandbox-isolation](sandbox-isolation.md)
-- *composes-with* → [kill-switch](kill-switch.md)
-- *uses* → [provenance-ledger](provenance-ledger.md)
+- _complements_ **Sandbox Isolation**
+- _composes-with_ **Kill Switch**
+- _uses_ **Provenance Ledger**
+- _complements_ **Adversary-Indistinguishability Blind Spot** — Sandbox-escape monitoring treats boundary violations as telemetry; this names why behavioural-anomaly detection alone misses a credential-legitimate agent adversary that never trips an obvious boundary.
 
-**Tags:** safety, sandbox, monitoring
+## References
+
+- [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-10/) — 2025

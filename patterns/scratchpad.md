@@ -31,6 +31,12 @@ Therefore: give the agent a separate writable surface for intermediate notes tha
 
 Provide a tool or convention for writing to a scratchpad (a section of the prompt, a tool call, a file). The agent reads from and writes to it across turns. The user-visible response is separate. The scratchpad is purged at task completion or expires with the session.
 
+## Structure
+
+```
+Turn n --> Agent --write notes--> Scratchpad --read--> Turn n+1 --> Agent --> User-visible response (separate slot); Task done --purge--> Scratchpad
+```
+
 ## Diagram
 
 ```mermaid
@@ -59,6 +65,13 @@ A research agent that has to read ten papers and answer one question keeps repea
 
 - Token cost grows with scratchpad size.
 - Scratchpad becomes shadow state if not purged.
+
+## Failure modes
+
+- Leak into response — scratch notes slip into the user-visible slot, and the user sees half-finished work.
+- Shadow state — the scratchpad is never purged, and old notes steer a new task.
+- Bloat — the agent keeps writing notes but never trims them, and token cost grows every turn.
+- Lost notes — the scratchpad lives only in trimmed history, so the notes vanish before the step that needs them.
 
 ## What this pattern constrains
 
@@ -116,6 +129,7 @@ Scratchpad contents are visible only to the agent loop; user-facing output draws
 - _alternative-to_ **BDI Agent**
 - _complements_ **Filesystem as Context**
 - _alternative-to_ **Unstructured Human Capture Layer** — A scratchpad is the agent's own writable working space, purged at task end; the dump layer is human-authored, durable, and read-only to the agent.
+- _complements_ **Execution-State Ledger** — A scratchpad holds free-form notes the model writes and may forget to update; the execution state is maintained by the runtime from the action stream, so it does not depend on the model remembering.
 
 ## References
 

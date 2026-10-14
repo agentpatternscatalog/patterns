@@ -155,6 +155,7 @@ The agent must not render the whole surface at full fidelity: a high-resolution 
 - _complements_ **Modality-Conflict Arbitration** — When channels disagree about a claim, re-observing the disputed region at higher fidelity is one way to settle it without falling back on an implicit modality preference.
 - _used-by_ **Computer Use** — Screen control is where the cost of full-acuity observation bites hardest, because every step produces another dense screenshot.
 - _used-by_ **Mobile UI Agent** — Small screens with dense controls are the case where a coarse view locates a target that it cannot resolve precisely enough to touch.
+- _complements_ **Physical-Evidence Progress Gate** — Governs how the verification look is paid for: escalate to full resolution only on the region the subgoal names, so the post-actuation check stays affordable.
 
 ## References
 

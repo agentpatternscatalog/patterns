@@ -168,6 +168,7 @@ The agent under test must not be told that its counterpart is simulated, and the
 - _complements_ **Chance-Corrected Judge Validation** — The same validation duty applied to the interlocutor rather than the grader: a simulated-user score should carry a measured agreement figure against human-run episodes before it gates anything.
 - _complements_ **Dual Evaluation (Offline + Online)** — Simulated-user rollouts sit on the offline track; the online track is what catches the failure patterns the simulator does not reproduce.
 - _uses_ **Agent Persona Profile** — The simulated user is configured from a structured persona object — who is speaking, what they hold back, which tools they may use — rather than from a free-form role sentence.
+- _complements_ **Learnability-Frontier Task Sampling** — Repeating each task and reporting a consistency figure produces precisely the per-task success rate this pattern's selector consumes.
 
 ## References
 

@@ -23,6 +23,59 @@ Prompt-based tool calling is brittle: the model often forgets to call a tool whe
 - The training-time tool surface diverges from runtime over time.
 - Filtering noise dominates training cost.
 
+## Therefore
+
+Therefore: self-supervise tool-call placement by keeping only insertions that lower perplexity on the gold continuation, so that the model learns when and how to call tools without human-labelled data.
+
+## Solution
+
+Generate candidate tool calls during training. Insert each into a context. Score whether the resulting completion is improved (perplexity drop on the gold continuation). Keep helpful insertions as training data. Fine-tune the model to emit tool calls in those positions.
+
+## Structure
+
+```
+Training context --> Generate candidate tool calls --> Insert into context --> Score (perplexity drop on gold continuation) --helpful--> Keep as training example --> Fine-tune model to emit calls there; --not helpful--> Drop
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Ctx[Training context] --> Cand[Generate candidate tool calls]
+  Cand --> Ins[Insert into context]
+  Ins --> Score[Score: perplexity drop on gold continuation?]
+  Score -- helpful --> Keep[Keep as training example]
+  Score -- not --> Drop[Drop]
+  Keep --> FT[Fine-tune model to emit calls in those positions]
+```
+
+## Example scenario
+
+A team wants their model to call a calculator and a search tool reliably without writing thousands of human-labelled tool-use traces. They use Toolformer-style self-supervision: at training time, candidate tool calls are inserted into many contexts and scored by whether the resulting completion's perplexity drops on the gold continuation; helpful insertions become training data. The fine-tuned model learns when and how to call tools without any human annotation.
+
+## Consequences
+
+**Benefits**
+
+- No human-labelled tool-call data required.
+- Model learns when not to call tools, not just when to.
+
+**Liabilities**
+
+- Training pipeline complexity.
+- Tool surface drift between train and serve.
+- Historical: superseded by RLHF-tuned tool-use in frontier models; not productionised at scale.
+
+## Failure modes
+
+- Train-serve tool drift — the tools available at serving time differ from those used to build the training data, and the model calls tools that no longer exist or have changed.
+- Weak scoring signal — a perplexity drop on the gold continuation rewards calls that help wording but not correctness, and the model learns to call tools that do not fix its answer.
+- Missed positions — the candidate generator never proposes a call where one was needed, so the model never learns to call there.
+- Pipeline breakage — the multi-stage data generation fails part-way, and the fine-tune runs on a skewed or partial set.
+
+## What this pattern constrains
+
+Tool use is bound to positions where self-supervised filtering judged the call helpful; ungrounded tool calls are not reinforced.
 
 ## Applicability
 
@@ -38,61 +91,40 @@ Prompt-based tool calling is brittle: the model often forgets to call a tool whe
 - Fine-tuning capacity (compute, model access) is unavailable.
 - The toolset is too small or unstable to justify fine-tuning.
 
-## Therefore
+## Components
 
-Therefore: self-supervise tool-call placement by keeping only insertions that lower perplexity on the gold continuation, so that the model learns when and how to call tools without human-labelled data.
+- Candidate Generator — produces candidate tool calls at training-time positions in the corpus
+- Insertion Step — substitutes the candidate call (and its API result) into the context
+- Scoring Function — measures perplexity drop on the gold continuation to judge helpfulness
+- Filtered Training Set — retained examples where the inserted call improved the continuation
+- Fine-Tuned Model — trained to emit tool calls at the positions the scorer found helpful
 
-## Solution
+## Tools
 
-Generate candidate tool calls during training. Insert each into a context. Score whether the resulting completion is improved (perplexity drop on the gold continuation). Keep helpful insertions as training data. Fine-tune the model to emit tool calls in those positions.
+- Calculator, search engine, calendar, and translator endpoints — the original Toolformer toolset that produces candidate results
+- Self-supervised data pipeline — runs candidate generation, insertion, and scoring across the corpus
+- Supervised fine-tuning stack (Hugging Face TRL or equivalent) — trains the model on the filtered traces
 
-## Example scenario
+## Evaluation metrics
 
-A team wants their model to call a calculator and a search tool reliably without writing thousands of human-labelled tool-use traces. They use Toolformer-style self-supervision: at training time, candidate tool calls are inserted into many contexts and scored by whether the resulting completion's perplexity drops on the gold continuation; helpful insertions become training data. The fine-tuned model learns when and how to call tools without any human annotation.
-
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Ctx[Training context] --> Cand[Generate candidate tool calls]
-  Cand --> Ins[Insert into context]
-  Ins --> Score[Score: perplexity drop on gold continuation?]
-  Score -- helpful --> Keep[Keep as training example]
-  Score -- not --> Drop[Drop]
-  Keep --> FT[Fine-tune model to emit calls in those positions]
-```
-
-## Consequences
-
-**Benefits**
-
-- No human-labelled tool-call data required.
-- Model learns when not to call tools, not just when to.
-
-**Liabilities**
-
-- Training pipeline complexity.
-- Tool surface drift between train and serve.
-- Historical: superseded by RLHF-tuned tool-use in frontier models; not productionised at scale.
-
-## What this pattern constrains
-
-Tool use is bound to positions where self-supervised filtering judged the call helpful; ungrounded tool calls are not reinforced.
+- Downstream task lift versus base model — headline value of the self-supervised training
+- Tool-call appropriateness rate at inference — how often the fine-tuned model calls tools when it should
+- Wrong-argument rate — share of post-fine-tuning calls with invalid or unhelpful arguments
+- Filtered-trace yield — fraction of candidate insertions kept after scoring
+- Training compute per percentage-point gain — efficiency of the self-supervised pipeline
 
 ## Known uses
 
-- **Toolformer paper baseline** — *Available*
-- **Influences modern instruction-tuning of frontier models** — *Available*
+- **Toolformer paper baseline** _available_
+- **Influences modern instruction-tuning of frontier models** _available_
 
 ## Related patterns
 
-- *specialises* → [tool-use](tool-use.md)
-- *complements* → [agent-skills](agent-skills.md)
-- *alternative-to* → [tool-discovery](tool-discovery.md)
+- _specialises_ **Tool Use**
+- _complements_ **Agent Skills**
+- _alternative-to_ **Tool Discovery**
+- _complements_ **MRKL Systems (Modular Neuro-Symbolic)**
 
 ## References
 
-- (paper) Schick, Dwivedi-Yu, Dessì, Raileanu, Lomeli, Zettlemoyer, Cancedda, Scialom, *Toolformer: Language Models Can Teach Themselves to Use Tools*, 2023, <https://arxiv.org/abs/2302.04761>
-
-**Tags:** tool-use, self-supervised, training
+- [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761) — Schick, Dwivedi-Yu, Dessì, Raileanu, Lomeli, Zettlemoyer, Cancedda, Scialom, 2023

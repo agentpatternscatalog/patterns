@@ -23,6 +23,59 @@ Replaying the entire conversation history on every turn becomes expensive quickl
 - What to keep vs. summarise is a quality-vs-cost tension.
 - Multi-device sessions complicate where state lives.
 
+## Therefore
+
+Therefore: persist a typed per-thread state object with an explicit TTL, so that the next turn loads exactly the slice that is still fresh and lets stale state expire on its own.
+
+## Solution
+
+Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.
+
+## Structure
+
+```
+First turn --> Typed thread state (messages, screen, plan, step) --persist with TTL--> Store --reload--> Next turn --update--> Store; TTL elapsed --> expire --> reset to empty
+```
+
+## Diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> Empty
+  Empty --> Active: first turn
+  Active --> Active: turn N updates state
+  Active --> Active: reload typed slice
+  Active --> Expired: TTL elapsed
+  Expired --> Empty: reset
+  Active --> [*]: session end
+```
+
+## Example scenario
+
+A chat assistant replays the entire conversation each turn and by message thirty the prompt is bloated with stale facts and the cost-per-turn has tripled. The team defines a typed thread state (recent messages, current screen, active plan, agent step) persisted with a 24-hour TTL and reloads only that on the next turn. Token cost per turn flatlines; the assistant still feels continuous within a session and resets cleanly on TTL.
+
+## Consequences
+
+**Benefits**
+
+- Continuity without full-history replay.
+- Bounded memory footprint per active user.
+
+**Liabilities**
+
+- TTL boundaries surprise users when state vanishes mid-task.
+- Schema migrations are painful for live state.
+
+## Failure modes
+
+- Mid-task expiry — the TTL runs out while the user is still working, and the active plan vanishes.
+- Stale slice — the reloaded state holds an old screen or step, and the agent acts on it as current.
+- Schema break — a deploy changes the state object shape, and live sessions fail to reload.
+- Over-trust — the agent relies on a fact older than the TTL window without re-fetching it.
+
+## What this pattern constrains
+
+The agent cannot rely on facts older than the TTL window without re-fetching them.
 
 ## Applicability
 
@@ -38,67 +91,48 @@ Replaying the entire conversation history on every turn becomes expensive quickl
 - All history truly matters and pruning would lose important context.
 - TTL semantics cannot be enforced reliably in storage.
 
-## Therefore
+## Components
 
-Therefore: persist a typed per-thread state object with an explicit TTL, so that the next turn loads exactly the slice that is still fresh and lets stale state expire on its own.
+- Typed thread-state object — schema covering recent messages, current screen, active plan, and agent step
+- Per-thread state store — durable backing for the typed object, keyed by thread ID
+- TTL controller — expires state after the configured window and resets the slot to empty
+- Reload step — pulls the typed slice at the start of each turn and rehydrates the agent loop
+- Schema-migration shim — handles in-flight live state when the typed object changes shape
 
-## Solution
+## Tools
 
-Define a typed state object per thread (messages, current screen, active plan, agent step). Persist with a TTL (commonly 24h). Reload on the next turn; expire and reset on TTL.
+- Key-value store with TTL — Redis, DynamoDB TTL, or Cloud Memorystore for the per-thread slot
+- Schema validation library — Pydantic or zod to enforce the typed state contract on read and write
+- Checkpointer — LangGraph MemorySaver or equivalent when the agent runs as a graph
 
-## Example scenario
+## Evaluation metrics
 
-A chat assistant replays the entire conversation each turn and by message thirty the prompt is bloated with stale facts and the cost-per-turn has tripled. The team defines a typed thread state (recent messages, current screen, active plan, agent step) persisted with a 24-hour TTL and reloads only that on the next turn. Token cost per turn flatlines; the assistant still feels continuous within a session and resets cleanly on TTL.
-
-
-## Diagram
-
-```mermaid
-stateDiagram-v2
-  [*] --> Empty
-  Empty --> Active: first turn
-  Active --> Active: turn N updates state
-  Active --> Active: reload typed slice
-  Active --> Expired: TTL elapsed
-  Expired --> Empty: reset
-  Active --> [*]: session end
-```
-
-## Consequences
-
-**Benefits**
-
-- Continuity without full-history replay.
-- Bounded memory footprint per active user.
-
-**Liabilities**
-
-- TTL boundaries surprise users when state vanishes mid-task.
-- Schema migrations are painful for live state.
-
-## What this pattern constrains
-
-The agent cannot rely on facts older than the TTL window without re-fetching them.
+- Per-turn token saving — tokens avoided vs full-history replay
+- Mid-task TTL expiry rate — sessions interrupted by state expiring before the user finished
+- State-rehydrate latency — milliseconds added to the turn by reading and validating the typed slice
+- Continuity quality — answer coherence across turns vs a stateless baseline on a labelled set
+- Migration breakage — incidents where a schema change broke in-flight sessions
 
 ## Known uses
 
-- **Bobbin (Stash2Go)** — *Available*. Per-thread state in chat/backend/state.py with 24h TTL.
-- **LangGraph MemorySaver checkpoints** — *Available*
+- **Bobbin (Stash2Go)** _available_ — Per-thread state in chat/backend/state.py with 24h TTL.
+- **LangGraph MemorySaver checkpoints** _available_
 
 ## Related patterns
 
-- *complements* → [episodic-summaries](episodic-summaries.md)
-- *complements* → [session-isolation](session-isolation.md)
-- *used-by* → [agent-resumption](agent-resumption.md)
-- *complements* → [cross-session-memory](cross-session-memory.md)
-- *complements* → [scratchpad](scratchpad.md)
-- *generalises* → [reasoning-trace-carry-forward](reasoning-trace-carry-forward.md)
-- *complements* → [co-located-memory-surfacing](co-located-memory-surfacing.md)
-- *used-by* → [interrupt-resumable-thought](interrupt-resumable-thought.md)
-- *used-by* → [echo-recognition](echo-recognition.md)
+- _complements_ **Episodic Summaries**
+- _complements_ **Session Isolation**
+- _used-by_ **Agent Resumption**
+- _complements_ **Cross-Session Memory**
+- _complements_ **Scratchpad**
+- _generalises_ **Reasoning Trace Carry-Forward**
+- _complements_ **Co-Located Memory Surfacing**
+- _used-by_ **Interrupt-Resumable Thought**
+- _used-by_ **Echo Recognition**
+- _used-by_ **Augmented LLM**
+- _complements_ **Three Layers of Agentic AI Memory**
+- _used-by_ **History-Dependent Admissibility** — The session ledger and the posture derived from it live in per-thread state, which is what makes admissibility depend on turns that have already happened.
 
 ## References
 
-- (doc) *LangGraph: Persistence*, <https://langchain-ai.github.io/langgraph/concepts/persistence/>
-
-**Tags:** memory, state, ttl
+- [LangGraph: Persistence](https://langchain-ai.github.io/langgraph/concepts/persistence/)

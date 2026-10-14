@@ -2,7 +2,7 @@
 
 **Also known as:** Salience Scoring, Attention Selection, Top-K Memory Attention
 
-**Category:** Memory
+**Category:** Memory  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,6 +32,12 @@ Therefore: score each candidate memory by a weighted sum of novelty, goal-releva
 
 Score each candidate memory item `m` with a weighted sum: `alpha * novelty(m) + beta * goal_relevance(m) + gamma * recency(m) + delta * prediction_error(m) - epsilon * fatigue(m)`. Pick the top-k into the working set for the next tick. Persist the weights in a tunable config so a reflection pass can adjust them. The fatigue term penalises items that have already been attended to many times in the recent window, breaking rumination loops.
 
+## Structure
+
+```
+Candidate memory items --salience score (novelty + goal + recency + prediction error - fatigue)--> Top-k --> Working set --> Next tick -.reflection.-> Tunable weights --> Salience score
+```
+
 ## Diagram
 
 ```mermaid
@@ -43,6 +49,10 @@ flowchart TD
   Tick -.reflection.-> Cfg[Tunable weights]
   Cfg --> Sc
 ```
+
+## Example scenario
+
+A long-running personal agent has months of memory; dumping it all into context is impossible and grabbing the most recent items misses the user's recurring goals. The team scores each candidate memory with a weighted sum of novelty, goal-relevance, recency, prediction-error, and a fatigue penalty. Each tick attends to top-k items only. Surprising long-tail facts rise above last-hour chatter when they actually matter, and token usage per tick stays flat as memory grows.
 
 ## Consequences
 
@@ -57,6 +67,13 @@ flowchart TD
 - Weight tuning is empirical and per-deployment.
 - A bad scoring function can suppress genuinely relevant items.
 - Salience scoring is itself work; it has to stay cheap to run every tick.
+
+## Failure modes
+
+- Suppressed relevance — a poorly weighted score keeps a relevant old item below the top-k cut on every tick.
+- Rumination — the fatigue weight is too low, and the same items win attention tick after tick.
+- Costly scoring — the scorer runs heavy work over every candidate each tick and becomes the bottleneck it was meant to avoid.
+- Reflection overcorrection — the tuning pass swings the weights too far after a few ticks and attention becomes erratic.
 
 ## What this pattern constrains
 
@@ -76,52 +93,45 @@ The agent cannot read its full memory store at every tick; salience scoring is m
 - All memory items are equally relevant and ranking adds noise rather than signal.
 - Strict determinism is required and salience scores would change with every new write.
 
-## Variants
+## Components
 
-### Generative-Agents recipe
+- Candidate memory store — every item that could be considered for the next tick
+- Salience scorer — weighted sum over novelty, goal-relevance, recency, prediction error, and a fatigue penalty
+- Top-k selector — keeps only the highest-scoring items and enforces the bound at the retrieval layer, feeding the next-tick working set
+- Fatigue tracker — counts recent attends per item so loops cannot reward the same memory forever
+- Tunable weight config — persisted alpha/beta/gamma/delta/epsilon values a reflection pass can update
 
-Score each memory by a weighted sum of recency (exponential decay), importance (LLM-rated at write time), and relevance (embedding cosine to current query).
+## Tools
 
-*Distinguishing factor:* three-factor weighted sum
+- Embedding model — produces vectors used by goal-relevance and novelty terms
+- Vector index — Chroma/FAISS over candidate memories for fast top-k lookup
+- Importance-rating LLM call — assigns the importance term at write time per the Generative-Agents recipe
 
-*When to use:* Default. Well-validated by the Generative Agents paper.
+## Evaluation metrics
 
-### Top-k by similarity only
-
-Drop recency and importance; rank purely by embedding similarity to the current query.
-
-*Distinguishing factor:* single signal
-
-*When to use:* When memory items have no meaningful age or rated importance (e.g. pure factual stores).
-
-### Tag-gated salience
-
-Filter memory by tags or namespaces first, then apply salience scoring within the filtered set.
-
-*Distinguishing factor:* two-stage filter then score
-
-*When to use:* When memory is multi-tenant or the agent has structural reasons (current task, persona) to ignore most of it.
-
-## Example scenario
-
-A long-running personal agent has months of memory; dumping it all into context is impossible and grabbing the most recent items misses the user's recurring goals. The team scores each candidate memory with a weighted sum of novelty, goal-relevance, recency, prediction-error, and a fatigue penalty. Each tick attends to top-k items only. Surprising long-tail facts rise above last-hour chatter when they actually matter, and token usage per tick stays flat as memory grows.
+- Top-k precision — fraction of selected items the agent actually used downstream
+- Recall@k of golden memories — proportion of held-out important items that surface in the top-k for matching cues
+- Per-tick scoring cost — milliseconds and tokens spent scoring candidates
+- Rumination-suppression effect — drop in repeat attention to the same item once the fatigue term is enabled
+- Weight-tuning stability — variance in answer quality as alpha/beta/gamma/delta/epsilon shift within plausible ranges
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Per-tick salience scoring directs attention toward what matters most rather than processing everything uniformly. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Per-tick salience scoring directs attention toward what matters most rather than processing everything uniformly. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [episodic-summaries](episodic-summaries.md)
-- *complements* → [vector-memory](vector-memory.md)
-- *composes-with* → [five-tier-memory-cascade](five-tier-memory-cascade.md)
-- *alternative-to* → [context-window-packing](context-window-packing.md)
-- *used-by* → [preoccupation-tracking](preoccupation-tracking.md)
-- *used-by* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
+- _complements_ **Episodic Summaries**
+- _complements_ **Vector Memory**
+- _composes-with_ **Five-Tier Memory Cascade**
+- _alternative-to_ **Context Window Packing** — Different stage of the pipeline: salience selects what to consider; packing decides how much fits.
+- _used-by_ **Preoccupation Tracking**
+- _used-by_ **Mode-Adaptive Cadence**
+- _complements_ **Multi-Axis Promotion Scoring**
+- _complements_ **Self-Corpus Vocabulary**
+- _complements_ **Episodic Memory**
 
 ## References
 
-- (paper) Park, O'Brien, Cai, Morris, Liang, Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
-- (paper) Laurent Itti, Christof Koch, *Computational modelling of visual attention*, 2001, <https://pubmed.ncbi.nlm.nih.gov/11256080/>
-
-**Tags:** memory, salience, attention, scoring
+- [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442) — Park, O'Brien, Cai, Morris, Liang, Bernstein, 2023
+- [Computational modelling of visual attention](https://pubmed.ncbi.nlm.nih.gov/11256080/) — Laurent Itti, Christof Koch, 2001

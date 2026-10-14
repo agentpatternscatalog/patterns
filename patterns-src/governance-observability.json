@@ -164,7 +164,14 @@
         "Judge-vs-human agreement on trajectory rubrics — calibration signal on the judge itself",
         "Cost per trajectory verdict — overhead of trajectory evaluation vs answer-only grading"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Truncated trajectory — the trace store drops tool observations or intermediate state, so the judge scores a partial record and misses the unsafe step.",
+        "Uncalibrated rubric — the judge applies efficiency and safety criteria inconsistently across runs, and two similar trajectories get very different scores.",
+        "Cost blowout — every run is sent through full trajectory review, and evaluation spend grows faster than the agent's own spend.",
+        "Answer anchoring — the judge reads a correct final answer first and then waves through the twenty redundant tool calls that led to it."
+      ],
+      "structure": "Candidate agent (thoughts, tool calls, observations, answer) --> Trajectory store --full trajectory--> Judge agent <--criteria-- Rubric (correctness, efficiency, safety) --> Verdict record (score + per-step critique)"
     },
     {
       "id": "agent-middleware-chain",
@@ -288,7 +295,14 @@
         "Chain latency overhead — added ms per call",
         "Order incidents — bugs traced to misordered middleware",
         "Concern coverage — share of model/tool/memory calls touched by each registered middleware"
-      ]
+      ],
+      "failure_modes": [
+        "Redaction after logging — the logging middleware sits ahead of the redaction middleware, so sensitive content is written to logs before it is stripped.",
+        "Hidden coupling — one middleware relies on a field another one adds, and removing or reordering the first breaks the second without any error.",
+        "Chain latency creep — each team registers one more middleware, and every model and tool call slows down because the whole chain runs on the critical path.",
+        "Bypassed mount — a new tool or memory call is wired directly instead of through the runtime mount, and none of the cross-cutting concerns apply to it."
+      ],
+      "structure": "Request --> M1.process_request --> M2.process_request --> M3.process_request --> Underlying call (model / tool / memory) --> M3.process_response --> M2.process_response --> M1.process_response --> Response; on exception: Underlying call --error--> M3 --> M2 --> M1 process_error --> Error"
     },
     {
       "id": "agent-resumption",
@@ -488,7 +502,14 @@
         "Snapshot storage cost per run — bytes persisted across the lifetime of a workflow",
         "Determinism-violation count — non-deterministic code paths detected during replay"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Duplicate side effect — the process crashes after an email is sent but before the effect is logged, and the replay sends it again because the target took no idempotency key.",
+        "Non-deterministic replay — the workflow code reads the clock or a random value, so the replayed path diverges from the recorded one and the resumed state is corrupt.",
+        "Stale world on resume — the run restarts hours later and acts on a checkpointed view of external systems that has since changed.",
+        "Unserialisable state — a live connection or in-memory handle sits in the agent state, and the snapshot either fails or restores without it."
+      ],
+      "structure": "Workflow engine runs agent --> each side effect (with idempotency key) --> Effect log / Snapshot store --crash, deploy or disconnect--> Suspended --restart--> Resumer loads log or snapshot --> replay, skipping recorded effects --> continue from next step --> Done"
     },
     {
       "id": "attention-manipulation-explainability",
@@ -601,7 +622,13 @@
         "Auditor-acceptance rate — share of explanations the auditor accepts as input-grounded evidence",
         "Top-k stability — variance of the top-k ranked input tokens across paraphrases of the same input"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Black-box dead end — the team adopts a hosted API with no attention access, and the attribution pass cannot run at all, so prose self-explanations quietly come back.",
+        "Scattered reasoning misread — the answer depends on an argument spread over many tokens, and the per-token heat-map shows no clear hot spot, which reviewers read as no influence.",
+        "Per-request compute spike — one extra forward pass per token group makes long inputs slow and costly, and teams start skipping attribution on exactly the large cases.",
+        "Unmarked self-explanation — the interface shows a generated rationale next to the heat-map without labelling it, and users trust the prose over the measured map."
+      ]
     },
     {
       "id": "bayesian-bandit-experimentation",
@@ -731,7 +758,14 @@
         "Reward logging pipeline — pushes outcome signal to posterior updater",
         "Experiment registry — tracks arms, durations, and posterior thresholds",
         "Eval-harness — used to compute reward signal on tasks"
-      ]
+      ],
+      "failure_modes": [
+        "Early pruning of a slow winner — the policy starves a variant whose reward only shows up after a few days, and the better variant never gets enough traffic to prove itself.",
+        "Fast-reward bias — reward for some variants arrives late, so the naive update favours whichever variant reports outcomes first.",
+        "Peeking at separation — operators stop the experiment the first time the posteriors look apart, and the promoted winner is a product of optional stopping.",
+        "Mis-specified reward — the reward signal tracks cost or speed only, and the bandit shifts traffic toward a cheaper variant that solves fewer tasks."
+      ],
+      "structure": "Incoming request --> Bandit policy (Thompson sampling / UCB) --> Variant A | B | C --> Observe reward (success, satisfaction, cost) --> Update per-arm posteriors --> Bandit policy; posteriors --> Allocation dashboard; separation threshold or budget reached --> promote winner"
     },
     {
       "id": "cost-observability",
@@ -872,7 +906,14 @@
         "Unattributed-bucket spend share — fraction of cost the gateway could not assign",
         "Alert precision on cost anomalies — true-positive rate against confirmed regressions"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Unattributed bucket growth — new call sites skip the tags, and a growing share of spend lands in the unattributed bucket where no feature owns it.",
+        "Alert on the wrong grain — anomaly alerts watch total tokens, so a ten-fold rise in one feature stays under the global threshold.",
+        "Re-identification through tags — the per-user tag is weakly anonymised, and the cost store becomes a record of what each person did.",
+        "Detection without brakes — the dashboard shows a runaway loop clearly, but nothing stops it until an operator reads the alert."
+      ],
+      "structure": "Model call / Tool call --tagging middleware (feature, route, model id, anonymised user)--> Tag-or-reject gateway --> Telemetry store --> Dashboards (by feature, model, tier, hour) + Anomaly alerter --> Operators"
     },
     {
       "id": "decision-log",
@@ -1100,7 +1141,14 @@
         "Tamper-attempt count — append-only rejections of edits to historical entries",
         "Redaction false-negative rate — sensitive payloads that escaped the redaction filter"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Rewritten trace — the log store allows updates, and the agent or a later process edits the reasoning so it no longer matches what drove the action.",
+        "Orphaned action — an action record is written on a path that skips the log entry, and the reviewer finds a trade with no reasoning attached.",
+        "Summary too thin — the chosen granularity is a one-line summary, and it omits the rejected alternatives the reviewer needed.",
+        "Sensitive content kept — the redaction filter misses personal data in the reasoning, and the decision log becomes a privacy liability."
+      ],
+      "structure": "Agent action --> Provenance ledger; same step --> Reasoning capture (full / key decisions / summary) --> Redaction filter --> Append-only decision log (indexed by request id + time) <--link-- Provenance ledger; Post-hoc reviewer --query--> Decision log"
     },
     {
       "id": "durable-workflow-snapshot",
@@ -1276,7 +1324,13 @@
         "Schema-incompatibility rejections — count of refused resumes vs silent corruption (target zero corruption)",
         "Storage cost per workflow run — bytes written across the workflow lifetime"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Schema mismatch resumed — a deploy changes the snapshot shape and the version check is missing, so an old snapshot loads into new code and the run continues in a broken state.",
+        "Checkpoint gap — a snapshot is taken only on suspend, and a host crash between steps loses all work since the last suspension.",
+        "Loose storage access — snapshots carry sensitive local state into a bucket with wider read access than the workflow itself.",
+        "Unexpected state under new code — the schema version matches, but the new code assumes a field value the old run never set and takes a wrong branch."
+      ]
     },
     {
       "id": "eval-as-contract",
@@ -1455,7 +1509,14 @@
         "Advisory-to-blocking promotion rate — how often an advisory eval is promoted after proving itself",
         "Mean time to fix a failing blocking eval — release-gate latency cost"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Wrong blocking eval — a badly written blocking eval fails on correct behaviour, and a legitimate fix sits blocked until someone overrides it.",
+        "Override habit — the bypass path becomes routine, and releases ship past failing blocking evals with only a recorded click.",
+        "Advisory graveyard — important checks get filed as advisory to avoid blocking, and their regressions pile up in a tracker nobody reads.",
+        "Quiet suite edit — a blocking eval is loosened in the same pull request that would have failed it, without the review that suite changes require."
+      ],
+      "structure": "Pull request --> CI runs tiered eval suite --> Blocking evals pass? --no--> Block release (or recorded operator override) / --yes--> Advisory evals --> Track regressions + Release proceeds; Eval change --> Architectural review + signoff --> Eval suite"
     },
     {
       "id": "eval-harness",
@@ -1659,7 +1720,14 @@
         "Dataset staleness age — time since the golden set was last refreshed",
         "Inter-judge agreement on scoring — calibration when LLM-as-judge is used inside the harness"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Unrepresentative golden set — the dataset covers easy or old cases, so the challenger scores higher while real users hit failures the set never tests.",
+        "Judge drift in the scorer — the LLM-as-judge scorer shifts between runs, and a score gap between champion and challenger reflects the scorer, not the agent.",
+        "Tolerance too loose — the regression tolerance is wide enough that a real drop on a subset of items passes as noise.",
+        "Skipped re-run — a change is judged too small to need the harness, and the regression it carries ships unmeasured."
+      ],
+      "structure": "Golden dataset (input, expected output) --> Champion runner + Challenger runner --> Scorer (exact match / similarity / LLM-as-judge) --> Promotion gate (lift vs regression within tolerance) --lift--> Promote challenger / --regression--> Block"
     },
     {
       "id": "lineage-tracking",
@@ -1795,7 +1863,14 @@
         "Targeted-rollback hit rate — share of rolled-back ingredients identified precisely instead of blanket reverts",
         "Lineage-schema migration count — schema changes accommodated without breaking historical queries"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Missing retrieval ids — the stamper records prompt and model versions but drops the retrieved-document ids, so a disputed answer cannot be traced to its source text.",
+        "Broken join — the lineage store and output store use different output ids after a migration, and old outputs no longer resolve to their ingredients.",
+        "Schema change breaks history — a new lineage field is added without versioning, and queries against older records fail or return partial rows.",
+        "Unbounded growth — every output carries a full lineage row forever, and storage cost forces a cleanup that deletes records still needed for disputes."
+      ],
+      "structure": "Agent output --> Lineage stamper (prompt template hash, model id + version, tool versions, retrieved-doc ids, decision-log id) --> Lineage store <--join on output id--> Output store (accepts tagged outputs only); Lookup interface --> resolve past output to its ingredients"
     },
     {
       "id": "llm-as-judge",
@@ -1987,7 +2062,14 @@
         "Length-bias delta — score change as output length varies with content held roughly constant",
         "Per-eval judge cost — added spend per evaluated item from the judge calls"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Same-family favouritism — the judge comes from the same model family as the candidate and rates its familiar style higher than an equally good answer.",
+        "Uncalibrated gate — judge scores block or pass releases without any recent comparison to human grades, and drift goes unseen.",
+        "Vague rubric — criteria such as tone are loosely worded, and the judge's scores swing on surface features such as length.",
+        "Cost multiplication — every eval item now needs one or more judge calls, and the team trims the eval set to stay in budget."
+      ],
+      "structure": "Input + candidate output + rubric --> Judge model (different family) --> Structured score + rationale; Human calibration set --periodic comparison--> Judge --> Drift report"
     },
     {
       "id": "multi-principal-welfare-aggregation",
@@ -2109,7 +2191,14 @@
         "Principal-coverage — share of decisions that consulted all relevant principals",
         "Dispute rate — share of decisions that triggered principal pushback",
         "Manipulation indicators — Gibbard-style strategic-reporting signals"
-      ]
+      ],
+      "failure_modes": [
+        "Strategic misreporting — a principal overstates their preferences because the declared rule rewards it, and the aggregate tilts toward them.",
+        "Contested weights — the weighted rule needs per-principal weights, and the fight over those weights replaces the fight over outcomes.",
+        "Rule left in the prompt — the aggregation logic is still phrased inside the prompt, so the configured rule and the agent's real behaviour differ.",
+        "Untraced decision — the trace records the outcome but not which rule and weights produced it, and a disputed decision cannot be explained."
+      ],
+      "structure": "Principal registry (principals + weights) --> Per-principal preference probes --> Aggregation function (sum / weighted / collegial / role-priority, set by configuration) --> Decision --> Decision logger (principals consulted, rule, weights, outcome)"
     },
     {
       "id": "prompt-versioning",
@@ -2253,7 +2342,14 @@
         "Inline-prompt-leak count — production calls using ad-hoc inline prompts (target zero)",
         "Prompt-version churn — edits per prompt per week, surfaces unstable areas"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Inline prompt bypass — a developer adds a quick inline prompt string for a new feature, and its outputs cannot be tied to any registry version.",
+        "Stale pin after model upgrade — the model is upgraded while the prompt stays pinned to a version tuned for the old model, and quality drops with no prompt change on record.",
+        "Mutable tag — a version tag is overwritten instead of a new version being created, and two deployments with the same version run different text.",
+        "Unbound eval results — eval runs are stored without the prompt version, so a score change cannot be linked to the prompt that caused it."
+      ],
+      "structure": "Author edits prompt --> Hash + semver tag --> Prompt registry (immutable, optionally signed) <--name + pinned version-- Application code --> Deployment --> Eval harness --metrics tied to version--> Prompt registry; rollback = repin previous version"
     },
     {
       "id": "provenance-ledger",
@@ -2443,7 +2539,14 @@
         "Audit-answer turnaround — time to produce a full reconstruction for a regulator or customer query",
         "Ledger storage growth — bytes per day, signals when retention policy needs revisiting"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Empty justification — the agent fills the justification field with a generic placeholder that passes the validator but explains nothing.",
+        "Ledger crowding — every minor state change is logged in full, and the ledger outgrows the rest of storage until retention cuts are forced.",
+        "Rollback without diff — an event is recorded with a hash but the diff it points to is gone, so the action cannot be reversed by id.",
+        "Side-channel writes — some state changes go through a path that never reaches the recorder, and the ledger shows a gap at the moment that matters."
+      ],
+      "structure": "Agent action / state change --> Event recorder --> Required-fields validator (ts, actor, action, target, justification link, diff hash) --reject--> Error / --accept--> Append-only ledger --> Audit / explain + Rollback resolver (by event id)"
     },
     {
       "id": "replay-time-travel",
@@ -2591,7 +2694,14 @@
         "Branch-vs-original lift — number of replays that demonstrably improve on the original after a fix",
         "Trace storage cost per run — bytes per run retained for replay"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Live call leak — the replay re-calls a real tool for a step before N instead of reading the captured result, and the branch diverges for reasons unrelated to the change.",
+        "Incomplete capture — the trace misses the exact prompt or model id for some steps, so the replay starts from a state the original run never had.",
+        "Network-dependent drift — the modified branch calls an external service whose answers have changed, and the comparison mixes the fix with outside drift.",
+        "Trace store bloat — full per-step capture is kept for every run, and storage cost leads to short retention that drops the traces needed for old bugs."
+      ],
+      "structure": "Original run --capture per step (inputs, outputs, prompts, model id, tool calls)--> Trace store --> Step selector (pick step N) --> Substitution layer (modify prompt / model / tool result) --> Replay forward (captured state before N, live calls after) --> Branch trace --> Compare branches"
     },
     {
       "id": "rigor-relocation",
@@ -2806,7 +2916,14 @@
       "tools": [
         "Observability — logs, traces, and metrics that surface the pattern in production",
         "Eval harness — runs that quantify the pattern's frequency or severity over time"
-      ]
+      ],
+      "failure_modes": [
+        "Stale context file — the context file still describes last quarter's architecture, and the agent follows the outdated convention in every session.",
+        "Missing rule mistaken for safety — an invariant was never written as a validator or gate, yet the team assumes the machine checks cover it.",
+        "Taste moved to a linter — a judgement call is reduced to a lint rule, and changes pass the rule while the design still gets worse.",
+        "Unmapped retirement — an old review practice is dropped without being placed on any surface, and nothing in the relocation map shows it is gone."
+      ],
+      "structure": "Rigor practice once inside the agent loop --> Relocation map --> (tacit conventions --> context file | hand-enforced invariants --> types, validators, policy gates | periodic checks --> continuous evaluation) --> Wrapper catches failures on every change; decision log + provenance ledger record each relocation; stale-rule detector --> context file"
     },
     {
       "id": "sampled-prompt-trace-eval",
@@ -2936,7 +3053,14 @@
         "Monitoring store (Opik, LangSmith, Comet)",
         "LLM-judge service — runs the rubric prompt",
         "Slice-config store — maintains weighted sampling rates"
-      ]
+      ],
+      "failure_modes": [
+        "Rare failures missed — a failure that hits a tiny share of traffic almost never lands in the sample, and the dashboard shows healthy scores.",
+        "Rate left unchanged — the sample rate set at launch is never revisited, so judge spend grows with traffic or coverage shrinks without anyone deciding it.",
+        "Slice weighting misread — enterprise tenants are oversampled, and an unweighted aggregate is read as the quality of all traffic.",
+        "Logging without judging — traces pile up in the store but the judge job is quietly turned off, and monitoring exists only on paper."
+      ],
+      "structure": "Production request --> Inference --> Trace log (every request: prompt, response, context, parameters, metadata) --> Sampling policy (uniform rate + weighted slices) --> LLM judge (rubric) --> Aggregate over time windows --> Drift dashboard --> Operator"
     },
     {
       "id": "sandbox-escape-monitoring",
@@ -3042,7 +3166,14 @@
         "Kill-switch trigger precision — share of auto-halts that turned out to be real escapes",
         "Forensic-trail completeness on incidents — share of confirmed escapes with full event chain captured"
       ],
-      "last_updated": "2026-09-10"
+      "last_updated": "2026-09-10",
+      "failure_modes": [
+        "Alert fatigue — thresholds are set too low, operators learn to ignore the stream of boundary alerts, and a real escape is lost among them.",
+        "Stale allowed set — a legitimate new tool needs a syscall or egress target that is not listed, and its normal behaviour floods the telemetry as violations.",
+        "Blind spot in instrumentation — the sandbox logs network and file events but not a class of syscalls, so one escape path produces no event.",
+        "Detected but not stopped — a confirmed escape raises an alert, but the kill-switch link is missing and the agent keeps running until a human acts."
+      ],
+      "structure": "Instrumented sandbox --(syscall outside allowed set | egress not on allowlist | write outside workdir)--> Safety telemetry stream --> Threshold detector --alert--> Operators / --confirmed escape--> Kill-switch halts agent"
     },
     {
       "id": "scorer-live-monitoring",
@@ -3191,7 +3322,13 @@
         "Low-score review-queue depth — backlog of outputs awaiting human review",
         "Cross-scorer disagreement rate — divergence between LLM-judge, programmatic, and embedding scorers on the same output"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Treated as a fix — teams assume low scores get corrected, but the bad reply has already reached the user and nothing changes it.",
+        "Lagging signal — a traffic spike backs up the scoring stream, and the dashboard reports a quality drop minutes after it began.",
+        "Judge version drift — the scorer's judge model is upgraded without a rubric version, and score trends jump for reasons unrelated to the agent.",
+        "Unread review queue — low-score items keep piling into the review queue, and no one is assigned to work through it."
+      ]
     },
     {
       "id": "shadow-canary",
@@ -3360,7 +3497,14 @@
         "Promotion success rate — share of shadow-validated challengers that held up after promotion",
         "Long-tail coverage — share of low-frequency query categories exercised by the shadow run"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Shadow side effects — the challenger runs real tool calls during shadow, and its writes reach external systems even though its reply is hidden.",
+        "Noisy free-form diff — champion and challenger word answers differently, and the diff metric cannot tell style changes from real regressions.",
+        "Long shadow window — the shadow run is left on for weeks, and the doubled cost outlasts any decision it was meant to inform.",
+        "Leaked challenger output — a routing bug sends the challenger's reply to some users, breaking the promise that shadow is invisible."
+      ],
+      "structure": "User request --> Traffic splitter --> Champion agent --> User response; same request --> Challenger agent --> Shadow log (not user-visible); Champion output + Shadow log --> Diff evaluator (judge, exact-match tool calls, latency, cost) --> Promotion gate --lift--> Promote / --regression--> Revert"
     },
     {
       "id": "artifact-evaluation",
@@ -3474,7 +3618,14 @@
         "Per-node pass rate",
         "Worst-node identification — drives improvement work",
         "Per-node regression detection"
-      ]
+      ],
+      "failure_modes": [
+        "Context-free artifact — a tool-call trace is judged on its own, without the plan that called for it, and correct calls are marked wrong.",
+        "Rubric rot — the plan schema changes but its rubric does not, so per-node pass rates drift away from what the node now does.",
+        "Unnamed node output — one node emits no named artifact, and failures inside it still show up only in the final-output score.",
+        "Per-node cost load — every node is judged on every run, and eval spend grows with pipeline depth until coverage is cut."
+      ],
+      "structure": "Agent pipeline --> Node (plan | tool calls | guardrail | reflection) --> Named, schema-defined artifact --> Per-artifact rubric eval --> Per-node scores --> Score dashboard --> fix lowest-scoring node"
     },
     {
       "id": "dual-evaluation-offline-online",
@@ -3605,7 +3756,14 @@
         "Offline-online agreement rate",
         "Online regression detection latency",
         "Benchmark-refresh cycle from online signal"
-      ]
+      ],
+      "failure_modes": [
+        "Ignored disagreement — the offline gate passes while online scores drop, and the gap is filed as noise instead of a sign the benchmark is out of date.",
+        "Benchmark never refreshed — online findings never feed back into the offline suite, and the gate keeps testing last year's traffic.",
+        "Online track unstaffed — online labels need human review that nobody has time for, so the online track runs on judge scores only and drifts.",
+        "One track dropped — keeping two eval systems is costly, one is quietly turned off, and the failure modes only it caught return."
+      ],
+      "structure": "New agent build --> Offline benchmark suite --fail--> Block / --pass--> Deploy --> Production traffic --> Online sampler --> Online labeler (LLM-as-judge + human spot-check) --> Alert on regression; online results --periodic--> Refresh offline benchmark"
     },
     {
       "id": "agent-evaluator",
@@ -3724,7 +3882,14 @@
         "Continuous pass rate (rolling window)",
         "Edge-case coverage rate",
         "Drift detection latency"
-      ]
+      ],
+      "failure_modes": [
+        "Narrow test generation — the evaluator keeps producing variations of the same curated cases, and new kinds of failure in production go untested.",
+        "Evaluator left unowned — the evaluator agent breaks or stalls, its dashboard goes flat, and the flat line is read as stable quality.",
+        "Test traffic in production — evaluator inputs reach the production agent with real side effects or mixed into user metrics.",
+        "Weak judge on edge cases — synthetic edge cases need judgement the deterministic checks cannot give, and the LLM judge passes wrong answers."
+      ],
+      "structure": "Cadence trigger --> Agent evaluator --> Test-input generator (curated suite + production variations + synthetic edge cases) --> Production agent --> Outputs --> Output judge (LLM-as-judge + deterministic checks) --> Pass-rate dashboard + alerts"
     },
     {
       "id": "own-your-prompts",
@@ -3850,7 +4015,14 @@
         "Prompt-change traceability — every change has a commit",
         "Framework-upgrade behavior delta — none expected",
         "Eval coverage % of app-owned prompts"
-      ]
+      ],
+      "failure_modes": [
+        "Missed default in the audit — the initial audit misses a summarisation or retry prompt buried in the framework, and that one still changes on every framework upgrade.",
+        "Fallback to framework prompt — a missing file path makes the agent silently fall back to the framework default, and the owned copy is never used.",
+        "Copied and forgotten — the team owns the prompts but never reviews framework improvements to them, and fixes upstream never reach the agent.",
+        "Owned but untested — the prompts sit in the repo under version control, but the eval suite does not exercise some of them, so changes ship unchecked."
+      ],
+      "structure": "Framework default prompts --audit + copy--> App repo prompt files (team-owned) --> versioned in git + tested in eval suite --> Agent wiring loads team-owned copies only; framework upgrade --> no change to agent prompts without a team commit"
     },
     {
       "id": "agentic-golden-path",
@@ -4023,7 +4195,13 @@
         "Off-road bypass rate — how often users route around the platform to avoid the golden path",
         "High-impact escalation rate — fraction of changes correctly routed to human review"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Wrong standards assembled — the context assembler picks an outdated ADR or the wrong service's policy, and the agent follows it with confidence.",
+        "Road too narrow — the golden path blocks a legitimate change it did not anticipate, and engineers start working outside the platform to get it done.",
+        "Curation lapse — nobody updates the machine-readable standards after a convention changes, so every agent is guided to last year's practice at once.",
+        "Check loop drag — in-loop drift checks are slow, each edit waits on them, and the agent spends more time checking than editing."
+      ]
     },
     {
       "id": "agent-factory",
@@ -4175,7 +4353,13 @@
         "Provisioning time per instance — cost of standing up a new instance from the template",
         "Audit coverage — fraction of running instances whose template version is known"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Fleet-wide bad change — a template edit with a wrong model id or broken tool reaches every bound instance in one pass.",
+        "Out-of-band hotfix — an operator patches one instance in place during an incident, and the registry now records a version that instance no longer runs.",
+        "Lost state on re-render — a template change re-renders stateful instances and drops their memory or in-flight work.",
+        "Template sprawl — rigid templates cannot express small per-instance needs, so teams fork near-identical templates and drift returns at the template level."
+      ]
     },
     {
       "id": "managed-agent-runtime",
@@ -4324,7 +4508,14 @@
         "Trace coverage — share of session steps captured in the uniform observability trace",
         "Resumability rate — fraction of interrupted sessions that resume from checkpoint without lost work"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Cold-start latency — each new session waits for its sandbox to provision, and short interactive tasks feel slow compared with an in-process loop.",
+        "Missing hook — a product needs custom orchestration the managed loop does not expose, and the team builds a workaround around the runtime that loses its isolation and trace.",
+        "Vendor lock on the loop — pricing or behaviour of the managed loop changes, and every agent product on the platform is affected at once with no local fallback.",
+        "Over-broad scoped credential — the identity service mints a credential with wider scope than the tool needs, so a misused tool call reaches more than intended."
+      ],
+      "structure": "Caller (model ref + system prompt + tools) --> Invoke API --> Session-scoped sandbox (microVM: fs + shell) --> Managed reason-act loop <--> Built-in memory + Managed identity (scoped credentials for tool calls) + Observability (uniform per-step trace) --> Result to caller"
     },
     {
       "id": "journaled-llm-call",
@@ -4484,7 +4675,14 @@
         "Unwrapped-non-determinism findings — steps the determinism checker flags as not journaled",
         "Journal storage growth — bytes of journal written per workflow run"
       ],
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Unwrapped effect — one timestamp read or random draw is left outside the effect wrapper, and replay takes a different branch from the original run.",
+        "Stale replayed answer — recovery reuses a journaled model response about data that has since changed, and the workflow acts on it.",
+        "Shifted step positions — the workflow code changes between run and replay, journal keys no longer line up with steps, and the wrong output is fed to a step.",
+        "Unbounded journal — every effect is appended and nothing is garbage-collected, so journal storage grows with every long-running workflow."
+      ],
+      "structure": "Non-deterministic step (LLM call / tool / time / random) --> Effect wrapper --> Journal entry for this step? --no, first run--> Invoke resource --> Append output to step-keyed journal --> Use output / --yes, replay--> Read journaled output --> Use output --> Deterministic workflow logic --> Next step"
     },
     {
       "id": "deontic-token-delegation",
@@ -4679,7 +4877,8 @@
         "mermaid": "flowchart TD\n  P[Principal sets goal and obligations] --> T[Mint deontic tokens: obligation, permission, prohibition]\n  T --> A1[Agent 1 bears tokens]\n  A1 -->|delegate work and transfer tokens| A2[Agent 2 bears tokens]\n  A2 -->|append provenance| A3[Agent 3 bears tokens]\n  A3 --> E{Deontic evaluator: prohibition over obligation over permission}\n  E -->|forbidden| X[Refuse action]\n  E -->|allowed| Act[Act]\n  A3 -.trace chain back.-> P",
         "caption": "Duties are minted as tokens at the principal, transferred with each delegation, and traceable back through the chain for attribution."
       },
-      "last_updated": "2026-06-05"
+      "last_updated": "2026-06-05",
+      "structure": "Principal sets goal + obligations --> Mint deontic tokens (obligation, permission, prohibition) --> Agent 1 bears tokens --delegate work + transfer tokens, append provenance--> Agent 2 --> Agent 3 --> Deontic evaluator (prohibition > obligation > permission) --forbidden--> Refuse / --allowed--> Act; token chain --trace back--> Principal; transfers --> Provenance ledger"
     },
     {
       "id": "scaffold-ablation-on-model-upgrade",
@@ -4818,7 +5017,14 @@
         "Eval suite — the gate that decides whether a component's assumption still holds for the new model",
         "Harness component registry — inventory of scaffolds with the model-limitation assumption each encodes",
         "Ablation harness — temporarily disables a component to test the new model without it"
-      ]
+      ],
+      "failure_modes": [
+        "Premature removal — the eval suite does not cover the case a component protected, so it is ablated and the regression appears in production.",
+        "Unlabelled component — a harness piece carries no stated assumption, so nobody knows what to test and it survives every upgrade by default.",
+        "Skipped review — an upgrade ships under time pressure without the ablation pass, and scaffolding built for the older model keeps holding the new one back.",
+        "One-at-a-time blind spot — two components cover the same weakness, removing either alone passes the eval, and both get removed."
+      ],
+      "structure": "Model upgrade --> For each harness component --> State its model-limitation assumption --> Ablate (remove component) --> Eval suite holds? --yes, assumption expired--> Remove component / --no, regression--> Keep component --> next component"
     },
     {
       "id": "re-contact-subtracted-resolution",

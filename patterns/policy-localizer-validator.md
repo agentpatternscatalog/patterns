@@ -89,6 +89,13 @@ A booking agent must reserve a meeting room on an internal portal. Policy reads 
 - Cold-start: until the Validator is trained on the target domain, completion judgments are weak.
 - More moving parts to monitor at runtime.
 
+## Failure modes
+
+- Miscalibrated validator — the Validator reports the task complete while the confirmation screen has not loaded, and the agent stops early.
+- Contract drift — the Policy starts phrasing action descriptions in a new way, and the Localizer grounds them to the wrong elements.
+- Policy self-stop — the loop ends on the Policy saying it is done, bypassing the Validator's independent check.
+- Cold-start judgments — on a new app domain the untrained Validator keeps the loop running long after the task finished.
+
 ## What this pattern constrains
 
 The Policy model must not emit pixel coordinates directly — grounding is the Localizer's exclusive responsibility. The agent must not commit to task-complete based on the Policy model's own output; only the Validator can stop the loop.
@@ -143,6 +150,7 @@ The Policy model must not emit pixel coordinates directly — grounding is the L
 - _specialises_ **Computer Use** — Same decomposition applied to desktop GUIs.
 - _alternative-to_ **Evaluator-Optimizer** — Evaluator-Optimizer is a rewrite loop on text drafts; Validator here is a per-step gate on commit, not a critic of artifacts.
 - _alternative-to_ **Tool-Augmented Self-Correction** — Critic patterns judge a model's draft; Validator judges environment state, not text.
+- _complements_ **Foveated Perception Escalation** — The Localizer is the natural place for the escalation loop to run, and the Validator is the natural place to check that a proposed crop still matches the instruction.
 
 ## References
 

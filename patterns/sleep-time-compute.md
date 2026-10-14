@@ -2,8 +2,8 @@
 
 **Also known as:** Offline Pre-Computation, Anticipatory Context Distillation, Background Thinking, Latency-Free Pre-Answering
 
-**Category:** Memory
-**Status in practice:** emerging
+**Category:** Memory  
+**Status in practice:** experimental
 
 ## Intent
 
@@ -83,6 +83,13 @@ A developer agent has indexed a 200K-file monorepo as the user's standing contex
 - Quality regression if the speculative pre-answer is lower-effort than live inference and the agent does not detect it.
 - Storage and indexing overhead for the pre-answer cache.
 
+## Failure modes
+
+- Stale pre-answer — a source file changes after the idle pass, and the cache returns an answer that is no longer true.
+- Wasted idle spend — the predictor guesses questions nobody asks, and offline compute is spent for nothing.
+- Low-effort hit — a cheap speculative answer is returned in place of a better live answer, and quality drops unnoticed.
+- Unmarked origin — pre-answers are not tagged in the trace, so evaluation cannot tell them apart from live inference.
+
 ## What this pattern constrains
 
 The agent must not return a stale pre-computed answer when its source documents have changed since pre-computation; freshness checks must gate cache hits. Speculative pre-answers must be marked as such in the trace so downstream evaluation can distinguish them from live inference.
@@ -103,23 +110,48 @@ The agent must not return a stale pre-computed answer when its source documents 
 - Privacy regime forbids holding/processing user data outside live sessions.
 - Idle compute is more expensive than the latency it saves.
 
+## Components
+
+- Idle scheduler — kicks off offline passes when provider capacity is unused and no user is waiting
+- Distillation pass — compresses the standing corpus into per-file, per-module, or per-topic structured summaries
+- Speculative-query generator and pre-answer pass — predicts likely next queries from history and runs the model against them, storing Q/A pairs indexed by query embedding
+- Pre-answer cache — embedding-indexed store consulted at test time before live inference
+- Freshness invalidator — drops or marks-stale cache entries whose source documents have changed since pre-computation
+
+## Tools
+
+- Job scheduler — Airflow, cron, or a queue worker that runs the offline passes
+- Vector index — Pinecone/Weaviate/Chroma over query embeddings for the cache lookup
+- Summarisation LLM — drives the distillation pass; usually a cheaper model than test-time inference
+- Change-detection layer — git hooks, file mtime diff, or content-hashing to feed the freshness invalidator
+
+## Evaluation metrics
+
+- Speculative hit rate — fraction of user queries served from the pre-answer cache
+- Test-time latency reduction — p50/p95 latency on hits vs cold queries
+- Stale-answer rate — sampled cases where a cache hit was wrong because the source had changed
+- Offline-to-test cost ratio — total offline spend per saved test-time dollar
+- Prediction-coverage growth — improvement in hit rate as the predictor learns from misses over time
+
 ## Known uses
 
-- **[Letta](https://www.letta.com/blog/sleep-time-compute)** — *Available* — Open-source agent platform with idle-time pre-computation against persistent user memory.
-- **[Lin et al. arXiv:2504.13171](https://arxiv.org/abs/2504.13171)** — *Available* — Original sleep-time compute paper; demonstrates trade-off on standing-context benchmarks.
+- **[Letta](https://www.letta.com/blog/sleep-time-compute)** _available_ — Open-source agent platform with idle-time pre-computation against persistent user memory.
+- **[Lin et al. arXiv:2504.13171](https://arxiv.org/abs/2504.13171)** _available_ — Original sleep-time compute paper; demonstrates trade-off on standing-context benchmarks.
 
 ## Related patterns
 
-- *complements* → [episodic-summaries](episodic-summaries.md) — Episodic summaries compact past conversation; sleep-time compute generates new speculative content.
-- *complements* → [context-window-packing](context-window-packing.md) — Selection happens at prompt-time; sleep-time compute prepares the material being selected from.
-- *alternative-to* → [dream-consolidation-cycle](dream-consolidation-cycle.md) — Both are between-session passes; dream-consolidation targets affective/embodied agents, sleep-time compute targets standing-context cost reduction.
-- *alternative-to* → [test-time-compute-scaling](test-time-compute-scaling.md) — Inverts the trade-off: more offline compute so less test-time compute is needed.
-- *complements* → [prompt-caching](prompt-caching.md) — Prompt caching hits on matching prefixes; sleep-time compute generates new content that prompt caching cannot.
-- *uses* → [cross-session-memory](cross-session-memory.md) — Standing user context is the substrate sleep-time compute operates on.
+- _complements_ **Episodic Summaries** — Episodic summaries compact past conversation; sleep-time compute generates new speculative content.
+- _complements_ **Context Window Packing** — Selection happens at prompt-time; sleep-time compute prepares the material being selected from.
+- _alternative-to_ **Dream Consolidation Cycle** — Both are between-session passes; dream-consolidation targets affective/embodied agents, sleep-time compute targets standing-context cost reduction.
+- _alternative-to_ **Test-Time Compute Scaling** — Inverts the trade-off: more offline compute so less test-time compute is needed.
+- _complements_ **Prompt Caching** — Prompt caching hits on matching prefixes; sleep-time compute generates new content that prompt caching cannot.
+- _uses_ **Cross-Session Memory** — Standing user context is the substrate sleep-time compute operates on.
+- _complements_ **Adaptive Compute Allocation**
+- _complements_ **Context Compaction** — Compaction distils the live conversation at runtime; sleep-time compute distils standing context offline.
+- _complements_ **Adaptive Memory Decay** — Sleep-time compute schedules when consolidation runs; adaptive decay decides what is forgotten.
+- _complements_ **Speculative Agentic Actions** — Both precompute likely-future work, but sleep-time-compute runs offline during idle periods against the standing context, while speculation runs in-loop on the live trajectory and is discarded the moment the prediction misses.
 
 ## References
 
-- (paper) Kevin Lin et al., *Sleep-time Compute: Beyond Inference Scaling at Test-time*, 2025, <https://arxiv.org/abs/2504.13171>
-- (blog) Letta, *Sleep-time Compute*, 2025, <https://www.letta.com/blog/sleep-time-compute>
-
-**Tags:** memory, test-time-compute, offline, caching, latency
+- [Sleep-time Compute: Beyond Inference Scaling at Test-time](https://arxiv.org/abs/2504.13171) — Kevin Lin et al., 2025
+- [Sleep-time Compute](https://www.letta.com/blog/sleep-time-compute) — Letta, 2025

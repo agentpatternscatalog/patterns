@@ -7,7 +7,7 @@
 
 ## Intent
 
-Compose a low-latency voice agent as a tightly co-located pipeline of speech-to-text, language-aware LLM reasoning, and text-to-speech, where the same vendor or operator owns all three so language identity and dialect propagate cleanly across the boundary.
+Compose a voice agent as a tightly co-located pipeline of speech-to-text, language-aware LLM reasoning, and text-to-speech, where one vendor owns all three so language and dialect propagate cleanly across stages.
 
 ## Context
 
@@ -24,21 +24,6 @@ Bolting a generic English-trained large language model between a generic speech-
 - Dialect and code-switching are the norm, not the exception.
 - Telephony imposes 8 kHz audio constraints on top.
 
-
-## Applicability
-
-**Use when**
-
-- The agent serves users in multiple languages or dialects with code-switching.
-- Sub-second turn-taking requires streaming at every hop (STT, LLM, TTS).
-- One vendor or co-located stack can carry language tags end-to-end.
-
-**Do not use when**
-
-- The product is monolingual English with no dialect or accent concern.
-- Latency budgets allow non-streaming round-trips between independent services.
-- Translating to and from English mid-pipeline is acceptable for the use case.
-
 ## Therefore
 
 Therefore: co-locate STT, LLM, and TTS in a streaming pipeline that propagates language and dialect tags end-to-end, so that turn-taking stays under a second and the voice never code-switches back to English by accident.
@@ -52,10 +37,6 @@ Build the voice agent as a co-located pipeline whose components share language i
 ```
 Audio in -> streaming STT (per-language) -> language tag + text -> LLM (multilingual) -> streaming TTS (target language) -> Audio out.
 ```
-
-## Example scenario
-
-A food-delivery startup launches a voice ordering line in Spain by chaining a generic English-trained STT, an English LLM, and a generic TTS. Customers in Catalan and Andalusian Spanish are misheard, the LLM responds in slightly off Spanish, and the TTS speaks with a flat American accent. The team rebuilds as a multilingual-voice-agent with all three stages from one vendor that supports Iberian Spanish and Catalan, dialect tags propagated end-to-end, and TTS voices native to the target languages. Order completion rates climb sharply.
 
 ## Diagram
 
@@ -71,6 +52,10 @@ sequenceDiagram
   TTS->>U: speech (native voice for L)
 ```
 
+## Example scenario
+
+A food-delivery startup launches a voice ordering line in Spain by chaining a generic English-trained STT, an English LLM, and a generic TTS. Customers in Catalan and Andalusian Spanish are misheard, the LLM responds in slightly off Spanish, and the TTS speaks with a flat American accent. The team rebuilds as a multilingual-voice-agent with all three stages from one vendor that supports Iberian Spanish and Catalan, dialect tags propagated end-to-end, and TTS voices native to the target languages. Order completion rates climb sharply.
+
 ## Consequences
 
 **Benefits**
@@ -85,27 +70,71 @@ sequenceDiagram
 - Streaming everywhere is harder than batch.
 - Telephony audio quality bounds STT accuracy.
 
+## Failure modes
+
+- Silent pivot — a stage translates to English mid-pipeline, and the reply comes back in the right language but with the wrong dialect and lost meaning.
+- Dropped language tag — the detected language is not passed to the model, so it answers a code-switching caller in a single default language.
+- Weakest-link coverage — the speech-to-text model handles a dialect the text-to-speech voice does not, and the caller hears an unnatural or wrong accent.
+- Batch hop — one stage waits for complete input instead of streaming, and turn-taking slows past what a phone conversation tolerates.
+
 ## What this pattern constrains
 
 Language identity and dialect tags must propagate through every hop; mid-pipeline silent translation to a pivot language (e.g. English) is forbidden.
 
+## Applicability
+
+**Use when**
+
+- The agent serves users in multiple languages or dialects with code-switching.
+- Sub-second turn-taking requires streaming at every hop (STT, LLM, TTS).
+- One vendor or co-located stack can carry language tags end-to-end.
+
+**Do not use when**
+
+- The product is monolingual English with no dialect or accent concern.
+- Latency budgets allow non-streaming round-trips between independent services.
+- Translating to and from English mid-pipeline is acceptable for the use case.
+
+## Components
+
+- Speech-to-Text Component — trained on the target languages and accents, emits text plus language and dialect tags
+- Language-aware LLM — consumes text with structured language metadata and replies in the same language
+- Text-to-Speech Component — uses voices native to the target language without translating back to English
+- Language Metadata Channel — carries detected language and dialect signals across every hop
+- Streaming Pipeline — keeps incremental STT, streaming LLM tokens, and streaming TTS co-located for low latency
+
+## Tools
+
+- Multilingual ASR (Whisper-large, vendor STT) — transcribes audio with language and dialect tags
+- Streaming TTS with per-language voices — renders replies in a voice native to the detected language
+- Voice activity detection and turn taking — drives the streaming pipeline between user and agent
+
+## Evaluation metrics
+
+- Word error rate per language — STT quality on each supported language and dialect
+- Language-tag propagation correctness — fraction of turns where dialect metadata survived end to end
+- End-to-end response latency — time from user audio end to first TTS frame
+- Code-switching handling rate — share of mixed-language turns answered in the right languages
+- User-rated naturalness per language — subjective quality of replies versus an English-only baseline
+
 ## Known uses
 
-- **[Sarvam Samvaad](https://www.sarvam.ai/products/conversational-agents)** — *Available*. Conversational voice/text agents in 11 Indian languages on a single platform; sub-second voice latency target.
-- **Krutrim (Ola)** — *Available*. Multilingual Indic voice and text agent stack.
-- **Bhashini** — *Available*. Indian government Indic-language services consumed by agent stacks.
+- **[Sarvam Samvaad](https://www.sarvam.ai/products/conversational-agents)** _available_ — Conversational voice/text agents in 11 Indian languages on a single platform; sub-second voice latency target.
+- **Krutrim (Ola)** _available_ — Multilingual Indic voice and text agent stack.
+- **Bhashini** _available_ — Indian government Indic-language services consumed by agent stacks.
 
 ## Related patterns
 
-- *uses* → [streaming-typed-events](streaming-typed-events.md)
-- *complements* → [multi-model-routing](multi-model-routing.md) — Per-language model selection.
-- *uses* → [structured-output](structured-output.md)
-- *complements* → [translation-layer](translation-layer.md)
-- *alternative-to* → [computer-use](computer-use.md)
-- *complements* → [code-switching-aware-agent](code-switching-aware-agent.md)
+- _uses_ **Streaming Typed Events**
+- _complements_ **Multi-Model Routing** — Per-language model selection.
+- _uses_ **Structured Output**
+- _complements_ **Translation Layer**
+- _alternative-to_ **Computer Use**
+- _complements_ **Code-Switching-Aware Agent**
+- _alternative-to_ **Delayed Streams Modeling**
+- _generalises_ **Unified Voice Interface**
+- _complements_ **Semantic Turn Endpointing** — The co-located speech-to-text, LLM, and text-to-speech pipeline supplies the streaming transcript this pattern classifies for turn completion.
 
 ## References
 
-- (doc) *Sarvam — Samvaad: Conversational AI Agents for Indian Languages*, <https://www.sarvam.ai/products/conversational-agents>
-
-**Tags:** tool-use, voice, india-origin, multilingual, sarvam
+- [Sarvam — Samvaad: Conversational AI Agents for Indian Languages](https://www.sarvam.ai/products/conversational-agents)
