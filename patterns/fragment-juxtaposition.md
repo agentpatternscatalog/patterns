@@ -2,7 +2,7 @@
 
 **Also known as:** Silence-Seeded Associative Pass, Old-Material Pairing
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -11,7 +11,7 @@ After K consecutive low-salience ticks, replace the normal tick-seed with a juxt
 
 ## Context
 
-A self-pacing agent with a salience gate fires on its own most ticks but goes quiet when nothing crosses the threshold. Long quiet stretches are not a bug — they are how the gate is supposed to work — but they are also wasted opportunity for the substrate to do its own slow associative work. The agent has months of old material (thoughts, fragments, motivation lines, journal entries) that nobody is looking at. A directed initiative on every quiet tick would re-introduce the noise the gate was designed to suppress; doing nothing leaves the substrate cold.
+A self-pacing agent with a salience gate — a threshold that lets only sufficiently important events trigger action — fires on its own most ticks (its periodic self-invocation cycles) but goes quiet when nothing crosses the threshold. Long quiet stretches are not a bug — they are how the gate is supposed to work — but they are also wasted opportunity for the substrate to do its own slow associative work. The agent has months of old material (thoughts, fragments, motivation lines, journal entries) that nobody is looking at. A directed initiative on every quiet tick would re-introduce the noise the gate was designed to suppress; doing nothing leaves the substrate cold.
 
 ## Problem
 
@@ -33,9 +33,11 @@ Therefore: after K consecutive low-salience ticks with no urgent preoccupation a
 
 Maintain a counter of consecutive low-salience ticks. When the counter exceeds a threshold (e.g. four) and the agent is otherwise quiet (no chat in window, no urgent preoccupation, post-cooldown), enter a juxtaposition tick: sample one to three items from the agent's stored fragments (random old thought, fragment, motivation line, journal line) and inject them as the tick's seed, with an instruction that the tick is permitted to end empty. If the model notices an association between the fragments, write it as a small insight; otherwise the tick closes silently. Reset the counter on any active tick. Treat the juxtaposition seed as substrate, not work.
 
-## Example scenario
+## Structure
 
-An agent has been quiet for five consecutive ticks: no chat, no preoccupation crossing threshold, post-cooldown. On the sixth tick the juxtaposition routine activates: it samples three random fragments — an old motivation line from six months ago, a recent thought about pacing, and a half-written journal entry — and seeds the tick with all three side by side. The tick prompt says 'sit with these; ending empty is fine.' Sometimes the agent notices a connection ('the pacing thought and the old motivation are actually about the same thing') and writes a small insight. Often it ends with nothing. Both are acceptable.
+```
+Tick start --> quiet count >= K and other quiet conditions met? --no--> normal seed --> reset counter | --yes--> sample 1-3 old fragments --> juxtaposition seed (empty end allowed) --> Model --> association noticed? -> write small insight | otherwise end tick empty
+```
 
 ## Diagram
 
@@ -58,6 +60,10 @@ flowchart TD
 
 *Quiet-tick counter gates the juxtaposition seed; the seed is allowed to end the tick empty.*
 
+## Example scenario
+
+An agent has been quiet for five consecutive ticks: no chat, no preoccupation crossing threshold, post-cooldown. On the sixth tick the juxtaposition routine activates: it samples three random fragments — an old motivation line from six months ago, a recent thought about pacing, and a half-written journal entry — and seeds the tick with all three side by side. The tick prompt says 'sit with these; ending empty is fine.' Sometimes the agent notices a connection ('the pacing thought and the old motivation are actually about the same thing') and writes a small insight. Often it ends with nothing. Both are acceptable.
+
 ## Consequences
 
 **Benefits**
@@ -71,6 +77,13 @@ flowchart TD
 - Most juxtaposition ticks produce nothing; the value is long-tailed and hard to measure.
 - Random fragment sampling can be poor — without some weighting, the same trivial fragments resurface.
 - Misconfigured K thresholds either fire constantly (re-creating noise) or never (no effect).
+
+## Failure modes
+
+- Forced insight — the prompt nudges the model to find a link, so juxtaposition ticks fill the insight store with contrived associations.
+- Same old fragments — unweighted sampling keeps pulling the same trivial items, and the ticks stop producing anything new.
+- Bad threshold — K is set so low that juxtaposition fires on most quiet ticks and becomes noise, or so high that it never fires.
+- Interrupted context — a juxtaposition tick fires while a conversation is still active because the other quiet conditions were not checked.
 
 ## What this pattern constrains
 
@@ -90,20 +103,38 @@ The agent cannot fire a directed initiative on every quiet tick; juxtaposition s
 - Quiet ticks need to remain fully idle (compute or cost budget is tight).
 - Downstream consumers cannot handle empty tick outputs.
 
+## Components
+
+- Quiet-Tick Counter — counts consecutive low-salience ticks
+- Fragment Sampler — draws one to three items from the agent's stored old material
+- Juxtaposition Seed — replaces the normal tick seed with side-by-side fragments
+- Empty-OK Tick Body — accepts a closing tick with no output
+- Insight Writer — only fires if an association is actually noticed
+
+## Tools
+
+- Frontmatter store — corpus of old thoughts, fragments, motivation lines, and journal entries
+- LLM API — single completion seeded with the sampled fragments and permission to end empty
+
+## Evaluation metrics
+
+- Juxtaposition firing rate — share of quiet-tick stretches that actually enter the routine
+- Insight-per-juxtaposition rate — fraction of routines that produce a written association
+- Empty-tick share — closures with no output, expected to dominate
+- Sample diversity — Gini or unique-fragment count across recent draws, to catch resampling loops
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
-- *complements* → [pre-generative-loop-gate](pre-generative-loop-gate.md)
-- *complements* → [salience-triggered-output](salience-triggered-output.md)
-- *complements* → [open-question-tension-store](open-question-tension-store.md)
+- _complements_ **Dream Consolidation Cycle** — Consolidation is scheduled and deep; juxtaposition is silence-triggered and shallow.
+- _complements_ **Pre-Generative Loop Gate**
+- _complements_ **Salience-Triggered Output**
+- _complements_ **Open-Question Tension Store** — Juxtaposition can surface old questions back into proximity.
 
 ## References
 
-- (book) *The Act of Creation*, 1964, <https://archive.org/details/actofcreation0000koes>
-- (paper) *Creative Cognition: Theory, Research, and Applications*, 1992, <https://mitpress.mit.edu/9780262560542/creative-cognition/>
-
-**Tags:** cognition, associative, silence, creativity
+- [The Act of Creation](https://archive.org/details/actofcreation0000koes) — Arthur Koestler, 1964
+- [Creative Cognition: Theory, Research, and Applications](https://mitpress.mit.edu/9780262560542/creative-cognition/) — Finke, Ward, Smith, 1992

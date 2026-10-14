@@ -2,7 +2,7 @@
 
 **Also known as:** Mid-Term Working Memory, Affect-Tagged Concerns, Background Chewing
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: keep a capped, affect-tagged list of mid-term concerns with half-life
 
 Cap a list at 5-8 preoccupations stored as small JSON entries with topic, intensity (0..1), affect tag, opened-at, last-touched. Apply a 7-day half-life decay to intensity. When the cap is reached, release the coldest entry. Surface all current preoccupations in every tick prompt as a brief sidebar. The agent has explicit `touch` (raise intensity) and `release` (drop) operations.
 
-## Example scenario
+## Structure
 
-A long-running personal agent has a 'current focus' slot that holds one item and a long-term insight store that is too distilled. Mid-tier concerns — a project the user is wrestling with, a relationship issue they keep returning to — either crowd out the active focus or fall off the back of the context window. The team adds preoccupation-tracking: a capped list of 5–8 affect-tagged concerns with topic, intensity, and last-touched, decaying with a 7-day half-life, surfaced as a sidebar in every tick prompt. Mid-tier context now persists across days without overwhelming the foreground.
+```
+Events and thoughts --touch | release | add--> Preoccupation list (cap 5-8; topic, intensity, affect tag, opened-at, last-touched) --7-day half-life--> decayed intensity; at cap: coldest released; current list --sidebar--> every tick prompt
+```
 
 ## Diagram
 
@@ -47,6 +49,10 @@ flowchart TD
   L -->|sidebar| Tick[Tick prompt]
   L -->|coldest dropped<br/>at cap| Out[Released]
 ```
+
+## Example scenario
+
+A long-running personal agent has a 'current focus' slot that holds one item and a long-term insight store that is too distilled. Mid-tier concerns — a project the user is wrestling with, a relationship issue they keep returning to — either crowd out the active focus or fall off the back of the context window. The team adds preoccupation-tracking: a capped list of 5–8 affect-tagged concerns with topic, intensity, and last-touched, decaying with a 7-day half-life, surfaced as a sidebar in every tick prompt. Mid-tier context now persists across days without overwhelming the foreground.
 
 ## Consequences
 
@@ -61,6 +67,13 @@ flowchart TD
 - Surfacing preoccupations every tick costs tokens.
 - Mis-cap and items churn before they consolidate.
 - Decay rate is empirical and one rate may not fit all topic types.
+
+## Failure modes
+
+- Churn before settling — the cap is set too small, and concerns are released before they have a chance to resolve.
+- Focus crowding — the sidebar grows verbose and pulls attention away from the single working focus.
+- One-size decay — a slow-moving concern decays at the same rate as a quick one, so it drops off while still open.
+- Touch inflation — the agent touches the same item every tick, keeping it hot and blocking new concerns.
 
 ## What this pattern constrains
 
@@ -80,45 +93,39 @@ The active preoccupation list is hard-capped at the configured size; new entries
 - Affect and motivation are out of scope (e.g. a transactional API agent).
 - Persisting concerns across sessions would create privacy or alignment risks.
 
-## Variants
+## Components
 
-### Hard-capped slot list
+- Preoccupation List — capped 5 to 8 affect-tagged concerns with intensity
+- Half-Life Decay — seven-day decay applied to intensity between ticks
+- Cold-Entry Evictor — releases the coldest entry when the cap is reached
+- Sidebar Renderer — surfaces the current list in every tick prompt
+- Touch and Release Operations — explicit raise-intensity and drop calls
 
-Maintain a fixed-size array (e.g. 5) of preoccupations; new entries displace the coldest by salience.
+## Tools
 
-*Distinguishing factor:* cap by count
+- Structured JSON store — persists entries with topic, intensity, affect tag, timestamps
+- LLM API — reflection pass that may touch or release entries
 
-*When to use:* Default. Predictable size, easy to surface in prompts.
+## Evaluation metrics
 
-### Decay-and-prune
-
-Each preoccupation has an intensity scalar that decays over time; entries below threshold are pruned.
-
-*Distinguishing factor:* cap by intensity
-
-*When to use:* When some concerns should fade naturally rather than be evicted by competition.
-
-### Affect-tagged with valence
-
-Each preoccupation carries explicit affect tags (worry, anticipation, curiosity) and a valence sign so reflection passes can act differently per type.
-
-*Distinguishing factor:* typed affect
-
-*When to use:* When downstream patterns (dream consolidation, mode-adaptive cadence) must distinguish kinds of concern.
+- Preoccupation churn — additions vs releases per day
+- Mean intensity per entry — distribution to detect items that never decay
+- Sidebar token cost per tick — overhead of surfacing the list each call
+- Focus-collision rate — turns where a preoccupation was confused with the working-focus slot
 
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Open concerns the agent keeps coming back to are tracked as first-class objects rather than re-derived from chat history each turn. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Open concerns the agent keeps coming back to are tracked as first-class objects rather than re-derived from chat history each turn. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [five-tier-memory-cascade](five-tier-memory-cascade.md)
-- *complements* → [awareness](awareness.md)
-- *alternative-to* → [scratchpad](scratchpad.md)
-- *uses* → [salience-attention-mechanism](salience-attention-mechanism.md)
+- _complements_ **Five-Tier Memory Cascade**
+- _complements_ **Awareness**
+- _alternative-to_ **Scratchpad** — Scratchpad is a single writable surface; preoccupations are a capped, decaying list of affect-tagged concerns.
+- _uses_ **Salience Attention Mechanism**
+- _complements_ **Open-Question Tension Store**
+- _complements_ **Commitment Tracking**
 
 ## References
 
-- (paper) Park, O'Brien, Cai, Morris, Liang, Bernstein, *Generative Agents: Interactive Simulacra of Human Behavior*, 2023, <https://arxiv.org/abs/2304.03442>
-
-**Tags:** memory, mid-term, affect, tick-loop
+- [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442) — Park, O'Brien, Cai, Morris, Liang, Bernstein, 2023

@@ -2,12 +2,12 @@
 
 **Also known as:** DGM, Darwin-Gödel Machine, Archive-Sampled Self-Mutation, Stepping-Stone Self-Rewrite
 
-**Category:** Verification & Reflection
+**Category:** Verification & Reflection  
 **Status in practice:** experimental
 
 ## Intent
 
-An agent rewrites its own source code, archives every successful variant, and samples mutation parents from the archive rather than from the latest version, using diversity in the archive as evolutionary stepping-stones to escape local optima.
+An agent rewrites its own source code, archives every successful variant, and samples mutation parents from the archive rather than the latest version, using archive diversity as stepping-stones to escape local optima.
 
 ## Context
 
@@ -38,10 +38,6 @@ The agent maintains a versioned archive of self-modifications. Each generation: 
 ```
 Archive (variants with score + lineage) -> sample parent (diversity-weighted) -> propose mutation -> viability gate -> score on objective -> if viable, add to archive. Outer loop iterates; archive is the memory of evolution, not just the leaderboard.
 ```
-
-## Variants
-
-- **Soft-Norm Approach Ledger** — Versions named behavioral norms — rules, moves, motivations, hypotheses — instead of source code or prompts. Because targets are prose, there is no viability gate; confidence updates asymmetrically from agent-reported outcomes (improved nudges up, regressed nudges down harder, neutral attempts decay a small amount) rather than from a benchmark score. Registration is agent-discretionary rather than driven by a generation loop, and sampling exposes named modes — greedy, diverse, historical (revisit a former dead end on the bet that context has changed), aged (longest time since last attempt) — as caller verbs picked at the moment of choice rather than as a fixed selection policy.
 
 ## Diagram
 
@@ -79,6 +75,13 @@ A research agent rewrites its own coding scaffolding to maximise a benchmark sco
 - Viability gate is a single point of failure — a bug there lets broken variants in.
 - Self-modifying agents are inherently harder to audit and to safety-check than fixed ones.
 
+## Failure modes
+
+- Leaky viability gate — a bug in the gate lets a broken or unsafe variant into the archive, and later generations inherit it as a parent.
+- Bad diversity metric — the measure of novelty rewards irrelevant differences, so sampling wastes generations on variants that lead nowhere.
+- Score-only pruning — under storage pressure someone trims the archive by score, and the low-scoring stepping-stones the search needed are deleted.
+- Audit gap — after many generations of self-rewrite, nobody can explain why the current code behaves as it does, and safety review falls behind.
+
 ## What this pattern constrains
 
 Each proposed variant must pass the viability gate (compiles, safety-checks, smoke test) before entering the archive; the agent must not mutate or sample outside the archive; the archive must keep score and lineage for every variant and must not be silently pruned by score alone.
@@ -97,21 +100,43 @@ Each proposed variant must pass the viability gate (compiles, safety-checks, smo
 - Storage and compute cannot support an archive plus repeated viability gating.
 - Objective score is too noisy for variant-to-variant comparison to mean anything.
 
+## Components
+
+- Variant archive — bounded store of variants with score, lineage, and diversity tags
+- Diversity-weighted sampler — picks the parent variant for the next mutation
+- Mutation proposer — generates code or prompt edits against the sampled parent
+- Viability gate — compile/safety/smoke-test check that admits a variant to the archive
+- Objective scorer — evaluates each viable variant on the benchmark or task suite
+
+## Tools
+
+- Code-execution sandbox — runs each variant for the viability gate and the smoke test
+- Benchmark or task-suite harness — produces the objective score per variant
+- Versioned archive store — persists variants with score, lineage, and eviction metadata
+- LLM API — proposes the code or prompt mutations on each generation
+
+## Evaluation metrics
+
+- Generations to escape plateau — how many archive samples it takes to beat the prior best
+- Stepping-stone payoff rate — fraction of high-scoring variants descended from below-best parents
+- Archive diversity index — coverage of the variant space, not just top-N score
+- Viability-gate false-pass rate — broken variants that slip through and pollute the archive
+- Objective score lift over greedy self-rewrite baseline — net gain from archive sampling
+
 ## Known uses
 
-- **[Sakana AI Darwin-Gödel Machine](https://sakana.ai/dgm-jp/)** — *Available* — Self-improving agent that rewrites its own code, archives variants, and samples from the archive as evolutionary stepping-stones.
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The Soft-Norm Approach Ledger variant: behavioral norms (rules, moves, motivations, hypotheses) are versioned in an append-only ledger; confidence updates asymmetrically from agent-reported outcomes; sampling exposes named modes (greedy / diverse / historical / aged) as caller verbs rather than as a fixed selection policy.
+- **[Sakana AI Darwin-Gödel Machine](https://sakana.ai/dgm-jp/)** _available_ — Self-improving agent that rewrites its own code, archives variants, and samples from the archive as evolutionary stepping-stones.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The Soft-Norm Approach Ledger variant: behavioral norms (rules, moves, motivations, hypotheses) are versioned in an append-only ledger; confidence updates asymmetrically from agent-reported outcomes; sampling exposes named modes (greedy / diverse / historical / aged) as caller verbs rather than as a fixed selection policy.
 
 ## Related patterns
 
-- *alternative-to* → [self-refine](self-refine.md) — Self-refine rewrites once from the latest version; DGM samples from the archive instead.
-- *alternative-to* → [reflexion](reflexion.md) — Reflexion writes verbal lessons; DGM rewrites the agent itself and archives the rewrites.
-- *complements* → [inner-critic](inner-critic.md) — Inner-critic / self-modification diff gate can serve as the viability gate at the front of the archive.
-- *complements* → [evaluator-optimizer](evaluator-optimizer.md) — Evaluator-optimizer scores variants; DGM adds an archive plus diversity-weighted sampling on top.
+- _alternative-to_ **Self-Refine** — Self-refine rewrites once from the latest version; DGM samples from the archive instead.
+- _alternative-to_ **Reflexion** — Reflexion writes verbal lessons; DGM rewrites the agent itself and archives the rewrites.
+- _complements_ **Self-Modification Diff Gate** — Inner-critic / self-modification diff gate can serve as the viability gate at the front of the archive.
+- _complements_ **Evaluator-Optimizer** — Evaluator-optimizer scores variants; DGM adds an archive plus diversity-weighted sampling on top.
+- _complements_ **Self-Edit Critic Gate** — The self-edit critic gate is the viability gate that reviews each self-rewrite before it lands.
 
 ## References
 
-- (blog) Sakana AI, *Darwin-Gödel Machine (Sakana AI)*, 2025, <https://sakana.ai/dgm-jp/>
-- (blog) Sakana AI, *Sakana AI blog (May 30, 2025)*, 2025, <https://sakana.ai/>
-
-**Tags:** self-modification, evolution, archive, stepping-stones, agentic-rl
+- [Darwin-Gödel Machine (Sakana AI)](https://sakana.ai/dgm-jp/) — Sakana AI, 2025
+- [Darwin-Gödel Machine: AI agents that learn by rewriting their own code](https://sakana.ai/dgm/) — Sakana AI, 2025

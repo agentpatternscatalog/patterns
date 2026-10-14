@@ -23,6 +23,59 @@ A stateless agent repeats the same mistakes across episodes because it has no me
 - Lesson retrieval (which lesson applies?) is a search problem.
 - Lesson rot: outdated lessons may misguide once the world changes.
 
+## Therefore
+
+Therefore: after each episode write a short verbal lesson keyed by task type and retrieve it on the next attempt, so that the agent improves across episodes without changing weights.
+
+## Solution
+
+After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.
+
+## Structure
+
+```
+Episode -> reflect on success / failure -> verbal lesson appended to long-term memory (keyed by task type; old lessons retired, not deleted) -> new episode retrieves relevant lessons -> prepend to context -> run agent -> next episode
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Ep[Episode] --> R[Reflect:<br/>verbal lesson]
+  R --> M[(Long-term memory<br/>keyed by task type)]
+  Q[New episode] --> Ret[Retrieve lessons]
+  M --> Ret
+  Ret -->|prepend to context| Run[Run agent]
+  Run --> Ep
+```
+
+## Example scenario
+
+An agent solving programming-contest problems repeatedly trips over off-by-one in inclusive ranges. After each episode it writes a one-paragraph lesson keyed to 'range parsing' and stores it in long-term memory. On the next problem that mentions inclusive bounds, the relevant lesson is retrieved and prepended to the prompt. Same model, no fine-tune; pass-rate on that error class climbs because the agent now reads its own past lessons before writing code.
+
+## Consequences
+
+**Benefits**
+
+- Improvement without fine-tuning weights.
+- Lessons are human-readable and editable.
+
+**Liabilities**
+
+- Single-agent reflexion repeats blind spots because the same model writes and reads the lessons.
+- Lesson stores grow; without curation they become noise.
+
+## Failure modes
+
+- Shared blind spot — the model that wrote a wrong lesson also reads it, so the mistake is carried forward as guidance.
+- Lesson clutter — lessons accumulate without curation, retrieval returns many weak ones, and they push useful context aside.
+- Wrong task key — a lesson stored under one task type is retrieved for a different task, and misleads the run.
+- Silent deletion — someone prunes old lessons in place instead of retiring them, and the history of what was learned is lost.
+
+## What this pattern constrains
+
+Lessons are appended, not overwritten; old lessons are explicitly retired rather than silently deleted.
+
 ## Applicability
 
 **Use when**
@@ -37,59 +90,41 @@ A stateless agent repeats the same mistakes across episodes because it has no me
 - Long-term memory infrastructure is not available.
 - Lesson retrieval would surface noise more often than useful guidance.
 
-## Therefore
+## Components
 
-Therefore: after each episode write a short verbal lesson keyed by task type and retrieve it on the next attempt, so that the agent improves across episodes without changing weights.
+- Episode runner — agent executing one task and producing a trajectory with success/failure outcome
+- Reflector — pass that writes a short verbal lesson from the trajectory
+- Long-term memory store — lessons keyed by task type or feature
+- Retriever — selects relevant lessons to prepend at the start of a new episode
+- Curator — retires stale or contradicted lessons rather than silently deleting them
 
-## Solution
+## Tools
 
-After each episode, the agent reflects on success/failure and writes a verbal lesson. Lessons are stored in long-term memory keyed by task type. Future episodes retrieve relevant lessons and prepend them to context.
+- LLM API — runs both the agent and the reflection turn
+- Long-term memory backend — keyed lesson storage with retrieval
+- Embedding model and vector index — semantic retrieval of relevant lessons per new task
 
-## Example scenario
+## Evaluation metrics
 
-An agent solving programming-contest problems repeatedly trips over off-by-one in inclusive ranges. After each episode it writes a one-paragraph lesson keyed to 'range parsing' and stores it in long-term memory. On the next problem that mentions inclusive bounds, the relevant lesson is retrieved and prepended to the prompt. Same model, no fine-tune; pass-rate on that error class climbs because the agent now reads its own past lessons before writing code.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Ep[Episode] --> R[Reflect:<br/>verbal lesson]
-  R --> M[(Long-term memory<br/>keyed by task type)]
-  Q[New episode] --> Ret[Retrieve lessons]
-  M --> Ret
-  Ret -->|prepend to context| Run[Run agent]
-  Run --> Ep
-```
-
-## Consequences
-
-**Benefits**
-
-- Improvement without fine-tuning weights.
-- Lessons are human-readable and editable.
-
-**Liabilities**
-
-- Single-agent reflexion repeats blind spots because the same model writes and reads the lessons.
-- Lesson stores grow; without curation they become noise.
-
-## What this pattern constrains
-
-Lessons are appended, not overwritten; old lessons are explicitly retired rather than silently deleted.
+- Cross-episode error reduction — repeat-failure rate on the same error class after a lesson is stored
+- Lesson recall hit-rate — fraction of new episodes that retrieve a useful lesson
+- Lesson rot rate — share of lessons later judged outdated or wrong
+- Memory size vs benefit curve — quality lift versus number of stored lessons
+- Same-model blind-spot persistence — error classes the agent never writes a lesson about
 
 ## Known uses
 
-- **Reflexion (reference implementation)** — *Available*. Original Reflexion paper code by Shinn et al.
-- **LangGraph Reflexion example** — *Available*. LangGraph ships a Reflexion example.
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A reflexion module writes linguistic lessons learned from past failures into memory and consults them in future episodes, so the agent improves across runs without weight updates.
+- **[Reflexion (reference implementation)](https://github.com/noahshinn/reflexion)** _available_ — Original Reflexion paper code by Shinn et al.
+- **[LangGraph Reflexion example](https://github.com/langchain-ai/langgraph)** _available_ — LangGraph ships a Reflexion example.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — A reflexion module writes linguistic lessons learned from past failures into memory and consults them in future episodes, so the agent improves across runs without weight updates.
 
 ## Related patterns
 
-- *complements* → [episodic-summaries](episodic-summaries.md)
-- *specialises* → [reflection](reflection.md)
+- _complements_ **Episodic Summaries**
+- _specialises_ **Reflection**
+- _generalises_ **Agentic Context Engineering Playbook**
+- _alternative-to_ **Darwin-Gödel Self-Rewrite**
 
 ## References
 
-- (paper) Shinn, Cassano, Berman, Gopinath, Narasimhan, Yao, *Reflexion: Language Agents with Verbal Reinforcement Learning*, 2023, <https://arxiv.org/abs/2303.11366>
-
-**Tags:** memory, reflection, learning
+- [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366) — Shinn, Cassano, Berman, Gopinath, Narasimhan, Yao, 2023

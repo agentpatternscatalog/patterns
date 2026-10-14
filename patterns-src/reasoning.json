@@ -160,7 +160,14 @@
         "Budget-ramp trigger rate — frequency that partial-output signals escalate budget mid-run",
         "Routing overhead share — fraction of total compute spent on difficulty estimation"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Costly estimator — the difficulty estimator is itself a large call, and routing overhead eats the savings from cheap queries.",
+        "Starved hard query — a hard query looks simple on the surface, gets a small budget, and the confidence check never triggers a ramp.",
+        "Budget-burning input — a crafted prompt makes every query look hard and pushes all traffic to the full budget.",
+        "Stale calibration — the underlying model is upgraded, but the estimator keeps the old difficulty bands and misallocates budget."
+      ],
+      "structure": "Incoming query --> cheap difficulty estimator --> {easy -> small budget or fast model | moderate -> moderate budget -> confidence ok? no -> ramp up | hard -> full budget or large model} --> answer; per-query hard ceiling caps any ramp"
     },
     {
       "id": "chain-of-thought",
@@ -313,7 +320,14 @@
         "Faithfulness gap — divergence between the stated reasoning and the final answer, sample-audited",
         "p95 token cost per response — overhead the trace adds vs zero-shot"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Early wrong step — an error in step 2 carries through the whole linear trace, and the final answer follows it with confidence.",
+        "Plausible but disconnected trace — the reasoning reads well, yet the final answer does not actually follow from the steps.",
+        "Trace bloat — the model writes long reasoning on simple questions, raising cost and latency with no gain.",
+        "Parsing failure — the final answer is buried in the trace with no clear marker, and downstream code extracts the wrong value."
+      ],
+      "structure": "Question --> prompt with step-by-step exemplars or zero-shot trigger --> Model --> Step 1 --> Step 2 --> ... --> Step N --> Final answer (trace visible and parseable)"
     },
     {
       "id": "chain-of-verification",
@@ -453,7 +467,14 @@
         "Cost multiplier vs single-shot — measured tokens-per-answer relative to the unverified baseline",
         "Revise edit distance — how much the revise step actually changes the draft"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Draft leakage — verification questions are answered in the same context as the draft, and the answers echo its errors.",
+        "Coverage gap — the planned questions miss the claim that was wrong, so the revision keeps it.",
+        "Overcorrection — a mistaken verification answer replaces a correct claim in the draft during revision.",
+        "Cost blowout — the four steps run on every query, including ones simple enough not to need checking."
+      ],
+      "structure": "Question --> Draft answer --> Plan verification questions from draft claims --> Execute: answer each question in isolation (draft not in context) --> Revise draft using verification answers --> Final answer"
     },
     {
       "id": "extended-thinking",
@@ -607,7 +628,14 @@
         "Cost per resolved task — combined visible and reasoning tokens against task completion",
         "Easy-task overspend rate — share of low-difficulty requests that received a high budget"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Flat budget — every request gets the same large thinking budget, and cost rises on easy routing calls.",
+        "Truncated reasoning — the budget is too small for a hard task, reasoning is cut off, and the model answers before finishing.",
+        "Opaque failure — a wrong answer comes out of hidden reasoning blocks, and the team has little trace to debug it.",
+        "Unwatched spend — reasoning-token usage is not monitored, so cost spikes go unnoticed until the bill arrives."
+      ],
+      "structure": "Caller --request + thinking budget (per task difficulty)--> Provider API --> Model reasoning mode (internal reasoning tokens within budget) --> visible answer --> Caller + reasoning-token usage --> monitoring"
     },
     {
       "id": "graph-of-thoughts",
@@ -733,7 +761,14 @@
         "Aggregate-prompt cost share — fraction of total tokens spent inside aggregate operations",
         "DAG depth and width at solve — structural signature of successful runs for debug"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Bad merge — the aggregate operator combines two thoughts that contradict each other, and the merged node hides the conflict.",
+        "Graph sprawl — the orchestrator keeps generating and refining nodes, and the DAG grows past what anyone can trace.",
+        "Off-vocabulary reasoning — a step reasons outside the named operators, so it cannot be scored or reused like other nodes.",
+        "Weak scoring — the score operator ranks a poor final thought highest, and the orchestrator returns it."
+      ],
+      "structure": "Initial thought --generate--> Thoughts A, B --refine--> refined A, refined B (+ reused intermediate nodes) --aggregate--> merged thought --score--> Final thought; orchestrator chains named operators over the DAG"
     },
     {
       "id": "least-to-most",
@@ -860,7 +895,14 @@
         "Subproblem count distribution — typical depth required per task class",
         "Cost vs single-stage CoT — total token spend across both stages relative to one-shot reasoning"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Bad decomposition — stage 1 lists subproblems that miss a needed step, and stage 2 solves the list faithfully but cannot reach the answer.",
+        "Misordered list — a subproblem appears before the one it depends on, so it is solved without the answer it needs.",
+        "Carried error — an early subproblem answer is wrong and feeds every later step.",
+        "Task-specific prompt — the decomposition prompt tuned for one task produces vague subproblems on another."
+      ],
+      "structure": "Hard problem --stage 1--> ordered subproblems (easiest first) --stage 2--> solve subproblem 1 --> solve subproblem 2 with answer 1 --> ... --> subproblem N with all prior answers --> Final answer"
     },
     {
       "id": "rest-em",
@@ -988,7 +1030,14 @@
         "Reward-gaming incidence — share of filter-passing samples that exploit the reward rather than solve the task, sample-audited",
         "Compute cost per accuracy point — total sampling plus training spend per benchmark gain"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Reward gaming — candidates pass the filter by exploiting the test or answer check, and fine-tuning reinforces the trick.",
+        "Narrowing — each round trains only on problems the model already solves, so it gets better at easy cases and stalls on hard ones.",
+        "Compute overrun — generating many responses per problem each iteration costs more than the gain justifies.",
+        "Leaky filter — the reward check accepts a right answer reached by wrong reasoning, and those samples enter training."
+      ],
+      "structure": "Model --E-step: generate many responses per problem--> Candidates --reward filter (ground truth or executable test)--> Filtered set --M-step: fine-tune--> Model --> iterate"
     },
     {
       "id": "self-ask",
@@ -1106,7 +1155,14 @@
         "Tool-grounded share — proportion of sub-questions answered by search or retrieval rather than parametric memory",
         "End-to-end latency at p95 — wall-clock cost of N sequential sub-question calls"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Drifting sub-questions — the sub-questions wander away from the original question, and the composed answer addresses something else.",
+        "Unanswered gap — the model answers a sub-question from memory when it should have searched, and the invented fact feeds the final answer.",
+        "Latency stack — many sub-questions, each with a search call, make simple questions slow.",
+        "Wrong endpoint — every sub-answer is right, but the final composition picks the wrong one as the answer."
+      ],
+      "structure": "Top question --> Model --> Sub-question 1 --answer directly or via search--> Answer 1 --> Sub-question 2 --> Answer 2 --> ... --> compose final answer from sub-answers"
     },
     {
       "id": "socratic-questioning-agent",
@@ -1287,7 +1343,14 @@
         "Session-length / cost vs direct-answer baseline — quantifies the tax the pattern imposes",
         "Follow-up signal — user satisfaction, learning gain, or requirement completeness measured after the session"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Withheld answer — the user clearly wants a direct answer, but the agent keeps asking questions and the user gives up.",
+        "Rote questions — the agent slides into the same question templates every turn, and the questions stop surfacing new context.",
+        "Misled user — a badly sequenced question steers the user toward a conclusion the agent assumed rather than one the user holds.",
+        "Premature synthesis — the agent switches to synthesis before the user has articulated enough, and its summary fills gaps with guesses."
+      ],
+      "structure": "User turn --> agent reads response --> update open-questions store --> user has articulated answer? --not yet--> select next strategic question (largest uncertainty, answerable by user) --> ask --> User | --yes--> synthesize and hand back | --user wants direct answer--> direct-answer mode"
     },
     {
       "id": "star-bootstrapping",
@@ -1414,7 +1477,14 @@
         "Kept-pair fraction per round — generation efficiency over iterations",
         "Compute cost per accuracy point — total sampling and training cost per benchmark gain"
       ],
-      "last_updated": "2026-06-14"
+      "last_updated": "2026-06-14",
+      "failure_modes": [
+        "Spurious rationale — a rationale reaches the right answer through flawed steps, passes the answer filter, and teaches the flawed reasoning.",
+        "Back-filled justification — rationalization with the correct answer as a hint produces reasoning that only works because the answer was given.",
+        "Plateau — later rounds add few new correct rationales, and the model stops improving while compute keeps running.",
+        "Easy-case bias — the kept set is dominated by problems the model already solves, so hard problems stay underrepresented."
+      ],
+      "structure": "Base model --CoT prompt--> rationale + answer --> answer matches ground truth? --yes--> keep pair | --no--> rationalize with correct answer as hint --> justifying rationale --> keep --> fine-tune on kept + rationalized pairs --> improved model --> next round"
     },
     {
       "id": "test-time-compute-scaling",
@@ -1575,7 +1645,14 @@
         "Cost per resolved task — combined inference spend relative to next-tier-model baseline",
         "Latency at p95 — wall-clock impact of the chosen technique under production load"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Wrong technique — tree search runs on a task that self-consistency would have handled, and the cost buys no extra quality.",
+        "Latency breach — a user-facing flow gets a large sample count and the response arrives too late to be useful.",
+        "No verifier — best-of-N is used where no reliable verifier exists, and the picked sample is no better than a random one.",
+        "Untuned budget — one compute budget serves every task class, so easy requests overspend and hard ones are cut off."
+      ],
+      "structure": "Request --> classify task --> {verifier-amenable -> best-of-N | sampling-amenable -> self-consistency | combinatorial -> tree search | sequential -> extended thinking} --> compose where complementary --> answer within tuned per-class compute budget (over-budget cut off)"
     },
     {
       "id": "tree-of-thoughts",
@@ -1727,7 +1804,14 @@
         "Backtrack frequency — share of solves that required at least one dead-end recovery",
         "Search-depth distribution — typical depth and branching factor at which leaves are returned"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Weak value function — the evaluator scores a dead-end branch high, and the search spends its budget there.",
+        "Early pruning — a branch that looks poor at shallow depth is cut, though it was the only path to the answer.",
+        "Cost explosion — branching factor and depth are set loosely, and a task that chain-of-thought could solve costs many times more.",
+        "Shallow commit — the search returns a leaf before any full path was explored, and the answer is a partial state."
+      ],
+      "structure": "Root state --sample k candidate thoughts--> nodes --evaluate (self-eval or programmatic check)--> BFS / DFS / beam expansion --low score--> prune and backtrack | --high score--> expand deeper --> ... --> return best leaf (depth and branching bounded)"
     },
     {
       "id": "zero-shot-cot",
@@ -1831,7 +1915,13 @@
         "Reasoning-step presence rate — fraction of outputs that actually produce a chain before the answer",
         "Token-cost overhead — extra output tokens introduced by the chain vs answer-only prompting"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Trigger brittleness — a slight rewording of the trigger phrase changes how much the model reasons, and quality varies between prompts.",
+        "Unstructured trace — with no exemplar, the reasoning takes a form the answer extractor does not expect, and the wrong value is pulled out.",
+        "Shallow lift — on tasks where few-shot exemplars would guide the steps, the generic trigger produces reasoning that misses the method."
+      ],
+      "structure": "Question + trigger phrase ('Let's think step by step') --> Model --> reasoning chain --> final answer --optional--> follow-up extraction prompt --> extracted answer"
     },
     {
       "id": "generate-and-test-strategy",
@@ -1967,7 +2057,14 @@
         "Per-task generation count K",
         "Test-pass rate",
         "Escalation rate when no candidate passes"
-      ]
+      ],
+      "failure_modes": [
+        "Constraints invented late — the constraint list is written after seeing candidates and quietly fits whichever one looked best.",
+        "Unreliable soft check — an LLM judge passes a candidate that violates a soft constraint, and it is committed.",
+        "Homogeneous candidates — the K candidates are near-copies, so testing them adds cost without real choice.",
+        "Unhandled no-pass — no candidate passes, and the system returns the closest one instead of escalating."
+      ],
+      "structure": "Problem + declared constraints --> generate K candidates (multi-path or sampling) --> test each against constraints (deterministic where possible, LLM judge for soft) --> {pick best passing | none pass -> escalate}"
     },
     {
       "id": "large-reasoning-model-paradigm",
@@ -2112,7 +2209,14 @@
         "Routing accuracy (right model per task)",
         "Per-class success rate",
         "LRM cost per query vs LLM-only baseline"
-      ]
+      ],
+      "failure_modes": [
+        "Wasted reasoning model — the router sends simple lookups to the reasoning model, and latency and cost rise with no quality gain.",
+        "Starved hard task — a constraint-heavy problem is classified as simple, goes to the fast LLM, and fails with premature closure.",
+        "Latency surprise — a user-facing flow is routed to the reasoning model and the response is too slow for the interaction.",
+        "Unreviewed routing — routing decisions are not logged or checked against per-class success, so misclassification persists."
+      ],
+      "structure": "Task --> classify reasoning load --> {simple lookup or generation -> fast LLM | multi-step or constraint-heavy -> large reasoning model} --> response; routing decision + per-class success --> log --> router refinement"
     },
     {
       "id": "recursive-language-model",
@@ -2266,7 +2370,13 @@
         "Recursion depth and fan-out — how deep and wide calls go per query",
         "Snippet-selection precision — fraction of loaded snippets that were actually relevant"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Unbounded recursion — the root model keeps splitting snippets and calling itself, and latency and cost climb with no depth cap.",
+        "Missed cross-snippet fact — the model partitions the input so that two pieces needed together land in separate calls, and neither call sees the link.",
+        "Unsafe execution — model-written code runs over the input without a sandbox and touches files or network it should not.",
+        "Untraceable answer — the final answer rests on a chain of self-chosen greps and sub-calls that nobody can reconstruct when it is wrong."
+      ]
     },
     {
       "id": "latent-space-reasoning",
@@ -2417,7 +2527,13 @@
         "Answer accuracy versus trace inspectability — the supervision trade-off",
         "Generalisation across reasoning task types — where latent reasoning helps or hurts"
       ],
-      "last_updated": "2026-05-26"
+      "last_updated": "2026-05-26",
+      "failure_modes": [
+        "Unauditable decision — a wrong answer comes out of latent steps that cannot be read, and there is no trace to find where it went wrong.",
+        "Prompting expectation — a team tries to get latent reasoning from an untrained model by prompting alone, and nothing changes.",
+        "Lost oversight — moving reasoning into hidden states removes the text trace that safety review relied on.",
+        "Task mismatch — latent reasoning is applied to a task where strong text chain-of-thought does better, and accuracy drops."
+      ]
     },
     {
       "id": "attentive-reasoning-queries",
@@ -2585,7 +2701,8 @@
         "mermaid": "flowchart TD\n  Q[User turn] --> M[Match guidelines relevant to this turn]\n  M --> B{Reasoning blueprint}\n  B --> Q1[Q1 restate active guideline]\n  Q1 --> Q2[Q2 recall verified facts]\n  Q2 --> Q3[Q3 checkable sub-conclusion]\n  Q3 --> G{Action gate: required answers present?}\n  G -->|no| H[Withhold or re-query]\n  G -->|yes| A[Emit action]",
         "caption": "A fixed query sequence re-anchors instructions before the action; a gate releases the action only once the required answers are present."
       },
-      "last_updated": "2026-06-05"
+      "last_updated": "2026-06-05",
+      "structure": "User turn --> match relevant guidelines --> reasoning blueprint (JSON fields in order): Q1 restate active guideline --> Q2 recall verified facts --> Q3 commit to checkable sub-conclusion --> action gate: required answers present? --no--> withhold or re-query | --yes--> emit action"
     },
     {
       "id": "rollout-summary-test-time-scaling",

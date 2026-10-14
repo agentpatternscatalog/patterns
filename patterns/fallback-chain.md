@@ -31,9 +31,11 @@ Therefore: order handlers in a confidence-gated chain that pass downward on fail
 
 Define an ordered chain of handlers. Each handler returns either a confident answer or a failure/low-confidence signal. On failure, the next handler runs. Final fallback is a generic 'I don't know' rather than a wrong answer.
 
-## Example scenario
+## Structure
 
-A translation feature uses a primary high-quality model, but during incidents that model returns 502s and users see error messages. The team configures a Fallback Chain: try the primary model, on failure or low-confidence output try a secondary model, on failure of that try a smaller local model with a 'degraded quality' indicator. The user gets a translation in every case; the team gets visibility into how often each layer is used.
+```
+Query --> Handler 1 --confident--> Answer | --fail or low confidence--> Handler 2 --confident--> Answer | --pass--> ... Handler N --pass--> "I don't know"; cascade controller bounds depth and logs which handler served
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ flowchart TD
   C3 -- no --> IDK["I don't know"]
 ```
 
+## Example scenario
+
+A translation feature uses a primary high-quality model, but during incidents that model returns 502s and users see error messages. The team configures a Fallback Chain: try the primary model, on failure or low-confidence output try a secondary model, on failure of that try a smaller local model with a 'degraded quality' indicator. The user gets a translation in every case; the team gets visibility into how often each layer is used.
+
 ## Consequences
 
 **Benefits**
@@ -62,6 +68,13 @@ flowchart TD
 
 - Cumulative latency on full cascade.
 - Hides quality regressions in the primary.
+
+## Failure modes
+
+- Masked primary regression — the primary quietly gets worse, the secondary picks up the slack, and nobody notices because users still get answers.
+- Latency stack-up — every handler in a deep chain passes, and the user waits for the sum of all of them before hearing 'I don't know'.
+- Broken confidence gate — a handler reports high confidence on a wrong answer, so the chain stops early and ships it.
+- Wrong answer instead of none — the final handler is a weak guesser rather than an honest 'I don't know', and the chain ends on a fabrication.
 
 ## What this pattern constrains
 
@@ -81,20 +94,47 @@ Each handler may produce a result or pass; only the chain may decide to terminat
 - Handler failure modes are correlated and all handlers fail together.
 - An honest 'I don't know' is preferred over fallback chains that mask root cause.
 
+## Components
+
+- Ordered handler chain — primary, secondary, tertiary handlers with a defined progression
+- Confidence signal — per-handler indicator (score, error, schema-validation result) that triggers handoff
+- Cascade controller — walks the chain, applies the gate at each step, enforces a depth bound
+- Honest-failure terminator — final 'I don't know' response when every handler passes
+- Per-layer telemetry — records which handler produced the served answer
+
+## Tools
+
+- LangChain `with_fallbacks` runnable or equivalent chaining library — wires the ordered handlers
+- Multiple LLM provider APIs or rule-based handlers — the heterogeneous backends the chain calls
+- Structured-output validator — schema check that promotes a parse failure into a low-confidence signal
+
+## Evaluation metrics
+
+- Per-layer hit rate — share of requests served by handler 1, 2, 3, and 'I don't know'
+- Quality delta between layers — does each fallback genuinely degrade gracefully or sharply
+- Cumulative p95 latency under full cascade — worst-case wait when every layer is tried
+- Hidden-regression rate — share of requests where the primary returned low confidence on tasks it used to handle
+- Honest-IDK rate — share ending in the terminator instead of a wrong answer
+
 ## Known uses
 
-- **Most production routing layers** — *Available*
-- **AI-Standards Fallback Chain pattern** — *Available*
+- **Most production routing layers** _available_
+- **AI-Standards Fallback Chain pattern** _available_
 
 ## Related patterns
 
-- *complements* → [routing](routing.md)
-- *composes-with* → [circuit-breaker](circuit-breaker.md)
-- *complements* → [multi-model-routing](multi-model-routing.md)
-- *generalises* → [provider-fallback](provider-fallback.md)
-- *complements* → [confidence-reporting](confidence-reporting.md)
-- *complements* → [exception-recovery](exception-recovery.md)
-- *complements* → [graceful-degradation](graceful-degradation.md)
-- *used-by* → [open-weight-cascade](open-weight-cascade.md)
+- _complements_ **Routing**
+- _composes-with_ **Circuit Breaker**
+- _complements_ **Multi-Model Routing**
+- _generalises_ **Provider Fallback**
+- _complements_ **Confidence Reporting**
+- _complements_ **Exception Handling and Recovery**
+- _complements_ **Graceful Degradation**
+- _used-by_ **Open-Weight Cascade**
+- _complements_ **Complexity-Based Routing**
+- _complements_ **Naive Retry Without Backoff**
+- _used-by_ **Agentic Behavior Tree**
 
-**Tags:** routing, fallback, reliability
+## References
+
+- [How to add fallbacks to a runnable](https://python.langchain.com/docs/how_to/fallbacks/) — LangChain, 2024

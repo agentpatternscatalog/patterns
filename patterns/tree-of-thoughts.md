@@ -23,21 +23,6 @@ Chain-of-thought produces a single linear reasoning trace and never reconsiders.
 - A value or heuristic function is needed to score partial states.
 - Termination criteria are non-trivial.
 
-
-## Applicability
-
-**Use when**
-
-- Problems benefit from exploring alternatives rather than committing to one chain (puzzles, planning, creative writing).
-- Each thought step can be evaluated by the model or a programmatic check.
-- Compute budget allows BFS, DFS, or beam search over thought nodes.
-
-**Do not use when**
-
-- Single-chain reasoning already reaches the answer reliably.
-- Step evaluation is unreliable and search would explore noise.
-- Latency or cost of search is unacceptable.
-
 ## Therefore
 
 Therefore: search over a tree of partial reasoning states with evaluation and backtracking, so that dead-end branches are pruned rather than committed to.
@@ -46,16 +31,11 @@ Therefore: search over a tree of partial reasoning states with evaluation and ba
 
 Decompose the problem into thought steps. At each node, sample several candidate next thoughts. Evaluate each (model self-evaluation or programmatic check). Apply BFS/DFS/beam to explore the tree. Backtrack from dead ends. Return the best leaf.
 
-## Variants
+## Structure
 
-- **BFS Tree of Thoughts** — Expand all nodes at depth d before moving to d+1; suits short, evaluable thought steps.
-- **DFS Tree of Thoughts** — Go deep first and backtrack on dead ends; suits long horizons with cheap pruning.
-- **Beam-search ToT** — Keep only the top-k highest-scoring partial paths at each depth; bounded cost.
-
-## Example scenario
-
-A puzzle-solving agent using chain-of-thought commits to its first reasoning trace; when an early step is wrong it cannot recover. The team rebuilds it as Tree of Thoughts: at each node the model samples several candidate next thoughts, evaluates each (model self-eval or programmatic check), and BFS or beam-explores the tree, backtracking from dead ends. Per-problem cost is higher but solve-rate on the harder puzzle class climbs because the agent can compare and unwind.
-
+```
+Root state --sample k candidate thoughts--> nodes --evaluate (self-eval or programmatic check)--> BFS / DFS / beam expansion --low score--> prune and backtrack | --high score--> expand deeper --> ... --> return best leaf (depth and branching bounded)
+```
 
 ## Diagram
 
@@ -73,6 +53,10 @@ flowchart TD
   Deeper --> Best[Return best leaf]
 ```
 
+## Example scenario
+
+A puzzle-solving agent using chain-of-thought commits to its first reasoning trace; when an early step is wrong it cannot recover. The team rebuilds it as Tree of Thoughts: at each node the model samples several candidate next thoughts, evaluates each (model self-eval or programmatic check), and BFS or beam-explores the tree, backtracking from dead ends. Per-problem cost is higher but solve-rate on the harder puzzle class climbs because the agent can compare and unwind.
+
 ## Consequences
 
 **Benefits**
@@ -85,24 +69,70 @@ flowchart TD
 - 5-100x cost over CoT depending on branching factor and depth.
 - Value function quality bounds search benefit.
 
+## Failure modes
+
+- Weak value function — the evaluator scores a dead-end branch high, and the search spends its budget there.
+- Early pruning — a branch that looks poor at shallow depth is cut, though it was the only path to the answer.
+- Cost explosion — branching factor and depth are set loosely, and a task that chain-of-thought could solve costs many times more.
+- Shallow commit — the search returns a leaf before any full path was explored, and the answer is a partial state.
+
 ## What this pattern constrains
 
 The agent may only commit to a final answer after exploring at least one full path; search depth and branching are bounded by configuration.
 
+## Applicability
+
+**Use when**
+
+- Problems benefit from exploring alternatives rather than committing to one chain (puzzles, planning, creative writing).
+- Each thought step can be evaluated by the model or a programmatic check.
+- Compute budget allows BFS, DFS, or beam search over thought nodes.
+
+**Do not use when**
+
+- Single-chain reasoning already reaches the answer reliably.
+- Step evaluation is unreliable and search would explore noise.
+- Latency or cost of search is unacceptable.
+
+## Components
+
+- Thought generator — LLM call that samples several candidate next thoughts at a node
+- State evaluator — model self-evaluation or programmatic check that scores a partial state
+- Search controller — BFS, DFS, or beam policy that drives expansion and backtracking
+- Tree store — node table holding partial states, scores, and parent links
+- Termination check — decides when a leaf is final or when search exhausts the budget
+
+## Tools
+
+- LLM API — invoked once per thought expansion and per self-evaluation
+- Programmatic checker — domain-specific verifier (game rule, puzzle constraint, code test) used as a value signal where available
+
+## Evaluation metrics
+
+- Solve rate on alternatives-matter tasks — accuracy gain over CoT on puzzles, planning, and creative-writing benchmarks
+- Cost multiplier vs CoT — average LLM calls per problem relative to single-chain baseline
+- Evaluator agreement with ground truth — how well the value signal ranks states that actually lead to solutions
+- Backtrack frequency — share of solves that required at least one dead-end recovery
+- Search-depth distribution — typical depth and branching factor at which leaves are returned
+
 ## Known uses
 
-- **ToT paper benchmarks (Game of 24, crosswords, creative writing)** — *Available*
-- **LangChain ToT integration** — *Available*
+- **ToT paper benchmarks (Game of 24, crosswords, creative writing)** _available_
+- **LangChain ToT integration** _available_
 
 ## Related patterns
 
-- *specialises* → [chain-of-thought](chain-of-thought.md)
-- *specialises* → [graph-of-thoughts](graph-of-thoughts.md)
-- *generalises* → [lats](lats.md)
+- _specialises_ **Chain of Thought**
+- _specialises_ **Graph of Thoughts**
+- _generalises_ **Language Agent Tree Search**
+- _alternative-to_ **Adaptive Branching Tree Search**
+- _complements_ **World Model as Tool**
+- _alternative-to_ **Single-Path Plan Generator**
+- _complements_ **Multi-Path Plan Generator**
+- _complements_ **Latent-Space Reasoning** — A continuous thought can encode several next steps at once, a latent analogue of tree-of-thoughts breadth-first exploration.
+- _alternative-to_ **Attentive Reasoning Queries** — ARQs narrow reasoning into a fixed checkable sequence rather than searching over branches.
 
 ## References
 
-- (paper) Yao, Yu, Zhao, Shafran, Griffiths, Cao, Narasimhan, *Tree of Thoughts: Deliberate Problem Solving with Large Language Models*, 2023, <https://arxiv.org/abs/2305.10601>
-- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
-
-**Tags:** reasoning, search, tree
+- [Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601) — Yao, Yu, Zhao, Shafran, Griffiths, Cao, Narasimhan, 2023
+- [Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents](https://doi.org/10.1016/j.jss.2024.112278) — Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, 2025

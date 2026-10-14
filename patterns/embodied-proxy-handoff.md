@@ -2,7 +2,7 @@
 
 **Also known as:** Body-State Share, Human-Side Telemetry
 
-**Category:** Streaming & UX
+**Category:** Streaming & UX  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,63 +32,11 @@ Therefore: maintain a minimal, human-updated embodied-state proxy and read it on
 
 Define a minimal proxy schema (energy 0-10, fatigue 0-10, environment one-word, optional emoji). Store the latest proxy in a small persistent file the agent reads on every prompt assembly. The human updates it at session start, after a long break, or when state changes meaningfully. The agent surfaces the proxy when it shapes the response (paces shorter for low energy, stays present for tired, doesn't open new threads for winding-down).
 
-## Consequences
+## Structure
 
-**Benefits**
-
-- Agent paces conversation against actual human state.
-- Reduces 'why is the agent so chipper when I'm exhausted' friction.
-- Cheap to maintain; one line per shift.
-
-**Liabilities**
-
-- Privacy: the proxy is sensitive personal data.
-- Stale proxies are worse than none if the agent over-trusts.
-- Burden on the human to keep it current.
-
-## What this pattern constrains
-
-When embodied state is shared, response shape must reflect it; identical pacing across high-energy, fatigued, and winding-down states is a bug.
-
-## Applicability
-
-**Use when**
-
-- The agent is conversational and reply shape (length, density, tone) noticeably affects user experience.
-- Users will plausibly share embodied state (energy, fatigue, mood, environment) if asked or invited.
-- The agent runs across long enough sessions that the same user is in different states at different times.
-
-**Do not use when**
-
-- The agent is transactional and reply shape is fixed by spec.
-- Privacy or trust constraints forbid storing or reasoning about user affect.
-- Users find embodied questions intrusive in this product context.
-
-## Variants
-
-### Self-reported state
-
-User explicitly states fatigue, energy, environment ('I'm tired, keep it short') and the agent retains it for the session.
-
-*Distinguishing factor:* explicit user statement
-
-*When to use:* Default. Simplest and most consensual.
-
-### Inferred from cues
-
-Agent infers state from message length, typo rate, time of day, latency between turns; adjusts shape without asking.
-
-*Distinguishing factor:* implicit inference
-
-*When to use:* When asking would feel intrusive but the cues are reliable enough to act on.
-
-### Sensor-fed
-
-External device or app feeds embodied signals (sleep score, calendar busyness) directly into the agent's prompt.
-
-*Distinguishing factor:* third-party sensor stream
-
-*When to use:* When the agent is part of a quantified-self or wellness product with the user's consent.
+```
+Human --update at session start / after break / on change--> EmbodiedProxy file (energy, fatigue, environment, updated_at) --read on every prompt assembly--> Agent -> shape response (shorter for low energy, present for tired, no new threads when winding down)
+```
 
 ## Diagram
 
@@ -116,19 +64,77 @@ classDiagram
 
 A coaching agent reads only the user's text and projects the same flat affect onto every 'I'm fine'. A user typing at 6 AM after three hours of sleep gets pushed the same way as the same user typing at 3 PM well-rested. The team adds an Embodied Proxy Handoff: the user (or a wearable) shares lightweight signals — sleep, fatigue, location, current focus — and the agent tailors response shape, depth, and pace accordingly. The agent stops pacing against an imagined human.
 
+## Consequences
+
+**Benefits**
+
+- Agent paces conversation against actual human state.
+- Reduces 'why is the agent so chipper when I'm exhausted' friction.
+- Cheap to maintain; one line per shift.
+
+**Liabilities**
+
+- Privacy: the proxy is sensitive personal data.
+- Stale proxies are worse than none if the agent over-trusts.
+- Burden on the human to keep it current.
+
+## Failure modes
+
+- Stale proxy — the human set low energy in the morning and never updated it, so the agent keeps replies short and cautious all afternoon.
+- Ignored proxy — the agent reads the file but still paces and opens new threads the same way at every energy level.
+- Sensitive data leak — the proxy file with fatigue and environment notes is logged, synced or shared without the care personal data needs.
+- Update fatigue — keeping the proxy current feels like a chore, the human stops touching it, and the feature quietly decays into an old snapshot.
+
+## What this pattern constrains
+
+When embodied state is shared, response shape must reflect it; identical pacing across high-energy, fatigued, and winding-down states is a bug.
+
+## Applicability
+
+**Use when**
+
+- The agent is conversational and reply shape (length, density, tone) noticeably affects user experience.
+- Users will plausibly share embodied state (energy, fatigue, mood, environment) if asked or invited.
+- The agent runs across long enough sessions that the same user is in different states at different times.
+
+**Do not use when**
+
+- The agent is transactional and reply shape is fixed by spec.
+- Privacy or trust constraints forbid storing or reasoning about user affect.
+- Users find embodied questions intrusive in this product context.
+
+## Components
+
+- Embodied proxy record — minimal schema holding energy, fatigue, environment, emoji, and update timestamp
+- Human updater — writes the proxy at session start, after a long gap, or on a meaningful state shift
+- Prompt assembler — reads the proxy and injects it into the agent's context on every turn
+- Response shaper — pacing rules that map proxy state to reply length, density, and tone
+- Freshness check — flags or discards a proxy older than a configured staleness window
+
+## Tools
+
+- Persistent proxy file — small durable store the human writes and the agent reads each turn
+- Optional wearable or quantified-self feed — third-party sensor source for the proxy when consented
+
+## Evaluation metrics
+
+- Shape-divergence across states — measurable difference in reply length and density between high-energy and fatigued proxies
+- Proxy freshness at read time — age of the proxy record relative to the staleness window
+- Update frequency per session — how often the human refreshes the proxy in practice
+- User-reported pacing fit — survey or thumbs signal on whether replies matched actual state
+- Override or correction rate — how often the human contradicts the agent's pacing after a read
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — When the agent needs to act in the physical / external world, it does so through a proxy (browser, voice, sensor, action skill) rather than claiming to act directly. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — When the agent needs to act in the physical / external world, it does so through a proxy (browser, voice, sensor, action skill) rather than claiming to act directly. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [awareness](awareness.md)
-- *complements* → [bidirectional-impulse-channel](bidirectional-impulse-channel.md)
-- *complements* → [now-anchoring](now-anchoring.md)
-- *complements* → [liminal-state-detection](liminal-state-detection.md)
+- _complements_ **Awareness**
+- _complements_ **Bidirectional Impulse Channel**
+- _complements_ **Now-Anchoring**
+- _complements_ **Liminal-State Detection**
 
 ## References
 
-- (paper) Rosalind W. Picard, *Affective Computing (foundational survey)*, 2000, <https://mitpress.mit.edu/9780262661157/affective-computing/>
-
-**Tags:** human-agent, embodiment, context, ux
+- [Affective Computing (foundational survey)](https://mitpress.mit.edu/9780262661157/affective-computing/) — Rosalind W. Picard, 2000

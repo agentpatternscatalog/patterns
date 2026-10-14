@@ -149,6 +149,8 @@ A task result cannot be reduced to the official verifier's single pass/fail bit:
 - _complements_ **Intermediate Artifact Evaluation** — Intermediate artifact evaluation localises which pipeline node failed; this produces a graded task-progress score that is comparable across agent versions on the same tasks.
 - _complements_ **Verifier-Aware Reward Hacking** — Graded checkpoints widen the surface an agent can inspect and optimise against, which is why the ordering gate and the claim-versus-trace check are part of the scoring rule.
 - _complements_ **Blind Grader with Isolated Context** — Isolating the grader's context keeps the checkpoint judge from being primed by the producing agent's framing of its own progress.
+- _complements_ **Simulated-User Rollout Evaluation** — Replaces the rollout's single pass/fail bit with ordered checkpoints, so a partially recovered episode registers instead of scoring the same as an immediate failure.
+- _alternative-to_ **Learnability-Frontier Task Sampling** — Two ways to recover signal from a task no attempt fully solves: graded checkpoints keep the task and give it dense partial credit, whereas this pattern parks it until the frontier reaches it.
 
 ## References
 

@@ -23,6 +23,57 @@ If the team tries to do the whole task in a single mega-prompt, the model is ask
 - Step isolation vs error compounding across the chain.
 - Schema rigor between steps vs pipeline flexibility.
 
+## Therefore
+
+Therefore: replace the mega-prompt with a fixed sequence of validated prompts that hand off typed outputs, so that failures localise to a step instead of corrupting the whole task.
+
+## Solution
+
+Define a fixed pipeline of prompts. Each step has its own system prompt, expected output shape, and validation. A failure at step k retries step k or aborts; downstream steps run only on success.
+
+## Structure
+
+```
+Input --> Prompt 1 --validate--> out_1 --> Prompt 2 --validate--> out_2 --> ... --> Prompt N --validate--> Output; step k fails validation --> retry step k or abort (later steps do not run)
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  In[Input] --> P1[Prompt 1<br/>validate]
+  P1 -->|out_1| P2[Prompt 2<br/>validate]
+  P2 -->|out_2| P3[Prompt 3<br/>validate]
+  P3 --> Out[Output]
+  P2 -.fail.-> Retry[Retry or abort]
+```
+
+## Example scenario
+
+A team builds a 'turn meeting transcript into a structured action-item list' feature as one mega-prompt. Failures are hard to localise — sometimes the speaker attribution is wrong, sometimes the dates are wrong, sometimes the JSON is malformed. They split it into a prompt-chain: step one cleans the transcript and attributes speakers, step two extracts candidate action items, step three normalises dates and owners, step four validates and emits JSON. Each step has its own validator; a failure at step three retries step three instead of redoing the whole pipeline.
+
+## Consequences
+
+**Benefits**
+
+- Failures localise to a step.
+- Each step's prompt can be optimised independently.
+
+**Liabilities**
+
+- Inflexible to inputs that do not match the assumed decomposition.
+- Latency = sum of step latencies.
+
+## Failure modes
+
+- Error compounding — step 2 passes validation with a subtly wrong output, and every later step builds on the mistake.
+- Decomposition misfit — an input does not fit the assumed sequence of steps, and the fixed chain forces it through steps that make no sense for it.
+- Weak step validator — a schema check accepts output that has the right shape but the wrong content, so the handoff gate does not catch the failure.
+- Retry loop on one step — a persistent failure at step k burns its retry budget on every request because the abort rule is too lenient.
+
+## What this pattern constrains
+
+Step k cannot bypass step k-1's output schema.
 
 ## Applicability
 
@@ -38,58 +89,40 @@ If the team tries to do the whole task in a single mega-prompt, the model is ask
 - A single well-structured prompt already solves the task reliably.
 - Chain length amplifies latency beyond what users tolerate.
 
-## Therefore
+## Components
 
-Therefore: replace the mega-prompt with a fixed sequence of validated prompts that hand off typed outputs, so that failures localise to a step instead of corrupting the whole task.
+- Per-step prompt — system prompt, exemplars, and output schema scoped to one sub-task
+- Per-step validator — schema or rule check that gates the handoff to the next step
+- Chain orchestrator — runs the fixed sequence, propagates typed outputs, owns retries
+- Localised retry policy — per-step retry budget and abort rule on persistent failure
+- Step-level telemetry — latency, error, and quality metrics tagged per step
 
-## Solution
+## Tools
 
-Define a fixed pipeline of prompts. Each step has its own system prompt, expected output shape, and validation. A failure at step k retries step k or aborts; downstream steps run only on success.
+- Prompt orchestration framework — LangChain, DSPy, LlamaIndex Workflows, or hand-rolled sequence
+- Structured-output validator — JSON Schema, Pydantic, or Instructor at each step boundary
+- LLM API — possibly different models per step depending on the step's profile
 
-## Example scenario
+## Evaluation metrics
 
-A team builds a 'turn meeting transcript into a structured action-item list' feature as one mega-prompt. Failures are hard to localise — sometimes the speaker attribution is wrong, sometimes the dates are wrong, sometimes the JSON is malformed. They split it into a prompt-chain: step one cleans the transcript and attributes speakers, step two extracts candidate action items, step three normalises dates and owners, step four validates and emits JSON. Each step has its own validator; a failure at step three retries step three instead of redoing the whole pipeline.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  In[Input] --> P1[Prompt 1<br/>validate]
-  P1 -->|out_1| P2[Prompt 2<br/>validate]
-  P2 -->|out_2| P3[Prompt 3<br/>validate]
-  P3 --> Out[Output]
-  P2 -.fail.-> Retry[Retry or abort]
-```
-
-## Consequences
-
-**Benefits**
-
-- Failures localise to a step.
-- Each step's prompt can be optimised independently.
-
-**Liabilities**
-
-- Inflexible to inputs that do not match the assumed decomposition.
-- Latency = sum of step latencies.
-
-## What this pattern constrains
-
-Step k cannot bypass step k-1's output schema.
+- Per-step success rate — share of inputs that pass validation at each step
+- Per-step retry cost — average retries to clear each step and the token bill that implies
+- End-to-end success rate vs mega-prompt baseline — the quality the decomposition is meant to buy
+- Localisation rate — share of failures cleanly attributable to a single step on incident review
+- Cumulative latency — sum of step latencies vs the mega-prompt single call
 
 ## Known uses
 
-- **Anthropic Building Effective Agents (Workflow #1)** — *Available*
+- **Anthropic Building Effective Agents (Workflow #1)** _available_
 
 ## Related patterns
 
-- *complements* → [routing](routing.md)
-- *alternative-to* → [parallelization](parallelization.md)
-- *specialises* → [pipes-and-filters](pipes-and-filters.md)
-- *specialises* → [chat-chain](chat-chain.md)
+- _complements_ **Routing**
+- _alternative-to_ **Parallelization**
+- _specialises_ **Pipes and Filters**
+- _specialises_ **Chat Chain**
+- _uses_ **Augmented LLM**
 
 ## References
 
-- (blog) *Anthropic: Building Effective Agents*, 2024, <https://www.anthropic.com/research/building-effective-agents>
-
-**Tags:** pipeline, workflow, decomposition
+- [Anthropic: Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — 2024

@@ -2,7 +2,7 @@
 
 **Also known as:** Hypothesis Ledger, Provisional-Answer Store
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -33,9 +33,11 @@ Therefore: store each candidate provisional answer as its own typed record with 
 
 Maintain a hypothesis store keyed by short id. Each record has: a one-line summary; a numeric confidence (0..1); a status drawn from {active, confirmed, disconfirmed, superseded, abandoned}; a next-test sentence stating what observation would move the confidence; and an evidence list of short notes with sources. When the agent commits a guess, write a new record at active. When evidence arrives, append it and adjust confidence; if the next-test fires, transition to confirmed or disconfirmed; if a better hypothesis subsumes it, transition to superseded. Render the active records into the agent's daily working context so it sees what it currently believes.
 
-## Example scenario
+## Structure
 
-An agent maintains a small store of open questions ("why does request latency spike between 02:00 and 04:00 UTC?"). After a week of incidents, the agent commits to a guess: "the spike is correlated with a vendor's scheduled embedding-index rebuild." It opens a hypothesis with confidence 0.6, status active, next-test "observe whether the next spike correlates with the vendor's announced rebuild window." Two weeks later the test fires positive; the hypothesis transitions to confirmed and the question is closed. A separate guess about GC pauses, which had reached confidence 0.4, transitions to superseded.
+```
+Agent commits guess --> Hypothesis record (id, summary, confidence, status=active, next-test, evidence) --evidence arrives--> append and adjust confidence --> {next-test positive -> confirmed | negative -> disconfirmed | subsumed -> superseded | untested sweep -> abandoned}; active records --> daily working context
+```
 
 ## Diagram
 
@@ -55,6 +57,10 @@ stateDiagram-v2
 
 *Hypothesis lifecycle: commit at active, transition once a next-test fires or another hypothesis subsumes.*
 
+## Example scenario
+
+An agent maintains a small store of open questions ("why does request latency spike between 02:00 and 04:00 UTC?"). After a week of incidents, the agent commits to a guess: "the spike is correlated with a vendor's scheduled embedding-index rebuild." It opens a hypothesis with confidence 0.6, status active, next-test "observe whether the next spike correlates with the vendor's announced rebuild window." Two weeks later the test fires positive; the hypothesis transitions to confirmed and the question is closed. A separate guess about GC pauses, which had reached confidence 0.4, transitions to superseded.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +74,13 @@ stateDiagram-v2
 - Two-store discipline (questions vs hypotheses) is harder than one undifferentiated note pile.
 - Confidence numbers are seductive; the temperature is the agent's, not the world's.
 - Hypothesis stores grow if abandonment is not periodically swept.
+
+## Failure modes
+
+- Merged ledgers — hypotheses are written into the open-questions store, and the agent cannot tell what it is wondering about from what it already believes.
+- False precision — a confidence of 0.8 is read as a measured probability instead of the agent's own temperature on a guess.
+- Zombie hypotheses — active records are never swept, so untested guesses pile up and crowd the daily working context.
+- Revived disconfirmed guess — a later session ignores the disconfirmed status and commits the same hypothesis again as if it were new.
 
 ## What this pattern constrains
 
@@ -87,20 +100,39 @@ The agent cannot store provisional answers in the same surface as open questions
 - The product has no surface for the agent to render its own belief state.
 - Confidence numbers will be read as authoritative by downstream consumers without context.
 
+## Components
+
+- Hypothesis Ledger — typed records with summary, confidence, status, next-test, evidence
+- Evidence Appender — adds short notes with sources and adjusts confidence
+- Next-Test Field — falsifiable observation that drives a status transition
+- Status Machine — active to confirmed, disconfirmed, superseded, or abandoned
+- Open-Question Store — separate surface that pulls of curiosity live in, not commitments
+
+## Tools
+
+- Structured JSON store — keyed by short id with confidence and status fields
+- LLM API — drafts new hypotheses, evidence summaries, and next-test sentences
+
+## Evaluation metrics
+
+- Hypothesis-revision rate — confidence shifts per active record over a window
+- Confirm/disconfirm ratio — closures by next-test outcome rather than by abandonment
+- Untested-active count — active records past their natural sweep window, flagging belief rot
+- Confidence calibration — predicted vs observed outcomes on confirmed and disconfirmed records
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [open-question-tension-store](open-question-tension-store.md)
-- *complements* → [confidence-reporting](confidence-reporting.md)
-- *complements* → [chain-of-verification](chain-of-verification.md)
-- *complements* → [self-archaeology](self-archaeology.md)
+- _complements_ **Open-Question Tension Store** — Questions pull; hypotheses commit. Same agent typically runs both.
+- _complements_ **Confidence Reporting**
+- _complements_ **Chain of Verification** — Next-test fields parallel CoVe's question-then-verify shape, applied to the agent's own guesses.
+- _complements_ **Self-Archaeology**
+- _complements_ **BDI Agent**
 
 ## References
 
-- (book) *Logik der Forschung (The Logic of Scientific Discovery)*, 1934, <https://www.routledge.com/The-Logic-of-Scientific-Discovery/Popper/p/book/9780415278447>
-- (paper) *Hypothesis Search: Inductive Reasoning with Language Models*, 2024, <https://arxiv.org/abs/2309.05660>
-
-**Tags:** cognition, memory, epistemics, falsifiability
+- [Logik der Forschung (The Logic of Scientific Discovery)](https://www.routledge.com/The-Logic-of-Scientific-Discovery/Popper/p/book/9780415278447) — Karl Popper, 1934
+- [Hypothesis Search: Inductive Reasoning with Language Models](https://arxiv.org/abs/2309.05660) — Wang et al., 2024

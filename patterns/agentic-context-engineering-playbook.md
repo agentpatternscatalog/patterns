@@ -2,8 +2,8 @@
 
 **Also known as:** ACE, Delta-Patched Playbook, Generator-Reflector-Curator Triad, Item-Addressable Self-Improvement
 
-**Category:** Verification & Reflection
-**Status in practice:** emerging
+**Category:** Verification & Reflection  
+**Status in practice:** experimental
 
 ## Intent
 
@@ -74,6 +74,13 @@ A coding agent accumulates a playbook of testing tactics over months of runs. Th
 - The Curator's dedup logic can be wrong and silently drop items it should have kept; needs its own audit.
 - Playbook can still grow unbounded without a separate retention policy.
 
+## Failure modes
+
+- Wrong dedup — the Curator judges a specific new tactic to be a duplicate of a vague old item and drops it, so the lesson is lost without a trace.
+- Unbounded playbook — the loop only ever adds items because no retention policy exists, and the prompt grows until older tactics crowd out the task.
+- Role bleed — the Reflector prompt is allowed to suggest rewritten text, starts editing items itself, and the vague paraphrasing the split was meant to stop returns.
+- Unstable ids — items are renumbered on save, deltas land on the wrong entry, and a tactic is edited or removed by mistake.
+
 ## What this pattern constrains
 
 The Generator must only emit candidate item deltas, never rewrite the playbook; the Reflector must only score items, never edit them; the Curator must apply only add/edit/remove operations against existing item ids and must never replace the playbook wholesale; whole-prompt regeneration of the playbook is forbidden.
@@ -92,21 +99,45 @@ The Generator must only emit candidate item deltas, never rewrite the playbook; 
 - There is no outcome signal — the Reflector has nothing to score against.
 - The team cannot afford the three-role overhead and a single reflection step is good enough.
 
+## Components
+
+- Generator — proposes new item deltas from the latest trajectory and outcome
+- Reflector — scores existing and proposed items against outcomes, never writes
+- Curator — applies add/edit/remove patches against item ids with dedup; sole writer
+- Item-addressable playbook — ordered list of stable-id items with tactic, example, provenance
+- Trajectory + outcome record — per-run input that all three roles read from
+
+## Tools
+
+- LLM API — three separate prompted calls for Generator, Reflector, Curator (may be different tiers)
+- Versioned item store — append-only storage keyed by stable item id with lineage
+- Outcome signal source — task-level pass/fail or score that the Reflector grounds against
+
+## Evaluation metrics
+
+- Item retention half-life — how many runs a specific tactic survives before being paraphrased away
+- Curator delta mix — ratio of add/edit/remove operations per run, surfacing pruning vs growth
+- Outcome lift over monolithic-rewrite baseline — does the three-role loop actually beat a single reflection pass
+- Dedup false-drop rate — fraction of Curator removals later judged wrong on audit
+- Cost per accepted delta — Generator+Reflector+Curator tokens divided by items that landed
+
 ## Known uses
 
-- **[Agentic Context Engineering (ACE) — Zhang et al., ICLR 2026](https://arxiv.org/abs/2510.04618)** — *Available* — Generator/Reflector/Curator triad with delta-patched item-addressable playbook.
+- **[Agentic Context Engineering (ACE) — Zhang et al., ICLR 2026](https://arxiv.org/abs/2510.04618)** _available_ — Generator/Reflector/Curator triad with delta-patched item-addressable playbook.
 
 ## Related patterns
 
-- *specialises* → [reflexion](reflexion.md) — Reflexion produces free-form verbal lessons; ACE structures them as addressable items with a three-role loop.
-- *alternative-to* → [self-refine](self-refine.md) — Self-refine rewrites in one pass; ACE forbids whole-prompt rewrites and only applies deltas.
-- *complements* → [prompt-versioning](prompt-versioning.md) — Item-level deltas slot naturally into a prompt-versioning registry.
-- *complements* → [cluster-capped-insight-store](cluster-capped-insight-store.md) — Cluster-capping bounds the playbook's size; ACE governs how items enter and leave it.
-- *alternative-to* → [dspy-signatures](dspy-signatures.md) — DSPy compiles prompts from data; ACE evolves a human-readable playbook in place.
+- _specialises_ **Reflexion** — Reflexion produces free-form verbal lessons; ACE structures them as addressable items with a three-role loop.
+- _alternative-to_ **Self-Refine** — Self-refine rewrites in one pass; ACE forbids whole-prompt rewrites and only applies deltas.
+- _complements_ **Prompt Versioning** — Item-level deltas slot naturally into a prompt-versioning registry.
+- _complements_ **Cluster-Capped Insight Store** — Cluster-capping bounds the playbook's size; ACE governs how items enter and leave it.
+- _alternative-to_ **DSPy Signatures** — DSPy compiles prompts from data; ACE evolves a human-readable playbook in place.
+- _complements_ **Pre-Flight Spec Authoring**
+- _used-by_ **Rigor Relocation**
+- _complements_ **Context Window Dumb-Zone Cap**
+- _alternative-to_ **Ratified Design Philosophy** — The playbook evolves autonomously through a reflector and curator; here every agent-made choice waits for the owner's verdict.
 
 ## References
 
-- (paper) Zhang et al., *Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models*, 2025, <https://arxiv.org/abs/2510.04618>
-- (blog) *VentureBeat coverage of Agentic Context Engineering*, 2025, <https://venturebeat.com/ai/>
-
-**Tags:** self-improvement, memory, reflection, prompt-engineering, context-collapse
+- [Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models](https://arxiv.org/abs/2510.04618) — Zhang et al., 2025
+- [ACE prevents context collapse with evolving playbooks for self-improving AI](https://venturebeat.com/ai/ace-prevents-context-collapse-with-evolving-playbooks-for-self-improving-ai) — 2025

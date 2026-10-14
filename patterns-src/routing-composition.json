@@ -134,7 +134,14 @@
         "Profile registry — versioned store of profile objects",
         "Prompt composer — builds the runtime system prompt from a profile",
         "Inheritance resolver — applies overrides on a base profile"
-      ]
+      ],
+      "failure_modes": [
+        "Profile-prompt drift — the profile file says one tone and action set, but the composed prompt or few-shot examples show another, and reviewers trust the file.",
+        "Tangled inheritance — specialised profiles override overrides of a base, and nobody can tell which field value the runtime will actually load.",
+        "Schema straitjacket — a persona that needs a field the schema lacks hides it in free-text persona prose, and the single review surface is lost again.",
+        "Stale knowledge binding — a profile still points at a retired corpus or memory partition, and the agent answers from data the team thought was gone."
+      ],
+      "structure": "Base profile --override fields--> Specialised profile --stored in--> Profile registry --load by id--> Inheritance resolver --> Prompt composer (persona, motivator, actions, knowledge bindings, behaviour params) --> Runtime system prompt + tool set"
     },
     {
       "id": "automatic-workflow-search",
@@ -254,7 +261,13 @@
         "Operator library coverage in the surviving workflow — which mutations actually contributed to wins",
         "Cost per inference of the deployed workflow — the bill the discovered shape will run at in production"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Benchmark overfit — the search finds a workflow that scores well on the eval set by exploiting its quirks, and it does worse on real traffic.",
+        "Weak eval ceiling — the eval set misses the cases users care about, so the search optimises hard for the wrong target.",
+        "Budget burn — every expansion runs a full workflow over the benchmark, and the search spends its compute before it leaves the familiar region.",
+        "Hand-edited deploy — an engineer tweaks the discovered workflow before shipping and skips the held-out check, so the deployed graph was never measured."
+      ]
     },
     {
       "id": "circuit-breaker",
@@ -411,7 +424,14 @@
         "Cost and latency saved while Open — calls suppressed times their unit cost and tail latency",
         "Cascading-failure incidents avoided — incident reviews where the breaker stopped a retry storm"
       ],
-      "last_updated": "2026-06-02"
+      "last_updated": "2026-06-02",
+      "failure_modes": [
+        "False trip — a short burst of transient errors opens the breaker, and a healthy dependency is cut off for the whole cooldown.",
+        "Late trip — the threshold or window is too loose, so the retry storm runs long enough to hit the vendor's rate limits before the breaker opens.",
+        "Flapping — trial calls in the half-open state succeed once, the breaker closes, full traffic returns, and it opens again in a loop.",
+        "Wrong blast radius — one global breaker for many endpoints trips on a single bad endpoint and blocks all the others."
+      ],
+      "structure": "Closed (calls flow, error-rate window counts) --error rate > threshold--> Open (no calls; fallback or fail fast) --cooldown elapsed--> HalfOpen (limited trial calls) --success--> Closed | --failure--> Open"
     },
     {
       "id": "complexity-based-routing",
@@ -642,7 +662,13 @@
         "Outcome-logging store — captures (query, tier, score, judgment) tuples for classifier retraining.",
         "Eval harness — held-out hard-query suite that pins the classifier's recall on the dangerous tail."
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Hard-as-easy misroute — the classifier scores a hard query as easy, the small tier answers it, and the user gets a confident wrong answer.",
+        "Difficulty drift — the product and user mix change, the classifier keeps its old boundaries, and per-tier quality slips without anyone retraining.",
+        "Override creep — callers add per-call tier overrides for their own cases, and the routing key stops being difficulty.",
+        "Classifier cost eats the saving — the difficulty judge is slow or expensive enough that the extra hop on every easy request cancels the tier discount."
+      ]
     },
     {
       "id": "dynamic-scaffolding",
@@ -765,7 +791,14 @@
         "Scaffold-firing distribution — which scaffolds dominate, which are dead and removable",
         "Quality regression on default path — confirms unclassified traffic is not made worse"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Wrong scaffold — the task classifier mislabels a request, and the injected examples push the model toward the wrong shape of answer.",
+        "Scaffold pile-up — several scaffolds match one request, they conflict in the same prompt, and output quality drops in ways that are hard to trace.",
+        "Rotting library — scaffolds are never pruned against the audit log, so stale examples keep firing after the task they served has changed.",
+        "Silent default — low-confidence classification falls to the bare prompt on a hard task that needed the schema, and nothing flags the gap."
+      ],
+      "structure": "Incoming task --> Task classifier --task type--> Scaffold library lookup --matched scaffolds (or none: bare prompt)--> Prompt assembler --> Model --> Answer; Audit log records which scaffolds fired"
     },
     {
       "id": "fallback-chain",
@@ -905,7 +938,14 @@
         "Hidden-regression rate — share of requests where the primary returned low confidence on tasks it used to handle",
         "Honest-IDK rate — share ending in the terminator instead of a wrong answer"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Masked primary regression — the primary quietly gets worse, the secondary picks up the slack, and nobody notices because users still get answers.",
+        "Latency stack-up — every handler in a deep chain passes, and the user waits for the sum of all of them before hearing 'I don't know'.",
+        "Broken confidence gate — a handler reports high confidence on a wrong answer, so the chain stops early and ships it.",
+        "Wrong answer instead of none — the final handler is a weak guesser rather than an honest 'I don't know', and the chain ends on a fabrication."
+      ],
+      "structure": "Query --> Handler 1 --confident--> Answer | --fail or low confidence--> Handler 2 --confident--> Answer | --pass--> ... Handler N --pass--> \"I don't know\"; cascade controller bounds depth and logs which handler served"
     },
     {
       "id": "graceful-degradation",
@@ -1042,7 +1082,14 @@
         "Hard-fail rate on allowlisted features — degradation correctly refused for PII or payment paths",
         "Time-to-recovery — how quickly each feature flips back to full mode after the dependency heals"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Undisclosed downgrade — the degraded path ships its answer without the notice, and the user takes a citation-free reply as the full result.",
+        "Untested fallback — a degraded mode that rarely runs has its own bug, and it fails on the day the dependency actually goes down.",
+        "Degrading what must hard-fail — a payment or PII feature drops into a reduced mode instead of returning a clear error.",
+        "Stale degradation switch — a feature flag forced into degraded mode during an incident is never reset, and users get the reduced path long after recovery."
+      ],
+      "structure": "Request --> Health check per dependency --healthy--> Full feature path --> Response | --dependency down--> Per-feature fallback (text-only | no citations | simple summary) --> Disclosure notice --> Response; hard-fail features --> explicit error"
     },
     {
       "id": "hybrid-symbolic-neural-routing",
@@ -1224,7 +1271,14 @@
         "Hybrid-validation rejection rate — share of LLM-proposed plans rejected by the symbolic layer (high = LLM-symbolic mismatch growing)",
         "Boundary-drift rate — change over time in what the router classifies as symbolic vs neural for the same input class"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Misrouted constraint query — the router sends an exact-rule question to the neural path, and the LLM confabulates an edge case the rule engine would have caught.",
+        "Misrouted free text — an interpretive query lands on the symbolic path, and the rule engine fails or returns a template answer that misses the point.",
+        "Unrepresentable plan — in the hybrid case the LLM proposes plans the symbolic layer cannot express, and the propose-validate loop keeps rejecting without converging.",
+        "Boundary drift — rules or prompts change on one stack only, and the router keeps sending queries to a path that can no longer handle them."
+      ],
+      "structure": "Query --> Router (estimate kind and complexity) --exact rule--> Symbolic path (KG / rules / solver) --> Answer | --interpretive--> Neural path (LLM + retrieval + tools) --> Answer | --hybrid--> LLM proposes plan --> Symbolic validator --ok--> Execute --> Answer; --reject--> LLM revises"
     },
     {
       "id": "mixture-of-experts-routing",
@@ -1347,7 +1401,14 @@
         "Generalist-fallback firing rate — share of traffic no expert confidently claimed",
         "Expert maintenance cost per domain — eval drift and prompt revisions over time"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Cross-domain gap — a question that spans tax and law goes to only one expert, and the part outside its domain gets a shallow or wrong answer.",
+        "Router-coverage mismatch — the router knows a domain label that no expert really covers, or an expert grows past what the router sends it.",
+        "Messy aggregation — top-k experts disagree, and the aggregator stitches their outputs into an answer that contradicts itself.",
+        "Fallback as default — the generalist lane catches more and more low-confidence queries, and the system slides back into one shallow agent."
+      ],
+      "structure": "Request --> Domain router --top-1--> Expert (own prompt, tools, model) --> Answer | --top-k--> Several experts --> Aggregator --> Answer | --no confident domain--> Generalist fallback --> Answer"
     },
     {
       "id": "multi-model-routing",
@@ -1533,7 +1594,14 @@
         "Cost per resolved request vs single-strong-model baseline — the saving this pattern is meant to deliver",
         "Misroute cost — quality regressions when an easy classification turned out hard"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Trusting a confident cheap model — the cheap tier answers a hard case with high stated confidence, the cascade never escalates, and the wrong answer ships.",
+        "Escalation tax — most requests fail the cheap tier and fall back to the strong one, so the system pays for two calls where one would have done.",
+        "Class boundary off cost boundary — the request classes do not match what the cheap model can handle, and the expected savings never appear.",
+        "Tool-calling divergence — the two tiers format tool calls differently, and a flow that works on the strong model breaks on the cheap one."
+      ],
+      "structure": "Request --> Cheap classifier model --easy class--> Cheap model --confident--> Response | --low confidence--> Strong model --> Response; --hard class--> Strong model --> Response; cost telemetry tags spend per tier"
     },
     {
       "id": "open-weight-cascade",
@@ -1667,7 +1735,13 @@
         "Cost-arbitrage saving on the insensitive path — share of traffic served cheaply by self-hosted models",
         "Degrade-or-refuse rate on sensitive low-confidence requests — operational cost of sovereignty"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Sensitivity misclassification — a sensitive request is labelled insensitive, takes the cheap-first path, and its data reaches the hosted frontier model outside the boundary.",
+        "Quality cliff on sensitive traffic — the in-boundary model is too weak for a hard sensitive request, and users get many degraded answers or refusals.",
+        "Escalation shortcut — a low-confidence fallback added later sends any open-weight miss to the hosted tier, skipping the sensitivity gate.",
+        "Two-stack drift — the self-hosted tier falls behind on updates and evals while the hosted tier moves ahead, and the gap grows unnoticed."
+      ]
     },
     {
       "id": "parallel-tool-calls",
@@ -1795,7 +1869,14 @@
         "Concurrency saturation — share of turns hitting the host's concurrency cap or upstream rate limits",
         "Result-join failure rate — turns where a fan-out result was dropped or mis-keyed"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Hidden dependency — the model puts a call that needs another call's result in the same turn, both run at once, and the second uses missing or stale data.",
+        "Rate-limit burst — the host fans out many calls to one strict tool at once and gets throttled, so the turn is slower than sequential calls.",
+        "Lost result pairing — a tool message comes back without the right call id, and the next turn reads one tool's result as another's.",
+        "Provider mismatch — a model or provider that does not emit multi-call turns is swapped in, and the expected speed-up quietly disappears."
+      ],
+      "structure": "Model --assistant turn [call T1, call T2, ...]--> Host fan-out executor (bounded concurrency, rate-limit guard) --parallel--> Tool 1 | Tool 2 | ... --results keyed by call id--> Result joiner --> tool messages --> Model next turn"
     },
     {
       "id": "parallelization",
@@ -1941,7 +2022,14 @@
         "Cost multiplier per resolved request — branch count times unit cost",
         "Aggregation-step error rate — judge or vote miscalls measured on a labelled set"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "False independence — sectioned subtasks actually depend on each other, and the concatenated result contradicts itself at the seams.",
+        "Correlated votes — every branch makes the same mistake from the same prompt, so the majority vote confirms the wrong answer.",
+        "Poisoned join — one branch fails or times out, and the aggregator drops the whole result or merges an error into it.",
+        "Fan-out cost — branch count is raised for quality, and the spend grows linearly while the gain flattens."
+      ],
+      "structure": "Task --> Splitter (sectioning) or Replicator (voting) --> Call A | Call B | Call C (no shared state) --> Aggregator (concatenate / majority / judge) --> Result"
     },
     {
       "id": "pipes-and-filters",
@@ -2052,7 +2140,14 @@
         "Schema-violation rate at each pipe — frequency of contract breaks between stages",
         "Stage-level failure attribution — share of incidents pinned to a single filter rather than the whole flow"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Contract mismatch — one filter changes its output shape, the next filter misreads it, and the error surfaces several stages later.",
+        "Wrong granularity — filters are cut so small that per-stage overhead dominates, or so large that a filter is a small monolith again.",
+        "Backpressure stall — a slow filter fills its input queue, upstream stages block or drop items, and throughput collapses.",
+        "Invisible end-to-end behaviour — each filter passes its own tests, but nobody can see why the full pipeline output is wrong."
+      ],
+      "structure": "Input stream --> Filter 1 --typed pipe--> Filter 2 --typed pipe--> Filter 3 --typed pipe--> Filter N --> Output stream; pipeline composer checks types at each seam"
     },
     {
       "id": "prompt-chaining",
@@ -2161,7 +2256,14 @@
         "Localisation rate — share of failures cleanly attributable to a single step on incident review",
         "Cumulative latency — sum of step latencies vs the mega-prompt single call"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Error compounding — step 2 passes validation with a subtly wrong output, and every later step builds on the mistake.",
+        "Decomposition misfit — an input does not fit the assumed sequence of steps, and the fixed chain forces it through steps that make no sense for it.",
+        "Weak step validator — a schema check accepts output that has the right shape but the wrong content, so the handoff gate does not catch the failure.",
+        "Retry loop on one step — a persistent failure at step k burns its retry budget on every request because the abort rule is too lenient."
+      ],
+      "structure": "Input --> Prompt 1 --validate--> out_1 --> Prompt 2 --validate--> out_2 --> ... --> Prompt N --validate--> Output; step k fails validation --> retry step k or abort (later steps do not run)"
     },
     {
       "id": "provider-fallback",
@@ -2309,7 +2411,14 @@
         "User-visible discontinuity rate — recovered streams where the seam was noticeable in output",
         "Per-provider traffic share — confirms the fallback path actually carries production load when needed"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Translation bug — the gateway maps a tool call or message role wrongly for provider B, and the continued stream calls the wrong tool or loses context.",
+        "Visible seam — provider B continues in a different style or quality, and the user sees an answer that changes voice halfway through.",
+        "Duplicated or dropped partial output — the continuation builder misjudges what was already streamed, so text repeats or a gap appears.",
+        "Amplified quirk — the fallback provider has its own limits or formatting habits, and routing on every error spreads them across all traffic."
+      ],
+      "structure": "Client --request (stream)--> Gateway (holds conversation state) --> Provider A --partial stream--> Gateway --> Client; Provider A --stream error--> Gateway --continuation (translated messages + partial output)--> Provider B --rest of stream--> Gateway --> Client sees one continuous stream"
     },
     {
       "id": "provider-string-routing",
@@ -2458,7 +2567,13 @@
         "Capability-mismatch incidents — production errors where a model was called for a feature it does not support",
         "Provider mix in production — share of traffic per provider as evidence the abstraction is exercised"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Runtime typo — a misspelled `provider/model` string passes code review and fails only when that path is first called in production.",
+        "Capability mismatch — a string is switched to a model that lacks tool calls or structured output, and the call site breaks because nothing checked capability flags first.",
+        "Credential convention gap — one provider reads a differently named env var, so a rotated key is picked up by some adapters and not others.",
+        "SDK leak — a call site imports a provider SDK class directly for a special feature, and the single routing interface stops being the only path."
+      ]
     },
     {
       "id": "routing",
@@ -2618,7 +2733,14 @@
         "Misroute recovery rate — share of misrouted requests salvaged by disambiguation or re-classification",
         "Lane-saturation drift — how often a specialist hits capabilities outside its declared lane"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Misroute to the light lane — a multi-step request is labelled chat, lands in the lane with no tools, and the user gets an answer that cannot do the job.",
+        "Unlabelled request forced into a lane — the classifier is unsure but still picks a lane instead of using the disambiguation fallback.",
+        "Ossified lanes — users learn the lanes, new kinds of request appear, and the old labels no longer match the traffic.",
+        "Router blind to capability — a specialist changes its tools or prompt, the router still sends it the old mix, and requests fail inside the lane."
+      ],
+      "structure": "Request --> Cheap intent classifier --label--> Dispatcher --command--> Deterministic action lane | --agent--> Multi-step agent lane | --chat--> Chat lane (no tools) | --unsure--> Disambiguation fallback --> Response"
     },
     {
       "id": "bpmn-dmn-deterministic-shell",
@@ -2734,7 +2856,14 @@
         "Agent-task latency within BPMN flow",
         "BPMN observability coverage — share of process visible",
         "DMN-vs-agent decision split"
-      ]
+      ],
+      "failure_modes": [
+        "Off-contract agent output — the agent service task returns text or fields the BPMN flow does not expect, and the next gateway or DMN table fails or takes the wrong branch.",
+        "Orchestration creep — routing decisions slip into agent prompts, and the BPMN model no longer shows how the process really runs.",
+        "Agent at a structured node — an agent task is placed where a DMN table would do, and an auditable decision becomes an untraceable one.",
+        "Long-running task mismatch — the engine handles slow or asynchronous agent calls poorly, and process instances time out or hang at the agent node."
+      ],
+      "structure": "Start --> DMN decision --> BPMN step --> Agent service task (unstructured-problem node) --> Output adapter --structured result--> DMN decision --> BPMN step --> End; BPMN engine owns all orchestration"
     },
     {
       "id": "mrkl-systems",
@@ -2858,7 +2987,14 @@
         "Per-expert dispatch accuracy",
         "Integration latency",
         "Hallucinated-fact rate vs LLM-only baseline"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong dispatch — the router LLM sends a calculation to the knowledge base or keeps it for itself, and the exact answer the module could give is lost.",
+        "Skipped dispatch — the LLM answers an arithmetic or fact question directly instead of calling the module, and returns a calculation error or made-up fact.",
+        "Bad integration — the module returns correct structured output, but the integration step misreads or paraphrases it wrongly in the final answer.",
+        "Malformed module input — the router builds an input the module cannot parse, and the module errors or computes something else."
+      ],
+      "structure": "Request --> Router LLM --math--> Calculator | --fact lookup--> Knowledge base | --computation--> Code executor | --specialist--> Expert model --structured results--> LLM integration step --> Response"
     },
     {
       "id": "trust-and-reputation-routing",
@@ -2995,7 +3131,14 @@
         "Outcome-signal pipeline — captures success, user rating, peer review",
         "Allocator — runs the sampling policy",
         "Operator dashboard — surfaces reputation distribution"
-      ]
+      ],
+      "failure_modes": [
+        "Reputation gaming — an agent learns to win the rating or peer-review signal without doing better work, and gets more traffic.",
+        "Starved newcomer — the exploration weight is too small, a new and better agent never gets enough tasks to build a score, and stays unused.",
+        "Legacy lock-in — an old agent's high score decays too slowly, so it keeps most of the traffic after its quality has dropped.",
+        "Noisy outcome signal — scores update from weak or biased ratings, and routing chases noise instead of real track record."
+      ],
+      "structure": "Task --> Candidate agents + Reputation table --> Weight (reputation + cold-start exploration, with decay) --> Sample agent --> Run task --> Outcome signal (success, user rating, peer review) --> Update reputation --> Reputation table"
     },
     {
       "id": "behavior-space-architecture",

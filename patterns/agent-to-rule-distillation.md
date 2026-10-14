@@ -133,6 +133,7 @@ A promoted case must no longer be answered by the model: the rule short-circuits
 - _alternative-to_ **Procedural Memory** — Procedural memory keeps learned how-to inside the agent's memory; distillation externalises the learned path so the model is no longer consulted at all for that case.
 - _complements_ **Hybrid Symbolic-Neural Routing** — The hybrid router is the runtime seat of the pattern: promoted rules populate the symbolic path that short-circuits the neural one for matching inputs.
 - _uses_ **Shadow Canary** — Replay and shadow validation of a mined rule against historical traces before cut-over is a canary run of the deterministic candidate.
+- _used-by_ **Ratified Design Philosophy** — The measurable part of the direction is distilled into sweep rules and a ratchet; the rest stays principle and judgement.
 
 ## References
 

@@ -2,12 +2,12 @@
 
 **Also known as:** DSM, Modélisation à flux décalés, Time-Aligned Stream Decoder, Single-Decoder Speech Agent
 
-**Category:** Streaming & UX
+**Category:** Streaming & UX  
 **Status in practice:** emerging
 
 ## Intent
 
-Convert streaming X-to-Y tasks (speech-to-text, text-to-speech, simultaneous translation, full-duplex dialogue) into a single decoder-only autoregressive problem by time-aligning the parallel streams with a fixed offset in preprocessing, eliminating the learned read/write policy required by cascade systems.
+Convert streaming speech tasks into a single decoder-only autoregressive problem by time-aligning the parallel input and output streams with a fixed offset in preprocessing, eliminating the learned read/write policy that cascade pipelines require.
 
 ## Context
 
@@ -80,6 +80,13 @@ A simultaneous translator app needs French speech out within two seconds of Engl
 - Long-context behavioural shaping (instruction-following, refusals) is less clean than in a separate LLM stage.
 - Architecture commits to streaming use; batch tasks gain little from the offset structure.
 
+## Failure modes
+
+- Offset too short for hard segments — a fixed delay that suits easy speech forces the model to emit before the needed context has arrived, and output quality drops on difficult passages.
+- Missing aligned data — a language pair or modality lacks time-aligned paired data, so the model is trained on thin or poorly aligned examples and drifts out of sync.
+- Entangled weakness — transcription, reasoning and speech share one model, so a regression in one role shows up as a vague quality drop that the team cannot pin on a stage.
+- Weak behaviour shaping — instruction-following or refusals tuned for a separate LLM stage do not carry over cleanly, and the joint model answers in ways a text-only stage would have blocked.
+
 ## What this pattern constrains
 
 The model must not predict output tokens ahead of the configured offset — emission position is structural, not learned. The architecture forbids inserting a separate read/write policy or cascade stage; the offset is the policy.
@@ -100,21 +107,41 @@ The model must not predict output tokens ahead of the configured offset — emis
 - Per-stage modularity (swap the LLM independently) is a hard requirement.
 - Variable per-segment latency (longer pause on hard sentences) is needed; fixed offset cannot do this.
 
+## Components
+
+- Source stream — live input tokens (audio frames, source-language text) arriving on a shared time axis
+- Target stream — output tokens offset by a fixed delay D and interleaved with the source
+- Preprocessing aligner — produces the interleaved time-aligned training sequence from paired data
+- Decoder-only transformer — single autoregressive model trained on the interleaved sequence
+- Offset emitter — reads off target tokens at the configured lag D during inference
+
+## Tools
+
+- Decoder-only transformer framework — trains and serves next-token prediction over interleaved streams
+- Audio codec or tokenizer — discretises speech into the token stream the model consumes
+- Time-aligned paired corpus — source/target data alignable on a shared time axis
+
+## Evaluation metrics
+
+- End-to-end first-output latency — wall-clock from source onset to first emitted target token
+- Effective offset D versus configured D — drift between intended and observed lag
+- Task quality at offset (BLEU, WER, MOS) — does the fixed-lag constraint hold output quality
+- Full-duplex overlap handling — fraction of overlapping-speech windows the model emits cleanly
+- Parameter and compute cost versus cascade baseline — savings from collapsing STT+LLM+TTS into one model
+
 ## Known uses
 
-- **[Kyutai Moshi](https://kyutai.org/)** — *Available* — Full-duplex spoken dialogue model trained as a delayed-streams decoder.
-- **[Kyutai Hibiki](https://kyutai.org/)** — *Available* — Simultaneous speech-to-speech translation via DSM.
-- **[Kyutai Unmute](https://kyutai.org/)** — *Available* — Real-time speech interaction stack on DSM.
+- **[Kyutai Moshi](https://kyutai.org/)** _available_ — Full-duplex spoken dialogue model trained as a delayed-streams decoder.
+- **[Kyutai Hibiki](https://kyutai.org/)** _available_ — Simultaneous speech-to-speech translation via DSM.
+- **[Kyutai Unmute](https://kyutai.org/)** _available_ — Real-time speech interaction stack on DSM.
 
 ## Related patterns
 
-- *alternative-to* → [streaming-typed-events](streaming-typed-events.md) — Streaming-typed-events is a transport-layer SSE pattern; DSM is a model-architecture pattern that produces streamable output.
-- *alternative-to* → [multilingual-voice-agent](multilingual-voice-agent.md) — Cascade STT->LLM->TTS vs single-decoder offset streams; DSM trades modularity for latency and simplicity.
+- _alternative-to_ **Streaming Typed Events** — Streaming-typed-events is a transport-layer SSE pattern; DSM is a model-architecture pattern that produces streamable output.
+- _alternative-to_ **Multilingual Voice Agent Stack** — Cascade STT->LLM->TTS vs single-decoder offset streams; DSM trades modularity for latency and simplicity.
 
 ## References
 
-- (paper) Kyutai Labs, *Delayed Streams Modeling*, 2025, <https://arxiv.org/abs/2509.08753>
-- (blog) Kyutai, *Simultaneous, on-device, high fidelity speech-to-speech translation with Hibiki*, 2025, <https://kyutai.org/blog/2025-02-10-hibiki>
-- (repo) Kyutai Labs, *delayed-streams-modeling*, 2025, <https://github.com/kyutai-labs/delayed-streams-modeling>
-
-**Tags:** streaming, speech, low-latency, translation, full-duplex, architecture
+- [Delayed Streams Modeling](https://arxiv.org/abs/2509.08753) — Kyutai Labs, 2025
+- [Simultaneous, on-device, high fidelity speech-to-speech translation with Hibiki](https://kyutai.org/blog/2025-02-10-hibiki) — Kyutai, 2025
+- [delayed-streams-modeling](https://github.com/kyutai-labs/delayed-streams-modeling) — Kyutai Labs, 2025

@@ -2,7 +2,7 @@
 
 **Also known as:** Stated-Intent Ledger, Follow-Through Audit
 
-**Category:** Verification & Reflection
+**Category:** Verification & Reflection  
 **Status in practice:** experimental
 
 ## Intent
@@ -33,9 +33,11 @@ Therefore: after each agent turn, run a cheap extraction pass that pulls explici
 
 After each turn the agent produces, run a separate, cheap-tier extraction pass (a small model or a structured prompt) that scans the turn for stated-intents and writes each as a Commitment record into an append-only ledger. Each record carries: a short statement of the intent, the turn it was raised in, an optional deadline or condition, and a status field (open). Expose two moves: mark_followed_through(id, evidence) flips the status when the agent or human can point to the action having happened; mark_expired(id) closes the record when the deadline passed. Run a periodic check_expirations sweep that auto-expires open commitments past their deadline. Surface open commitments in the agent's working context so it can act on them.
 
-## Example scenario
+## Structure
 
-A chat agent answers a question, then ends with "I'll pull the updated benchmark numbers in the next hour." The extraction pass logs a Commitment {statement: 'pull updated benchmark numbers', deadline: +1h, status: open}. An hour later the sweep finds the commitment still open; the agent's tick reads it, runs the action, and marks it followed-through with a link to the result. A separate offhand intent — "I should think about that more" — sits in the ledger as open and auto-expires after the sweep window without action, which is correct: it was rhetorical.
+```
+Agent turn -> separate cheap-tier extractor -> Commitment(intent, turn, deadline, status=open) appended to ledger -> open items surfaced in agent context -> mark_followed_through(id, evidence) | check_expirations sweep -> expired
+```
 
 ## Diagram
 
@@ -57,6 +59,10 @@ sequenceDiagram
 
 *Extractor lifts stated-intents into the ledger; agent reads and closes them later with evidence.*
 
+## Example scenario
+
+A chat agent answers a question, then ends with "I'll pull the updated benchmark numbers in the next hour." The extraction pass logs a Commitment {statement: 'pull updated benchmark numbers', deadline: +1h, status: open}. An hour later the sweep finds the commitment still open; the agent's tick reads it, runs the action, and marks it followed-through with a link to the result. A separate offhand intent — "I should think about that more" — sits in the ledger as open and auto-expires after the sweep window without action, which is correct: it was rhetorical.
+
 ## Consequences
 
 **Benefits**
@@ -70,6 +76,13 @@ sequenceDiagram
 - Extraction noise: figurative or rhetorical intents may get logged as real ones.
 - An overzealous ledger makes the agent feel chased by its own off-hand remarks.
 - Mark-followed-through depends on the agent's honesty; pair with separate verification when stakes are high.
+
+## Failure modes
+
+- Rhetorical noise — the extractor logs figures of speech as commitments, and the ledger fills with open items nobody intended to do.
+- Self-certified follow-through — the agent marks a commitment done with thin or false evidence, and the ledger looks clean while the gap persists.
+- Missed intents — the cheap extraction pass skips a promise phrased indirectly, so it never enters the ledger and is never checked.
+- Chased by its own remarks — every small aside becomes a tracked item, and the agent spends its context on minor open commitments.
 
 ## What this pattern constrains
 
@@ -89,20 +102,43 @@ The agent cannot mark its own commitments as followed-through in the same turn t
 - Extraction noise would generate more false positives than the audit pays back.
 - User-visible commitments are already managed by an explicit todo list.
 
+## Components
+
+- Main agent — produces conversational turns that may contain stated-intents
+- Extractor — cheap-tier model that scans each turn for explicit promises and writes ledger records
+- Commitment ledger — append-only store of records with status open/followed-through/expired
+- Expiration sweeper — scheduled job that auto-expires open commitments past their deadline
+- Evidence-linker — mechanism that ties a follow-through action back to the original commitment id
+
+## Tools
+
+- Cheap-tier LLM API — small model running the per-turn extraction pass
+- Append-only datastore — ledger with stable ids, status field, deadline, and provenance turn
+- Cron or scheduler — periodic trigger for the expiration sweep
+
+## Evaluation metrics
+
+- Extraction precision — fraction of logged commitments that were genuine promises, not rhetorical
+- Extraction recall — fraction of real promises that the extractor captured at all
+- Follow-through rate — closed-with-evidence over total non-expired commitments
+- Expiration backlog — count of open commitments past deadline at any sweep tick
+- User-perceived honesty delta — qualitative trust shift after the ledger is enabled
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *complements* → [decision-log](decision-log.md)
-- *complements* → [preoccupation-tracking](preoccupation-tracking.md)
-- *complements* → [reflection](reflection.md)
-- *alternative-to* → [todo-list-driven-agent](todo-list-driven-agent.md)
+- _complements_ **Decision Log** — Decisions are made; commitments are stated. Different ledgers, same auditability instinct.
+- _complements_ **Preoccupation Tracking**
+- _complements_ **Reflection**
+- _alternative-to_ **Todo-List-Driven Autonomous Agent** — Todo-list-driven agents commit before acting; commitment-tracking audits after speaking.
+- _complements_ **BDI Agent**
+- _complements_ **Joint Commitment Team**
+- _alternative-to_ **Deontic Token Delegation** — Deontic tokens transfer formal obligations between agents with provenance, where commitment-tracking records an agent's own intentions.
 
 ## References
 
-- (paper) *Implementation Intentions: Strong Effects of Simple Plans*, 1999, <https://psycnet.apa.org/record/1999-03629-008>
-- (paper) *Faithfulness vs. Plausibility: On the (Un)Reliability of Explanations from Large Language Models*, 2024, <https://arxiv.org/abs/2402.04614>
-
-**Tags:** verification, audit, honesty, confabulation
+- [Implementation Intentions: Strong Effects of Simple Plans](https://psycnet.apa.org/record/1999-03629-008) — Peter Gollwitzer, 1999
+- [Faithfulness vs. Plausibility: On the (Un)Reliability of Explanations from Large Language Models](https://arxiv.org/abs/2402.04614) — Agarwal et al., 2024

@@ -2,7 +2,7 @@
 
 **Also known as:** Plan-Affect Hooks, Stale-Pain Bucketing, Felt-Stakes Plans
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: apply a small bounded affect delta on each plan-lifecycle event (joy 
 
 Lifecycle hooks fire on each plan event with bounded deltas: step-done adds a small joy; step-skipped adds a small pain; plan-completed adds a larger joy spur; plan-archived adds a pain spur. Per-tick stale-pain: for each open plan whose last-touched is older than a grace window, add a per-tick pain dose drawn from an age-bucket table (for example 4h to 0.005, 12h to 0.010, 24h to 0.020, beyond three days to 0.030). All hooks are wrapped so that an exception in affect bookkeeping never breaks plan logic. Half-life decay from the affect substrate bounds the steady-state irritation.
 
-## Example scenario
+## Structure
 
-A long-running personal agent maintains a small plan store but routinely lets plans rot for weeks. There is no felt pressure to finish or formally abandon. The team adds Affect-Coupled Plan Lifecycle: step-done bumps joy by 0.05, step-skipped bumps pain by 0.10, plan-completed adds 0.40 joy, plan-archived adds 0.30 pain. Each tick, plans untouched past four hours accumulate pain from an age-bucket table. The agent starts closing stale plans on its own — sometimes by finishing them, sometimes by archiving with a note — because rolling stale-pain becomes uncomfortable.
+```
+Plan event (step done | step skipped | plan completed | plan archived) --bounded delta (joy or pain)--> Affect substrate; Per-tick scan --open plan untouched > grace--> Age-bucket table --pain dose--> Affect substrate --half-life decay--> Affect snapshot --> later cognition
+```
 
 ## Diagram
 
@@ -52,6 +54,10 @@ flowchart TD
 
 *Lifecycle events and age-bucketed stale-pain feed bounded deltas into the affect substrate; half-life decay bounds steady-state.*
 
+## Example scenario
+
+A long-running personal agent maintains a small plan store but routinely lets plans rot for weeks. There is no felt pressure to finish or formally abandon. The team adds Affect-Coupled Plan Lifecycle: step-done bumps joy by 0.05, step-skipped bumps pain by 0.10, plan-completed adds 0.40 joy, plan-archived adds 0.30 pain. Each tick, plans untouched past four hours accumulate pain from an age-bucket table. The agent starts closing stale plans on its own — sometimes by finishing them, sometimes by archiving with a note — because rolling stale-pain becomes uncomfortable.
+
 ## Consequences
 
 **Benefits**
@@ -65,6 +71,13 @@ flowchart TD
 - Bucket boundaries and deltas are opinionated and per-deployment.
 - Stale-pain interacts with the substrate's decay; mis-tuning can over- or under-shoot.
 - Felt-stakes only matter if downstream cognition reads the affect snapshot.
+
+## Failure modes
+
+- Nagging plan store — stale-pain buckets are set too steep, so a plan the agent sensibly parked keeps pushing pain into the affect substrate and colours every unrelated tick.
+- Silent stakes — the deltas land in the affect substrate, but no planning or reflection step reads the snapshot, so untouched plans rot exactly as before.
+- Bookkeeping crash — an affect hook throws outside its wrapper and a step-done event never gets recorded on the plan itself.
+- Decay mismatch — the substrate half-life is shorter than the bucket interval, so stale-pain never builds up enough to register.
 
 ## What this pattern constrains
 
@@ -84,18 +97,36 @@ Plan-affect hooks must use bounded deltas no larger than the substrate's per-eve
 - Plans complete on a short enough cycle that stale-pain never fires meaningfully.
 - The affect substrate has no decay and would accumulate irritation indefinitely.
 
+## Components
+
+- Plan Store — holds plan and step records with last-touched timestamps
+- Affect Substrate — bounded scalars for joy and pain with half-life decay
+- Lifecycle Hook — best-effort listener on step-done, step-skipped, plan-completed, plan-archived
+- Age-Bucket Table — maps stale duration to per-tick pain dose
+- Stale-Pain Scanner — per-tick sweep that doses untouched open plans
+
+## Tools
+
+- Structured JSON store — persists plans, last-touched timestamps, and affect scalars
+- Tick scheduler — fires the per-tick stale-pain sweep on a fixed cadence
+
+## Evaluation metrics
+
+- Stale-plan close rate — share of plans either finished or archived before the deepest bucket fires
+- Steady-state pain level — running mean of pain after half-life decay, to detect over-tuning
+- Hook-exception count — affect-bookkeeping errors that were swallowed without breaking plan logic
+- Median plan age at archive — whether bucketed pressure is shortening the tail of forgotten plans
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Plan steps emit affective bumps on completion or abandonment (joy / pain), and the affective state in turn feeds back into which plan steps get advanced — the lifecycle is coupled to feelings rather than to a pure scheduler. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *complements* → [emotional-state-persistence](emotional-state-persistence.md)
-- *complements* → [todo-list-driven-agent](todo-list-driven-agent.md)
+- _complements_ **Emotional State Persistence**
+- _complements_ **Todo-List-Driven Autonomous Agent**
 
 ## References
 
-- (book) Antonio Damasio, *Descartes' Error: Emotion, Reason, and the Human Brain (somatic marker hypothesis) — conceptual analogy, not evidence of practice*, 1994, <https://www.goodreads.com/book/show/103867.Descartes_Error>
-- (paper) Daniel Kahneman, Amos Tversky, *Prospect Theory: An Analysis of Decision under Risk — conceptual analogy, not evidence of practice*, 1979, <https://www.jstor.org/stable/1914185>
-
-**Tags:** cognition, affect, plan-lifecycle, felt-stakes
+- [Descartes' Error: Emotion, Reason, and the Human Brain (somatic marker hypothesis) — conceptual analogy, not evidence of practice](https://www.goodreads.com/book/show/103867.Descartes_Error) — Antonio Damasio, 1994
+- [Prospect Theory: An Analysis of Decision under Risk — conceptual analogy, not evidence of practice](https://www.jstor.org/stable/1914185) — Daniel Kahneman, Amos Tversky, 1979

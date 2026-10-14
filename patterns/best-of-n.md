@@ -31,9 +31,11 @@ Therefore: draw N diverse samples in parallel and let a separate scorer pick the
 
 Generate N candidates with non-zero temperature. Score each with a reward model or rule-based scorer. Return the top-1 (or top-K). BoNBoN alignment fine-tunes a model to mimic the BoN distribution directly, eliminating per-inference sampling cost.
 
-## Example scenario
+## Structure
 
-A code-review assistant generates a one-paragraph summary for each pull request, and roughly one in five reads awkwardly. The team enables Best-of-N: for each PR, the model samples five candidate summaries with temperature 0.7, and a small reward model trained on past human-edited summaries picks the highest-rated one to display. Token cost goes up about five times for that step, but the rate of summaries that reviewers feel compelled to rewrite drops sharply.
+```
+Prompt -> sample N candidates (temperature > 0) -> reward model / rule-based scorer scores each -> return top-1 (or top-K) unchanged from the candidate set
+```
 
 ## Diagram
 
@@ -49,6 +51,10 @@ flowchart TD
   R --> T[Top-1]
 ```
 
+## Example scenario
+
+A code-review assistant generates a one-paragraph summary for each pull request, and roughly one in five reads awkwardly. The team enables Best-of-N: for each PR, the model samples five candidate summaries with temperature 0.7, and a small reward model trained on past human-edited summaries picks the highest-rated one to display. Token cost goes up about five times for that step, but the rate of summaries that reviewers feel compelled to rewrite drops sharply.
+
 ## Consequences
 
 **Benefits**
@@ -60,6 +66,13 @@ flowchart TD
 
 - Cost scales with N.
 - Reward hacking: candidates can game a flawed scorer.
+
+## Failure modes
+
+- Scorer gaming — candidates win by matching what a flawed reward model likes, and the top-1 is the one that exploits the scorer rather than the best answer.
+- Cost blow-up — N is raised to chase quality, and inference cost grows with every extra sample for small gains.
+- Low-diversity pool — temperature is set too low, the N candidates are near copies, and selection has nothing real to choose between.
+- Quiet synthesis — someone merges the best parts of several candidates, and the output no longer comes from the set the scorer actually checked.
 
 ## What this pattern constrains
 
@@ -79,23 +92,48 @@ The chosen output must be from the candidate set; no synthesis across candidates
 - Inference cost or latency cannot absorb a multiplicative sampling factor.
 - Candidates collapse to near-duplicates regardless of temperature, so the best-of-N gain is illusory.
 
+## Components
+
+- Generator — base LLM sampling N candidates at non-zero temperature
+- Reward model or scorer — ranks candidates against each other to pick the winner
+- Selector — top-1 (or top-K) extractor that returns the chosen candidate
+- Diversity controller — temperature and sampling parameters that keep candidates from collapsing
+
+## Tools
+
+- LLM API — N parallel inference calls with non-zero temperature
+- Reward-model endpoint — trained ranker or rule-based scorer over the candidate set
+- Fine-tuning pipeline — only for the BoNBoN variant that amortises BoN into the weights
+
+## Evaluation metrics
+
+- Win-rate over single-sample baseline — does best-of-N pick beat the greedy decode
+- Candidate diversity — pairwise dissimilarity across the N samples (collapse warning if low)
+- Reward-model agreement with held-out human preference — bound on achievable lift
+- Quality lift per extra inference call — slope of quality versus N, finds the elbow
+- Reward-hacking incidence — fraction of selected candidates that score high but fail downstream
+
 ## Known uses
 
-- **RLHF training pipelines** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The eval path samples N candidates for selected tasks, scores them via internal reward models, and returns the best — distinct from running the whole loop N times.
+- **RLHF training pipelines** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The eval path samples N candidates for selected tasks, scores them via internal reward models, and returns the best — distinct from running the whole loop N times.
 
 ## Related patterns
 
-- *alternative-to* → [self-consistency](self-consistency.md)
-- *alternative-to* → [evaluator-optimizer](evaluator-optimizer.md)
-- *specialises* → [parallelization](parallelization.md)
-- *specialises* → [test-time-compute-scaling](test-time-compute-scaling.md)
-- *used-by* → [process-reward-model](process-reward-model.md)
-- *used-by* → [rest-em](rest-em.md)
-- *complements* → [automatic-workflow-search](automatic-workflow-search.md)
+- _alternative-to_ **Self-Consistency**
+- _alternative-to_ **Evaluator-Optimizer**
+- _specialises_ **Parallelization**
+- _specialises_ **Test-Time Compute Scaling**
+- _used-by_ **Process Reward Model**
+- _used-by_ **ReST-EM**
+- _complements_ **Automatic Workflow Search**
+- _alternative-to_ **Voting-Based Cooperation**
+- _alternative-to_ **Parallel-Voice Proposer**
+- _specialises_ **Adaptive Branching Tree Search**
+- _complements_ **Multi-Path Plan Generator**
+- _complements_ **Generate-and-Test Strategy**
+- _alternative-to_ **Trajectory-Summary Test-Time Scaling** — Best-of-N ranks raw candidate outputs and picks one; here the ranked unit is a compressed trajectory summary, and reuse can re-roll from it.
 
 ## References
 
-- (paper) Gui, Gârbacea, Veitch, *BoNBoN Alignment for Large Language Models and the Sweetness of Best-of-n Sampling*, 2024, <https://arxiv.org/abs/2406.00832>
-
-**Tags:** sampling, reward, alignment
+- [BoNBoN Alignment for Large Language Models and the Sweetness of Best-of-n Sampling](https://arxiv.org/abs/2406.00832) — Gui, Gârbacea, Veitch, 2024

@@ -23,6 +23,59 @@ If every request goes through one all-purpose prompt that can handle the hardest
 - Misrouting can be worse than not routing at all.
 - The router needs visibility into capabilities of each downstream specialist.
 
+## Therefore
+
+Therefore: put a cheap classifier in front that labels each request and dispatches it to the specialist lane built for that label, so that traffic pays the price and gets the depth that matches its kind.
+
+## Solution
+
+A lightweight classifier model (often the cheapest available) returns a label. The host dispatches the request to the specialist for that label. Common lanes: command (deterministic action), agent (multi-step), chat (no tools).
+
+## Structure
+
+```
+Request --> Cheap intent classifier --label--> Dispatcher --command--> Deterministic action lane | --agent--> Multi-step agent lane | --chat--> Chat lane (no tools) | --unsure--> Disambiguation fallback --> Response
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Req[Request] --> CL[Cheap classifier]
+  CL -->|command| L1[Deterministic action lane]
+  CL -->|agent| L2[Multi-step agent lane]
+  CL -->|chat| L3[Chat lane, no tools]
+  L1 --> Out[Response]
+  L2 --> Out
+  L3 --> Out
+```
+
+## Example scenario
+
+A help-desk product handles cheap FAQ lookups and rare deep-research queries through one expensive prompt; per-query cost is irrational. The team puts a small classifier in front: it returns one of `command`, `agent`, `research`, `human` and the host dispatches to the right lane. Eighty percent of traffic lands in the cheap deterministic command lane, the heavy agent only runs when needed, and average per-query cost falls by an order of magnitude.
+
+## Consequences
+
+**Benefits**
+
+- Cheap requests pay cheap prices.
+- Each lane can be tuned in isolation.
+
+**Liabilities**
+
+- Two-call latency on every request.
+- Lane definitions ossify; reclassification is hard once users learn the lanes.
+
+## Failure modes
+
+- Misroute to the light lane — a multi-step request is labelled chat, lands in the lane with no tools, and the user gets an answer that cannot do the job.
+- Unlabelled request forced into a lane — the classifier is unsure but still picks a lane instead of using the disambiguation fallback.
+- Ossified lanes — users learn the lanes, new kinds of request appear, and the old labels no longer match the traffic.
+- Router blind to capability — a specialist changes its tools or prompt, the router still sends it the old mix, and requests fail inside the lane.
+
+## What this pattern constrains
+
+A request gets exactly one lane; downstream specialists cannot accept work outside their declared lane.
 
 ## Applicability
 
@@ -38,66 +91,52 @@ If every request goes through one all-purpose prompt that can handle the hardest
 - Misrouting cost is high and the classifier cannot meet the required accuracy.
 - Latency budget cannot accommodate an extra classifier hop.
 
-## Therefore
+## Components
 
-Therefore: put a cheap classifier in front that labels each request and dispatches it to the specialist lane built for that label, so that traffic pays the price and gets the depth that matches its kind.
+- Intent classifier — cheap model that returns a lane label for each request
+- Lane catalogue — declared set of specialists (command, agent, chat, research, human) with capability descriptors
+- Dispatcher — invokes the matching specialist and refuses cross-lane work
+- Lane specialists — per-lane prompt, tool palette, and possibly model tuned to the lane's traffic
+- Disambiguation fallback — explicit handler for requests the classifier cannot label confidently
 
-## Solution
+## Tools
 
-A lightweight classifier model (often the cheapest available) returns a label. The host dispatches the request to the specialist for that label. Common lanes: command (deterministic action), agent (multi-step), chat (no tools).
+- Lightweight classifier model — the cheapest LLM tier or a fine-tuned small model
+- Routing telemetry — per-lane counters and a confusion matrix from sampled audits
+- Lane-specific runtimes — separate prompts, agent frameworks, or deterministic action handlers
 
-## Example scenario
+## Evaluation metrics
 
-A help-desk product handles cheap FAQ lookups and rare deep-research queries through one expensive prompt; per-query cost is irrational. The team puts a small classifier in front: it returns one of `command`, `agent`, `research`, `human` and the host dispatches to the right lane. Eighty percent of traffic lands in the cheap deterministic command lane, the heavy agent only runs when needed, and average per-query cost falls by an order of magnitude.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Req[Request] --> CL[Cheap classifier]
-  CL -->|command| L1[Deterministic action lane]
-  CL -->|agent| L2[Multi-step agent lane]
-  CL -->|chat| L3[Chat lane, no tools]
-  L1 --> Out[Response]
-  L2 --> Out
-  L3 --> Out
-```
-
-## Consequences
-
-**Benefits**
-
-- Cheap requests pay cheap prices.
-- Each lane can be tuned in isolation.
-
-**Liabilities**
-
-- Two-call latency on every request.
-- Lane definitions ossify; reclassification is hard once users learn the lanes.
-
-## What this pattern constrains
-
-A request gets exactly one lane; downstream specialists cannot accept work outside their declared lane.
+- Classifier accuracy on a labelled audit set — share of requests sent to the correct lane
+- Per-lane traffic share — distribution that confirms the routing assumption matches reality
+- Per-lane cost and latency — confirms cheap lanes are actually cheap end-to-end
+- Misroute recovery rate — share of misrouted requests salvaged by disambiguation or re-classification
+- Lane-saturation drift — how often a specialist hits capabilities outside its declared lane
 
 ## Known uses
 
-- **Bobbin (Stash2Go)** — *Available*. mode_selector classifies intent into command / agent / chat.
-- **Anthropic Building Effective Agents (Workflow #2)** — *Available*
+- **Bobbin (Stash2Go)** _available_ — mode_selector classifies intent into command / agent / chat.
+- **Anthropic Building Effective Agents (Workflow #2)** _available_
 
 ## Related patterns
 
-- *generalises* → [multi-model-routing](multi-model-routing.md)
-- *used-by* → [supervisor](supervisor.md)
-- *generalises* → [mixture-of-experts-routing](mixture-of-experts-routing.md)
-- *complements* → [fallback-chain](fallback-chain.md)
-- *used-by* → [dynamic-scaffolding](dynamic-scaffolding.md)
-- *alternative-to* → [hero-agent](hero-agent.md)
-- *used-by* → [disambiguation](disambiguation.md)
-- *complements* → [prompt-chaining](prompt-chaining.md)
-- *used-by* → [tool-loadout](tool-loadout.md)
+- _generalises_ **Multi-Model Routing**
+- _used-by_ **Supervisor**
+- _generalises_ **Mixture of Experts Routing**
+- _complements_ **Fallback Chain**
+- _used-by_ **Dynamic Scaffolding**
+- _alternative-to_ **Hero Agent**
+- _used-by_ **Disambiguation**
+- _complements_ **Prompt Chaining**
+- _used-by_ **Tool Loadout**
+- _uses_ **Augmented LLM**
+- _generalises_ **Hybrid Symbolic-Neural Routing**
+- _generalises_ **Complexity-Based Routing**
+- _used-by_ **Hierarchical Retrieval**
+- _complements_ **Trust and Reputation Routing**
+- _used-by_ **Production Failure Triage Loop** — Reuses classify-then-dispatch, but applied to failures feeding remediation rather than to incoming user requests.
+- _specialises_ **Semantic Decision Node** — Routing classifies an incoming request once and dispatches it to a lane; a semantic decision node is the same mechanism placed at any branch point inside the harness, with the probability exposed and the threshold held in code.
 
 ## References
 
-- (blog) *Anthropic: Building Effective Agents*, 2024, <https://www.anthropic.com/research/building-effective-agents>
-
-**Tags:** routing, classifier
+- [Anthropic: Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — 2024

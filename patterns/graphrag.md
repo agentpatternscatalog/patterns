@@ -23,20 +23,6 @@ Naive retrieval pulls the top-k chunks for each query, which is fine for local l
 - Graph quality depends on extraction prompts.
 - Local-search vs global-search modes serve different query types and must be routed.
 
-## Applicability
-
-**Use when**
-
-- Users ask global, corpus-wide questions that local chunk retrieval cannot answer.
-- The corpus has clear entities and relations worth extracting into a graph.
-- Index-time cost can be paid up front to enable hierarchical community summaries.
-
-**Do not use when**
-
-- Queries are narrowly local and naive RAG already serves them well.
-- The corpus is small or volatile enough that graph extraction will not pay off.
-- Entity and relation extraction quality is too low to trust the resulting graph.
-
 ## Therefore
 
 Therefore: index documents into an LLM-extracted knowledge graph with hierarchical community summaries and route queries by scope, so that global questions get global answers and local questions stay local.
@@ -45,11 +31,11 @@ Therefore: index documents into an LLM-extracted knowledge graph with hierarchic
 
 Index time: extract entities and relations from chunks; build a knowledge graph; cluster into hierarchical communities; summarise each community. Query time: classify query as local (entity-specific) or global (corpus-wide). Local queries use entity-anchored retrieval; global queries map-reduce over community summaries.
 
-## Variants
+## Structure
 
-- **Global GraphRAG (map-reduce)** — Map the query over community summaries, reduce to a single answer; suits corpus-wide sensemaking.
-- **Local GraphRAG** — Anchor on a named entity and walk its neighbourhood in the graph; suits entity-specific questions.
-- **DRIFT GraphRAG** — Hybrid that starts local around a seed entity and progressively widens to community-level context if the local context is insufficient (Microsoft DRIFT).
+```
+Index: Chunks --> Extract entities + relations --> Knowledge graph --> Cluster into hierarchical communities --> Summarise each community. Query: Query --> Local or global? --local--> Entity-anchored retrieval --> Answer | --global--> Map over community summaries --> Reduce --> Answer
+```
 
 ## Diagram
 
@@ -82,22 +68,69 @@ An analyst pointed at a 4000-page deal-room corpus asks 'what are the recurring 
 - High indexing cost (orders of magnitude more LLM calls).
 - Entity extraction errors cascade through the graph.
 
+## Failure modes
+
+- Extraction error cascade — the extractor splits one entity into two or links unrelated ones, and every community and summary built on top inherits the error.
+- Local-global misroute — an entity-specific question is classified global, and the answer comes back as a vague theme summary instead of the specific fact.
+- Stale summaries — the corpus changes, the costly index is not rebuilt, and global answers describe themes that no longer hold.
+- Lossy map-reduce — community summaries drop a minor but important thread, and the reduced answer reads complete while missing it.
+
 ## What this pattern constrains
 
 Global queries operate only on community summaries, not raw chunks; local queries operate only on entity-anchored neighbourhoods.
 
+## Applicability
+
+**Use when**
+
+- Users ask global, corpus-wide questions that local chunk retrieval cannot answer.
+- The corpus has clear entities and relations worth extracting into a graph.
+- Index-time cost can be paid up front to enable hierarchical community summaries.
+
+**Do not use when**
+
+- Queries are narrowly local and naive RAG already serves them well.
+- The corpus is small or volatile enough that graph extraction will not pay off.
+- Entity and relation extraction quality is too low to trust the resulting graph.
+
+## Components
+
+- Entity-and-relation extractor — LLM-driven pass over chunks that builds the typed graph
+- Community detector — clusters the knowledge graph into hierarchical communities
+- Community summariser — emits a natural-language summary per community
+- Query router — classifies a query as local or global and dispatches accordingly
+- Map-reduce answerer — for global queries, maps the question over community summaries and reduces to a single answer
+
+## Tools
+
+- LLM API — heavy index-time use for extraction and community summarisation, plus inference-time generation
+- Knowledge graph store — persists entities, relations, and community hierarchy (Neo4j, in-memory, or columnar)
+- Graph clustering library — Leiden or similar for hierarchical community detection
+
+## Evaluation metrics
+
+- Win rate on global sensemaking benchmarks — head-to-head against naive RAG on corpus-wide questions
+- Entity-extraction F1 — quality of the graph the rest of the pipeline rests on
+- Local-vs-global router accuracy — share of queries dispatched to the right mode
+- Index-time LLM cost per million corpus tokens — the high capex this pattern incurs
+- Community-summary groundedness — fraction of summary claims traceable to the chunks they cover
+
 ## Known uses
 
-- **[Microsoft GraphRAG (open source)](https://github.com/microsoft/graphrag)** — *Available*
+- **[Microsoft GraphRAG (open source)](https://github.com/microsoft/graphrag)** _available_
 
 ## Related patterns
 
-- *alternative-to* → [naive-rag](naive-rag.md)
-- *uses* → [map-reduce](map-reduce.md)
-- *composes-with* → [knowledge-graph-memory](knowledge-graph-memory.md)
+- _alternative-to_ **Naive RAG**
+- _uses_ **MapReduce for Agents**
+- _composes-with_ **Knowledge Graph Memory**
+- _alternative-to_ **HippoRAG**
+- _alternative-to_ **Hierarchical Retrieval**
+- _complements_ **World-Model Graph Memory**
+- _alternative-to_ **Vectorless Reasoning-Based Retrieval** — Both impose explicit structure at index time; vectorless retrieval reuses the document's own table-of-contents tree instead of an extracted entity graph.
+- _alternative-to_ **Repo Map** — GraphRAG builds an entity-relation graph over prose; a repo map builds a symbol-dependency graph over code.
+- _complements_ **Tacit-Knowledge Elicitation Agent** — GraphRAG indexes documented knowledge into an entity-relation graph; elicitation front-loads the undocumented criteria so there is expert knowledge for that graph to capture in the first place.
 
 ## References
 
-- (paper) Edge, Trinh, Cheng, Bradley, Chao, Mody, Truitt, Metropolitansky, Ness, Larson, *From Local to Global: A Graph RAG Approach to Query-Focused Summarization*, 2024, <https://arxiv.org/abs/2404.16130>
-
-**Tags:** rag, graph, sensemaking
+- [From Local to Global: A Graph RAG Approach to Query-Focused Summarization](https://arxiv.org/abs/2404.16130) — Edge, Trinh, Cheng, Bradley, Chao, Mody, Truitt, Metropolitansky, Ness, Larson, 2024

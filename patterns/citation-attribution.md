@@ -2,7 +2,7 @@
 
 **Also known as:** Source Attribution, Answer-to-Source Binding, Span-Level Citations
 
-**Category:** Retrieval  
+**Category:** Retrieval & RAG  
 **Status in practice:** mature
 
 ## Intent
@@ -25,36 +25,19 @@ Just asking the model to 'include citations' is not enough. Citations that the m
 - Aggregating citations from multiple chunks behind one claim is common — single-source attribution is too narrow.
 - Distinct from citation-streaming, which is the delivery shape; this is the binding itself.
 
-## Applicability
-
-**Use when**
-
-- Users must be able to trace each claim to a retrieved source.
-- Compliance, research, or audit settings make unsupported claims unacceptable.
-- The delivery UI can render per-claim or per-span source links.
-- The retrieval pipeline already assigns stable source ids to chunks.
-
-**Do not use when**
-
-- Answers do not depend on retrieved evidence (no retrieval, no binding).
-- The binding granularity required is finer than what the model and validator can deliver reliably.
-- Citation markers in prose would degrade the UX more than they help.
-
 ## Therefore
 
 Therefore: bind every claim in the answer to one or more retrieved-source ids during generation and validate the binding against the retrieval result before delivery, so that what reaches the user is span-anchored to evidence that was actually retrieved.
 
 ## Solution
 
-During retrieval, assign each chunk a stable source-id and keep a registry of which ids were retrieved for this turn. During generation, either (a) prompt the model to emit citation markers (`[src-id]`) at the granularity you want, then resolve and validate them against the registry, refusing any id that was not retrieved; or (b) use a structured-output schema that has a `claims` array with `text` and `supporting_chunk_ids` fields. At delivery, attach the resolved source records to the answer so the UI can render the binding. Pair with citation-streaming (delivery), naive-rag / contextual-retrieval (the upstream retrieval), and hallucinated-citations (the anti-pattern that ignores binding).
+During retrieval, assign each chunk a stable source-id and keep a registry of which ids were retrieved for this turn. During generation, either (a) prompt the model to emit citation markers (`[src-id]`) at the chosen granularity, then resolve and validate them against the registry, refusing any id that was not retrieved; or (b) use a structured-output schema that has a `claims` array with `text` and `supporting_chunk_ids` fields. At delivery, attach the resolved source records to the answer so the UI can render the binding. Pair with citation-streaming (delivery), naive-rag / contextual-retrieval (the upstream retrieval), and hallucinated-citations (the anti-pattern that ignores binding).
 
 ## Structure
 
+```
 Retriever → {chunk_id, content, source} registry → Generator (emits claims tagged with chunk_ids) → Validator (drops or refuses unknown ids) → Answer with bound citations.
-
-## Example scenario
-
-A legal-research assistant retrieves case excerpts and must produce an analysis where every claim cites the source case. The team assigns each retrieved chunk a stable `chunk_id` and prompts the model to emit a structured output: a list of claims, each with `text` and `supporting_chunk_ids`. A validator rejects any `chunk_id` not in this turn's retrieval registry. The UI renders each claim with footnote-style links to the cited cases. When the model is uncertain it returns fewer claims rather than fabricating citations; the citation-attribution binding is what the auditor checks.
+```
 
 ## Diagram
 
@@ -68,6 +51,10 @@ flowchart TD
   V -->|unknown id| Drop[Drop claim / refuse]
   Ans --> UI[UI renders span-to-source links]
 ```
+
+## Example scenario
+
+A legal-research assistant retrieves case excerpts and must produce an analysis where every claim cites the source case. The team assigns each retrieved chunk a stable `chunk_id` and prompts the model to emit a structured output: a list of claims, each with `text` and `supporting_chunk_ids`. A validator rejects any `chunk_id` not in this turn's retrieval registry. The UI renders each claim with footnote-style links to the cited cases. When the model is uncertain it returns fewer claims rather than fabricating citations; the citation-attribution binding is what the auditor checks.
 
 ## Consequences
 
@@ -85,28 +72,72 @@ flowchart TD
 - Citation markers in prose can clutter UX; the delivery layer must render them well.
 - Validation that rejects unknown ids must be paired with a fallback to avoid empty answers.
 
+## Failure modes
+
+- Fabricated source id — the model cites an id that was never retrieved, and without the registry check the fake citation reaches the user.
+- Right id, wrong claim — the cited chunk was retrieved but does not support the claim it is attached to, and the id-only check passes it.
+- Empty answer after validation — the validator drops every claim with an unknown id and no fallback exists, so the user gets nothing.
+- Too narrow binding — a claim drawn from two chunks is tied to only one, and a reader checking that source finds half the support missing.
+
 ## What this pattern constrains
 
 Every claim in the answer must be bound to at least one retrieved-source id from this turn's retrieval registry; citations to ids not in the registry must be rejected before delivery.
 
+## Applicability
+
+**Use when**
+
+- Users must be able to trace each claim to a retrieved source.
+- Compliance, research, or audit settings make unsupported claims unacceptable.
+- The delivery UI can render per-claim or per-span source links.
+- The retrieval pipeline already assigns stable source ids to chunks.
+
+**Do not use when**
+
+- Answers do not depend on retrieved evidence (no retrieval, no binding).
+- The binding granularity required is finer than what the model and validator can deliver reliably.
+- Citation markers in prose would degrade the UX more than they help.
+
+## Components
+
+- Retriever — assigns each returned chunk a stable source-id for this turn
+- Source registry — per-turn map from chunk-id to chunk content used by both generator and validator
+- Generator — emits claims tagged with supporting chunk-ids via citation markers or a structured schema
+- Citation validator — rejects any claim that cites an id not in the current registry
+- Delivery layer — attaches resolved source records to the answer so the UI can render span-to-source links
+
+## Tools
+
+- LLM with structured-output or citation-marker support — Anthropic Citations API, OpenAI Responses annotations, or schema-constrained decoding
+- Document store — holds the source records referenced by chunk-id at render time
+
+## Evaluation metrics
+
+- Citation precision — fraction of emitted citations that point to a chunk genuinely supporting the claim, audited on a sample
+- Citation recall — fraction of claims in the answer that received at least one bound citation
+- Unknown-id rejection rate — share of citations the validator drops, signalling hallucinated source ids
+- Span-alignment accuracy — for span-level binding, how often the cited span actually contains the cited text
+- Empty-answer rate after validation — share of turns where validator rejections leave no citable claims, a fallback-design signal
+
 ## Known uses
 
-- **Anthropic Claude (Citations API)** — Claude's Citations feature returns per-claim citations bound to provided source documents. *Available* — [link](https://docs.anthropic.com/en/docs/build-with-claude/citations)
-- **OpenAI Responses API (file_citation / url_citation annotations)** — OpenAI's Responses API emits citation annotations bound to retrieved files or URLs. *Available* — [link](https://cookbook.openai.com/examples/responses_api/responses_example)
-- **Dify (automatic citations on knowledge retrieval)** — When an LLM node consumes context variables from knowledge retrieval, Dify automatically tracks citations. *Available* — [link](https://github.com/langgenius/dify-docs/blob/main/en/use-dify/nodes/llm.mdx)
-- **Perplexity / You.com / Phind** — Answer engines that show source links bound to claim spans as the headline UX. *Available*
+- **[Anthropic Claude (Citations API)](https://platform.claude.com/docs/en/build-with-claude/citations)** _available_ — Claude's Citations feature returns per-claim citations bound to provided source documents.
+- **[OpenAI Responses API (file_citation / url_citation annotations)](https://cookbook.openai.com/examples/responses_api/responses_example)** _available_ — OpenAI's Responses API emits citation annotations bound to retrieved files or URLs.
+- **[Dify (automatic citations on knowledge retrieval)](https://docs.dify.ai/en/guides/workflow/node/llm)** _available_ — When an LLM node consumes context variables from knowledge retrieval, Dify automatically tracks citations.
+- **[Perplexity / You.com / Phind](https://www.perplexity.ai/)** _available_ — Answer engines that show source links bound to claim spans as the headline UX.
 
 ## Related patterns
 
-- *complements* → [citation-streaming](citation-streaming.md)
-- *uses* → [naive-rag](naive-rag.md)
-- *uses* → [contextual-retrieval](contextual-retrieval.md)
-- *alternative-to* → [hallucinated-citations](hallucinated-citations.md)
-- *complements* → [structured-output](structured-output.md)
+- _complements_ **Citation Streaming**
+- _uses_ **Naive RAG**
+- _uses_ **Contextual Retrieval**
+- _alternative-to_ **Hallucinated Citations**
+- _complements_ **Structured Output**
+- _complements_ **Vectorless Reasoning-Based Retrieval** — Tree navigation returns page and section references that feed citation attribution directly.
+- _complements_ **Canonical-Entity Grounding** — Grounds identifiers in master data the way attribution grounds prose in sources.
+- _complements_ **Verify-Before-Cite Resolution Gate** — Attribution binds answer spans to chunks inside this turn's closed retrieval registry; this gate adds an external existence check for authorities the retrieval set may never have contained.
 
 ## References
 
-- *doc*: [Anthropic Claude — Citations](https://docs.anthropic.com/en/docs/build-with-claude/citations) — Anthropic
-- *doc*: [Dify — LLM node and citation tracking](https://github.com/langgenius/dify-docs/blob/main/en/use-dify/nodes/llm.mdx) — LangGenius
-
-**Tags:** retrieval, citations, rag, anthropic, openai, dify
+- [Anthropic Claude — Citations](https://platform.claude.com/docs/en/build-with-claude/citations) — Anthropic
+- [Dify — LLM node and citation tracking](https://docs.dify.ai/en/guides/workflow/node/llm) — LangGenius

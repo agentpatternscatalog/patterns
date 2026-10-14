@@ -14,8 +14,10 @@ Rules are grouped to match the README's framing:
   A9  Tone                   no emoji, no hype words, neutral voice
   A17 Plain language          no AI-slop or overcomplex wording (makemytone)
   A10 Naming                 no duplicate names or alias collisions
-  A16 Reader-view template   5 sections (Summary, Problem, When-to-Use,
-                             When-Not-to-Use, Architecture Diagram) all renderable
+  A16 Reader-view template   every page section populated (Summary, Problem,
+                             When/When-Not, Diagram, Components, Tools,
+                             Guardrails, Failure modes, Metrics, Structure,
+                             Benefits) and patterns/<id>.md present
 
 Usage:
   python3 .github/scripts/lint.py                 # all rules, error on violations
@@ -1064,19 +1066,17 @@ def rule_a16(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
       6. Components                (components[])
       7. Tools                     (tools[])
       8. Guardrails                (constrains)
-      9. Failure Modes             (consequences.liabilities | failure_modes[])
+      9. Failure Modes             (failure_modes[])
       10. Evaluation Metrics       (evaluation_metrics[])
 
-    Sections 1-5 and 8-9 are hard requirements (one violation per offending
-    pattern). Sections 6, 7, 10 are backfill-in-progress: rather than spam
-    hundreds of per-pattern violations, A16 emits one summary line per missing
-    section listing the count and a short sample. Drop them as full per-pattern
-    violations once backfill is complete.
+    The rendered page (patterns/<id>.md) also carries Structure, Consequences
+    (benefits + liabilities) and Failure modes; those are required too:
+      A16.11 structure, A16.12 consequences.benefits, A16.13 page file exists.
+
+    Every section is a hard requirement (one violation per offending pattern);
+    the 2026-10 backfill brought every pattern to full coverage.
     """
     out: list[Violation] = []
-    missing_components: list[str] = []
-    missing_tools: list[str] = []
-    missing_metrics: list[str] = []
 
     for p in patterns:
         pid = p["id"]
@@ -1114,42 +1114,35 @@ def rule_a16(patterns: list[dict], where: dict[str, str]) -> list[Violation]:
             if not (d.get("mermaid") or "").strip():
                 out.append(Violation("A16.5", loc, "section 5 (Architecture Diagram): diagram.mermaid is empty"))
 
-        # 6. Components — backfill in progress.
+        # 6. Components.
         if not (p.get("components") or []):
-            missing_components.append(pid)
+            out.append(Violation("A16.6", loc, "section 6 (Components): components is empty"))
 
-        # 7. Tools — backfill in progress.
+        # 7. Tools.
         if not (p.get("tools") or []):
-            missing_tools.append(pid)
+            out.append(Violation("A16.7", loc, "section 7 (Tools): tools is empty"))
 
         # 8. Guardrails — constrains is required-by-convention (also covered by A3).
         if not (p.get("constrains") or "").strip():
             out.append(Violation("A16.8", loc, "section 8 (Guardrails): constrains is empty"))
 
-        # 9. Failure Modes — accept liabilities[] OR explicit failure_modes[].
+        # 9. Failure Modes.
         cons = p.get("consequences") or {}
-        if not ((cons.get("liabilities") or []) or (p.get("failure_modes") or [])):
-            out.append(Violation("A16.9", loc, "section 9 (Failure Modes): consequences.liabilities and failure_modes are both empty"))
+        if not (p.get("failure_modes") or []):
+            out.append(Violation("A16.9", loc, "section 9 (Failure Modes): failure_modes is empty"))
 
-        # 10. Evaluation Metrics — backfill in progress.
+        # 10. Evaluation Metrics.
         if not (p.get("evaluation_metrics") or []):
-            missing_metrics.append(pid)
+            out.append(Violation("A16.10", loc, "section 10 (Evaluation Metrics): evaluation_metrics is empty"))
 
-    # Summary-style violations for the backfill-in-progress sections. One line
-    # per section, not one per pattern, so the report stays readable.
-    total = len(patterns)
-    for code, label, missing in (
-        ("A16.6", "section 6 (Components)", missing_components),
-        ("A16.7", "section 7 (Tools)", missing_tools),
-        ("A16.10", "section 10 (Evaluation Metrics)", missing_metrics),
-    ):
-        if missing:
-            sample = ", ".join(sorted(missing)[:3])
-            more = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
-            out.append(Violation(
-                code, "patterns-src/",
-                f"{label}: {len(missing)}/{total} patterns missing; e.g. {sample}{more}",
-            ))
+        # 11-13. Page sections beyond the reader view.
+        if not (p.get("structure") or "").strip():
+            out.append(Violation("A16.11", loc, "page section Structure: structure is empty"))
+        if not (cons.get("benefits") or []):
+            out.append(Violation("A16.12", loc, "page section Consequences: consequences.benefits is empty"))
+        if not (ROOT / "patterns" / f"{pid}.md").exists():
+            out.append(Violation("A16.13", loc, f"page file patterns/{pid}.md is missing"))
+
     return out
 
 

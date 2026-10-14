@@ -31,9 +31,11 @@ Therefore: let the draft be challenged by a critic that calls external tools to 
 
 After draft generation, the model emits a critique that names suspected errors and queries tools to verify. Tool results inform the revised output. Iterate until tools find no more issues or budget exhausted.
 
-## Example scenario
+## Structure
 
-A coding agent answers 'what's the time complexity of this sort?' confidently, but its self-critique just talks itself in circles using the same blind spots that produced the answer. The team wires in a Critic equipped with external tools: the critic runs the proposed code on benchmarks, queries an algorithms reference, and uses a calculator to double-check claimed bounds. When the critic has a measurement that contradicts the draft, the agent revises against an actual signal instead of recycling its own prior.
+```
+Draft answer -> critique (name suspected errors) -> query tools (search / code execution / calculator) -> evidence -> revise only where evidence shows a defect -> repeat until tools find no issue or budget is spent -> final
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ sequenceDiagram
   Model-->>Model: final
 ```
 
+## Example scenario
+
+A coding agent answers 'what's the time complexity of this sort?' confidently, but its self-critique just talks itself in circles using the same blind spots that produced the answer. The team wires in a Critic equipped with external tools: the critic runs the proposed code on benchmarks, queries an algorithms reference, and uses a calculator to double-check claimed bounds. When the critic has a measurement that contradicts the draft, the agent revises against an actual signal instead of recycling its own prior.
+
 ## Consequences
 
 **Benefits**
@@ -62,6 +68,13 @@ sequenceDiagram
 
 - Latency and cost per turn.
 - Tool selection itself is a learning problem.
+
+## Failure modes
+
+- Wrong tool for the claim — the critic checks a fact with a tool that cannot settle it, gets a weak result, and treats it as confirmation.
+- Ungrounded edit — the model revises a passage on its own hunch with no tool evidence, and introduces a new error.
+- Budget burn — each round finds one more small issue, so the loop runs to the budget limit and adds latency on every turn.
+- Unchecked claims — the critique names only the errors it already suspects, and claims it never doubted are never tested.
 
 ## What this pattern constrains
 
@@ -81,18 +94,40 @@ The critic may revise outputs only when an external tool corroborates a defect; 
 - Latency budget allows only one model call per output.
 - Critique-and-revise loops collapse to no change and add cost without gain.
 
+## Components
+
+- Drafter — LLM producing the initial answer to be challenged
+- Tool-augmented critic — same or different LLM that names suspected errors and queries tools to verify
+- External tool set — search, code execution, calculator that supply ground-truth signals
+- Reviser — pass that incorporates corroborated tool evidence into a new draft
+- Iteration controller — stops the loop on no-issues or budget exhaustion
+
+## Tools
+
+- Web search API — verifies factual claims against external sources
+- Code-execution sandbox — runs generated code to check for runtime or correctness errors
+- Calculator or symbolic-math engine — checks arithmetic and algebraic claims
+- LLM API — drives critique and revision turns
+
+## Evaluation metrics
+
+- Tool-corroborated correction rate — edits driven by an actual tool result, not ungrounded change
+- Hallucination reduction over no-critic baseline — drop in confidently-wrong outputs
+- Tool-call efficiency — useful evidence returned per critic-issued query
+- Loop convergence rate — fraction of runs terminating on no-issues before budget cap
+- Latency and cost overhead per resolved defect — per-issue cost of the tool-grounded loop
+
 ## Known uses
 
-- **CRITIC paper baselines** — *Available*
+- **CRITIC paper baselines** _available_
 
 ## Related patterns
 
-- *specialises* → [reflection](reflection.md)
-- *alternative-to* → [chain-of-verification](chain-of-verification.md)
-- *uses* → [tool-use](tool-use.md)
+- _specialises_ **Reflection**
+- _alternative-to_ **Chain of Verification**
+- _uses_ **Tool Use**
+- _alternative-to_ **Policy-Localizer-Validator**
 
 ## References
 
-- (paper) Gou, Shao, Gong, Shen, Yang, Duan, Chen, *CRITIC: Large Language Models Can Self-Correct with Tool-Interactive Critiquing*, 2023, <https://arxiv.org/abs/2305.11738>
-
-**Tags:** reflection, tool-grounded, self-correction
+- [CRITIC: Large Language Models Can Self-Correct with Tool-Interactive Critiquing](https://arxiv.org/abs/2305.11738) — Gou, Shao, Gong, Shen, Yang, Duan, Chen, 2023

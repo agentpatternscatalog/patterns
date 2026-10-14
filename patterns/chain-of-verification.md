@@ -31,16 +31,11 @@ Therefore: draft, plan independent verification questions, answer them in isolat
 
 Four-step pipeline. Draft: produce initial answer. Plan: generate verification questions covering claims in the draft. Execute: answer each question in isolation, without seeing the original draft. Revise: rewrite the draft using the verification answers.
 
-## Variants
+## Structure
 
-- **Joint CoVe** — Generate verification questions and answer them in a single prompt; cheapest but lets the draft bias the checks.
-- **Two-step CoVe** — Plan questions in one call, answer them in a second call that does not see the draft.
-- **Factored CoVe** — Answer each verification question in its own isolated prompt so checks cannot reinforce each other (highest quality).
-- **Factor+Revise CoVe** — Factored execution plus an explicit cross-check step that flags inconsistencies between draft and verification answers before revising.
-
-## Example scenario
-
-A research agent confidently lists five 'recent papers' on a niche topic, two of which don't exist. Asking the model to check its own draft in the same conversation just produces equally confident reaffirmations. The team applies Chain-of-Verification: after the draft, the system generates verification questions about each citation, answers each one in a fresh context with no view of the draft, and revises. Fabricated citations get exposed because the verifier never saw the wrong claim to begin with.
+```
+Question --> Draft answer --> Plan verification questions from draft claims --> Execute: answer each question in isolation (draft not in context) --> Revise draft using verification answers --> Final answer
+```
 
 ## Diagram
 
@@ -53,6 +48,10 @@ flowchart TD
   R --> F[Final answer]
 ```
 
+## Example scenario
+
+A research agent confidently lists five 'recent papers' on a niche topic, two of which don't exist. Asking the model to check its own draft in the same conversation just produces equally confident reaffirmations. The team applies Chain-of-Verification: after the draft, the system generates verification questions about each citation, answers each one in a fresh context with no view of the draft, and revises. Fabricated citations get exposed because the verifier never saw the wrong claim to begin with.
+
 ## Consequences
 
 **Benefits**
@@ -64,6 +63,13 @@ flowchart TD
 
 - 4x baseline cost.
 - Verification quality depends on question coverage.
+
+## Failure modes
+
+- Draft leakage — verification questions are answered in the same context as the draft, and the answers echo its errors.
+- Coverage gap — the planned questions miss the claim that was wrong, so the revision keeps it.
+- Overcorrection — a mistaken verification answer replaces a correct claim in the draft during revision.
+- Cost blowout — the four steps run on every query, including ones simple enough not to need checking.
 
 ## What this pattern constrains
 
@@ -83,20 +89,41 @@ Verification answers are produced without the draft in context; coupled verifica
 - Latency budget cannot absorb four sequential model calls per output.
 - Verification questions cannot be answered cheaply or independently.
 
+## Components
+
+- Drafter LLM call — produces the initial answer that will be checked
+- Verification-question planner — derives independent check questions covering claims in the draft
+- Isolated verifier LLM call — answers each verification question in a fresh context without the draft
+- Reviser LLM call — rewrites the draft using the verification answers
+- Claim index — mapping from draft sentences to the verification questions that cover them
+
+## Tools
+
+- LLM API — at least four sequential calls per output across draft, plan, verify, and revise
+- Retrieval or search tool — optional per-question evidence lookup when answering verification questions
+
+## Evaluation metrics
+
+- Hallucination rate before vs after revise — drop in unsupported claims attributable to the loop
+- Verification-question coverage — fraction of draft claims that map to at least one verification question
+- Verifier independence check — rate at which isolated answers diverge from draft assertions when the draft is wrong
+- Cost multiplier vs single-shot — measured tokens-per-answer relative to the unverified baseline
+- Revise edit distance — how much the revise step actually changes the draft
+
 ## Known uses
 
-- **Meta AI implementation** — *Available*
+- **Meta AI implementation** _available_
 
 ## Related patterns
 
-- *specialises* → [reflection](reflection.md)
-- *complements* → [self-consistency](self-consistency.md)
-- *composes-with* → [naive-rag](naive-rag.md)
-- *alternative-to* → [critic](critic.md)
+- _specialises_ **Reflection**
+- _complements_ **Self-Consistency**
+- _composes-with_ **Naive RAG**
+- _alternative-to_ **Tool-Augmented Self-Correction**
+- _complements_ **Hypothesis Tracking**
+- _complements_ **Canonical-Entity Grounding** — Identifiers are verified against the authoritative store before use.
 
 ## References
 
-- (paper) Dhuliawala, Komeili, Xu, Raileanu, Li, Celikyilmaz, Weston, *Chain-of-Verification Reduces Hallucination in Large Language Models*, 2023, <https://arxiv.org/abs/2309.11495>
-- (paper) Raymond S. Nickerson, *Confirmation Bias: A Ubiquitous Phenomenon in Many Guises*, 1998, <https://doi.org/10.1037/1089-2680.2.2.175>
-
-**Tags:** reasoning, verification, hallucination
+- [Chain-of-Verification Reduces Hallucination in Large Language Models](https://arxiv.org/abs/2309.11495) — Dhuliawala, Komeili, Xu, Raileanu, Li, Celikyilmaz, Weston, 2023
+- [Confirmation Bias: A Ubiquitous Phenomenon in Many Guises](https://doi.org/10.1037/1089-2680.2.2.175) — Raymond S. Nickerson, 1998

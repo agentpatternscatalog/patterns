@@ -31,6 +31,12 @@ Therefore: represent reasoning as an arbitrary DAG of thoughts that can be gener
 
 Reasoning state is a DAG of thoughts. Operations include generate (CoT-style), aggregate (merge multiple thoughts), refine (improve one thought), and score. The orchestrator chains operations to produce a final thought; the agent can reuse intermediate nodes across branches.
 
+## Structure
+
+```
+Initial thought --generate--> Thoughts A, B --refine--> refined A, refined B (+ reused intermediate nodes) --aggregate--> merged thought --score--> Final thought; orchestrator chains named operators over the DAG
+```
+
 ## Diagram
 
 ```mermaid
@@ -61,6 +67,13 @@ A research agent comparing five drug candidates across efficacy, safety, and cos
 
 - Orchestration overhead.
 - Hard to debug when the DAG grows.
+
+## Failure modes
+
+- Bad merge — the aggregate operator combines two thoughts that contradict each other, and the merged node hides the conflict.
+- Graph sprawl — the orchestrator keeps generating and refining nodes, and the DAG grows past what anyone can trace.
+- Off-vocabulary reasoning — a step reasons outside the named operators, so it cannot be scored or reused like other nodes.
+- Weak scoring — the score operator ranks a poor final thought highest, and the orchestrator returns it.
 
 ## What this pattern constrains
 

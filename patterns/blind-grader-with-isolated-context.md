@@ -2,12 +2,12 @@
 
 **Also known as:** Fresh-Eyes Evaluator, Trace-Blind Judge, Outcomes-Style Verification, Context-Isolated Grader
 
-**Category:** Verification & Reflection
+**Category:** Verification & Reflection  
 **Status in practice:** emerging
 
 ## Intent
 
-Run an evaluator or grader in a separately-allocated context window with access only to the artifact and the rubric — never the producing agent's reasoning chain — so the grader cannot be primed by the same assumptions that produced the work.
+Run an evaluator in a separately-allocated context window with access only to the artifact and the rubric, never the producing agent's reasoning trace, so the grader cannot be primed by the producer's framing.
 
 ## Context
 
@@ -77,6 +77,13 @@ A coding agent produces a fix for a flaky integration test. A naive critic readi
 - Extra context allocation costs tokens and latency per check.
 - Discipline is required: leaking even a summary of the producer's trace into the grader's context defeats the pattern.
 
+## Failure modes
+
+- Trace leak — a short summary of the producer's reasoning slips into the grader prompt, and the grader inherits the framing the isolation was meant to block.
+- Vague rubric — the grader has no trace context and only a loose rubric, so it passes or fails on surface features.
+- Missing context — a judgement depends on a fact only the producer's trace held, the rubric does not carry it, and the grader marks a correct artefact as wrong.
+- Shared session reuse — the orchestrator reuses the producer's conversation for grading to save tokens, and the grader is no longer blind.
+
 ## What this pattern constrains
 
 The grader's context window must contain only the artefact, the rubric, and grader instructions; the producing agent's reasoning trace, scratchpad, prior turns, and tool-call history must be excluded; summaries of the producer's reasoning must not be injected into the grader context.
@@ -95,21 +102,49 @@ The grader's context window must contain only the artefact, the rubric, and grad
 - Latency and token budgets cannot absorb a separate isolated context per check.
 - No precise rubric is available — a vague rubric in an isolated context is worse than a trace-aware critic.
 
+## Components
+
+- Producer agent — runs in context A with full reasoning trace and scratchpad
+- Orchestrator — copies the artefact across the context boundary and dispatches the grader
+- Blind grader — runs in freshly allocated context B with only the artefact, rubric, and instructions
+- Rubric — hand-authored criteria the grader must judge against without trace context
+- Audit log — joins producer trace A and grader verdict B post hoc, never inside grader context
+
+## Tools
+
+- LLM API — at least two distinct invocations with strictly separated context windows
+- Context-isolation primitive — new conversation, subprocess, or fresh agent invocation that excludes prior turns
+- Rubric store — versioned criteria document loaded by the grader call
+
+## Evaluation metrics
+
+- Catch-rate uplift over trace-aware critic — failures only the blind grader surfaces
+- Grader-producer agreement gap — divergence between same-context self-critique and blind verdict
+- Rubric coverage — fraction of known failure classes the rubric actually scopes
+- Context-leak audit pass rate — sample inspections confirming no producer trace reached the grader
+- Token overhead per graded artefact — extra cost the isolated context adds versus inline review
+
 ## Known uses
 
-- **[Anthropic Claude Managed Agents — Outcomes feature](https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader)** — *Available* — Outcome grader runs in an isolated context with the artefact and rubric, not the producing trace.
+- **[Anthropic Claude Managed Agents — Outcomes feature](https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader)** _available_ — Outcome grader runs in an isolated context with the artefact and rubric, not the producing trace.
 
 ## Related patterns
 
-- *specialises* → [llm-as-judge](llm-as-judge.md) — Specialises LLM-as-judge with strict context isolation from the producer's trace.
-- *alternative-to* → [agent-as-judge](agent-as-judge.md) — Agent-as-judge evaluates trajectories; blind grader deliberately excludes the trajectory.
-- *alternative-to* → [same-model-self-critique](same-model-self-critique.md) — Same-model self-critique is the failure mode; blind grader is the structural fix using a fresh context.
-- *complements* → [evaluator-optimizer](evaluator-optimizer.md) — Evaluator-optimizer loops refine and score; blind grader supplies the score from outside the producer's frame.
-- *complements* → [frozen-rubric-reflection](frozen-rubric-reflection.md) — Frozen-rubric scopes self-reflection; blind grader adds context isolation as a structural element.
+- _specialises_ **LLM-as-Judge** — Specialises LLM-as-judge with strict context isolation from the producer's trace.
+- _alternative-to_ **Agent-as-a-Judge** — Agent-as-judge evaluates trajectories; blind grader deliberately excludes the trajectory.
+- _alternative-to_ **Same-Model Self-Critique** — Same-model self-critique is the failure mode; blind grader is the structural fix using a fresh context.
+- _complements_ **Evaluator-Optimizer** — Evaluator-optimizer loops refine and score; blind grader supplies the score from outside the producer's frame.
+- _complements_ **Frozen Rubric Reflection** — Frozen-rubric scopes self-reflection; blind grader adds context isolation as a structural element.
+- _alternative-to_ **Sandbagging**
+- _alternative-to_ **Alignment Faking**
+- _complements_ **Simulate Before Actuate**
+- _alternative-to_ **Verifier-Aware Reward Hacking** — The blind grader is the direct corrective: running the evaluator in a separately-allocated context the producer cannot read or prime removes the very access that makes grader reconnaissance possible.
+- _alternative-to_ **Prior-Estimate Anchoring** — The structural corrective, but isolation from the producer's reasoning trace is necessary and not sufficient: a grader that never sees the trace is still anchored by the loop's own bookkeeping, so the isolated context has to exclude harness metadata as well.
+- _complements_ **Judge-Channel Injection** — The blind grader isolates the judge from the producer's reasoning trace, but the injection rides in the artifact the grader must still read, so the isolation is orthogonal to this failure and insufficient against it.
+- _complements_ **Checklist Partial-Credit Scoring** — Isolating the grader's context keeps the checkpoint judge from being primed by the producing agent's framing of its own progress.
+- _complements_ **Chance-Corrected Judge Validation** — Isolation controls what the grader may see; this measures whether what the grader produces from that view matches human labels.
 
 ## References
 
-- (doc) *Verify with outcome grader (Anthropic Cookbook, Claude Managed Agents)*, 2026, <https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader>
-- (blog) *Anthropic updates Claude Managed Agents with three new features*, 2026, <https://9to5mac.com/2026/05/07/anthropic-updates-claude-managed-agents-with-three-new-features/>
-
-**Tags:** evaluation, verification, context-isolation, grading, rubric
+- [Verify with outcome grader (Anthropic Cookbook, Claude Managed Agents)](https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader) — 2026
+- [Anthropic updates Claude Managed Agents with three new features](https://9to5mac.com/2026/05/07/anthropic-updates-claude-managed-agents-with-three-new-features/) — 2026

@@ -7,7 +7,7 @@
 
 ## Intent
 
-Treat the agent's workflow itself (a graph of LLM-invoking nodes connected by edges) as an artefact to search; use Monte Carlo Tree Search guided by an eval benchmark to discover the best workflow, then deploy it.
+Treat the agent's workflow (a graph of LLM-invoking nodes) as an artefact to search; use Monte Carlo Tree Search guided by an eval benchmark to discover the best workflow, then deploy it.
 
 ## Context
 
@@ -32,10 +32,6 @@ Therefore: treat the workflow itself as a searchable artefact and let MCTS guide
 
 Represent each candidate workflow as code or a graph of nodes (router, planner, ensemble, review, revise, executor). Use MCTS — selection by UCB-style scoring on past benchmark performance, expansion by code mutations or graph edits, simulation by running the workflow on the eval set, backpropagation of scores. After a search budget, deploy the best-scoring workflow. Use a library of operators (Ensemble, Review, Revise) to constrain the search space.
 
-## Example scenario
-
-A research lab has built six different agent workflows for a maths-olympiad benchmark — chain-of-thought, debate, planner-executor, and so on — and none consistently wins. Hand-tuning the next variant is slow and biased toward what the team already knows. They treat each workflow as a graph of LLM-invoking nodes and let an MCTS search explore variations, scoring each candidate against the benchmark. After a few thousand evaluations the search returns a workflow shape no one on the team had drafted, and it ships.
-
 ## Structure
 
 ```
@@ -54,6 +50,10 @@ flowchart TD
   S --> BEST[Best workflow so far]
 ```
 
+## Example scenario
+
+A research lab has built six different agent workflows for a maths-olympiad benchmark — chain-of-thought, debate, planner-executor, and so on — and none consistently wins. Hand-tuning the next variant is slow and biased toward what the team already knows. They treat each workflow as a graph of LLM-invoking nodes and let an MCTS search explore variations, scoring each candidate against the benchmark. After a few thousand evaluations the search returns a workflow shape no one on the team had drafted, and it ships.
+
 ## Consequences
 
 **Benefits**
@@ -67,6 +67,13 @@ flowchart TD
 - Eval set quality bounds discovered workflow quality.
 - Compute-intensive: many workflow evaluations per search.
 - Risk of overfitting to the eval set; held-out eval needed.
+
+## Failure modes
+
+- Benchmark overfit — the search finds a workflow that scores well on the eval set by exploiting its quirks, and it does worse on real traffic.
+- Weak eval ceiling — the eval set misses the cases users care about, so the search optimises hard for the wrong target.
+- Budget burn — every expansion runs a full workflow over the benchmark, and the search spends its compute before it leaves the familiar region.
+- Hand-edited deploy — an engineer tweaks the discovered workflow before shipping and skips the held-out check, so the deployed graph was never measured.
 
 ## What this pattern constrains
 
@@ -86,20 +93,40 @@ No workflow may be deployed that was not measured against the held-out eval set;
 - Workflow domain is small enough to enumerate by hand more cheaply than running MCTS.
 - The deployment target changes faster than search can converge on a stable workflow.
 
+## Components
+
+- Workflow representation — code or graph encoding of router, planner, ensemble, review, revise nodes
+- Mutation operator — proposes edits (swap node, add review, change ensemble width) to expand the search frontier
+- Eval harness — runs a candidate workflow end-to-end against the benchmark and returns a score
+- MCTS controller — UCB selection over visited workflows, backpropagation of benchmark scores
+- Held-out validator — re-scores the best workflow on an unseen split before deployment
+
+## Tools
+
+- Benchmark dataset with ground-truth answers — the only signal the search trusts
+- LLM API — invoked once per node per evaluation run, so the cheapest viable tier is normal
+- Workflow runner / orchestrator — executes a candidate graph reproducibly inside the eval loop
+
+## Evaluation metrics
+
+- Best-workflow benchmark score vs hand-designed baseline — the headline lift the search has to justify
+- Held-out vs search-set score gap — flags overfitting of the discovered workflow to the search benchmark
+- Evaluations consumed per point of score lift — search efficiency under a fixed compute budget
+- Operator library coverage in the surviving workflow — which mutations actually contributed to wins
+- Cost per inference of the deployed workflow — the bill the discovered shape will run at in production
+
 ## Known uses
 
-- **[AFlow (DeepWisdom + HKUST(GZ))](https://github.com/FoundationAgents/AFlow)** — *Available*. MCTS over code-represented workflows; outperforms hand-designed baselines by 5.7% average.
+- **[AFlow (DeepWisdom + HKUST(GZ))](https://github.com/FoundationAgents/AFlow)** _available_ — MCTS over code-represented workflows; outperforms hand-designed baselines by 5.7% average.
 
 ## Related patterns
 
-- *uses* → [eval-harness](eval-harness.md)
-- *complements* → [eval-as-contract](eval-as-contract.md)
-- *complements* → [lats](lats.md) — LATS searches reasoning trees; AFlow searches workflow graphs.
-- *alternative-to* → [spec-first-agent](spec-first-agent.md)
-- *complements* → [best-of-n](best-of-n.md)
+- _uses_ **Eval Harness**
+- _complements_ **Eval as Contract**
+- _complements_ **Language Agent Tree Search** — LATS searches reasoning trees; AFlow searches workflow graphs.
+- _alternative-to_ **Spec-First Agent**
+- _complements_ **Best-of-N Sampling**
 
 ## References
 
-- (paper) Zhang et al., *AFlow: Automating Agentic Workflow Generation*, 2024, <https://arxiv.org/abs/2410.10762>
-
-**Tags:** workflow, search, china-origin, aflow, mcts
+- [AFlow: Automating Agentic Workflow Generation](https://arxiv.org/abs/2410.10762) — Zhang et al., 2024

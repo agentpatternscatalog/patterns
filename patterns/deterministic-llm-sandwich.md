@@ -31,10 +31,6 @@ Therefore: wrap the LLM call in cheap deterministic gates on both sides and only
 
 Three layers. Pre: deterministic check decides whether the LLM should run at all (e.g. AST parse must succeed). LLM: produces a candidate output with structured-output schema and frozen rubric. Post: deterministic re-validation (parse, type-check, run tests). If post fails, the original is returned unchanged.
 
-## Example scenario
-
-A regulated insurance assistant generates policy quotes that occasionally include a coverage line the customer never asked for. Trusting the LLM blindly is unacceptable; banning it loses the conversational explanation users like. The team adopts a Deterministic LLM Sandwich: a deterministic step parses the user's request into a typed schema, the LLM operates only within that schema, and a deterministic post-step validates the quote against rule-engine-checked coverage limits before it's shown. The LLM still talks like an LLM, but cannot smuggle a coverage line past the brackets.
-
 ## Structure
 
 ```
@@ -53,6 +49,10 @@ flowchart TD
   Post -- fail --> Reject2[Reject / retry]
 ```
 
+## Example scenario
+
+A regulated insurance assistant generates policy quotes that occasionally include a coverage line the customer never asked for. Trusting the LLM blindly is unacceptable; banning it loses the conversational explanation users like. The team adopts a Deterministic LLM Sandwich: a deterministic step parses the user's request into a typed schema, the LLM operates only within that schema, and a deterministic post-step validates the quote against rule-engine-checked coverage limits before it's shown. The LLM still talks like an LLM, but cannot smuggle a coverage line past the brackets.
+
 ## Consequences
 
 **Benefits**
@@ -64,6 +64,13 @@ flowchart TD
 
 - Building the deterministic checks is itself the bulk of the work.
 - Over-strict post-checks reject valid outputs.
+
+## Failure modes
+
+- Over-strict post-check — the validator rejects valid outputs, the original is always returned, and the LLM step adds cost with no effect.
+- Weak post-check — the check only parses the output, so a well-formed but wrong change passes and lands.
+- Pre-check skipped — a caller invokes the LLM directly for speed, and inputs that should never reach the model do.
+- Check debt — building the deterministic checks is put off, and the sandwich ships with only one side in place.
 
 ## What this pattern constrains
 
@@ -83,18 +90,45 @@ An LLM-produced artefact lands only after passing the post-check; otherwise the 
 - Pre and post checks together cost more than the LLM call they bracket.
 - There is no fallback when the post check fails and silent rejection would mislead.
 
+## Components
+
+- Pre-check — deterministic gate that decides whether the LLM should run at all
+- LLM call — generator constrained by structured-output schema and a frozen rubric
+- Post-check — deterministic re-validation (parse, type-check, run tests) against rules
+- Fallback handler — returns the original input unchanged when the post-check fails
+- Schema and rule library — codified constraints both checks read from
+
+## Tools
+
+- Parser or AST library — runs the deterministic shape check on input and output
+- Type-checker or schema validator — enforces the structured-output contract
+- Test runner or rule engine — executes the post-check against domain rules
+- LLM API with structured output — generator step bracketed by the gates
+
+## Evaluation metrics
+
+- Post-check rejection rate — fraction of LLM outputs blocked before they land
+- Bracket-caught defect rate — wrong outputs caught by the post-check that the LLM did not flag
+- Pre-check skip ratio — share of inputs that never reach the LLM and the latency saved
+- Over-strict rejection rate — valid outputs wrongly blocked by the post-check
+- End-to-end pass-through latency overhead — added time the two gates cost per call
+
 ## Known uses
 
-- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. deterministicReview.js -> scopedLlmFixer.js -> parse and revalidate.
+- **Knitting-DSL Pipeline (Stash2Go)** _available_ — deterministicReview.js -> scopedLlmFixer.js -> parse and revalidate.
 
 ## Related patterns
 
-- *uses* → [frozen-rubric-reflection](frozen-rubric-reflection.md)
-- *uses* → [structured-output](structured-output.md)
-- *composes-with* → [code-execution](code-execution.md) — Post-check often runs code (parse/test) to validate output.
+- _uses_ **Frozen Rubric Reflection**
+- _uses_ **Structured Output**
+- _composes-with_ **Code Execution** — Post-check often runs code (parse/test) to validate output.
+- _composes-with_ **Frozen Rubric Reflection**
+- _complements_ **LLM as Periphery**
+- _complements_ **Hybrid Symbolic-Neural Routing**
+- _alternative-to_ **Workflow-Success vs Business-Validity Gap** — Bracketing the run with a deterministic post-check against business rules is the corrective; relying on the bare exit status is the failure it prevents.
+- _complements_ **Verify-Before-Cite Resolution Gate** — The gate is the post-generation deterministic slice of the sandwich, specialised to resolving citations against an authority registry.
+- _complements_ **Behavior-Pinning Test Before Agent Edit** — The sandwich brackets each runtime call with deterministic checks; here the same deterministic-versus-model partition is applied at authoring time so pinned values are exact and model prose is compared loosely.
 
 ## References
 
-- (doc) Guardrails AI, *Guardrails AI — Input and Output Guards*, 2024, <https://www.guardrailsai.com/docs>
-
-**Tags:** verification, boundary, sandwich
+- [Guardrails AI — Input and Output Guards](https://www.guardrailsai.com/docs) — Guardrails AI, 2024

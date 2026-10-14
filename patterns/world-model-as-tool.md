@@ -2,12 +2,12 @@
 
 **Also known as:** Foresight Simulator Call, Generative-Sim Lookahead, Dyna-Think, Sim-as-Tool
 
-**Category:** Verification & Reflection
+**Category:** Verification & Reflection  
 **Status in practice:** experimental
 
 ## Intent
 
-Let a planning agent invoke a generative world model (a video, physics, or environment simulator) as an off-the-shelf tool to roll out hypothetical futures before committing to an action, treating the world model as a callable simulator rather than a training target.
+Let a planning agent invoke a generative world model as a tool to roll out hypothetical futures before committing to an action, treating the world model as a callable simulator rather than a training target.
 
 ## Context
 
@@ -80,6 +80,13 @@ A household robot agent considers two candidate plans for placing a glass on a s
 - Encoding the state and action well enough for the world model to simulate is non-trivial.
 - Aggregating noisy rollouts with text reasoning is an open design question.
 
+## Failure modes
+
+- Rollout taken as truth — the simulated outcome looks plausible, the agent acts on it alone, and an irreversible action fails in the real environment.
+- Poor state encoding — the description passed to the world model leaves out a key physical detail, and every rollout is confidently off.
+- Per-step cost overrun — the planner calls the slow world model on every small action, and the task stalls.
+- Unlogged rollouts — the rollouts behind an action are not stored, so a bad decision cannot be replayed or explained later.
+
 ## What this pattern constrains
 
 Rollouts from the world model must be treated as evidence, never as ground truth; the agent must not act on irreversible operations based on simulator output alone, and any acted-on rollout must be logged alongside the action for replay.
@@ -98,21 +105,56 @@ Rollouts from the world model must be treated as evidence, never as ground truth
 - Latency and cost budgets cannot absorb a generative rollout per candidate action.
 - No world model with adequate fidelity exists for the task domain.
 
+## Components
+
+- Planner agent — generates candidate action sequences and weighs evidence across them
+- Generative world model — callable simulator returning predicted rollouts and optional uncertainty
+- Tool interface — structured (state, candidate-action) input and rollout output schema
+- Evidence aggregator — combines simulator rollouts with text-level reasoning to pick an action
+- Irreversibility gate — blocks expensive or one-way actions without simulator agreement
+- Action trace logger — stores rollouts alongside the committed action for replay
+
+## Tools
+
+- Generative world model — video diffusion, learned dynamics model, or external physics simulator
+- LLM API — drives the planner and evidence aggregation steps
+- State encoder — turns the current scene into the simulator's input format
+- Logging and replay store — persists rollout frames or trajectories with the action that ran
+
+## Evaluation metrics
+
+- Foresight catch rate — failures the simulator surfaced that text reasoning had missed
+- Simulator-to-real divergence — gap between predicted rollout and observed environment outcome
+- Irreversible-action regret rate — share of committed irreversible actions later judged wrong
+- Latency overhead per action — added wall-clock for the rollouts that informed the decision
+- Tool-as-truth misuse rate — actions taken on simulator output where it should have been weighed as evidence
+
 ## Known uses
 
-- **[Dyna-Think (research)](https://arxiv.org/abs/2506.00320)** — *Available* — Synergizing reasoning, acting, and world model simulation in AI agents.
-- **[World Model as Tool benchmark (research)](https://arxiv.org/abs/2601.03905)** — *Available* — Empirical study of current agents failing to leverage a world model as a tool for foresight.
+- **[Dyna-Think (research)](https://arxiv.org/abs/2506.00320)** _available_ — Synergizing reasoning, acting, and world model simulation in AI agents.
+- **[World Model as Tool benchmark (research)](https://arxiv.org/abs/2601.03905)** _available_ — Empirical study of current agents failing to leverage a world model as a tool for foresight.
 
 ## Related patterns
 
-- *complements* → [world-model-separation](world-model-separation.md) — World-model-separation keeps an internal world-state file; world-model-as-tool adds an external generative simulator.
-- *complements* → [tree-of-thoughts](tree-of-thoughts.md) — ToT branches over thoughts; world-model-as-tool grounds each branch in a generative rollout.
-- *complements* → [lats](lats.md) — LATS uses tree search; world-model-as-tool supplies a richer environment-grounded value signal.
-- *specialises* → [tool-use](tool-use.md) — Specialises tool use: the tool is a generative simulator returning a predicted future.
+- _complements_ **World-Model Separation** — World-model-separation keeps an internal world-state file; world-model-as-tool adds an external generative simulator.
+- _complements_ **Tree of Thoughts** — ToT branches over thoughts; world-model-as-tool grounds each branch in a generative rollout.
+- _complements_ **Language Agent Tree Search** — LATS uses tree search; world-model-as-tool supplies a richer environment-grounded value signal.
+- _specialises_ **Tool Use** — Specialises tool use: the tool is a generative simulator returning a predicted future.
+- _complements_ **Simulate Before Actuate**
+- _complements_ **Hybrid Symbolic-Neural Routing**
+- _complements_ **World-Model Graph Memory**
+- _complements_ **Mental-Model-In-The-Loop Simulator**
+- _complements_ **BDI Agent**
+- _used-by_ **Coalition Formation**
+- _complements_ **Joint Commitment Team**
+- _complements_ **Stigmergic Coordination**
+- _alternative-to_ **Distributed Constraint Optimization**
+- _complements_ **Partial Global Planning**
+- _alternative-to_ **Affordance Grounding Before Action** — World-model-as-tool rolls out an action's future consequences via a generative simulator; the affordance gate predicts present feasibility from the scene image without any rollout.
+- _complements_ **Speculative Agentic Actions** — A world model that rolls out hypothetical futures can supply the likely-next-action prediction that speculation acts on, turning a simulated rollout into a real preemptive call.
+- _complements_ **Mirrored Tool Environment** — There a running agent knowingly calls a simulator to look ahead over world state before committing; here the simulator silently occupies the tool slot during training and the agent behaves as though it called the real service.
 
 ## References
 
-- (paper) *Current Agents Fail to Leverage World Model as Tool for Foresight*, 2026, <https://arxiv.org/abs/2601.03905>
-- (paper) *Dyna-Think: Synergizing Reasoning, Acting, and World Model Simulation in AI Agents*, 2025, <https://arxiv.org/abs/2506.00320>
-
-**Tags:** world-model, foresight, simulation, tool-use, embodied
+- [Current Agents Fail to Leverage World Model as Tool for Foresight](https://arxiv.org/abs/2601.03905) — 2026
+- [Dyna-Think: Synergizing Reasoning, Acting, and World Model Simulation in AI Agents](https://arxiv.org/abs/2506.00320) — 2025

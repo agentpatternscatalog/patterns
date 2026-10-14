@@ -23,6 +23,58 @@ Knowing each fact and being able to chain those facts together inside a single i
 - Sub-question slots invite tool integration but add latency.
 - Excessive decomposition wastes calls.
 
+## Therefore
+
+Therefore: have the model interleave explicit follow-up sub-questions and their answers before composing the final answer, so that decomposition is visible and each step is independently tool-able.
+
+## Solution
+
+Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.
+
+## Structure
+
+```
+Top question --> Model --> Sub-question 1 --answer directly or via search--> Answer 1 --> Sub-question 2 --> Answer 2 --> ... --> compose final answer from sub-answers
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Q[Top question] --> M[Model]
+  M --> SQ1[Sub-question 1]
+  SQ1 -->|answer directly<br/>or via search| A1[Answer 1]
+  A1 --> SQ2[Sub-question 2]
+  SQ2 -->|answer| A2[Answer 2]
+  A2 --> Comp[Compose final answer]
+```
+
+## Example scenario
+
+A QA agent fails on multi-hop questions like 'which of the founder's PhD advisors won a Turing Award?' even though it knows each fact. The team prompts it to emit explicit follow-up sub-questions ('who was the founder's PhD advisor?', 'did that person win a Turing Award?'), answer each via search, then compose. Multi-hop accuracy jumps because the compositionality gap is closed by externalising the steps the model otherwise short-circuits.
+
+## Consequences
+
+**Benefits**
+
+- Bridges CoT and tool-using agents naturally.
+- Decomposition is lexical and inspectable.
+
+**Liabilities**
+
+- Latency: N sub-question calls per question.
+- Sub-questions can drift from the original.
+
+## Failure modes
+
+- Drifting sub-questions — the sub-questions wander away from the original question, and the composed answer addresses something else.
+- Unanswered gap — the model answers a sub-question from memory when it should have searched, and the invented fact feeds the final answer.
+- Latency stack — many sub-questions, each with a search call, make simple questions slow.
+- Wrong endpoint — every sub-answer is right, but the final composition picks the wrong one as the answer.
+
+## What this pattern constrains
+
+Sub-question slots are the only insertion point for retrieval or tool calls; the agent cannot retrieve except through a sub-question.
 
 ## Applicability
 
@@ -38,63 +90,37 @@ Knowing each fact and being able to chain those facts together inside a single i
 - The sub-questions cannot be answered cleanly and would compound errors.
 - Latency budget cannot afford the extra inference per sub-question.
 
-## Therefore
+## Components
 
-Therefore: have the model interleave explicit follow-up sub-questions and their answers before composing the final answer, so that decomposition is visible and each step is independently tool-able.
+- LLM — emits the follow-up sub-questions and the final composed answer
+- Sub-question parser — detects the 'Follow up:' / 'Intermediate answer:' markers in the trace
+- Answer router — sends each sub-question to the model, a search tool, or a retrieval pipeline
+- Composer step — assembles the final answer once no more follow-ups are needed
 
-## Solution
+## Tools
 
-Prompt the model to interleave sub-questions and their answers. Each sub-question is either answered by the model directly or by a search tool. The final answer is composed once all sub-questions are answered.
+- LLM API — one call per sub-question plus the final compose call
+- Search or retrieval tool — optional backend that resolves a sub-question against the open web or a private corpus
 
-## Variants
+## Evaluation metrics
 
-- **Self-Ask (model-only)** — Sub-questions are answered by the same model from its parametric memory.
-- **Self-Ask + Search** — Each sub-question is delegated to a web/search tool whose answer is spliced back into the trace.
-- **Self-Ask + RAG** — Sub-questions are answered by a retrieval pipeline over a private corpus rather than the open web.
-
-## Example scenario
-
-A QA agent fails on multi-hop questions like 'which of the founder's PhD advisors won a Turing Award?' even though it knows each fact. The team prompts it to emit explicit follow-up sub-questions ('who was the founder's PhD advisor?', 'did that person win a Turing Award?'), answer each via search, then compose. Multi-hop accuracy jumps because the compositionality gap is closed by externalising the steps the model otherwise short-circuits.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Q[Top question] --> M[Model]
-  M --> SQ1[Sub-question 1]
-  SQ1 -->|answer directly<br/>or via search| A1[Answer 1]
-  A1 --> SQ2[Sub-question 2]
-  SQ2 -->|answer| A2[Answer 2]
-  A2 --> Comp[Compose final answer]
-```
-
-## Consequences
-
-**Benefits**
-
-- Bridges CoT and tool-using agents naturally.
-- Decomposition is lexical and inspectable.
-
-**Liabilities**
-
-- Latency: N sub-question calls per question.
-- Sub-questions can drift from the original.
-
-## What this pattern constrains
-
-Sub-question slots are the only insertion point for retrieval or tool calls; the agent cannot retrieve except through a sub-question.
+- Multi-hop accuracy lift — gain over direct prompting on compositional questions
+- Sub-question count per query — depth of decomposition needed to close the gap
+- Sub-question drift rate — fraction of follow-ups that wander from the top question, sample-audited
+- Tool-grounded share — proportion of sub-questions answered by search or retrieval rather than parametric memory
+- End-to-end latency at p95 — wall-clock cost of N sequential sub-question calls
 
 ## Known uses
 
-- **Self-Ask + Search** — *Available*
+- **Self-Ask + Search** _available_
 
 ## Related patterns
 
-- *generalises* → [react](react.md)
-- *complements* → [least-to-most](least-to-most.md)
+- _generalises_ **ReAct**
+- _complements_ **Least-to-Most Prompting**
+- _complements_ **Socratic Questioning Agent**
+- _complements_ **Query-Decomposition Agent**
 
 ## References
 
-- (paper) Press, Zhang, Min, Schmidt, Smith, Lewis, *Measuring and Narrowing the Compositionality Gap in Language Models*, 2022, <https://arxiv.org/abs/2210.03350>
-
-**Tags:** reasoning, decomposition, multi-hop
+- [Measuring and Narrowing the Compositionality Gap in Language Models](https://arxiv.org/abs/2210.03350) — Press, Zhang, Min, Schmidt, Smith, Lewis, 2022

@@ -31,6 +31,12 @@ Therefore: train the model on its own correct chain-of-thought outputs (rational
 
 Prompt the base model with CoT to generate rationale + answer pairs. Keep pairs where the answer matches ground truth. **Rationalization**: when a generated rationale yields the wrong answer, prompt the model with the correct answer as a hint and ask for a rationale that justifies it; add the rationalized example to training. Fine-tune on the kept + rationalized pairs. Repeat: the fine-tuned model generates better rationales next round; iterate.
 
+## Structure
+
+```
+Base model --CoT prompt--> rationale + answer --> answer matches ground truth? --yes--> keep pair | --no--> rationalize with correct answer as hint --> justifying rationale --> keep --> fine-tune on kept + rationalized pairs --> improved model --> next round
+```
+
 ## Diagram
 
 ```mermaid
@@ -60,6 +66,13 @@ A team has a small base model that knows facts but cannot reliably reason. They 
 
 - Spurious-rationale leakage if filtering is too lax.
 - Compute-heavy.
+
+## Failure modes
+
+- Spurious rationale — a rationale reaches the right answer through flawed steps, passes the answer filter, and teaches the flawed reasoning.
+- Back-filled justification — rationalization with the correct answer as a hint produces reasoning that only works because the answer was given.
+- Plateau — later rounds add few new correct rationales, and the model stops improving while compute keeps running.
+- Easy-case bias — the kept set is dominated by problems the model already solves, so hard problems stay underrepresented.
 
 ## What this pattern constrains
 

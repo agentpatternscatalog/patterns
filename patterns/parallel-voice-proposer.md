@@ -2,7 +2,7 @@
 
 **Also known as:** Multi-Voice Generation, Internal Proposers, Tagged-Voice Self-Selection
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: emit two or three candidate thoughts in one completion each tagged wi
 
 Prompt the model to produce two or three candidate next-thoughts in one completion, each prefixed with a voice tag such as `[voice: world-model]`, `[voice: critic]`, `[voice: prediction]`. Then ask for a single `selected: <voice>` line with a one-sentence reason. The canonical thought enters the main stream; the losers are appended to a proposer-losers log for inspection. Voices that never win across a rolling window become eligible for retirement; that retirement decision is explicit, not silent.
 
-## Example scenario
+## Structure
 
-A long-running personal agent keeps producing single-line responses that sound certain but are wrong in subtle ways. The team rebuilds the per-tick generation as Parallel-Voice Proposer: the model emits three tagged candidates (world-model, critic, prediction) in one completion, then a final line names the selected voice and gives a one-sentence reason. The canonical thought enters the stream; the losers are appended to an audit log. Retrospective review shows the critic voice was correctly catching overconfidence the agent had been emitting solo.
+```
+Loop --one completion request--> Model --> 2-3 voice-tagged candidates ([voice: world-model], [voice: critic], [voice: prediction]) + 'selected: <voice>' with reason --> canonical -> main stream; losers -> proposer-losers log (read-only audit); rolling win counts --> explicit retirement decision
+```
 
 ## Diagram
 
@@ -55,6 +57,10 @@ sequenceDiagram
 
 *One completion emits multiple voice-tagged candidates plus a selection line; the canonical enters the main stream, the losers go to an audit log.*
 
+## Example scenario
+
+A long-running personal agent keeps producing single-line responses that sound certain but are wrong in subtle ways. The team rebuilds the per-tick generation as Parallel-Voice Proposer: the model emits three tagged candidates (world-model, critic, prediction) in one completion, then a final line names the selected voice and gives a one-sentence reason. The canonical thought enters the stream; the losers are appended to an audit log. Retrospective review shows the critic voice was correctly catching overconfidence the agent had been emitting solo.
+
 ## Consequences
 
 **Benefits**
@@ -68,6 +74,13 @@ sequenceDiagram
 - Same model means correlated voices; true diversity is limited.
 - Self-selection can rubber-stamp the first candidate without rotation strategy.
 - Prompt overhead per tick is non-trivial when voices are kept distinct.
+
+## Failure modes
+
+- Echo voices — all candidates come from the same model in one completion and say nearly the same thing under different tags.
+- First-candidate stamp — the selection line keeps picking whichever voice appeared first, so the comparison adds nothing.
+- Loser re-promotion — a later step copies a losing voice from the audit log back into the main stream.
+- Silent voice retirement — a voice that rarely wins is dropped without the explicit decision, and the team loses track of what was removed.
 
 ## What this pattern constrains
 
@@ -87,19 +100,37 @@ Each generation governed by this pattern must emit at least two voice-tagged can
 - Token budget will not absorb two or three voice-tagged candidates per call.
 - Auditability of internal disagreement is not a goal.
 
+## Components
+
+- Voice Set — two or three named voices with distinct framings
+- Single-Completion Proposer — emits all voice-tagged candidates in one call
+- Self-Selector — final line names the canonical voice with a one-sentence reason
+- Loser Journal — append-only log of non-selected candidates
+- Voice Retirement — explicit decision to drop a voice that never wins
+
+## Tools
+
+- LLM API — single completion that emits all candidates plus the selection line
+- Structured JSON store — append-only loser journal for audit
+
+## Evaluation metrics
+
+- Voice-win distribution — selection counts per voice over a rolling window
+- Rubber-stamp rate — share of selections matching the first candidate emitted
+- Loser-becomes-right rate — audit sample where retrospective review preferred a losing candidate
+- Token overhead per call — extra tokens spent on tagged candidates vs single-pass generation
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *alternative-to* → [inner-committee](inner-committee.md)
-- *alternative-to* → [debate](debate.md)
-- *alternative-to* → [best-of-n](best-of-n.md)
+- _alternative-to_ **Inner Committee**
+- _alternative-to_ **Debate**
+- _alternative-to_ **Best-of-N Sampling**
 
 ## References
 
-- (book) Marvin Minsky, *The Society of Mind*, 1986, <https://archive.org/details/societyofmind00mins>
-- (paper) Xuezhi Wang et al., *Self-Consistency Improves Chain of Thought Reasoning in Language Models*, 2022, <https://arxiv.org/abs/2203.11171>
-
-**Tags:** cognition, inner-thought, multi-voice, self-selection
+- [The Society of Mind](https://archive.org/details/societyofmind00mins) — Marvin Minsky, 1986
+- [Self-Consistency Improves Chain of Thought Reasoning in Language Models](https://arxiv.org/abs/2203.11171) — Xuezhi Wang et al., 2022

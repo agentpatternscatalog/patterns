@@ -23,6 +23,59 @@ One-shot generation underuses the model in a specific way: the model has the abi
 - Free-form review drifts; the model invents new criteria each time.
 - Termination: when does the loop stop?
 
+## Therefore
+
+Therefore: have the model critique its own draft against named criteria and produce a revision pass, so that obvious local errors are caught before the output leaves the agent.
+
+## Solution
+
+After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).
+
+## Structure
+
+```
+Task -> producer pass -> output v1 -> critic pass (fixed criteria) --issues--> revise pass -> output v2 -> critic again ... until no new issues or max iterations -> final output
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  T[Task] --> P[Producer pass]
+  P --> O1[Output v1]
+  O1 --> Cr[Critic pass]
+  Cr -->|issues| Rev[Revise pass]
+  Rev --> O2[Output v2]
+  O2 -->|loop until clean<br/>or max iters| Cr
+  O2 --> Final[Final output]
+```
+
+## Example scenario
+
+A drafting agent writes a press release in one shot; legal flags two compliance issues post-hoc. The team adds a critic pass: after the first draft, the same model is prompted as a compliance reviewer to list concrete issues, then a third pass rewrites against that critique. With one extra round-trip, most legal-flag issues are caught before legal sees the draft. The team caps it at two reflection passes to control cost.
+
+## Consequences
+
+**Benefits**
+
+- Catches surface errors cheaply.
+- Pairs naturally with structured outputs.
+
+**Liabilities**
+
+- Diminishing returns after one or two passes.
+- Self-reinforced confidence on wrong answers (Reflexion replication studies).
+
+## Failure modes
+
+- Self-approval — after a pass or two the same model signs off on its own draft, and remaining errors ship with added confidence.
+- Wrong answer reinforced — the critique argues for the original mistake, and the revision states it more firmly.
+- Criteria drift — the critic invents new criteria each call, so the loop rewrites style while a factual error stays.
+- Pointless extra passes — iterations past the first one or two add cost without finding new issues.
+
+## What this pattern constrains
+
+The reviewer may only critique against criteria fixed by the surrounding system; free-form criteria invention is forbidden when the pattern is used at a correctness boundary.
 
 ## Applicability
 
@@ -38,69 +91,51 @@ One-shot generation underuses the model in a specific way: the model has the abi
 - Latency or cost cannot accommodate extra revision rounds.
 - Self-critique at this scale is unreliable and just rationalises errors.
 
-## Therefore
+## Components
 
-Therefore: have the model critique its own draft against named criteria and produce a revision pass, so that obvious local errors are caught before the output leaves the agent.
+- Producer — LLM that drafts the initial output
+- Critic persona — same or different model invoked to list concrete issues
+- Reviser — pass that rewrites the draft against the critic's findings
+- Stop-condition controller — terminates on no-new-issues or max-iteration cap
+- Named-criteria spec — explicit list the critic must score against to avoid drift
 
-## Solution
+## Tools
 
-After producing an output, the model is prompted (often as a critic persona) to find issues. The original output and critique go back into a revision step. Repeat until a stop condition (no new issues, max iterations).
+- LLM API — at least two calls per pass (critic and revise), optionally a third for the draft
+- Diff or structured-feedback channel — carries issue list from critic into reviser
 
-## Example scenario
+## Evaluation metrics
 
-A drafting agent writes a press release in one shot; legal flags two compliance issues post-hoc. The team adds a critic pass: after the first draft, the same model is prompted as a compliance reviewer to list concrete issues, then a third pass rewrites against that critique. With one extra round-trip, most legal-flag issues are caught before legal sees the draft. The team caps it at two reflection passes to control cost.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  T[Task] --> P[Producer pass]
-  P --> O1[Output v1]
-  O1 --> Cr[Critic pass]
-  Cr -->|issues| Rev[Revise pass]
-  Rev --> O2[Output v2]
-  O2 -->|loop until clean<br/>or max iters| Cr
-  O2 --> Final[Final output]
-```
-
-## Consequences
-
-**Benefits**
-
-- Catches surface errors cheaply.
-- Pairs naturally with structured outputs.
-
-**Liabilities**
-
-- Diminishing returns after one or two passes.
-- Self-reinforced confidence on wrong answers (Reflexion replication studies).
-
-## What this pattern constrains
-
-The reviewer may only critique against criteria fixed by the surrounding system; free-form criteria invention is forbidden when the pattern is used at a correctness boundary.
+- Surface-defect catch rate — share of obvious errors the critic surfaces on pass 2
+- Quality lift per iteration — slope of quality vs pass number, identifying the elbow
+- Self-reinforced confidence rate — share of wrong outputs the critic wrongly endorses
+- Termination distribution — how often the loop stops on clean vs hits the iteration cap
+- Cost overhead per shipped output — extra tokens the critic and revise passes add
 
 ## Known uses
 
-- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. scopedLlmReviewer.js runs a frozen 6-item rubric.
-- **Self-Refine paper** — *Available*
+- **Knitting-DSL Pipeline (Stash2Go)** _available_ — scopedLlmReviewer.js runs a frozen 6-item rubric.
+- **Self-Refine paper** _available_
 
 ## Related patterns
 
-- *generalises* → [frozen-rubric-reflection](frozen-rubric-reflection.md)
-- *specialises* → [evaluator-optimizer](evaluator-optimizer.md)
-- *generalises* → [reflexion](reflexion.md)
-- *used-by* → [agentic-rag](agentic-rag.md)
-- *generalises* → [chain-of-verification](chain-of-verification.md)
-- *generalises* → [self-refine](self-refine.md)
-- *alternative-to* → [same-model-self-critique](same-model-self-critique.md)
-- *generalises* → [critic](critic.md)
-- *used-by* → [self-rag](self-rag.md)
+- _generalises_ **Frozen Rubric Reflection**
+- _specialises_ **Evaluator-Optimizer**
+- _generalises_ **Reflexion**
+- _used-by_ **Agentic RAG**
+- _generalises_ **Chain of Verification**
+- _generalises_ **Self-Refine**
+- _alternative-to_ **Same-Model Self-Critique**
+- _generalises_ **Tool-Augmented Self-Correction**
+- _used-by_ **Self-RAG**
+- _complements_ **Commitment Tracking**
+- _generalises_ **Cross-Reflection**
+- _generalises_ **Generator-Critic Separation**
+- _generalises_ **Human Reflection**
 
 ## References
 
-- (paper) Madaan et al., *Self-Refine: Iterative Refinement with Self-Feedback*, 2023, <https://arxiv.org/abs/2303.17651>
-- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
-- (book) Donald A. Schön, *The Reflective Practitioner: How Professionals Think in Action*, 1983, <https://archive.org/details/reflectivepracti0000scho>
-- (paper) John H. Flavell, *Metacognition and Cognitive Monitoring: A New Area of Cognitive-Developmental Inquiry*, 1979, <https://doi.org/10.1037/0003-066X.34.10.906>
-
-**Tags:** reflection, self-critique
+- [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651) — Madaan et al., 2023
+- [Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents](https://doi.org/10.1016/j.jss.2024.112278) — Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, 2025
+- [The Reflective Practitioner: How Professionals Think in Action](https://archive.org/details/reflectivepracti0000scho) — Donald A. Schön, 1983
+- [Metacognition and Cognitive Monitoring: A New Area of Cognitive-Developmental Inquiry](https://doi.org/10.1037/0003-066X.34.10.906) — John H. Flavell, 1979

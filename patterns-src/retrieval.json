@@ -216,7 +216,14 @@
         "p95 end-to-end latency — cost of the loop relative to one-shot retrieval",
         "Tool-call cost per resolved query — combined LLM and retriever spend per answered question"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Premature stop — the agent judges thin evidence as enough, stops retrieving, and answers a multi-hop question with half the facts.",
+        "Retrieval loop — the agent keeps reformulating and re-querying without new evidence until the step budget runs out.",
+        "Wrong source pick — the agent's description of the retrievers is vague, so it searches the vector store for a question only the web or graph can answer.",
+        "Needless retrieval — the agent retrieves for questions it could answer directly, adding cost and latency for no gain."
+      ],
+      "structure": "Query --> Planning agent --no retrieval needed--> Generator --> Answer | --retrieve--> Pick retriever (vector / graph / keyword / web) --> Retrieve evidence --> Evidence evaluator --insufficient--> reformulate --> Pick retriever (within step budget) | --sufficient--> Generator --> Answer"
     },
     {
       "id": "cdc-vector-sync",
@@ -347,7 +354,14 @@
         "Sync lag — time from source write to vector index visibility",
         "Drop-rate on DLQ — events the pipeline could not process",
         "Embedding-refresh efficiency — share of work avoided vs full rebuild"
-      ]
+      ],
+      "failure_modes": [
+        "Missed delete — the pipeline handles inserts and updates but drops a delete event, and retrieval keeps returning a document that no longer exists.",
+        "Queue lag at the wrong moment — a burst of writes backs up the queue, and the agent answers from old embeddings while the source has already changed.",
+        "Uncoordinated schema change — the source adds or renames a field, the pipeline still parses the old shape, and embeddings go stale or fail.",
+        "Dual-write creep — a writer adds a direct vector-index update for speed, and the two paths disagree after the next crash."
+      ],
+      "structure": "Writer app --> Source-of-truth store --insert/update/delete--> CDC emitter --> Message queue --> Feature pipeline (clean, chunk, embed) --upsert / overwrite / remove--> Vector index; writer never touches the vector index"
     },
     {
       "id": "citation-attribution",
@@ -508,7 +522,13 @@
         "Span-alignment accuracy — for span-level binding, how often the cited span actually contains the cited text",
         "Empty-answer rate after validation — share of turns where validator rejections leave no citable claims, a fallback-design signal"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Fabricated source id — the model cites an id that was never retrieved, and without the registry check the fake citation reaches the user.",
+        "Right id, wrong claim — the cited chunk was retrieved but does not support the claim it is attached to, and the id-only check passes it.",
+        "Empty answer after validation — the validator drops every claim with an unknown id and no fallback exists, so the user gets nothing.",
+        "Too narrow binding — a claim drawn from two chunks is tied to only one, and a reader checking that source finds half the support missing."
+      ]
     },
     {
       "id": "contextual-retrieval",
@@ -648,7 +668,14 @@
         "Index-time LLM cost per chunk — capex needed before any query is served, governs the corpus-stability decision",
         "Reindex cost when the contextualiser model changes — operational tax that bounds how often the contextualiser is updated"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Misleading context line — the contextualiser writes a description that names the wrong entity or section, and the chunk is now retrieved for the wrong queries.",
+        "Unstable index — the context prompt or model changes, new chunks get differently worded descriptions, and old and new chunks no longer embed consistently.",
+        "Cost on a moving corpus — documents change often, every change re-runs the LLM per chunk, and indexing cost outgrows the recall gain.",
+        "Raw chunk slip-through — a bulk import path skips contextualisation, and those chunks miss queries that name entities by full name."
+      ],
+      "structure": "Parent document --> Chunker --> Chunk + parent document --> Contextualiser LLM --situating description--> Prepend to chunk --> Dense embedding + BM25 index --> retrieval (optionally reranked)"
     },
     {
       "id": "crag",
@@ -768,7 +795,14 @@
         "Added latency from evaluator plus fallback — two-stage cost over single-shot retrieval",
         "False-incorrect rate — how often the grader rejects documents that were actually fine"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Grader false Correct — the evaluator passes an off-topic document as Correct, and the generator answers from it with no correction.",
+        "Over-eager web fallback — the evaluator marks good local documents Ambiguous, and the system spends latency on web searches it did not need.",
+        "Bad web evidence — the corrective search brings back wrong or low-quality pages, and they replace local documents that were only weakly matched.",
+        "Uncalibrated grades — the three-way thresholds were tuned on one domain, and on another the split between Correct and Ambiguous no longer means much."
+      ],
+      "structure": "Query --> Retrieve docs --> Evaluator grades each doc --Correct--> (optional knowledge refiner) --> Generator | --Ambiguous--> keep doc + web search to augment --> Generator | --Incorrect--> discard + web search --> Generator --> Answer"
     },
     {
       "id": "cross-encoder-reranking",
@@ -923,7 +957,14 @@
         "Out-of-domain calibration error — how reranker scores degrade on content unlike its training distribution",
         "Cost per reranked query — inference spend on top of first-stage retrieval"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Recall ceiling — the relevant document never makes the first-stage top-N, so the reranker cannot rescue it however good it is.",
+        "Out-of-domain miscalibration — the cross-encoder was trained on other content, and it ranks a confident distractor above the real answer.",
+        "N too large for the budget — the shortlist is set wide for recall, and one call per candidate pushes the query past its latency target.",
+        "K too small — the selector keeps so few items that a question needing two documents gets only one."
+      ],
+      "structure": "Query --> First-stage retriever (BM25 / dense / hybrid) --top-N--> Cross-encoder scores each (query, candidate) pair --> Rerank by score --> Top-K (K << N) --> Generator LLM"
     },
     {
       "id": "graphrag",
@@ -1067,7 +1108,14 @@
         "Index-time LLM cost per million corpus tokens — the high capex this pattern incurs",
         "Community-summary groundedness — fraction of summary claims traceable to the chunks they cover"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Extraction error cascade — the extractor splits one entity into two or links unrelated ones, and every community and summary built on top inherits the error.",
+        "Local-global misroute — an entity-specific question is classified global, and the answer comes back as a vague theme summary instead of the specific fact.",
+        "Stale summaries — the corpus changes, the costly index is not rebuilt, and global answers describe themes that no longer hold.",
+        "Lossy map-reduce — community summaries drop a minor but important thread, and the reduced answer reads complete while missing it."
+      ],
+      "structure": "Index: Chunks --> Extract entities + relations --> Knowledge graph --> Cluster into hierarchical communities --> Summarise each community. Query: Query --> Local or global? --local--> Entity-anchored retrieval --> Answer | --global--> Map over community summaries --> Reduce --> Answer"
     },
     {
       "id": "hierarchical-retrieval",
@@ -1312,7 +1360,14 @@
         "type": "flow",
         "mermaid": "flowchart TD\n  Q[Query] --> R0{Top-level router}\n  R0 -- API docs --> A[API retriever]\n  R0 -- runbooks --> B[Runbook retriever]\n  R0 -- tickets --> C[Ticket retriever]\n  R0 -- web --> D[Web retriever]\n  A --> S[Section index]\n  S --> Ch[Chunk index]\n  B --> Ch2[Chunk index]\n  C --> Ch3[Chunk index]\n  D --> Ch4[Chunk index]\n  Ch --> Agg[Aggregator + reranker]\n  Ch2 --> Agg\n  Ch3 --> Agg\n  Ch4 --> Agg\n  Agg --> Out[Top-K to generator]"
       },
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Wrong first turn — the top-level router picks the runbooks when the answer is in the tickets, and no lower tier can reach it.",
+        "Router drift on new sources — a source is added, the router's summaries or classifier are not updated, and its content is rarely or never selected.",
+        "Wrong granularity — an overview question descends to chunks and returns fragments, or a span lookup stops at a summary that lacks the detail.",
+        "Thin parent summaries — the summary tier poorly describes its children, so coarse-to-fine descent skips the branch that holds the answer."
+      ],
+      "structure": "Query --> Top-level router --selected source(s)--> Per-source retriever --> (optional section / summary tier --children of top summaries-->) Chunk index --> Aggregator + reranker --> Top-K to generator; skipped sources are not searched"
     },
     {
       "id": "hippocampus-rag",
@@ -1468,7 +1523,14 @@
         "Graph quality — extraction precision/recall on a held-out triple set",
         "Cold-start time — wall-clock for the offline extraction pass on the target corpus"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Poisoned graph — weak entity extraction misses or garbles key names, so the passages that hold the answer have no node to reach them.",
+        "Bad seeds — the query concept extractor picks the wrong concepts, and PageRank spreads relevance around the wrong part of the graph.",
+        "Unmerged edges — the same relation is stored under several predicate wordings, so the path between two entities is broken in the graph.",
+        "Hub dominance — very common entities collect PageRank mass, and generic passages crowd out the specific ones the multi-hop question needs."
+      ],
+      "structure": "Offline: Corpus --> LLM triple extraction --> Schemaless KG (nodes carry passage ids). Query: Query --> LLM key-concept extraction --> Seed graph nodes --> Personalized PageRank --> Aggregate mass to passages --> Top-N passages --> (optional reranker) --> Generator"
     },
     {
       "id": "hybrid-search",
@@ -1606,7 +1668,14 @@
         "Fusion-weight sensitivity — how much quality depends on the tuned weights or the RRF constant k",
         "Index-sync drift — how often the two indexes fall out of sync on writes"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Raw score mixing — BM25 and cosine scores are added directly, one scale swamps the other, and the fusion acts like a single retriever.",
+        "Index skew — a document is updated in the dense index but not the BM25 index, and the two lists rank different versions of the same content.",
+        "Mis-tuned fusion — weights tuned on one corpus favour the wrong side on another, and exact identifier queries lose their match.",
+        "Shallow per-side k — each retriever returns too few items, so a chunk ranked moderately by both never reaches the fused list."
+      ],
+      "structure": "Query --> Sparse retriever (BM25) --top-k--> | Query --> Dense retriever (embeddings) --top-k--> | both --> Rank fusion (RRF or score-normalised) --> Fused top-N --> Reranker or generator"
     },
     {
       "id": "hyde",
@@ -1719,7 +1788,14 @@
         "Added latency per query — cost of the extra LLM call relative to direct query embedding",
         "Hybrid-HyDE win rate — does averaging the draft and query embeddings beat single-draft on this corpus"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Off-topic hypothesis — the LLM drafts an answer about the wrong sense of an ambiguous query, and retrieval returns passages for that wrong topic.",
+        "Confident false detail — the hypothetical answer invents a specific name or number, and retrieval favours passages that match the invention.",
+        "Lost exact terms — the query's rare identifier is paraphrased away in the hypothetical answer, and the passage that contains it ranks low.",
+        "Latency on easy queries — every query pays the extra drafting call, including long specific ones that would have retrieved well on their own."
+      ],
+      "structure": "User query --> LLM drafts hypothetical answer --> Embed hypothetical answer --> Vector index similarity search --top-k chunks--> (optional reranker) --> Normal RAG generation --> Answer"
     },
     {
       "id": "modular-rag",
@@ -1885,7 +1961,14 @@
         "Orchestration overhead — wall-clock added by per-request pipeline assembly",
         "Module inventory health — fraction of Modules referenced by at least one shipped pipeline (graveyard detector)"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Untested pipeline shape — the orchestrator assembles a module combination no eval has covered, and quality drops on that query type unnoticed.",
+        "Contract mismatch — a swapped module honours the type signature but changes what a field means, and the next stage silently misreads it.",
+        "Module graveyard — near-duplicate rewriters and rerankers pile up, and nobody knows which one a given pipeline uses or why.",
+        "Orchestration as the failure point — the per-request assembly logic picks heavy stages for easy queries, and cost rises instead of falling."
+      ],
+      "structure": "Query --> Orchestration Module (assembles per-request pipeline) --> Pre-Retrieval Module (rewrite / HyDE / decompose) --> Retrieval Module (dense / sparse / hybrid / graph) --> Post-Retrieval Module (rerank / compress / filter) --> Generation Module --> Answer; Indexing Module builds the retrieval stores; each Module is built from typed Operators"
     },
     {
       "id": "naive-rag",
@@ -2106,7 +2189,14 @@
         "p95 retrieval latency — single-shot retrieval budget that downstream patterns build on",
         "Cost per answered query — combined embedding, index, and generator spend"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Severed context — the chunk boundary cuts a fact away from the sentence that names its subject, and the chunk that holds the answer never matches the query.",
+        "Distractor in the top-k — a chunk that shares the query's words but not its answer ranks high, and the generator answers from it.",
+        "Multi-hop miss — the answer needs two chunks linked by an entity the query never mentions, and one retrieval pass returns only the first.",
+        "Parametric override — retrieval returns nothing useful, and the generator answers from memory with no sign that the retrieved set was empty or weak."
+      ],
+      "structure": "Index: Corpus --chunk--> Chunks --embed--> Vector index. Query: Query --embed--> Query vector --top-k similarity--> Chunks --> Prompt assembler (chunks + query) --> Generator LLM --> Answer"
     },
     {
       "id": "query-rewriting",
@@ -2283,7 +2373,14 @@
         "p95 retrieval latency — overhead of the rewriter LLM call plus N parallel retrievers",
         "Cost per query — extra LLM call plus N retrievals against the single-query baseline"
       ],
-      "last_updated": "2026-05-22"
+      "last_updated": "2026-05-22",
+      "failure_modes": [
+        "Drifting variant — one rewrite shifts the topic, its results enter the fused list, and distractors push relevant chunks down.",
+        "Lost original — the original query is not kept as a variant, and the system does worse than plain retrieval on queries that were already well phrased.",
+        "Fusion drops the rare hit — a relevant chunk found by only one variant ranks too low after fusion and is cut from the top-N.",
+        "Latency multiplier — the rewrite call plus N parallel retrievals push a simple lookup past the request's time budget."
+      ],
+      "structure": "Original query --> LLM rewriter --> Variants 1..N + original as variant 0 --> Retriever runs once per variant (in parallel) --> Rank fusion (RRF or deduplicated union) --> Top-N --> Generator or reranker"
     },
     {
       "id": "raft",
@@ -2395,7 +2492,14 @@
         "Cross-domain transfer accuracy — how the fine-tuned model holds up when distractor structure shifts",
         "Training-data construction cost per example — capex driver of the pattern"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Unrealistic distractors — the training distractors are easier to spot than real retrieval noise, and the fine-tuned model still follows convincing distractors in production.",
+        "Domain shift — the retriever or corpus changes after training, the distractor mix looks different, and the learned scepticism no longer applies.",
+        "Over-scepticism — the model learns to doubt context too much and ignores the relevant document when it is the only one retrieved.",
+        "Citation form without substance — the model learns to emit citations to oracle-looking passages while the answer still draws on a distractor."
+      ],
+      "structure": "Training: Domain corpus --> Training-data builder (query + oracle docs + sampled distractors) --> Fine-tune generator (chain-of-thought, cite oracle, ignore distractors). Inference: Query --> Retriever (mixed relevant and distractor docs) --> Fine-tuned model --> Answer with citations --> Citation checker (evaluation)"
     },
     {
       "id": "self-rag",
@@ -2506,7 +2610,14 @@
         "Tree-decoding lift over greedy — does branch selection by reflection tokens improve final answer quality",
         "Per-query inference cost — extra tokens and retrieval calls reflection adds vs static RAG"
       ],
-      "last_updated": "2026-05-21"
+      "last_updated": "2026-05-21",
+      "failure_modes": [
+        "Wrong [Retrieve] call — the model decides it knows the answer, skips retrieval, and generates an unsupported claim.",
+        "Lenient [IsSup] — the model rates its own draft as supported when the evidence does not back it, so the gate passes a hallucination.",
+        "Shared blind spot — the critic and generator both miss the same kind of error, so the reflection tokens confirm it.",
+        "Grammar not enforced — the host treats reflection tokens as hints, and generations that skip or malform them still reach the user."
+      ],
+      "structure": "Query --> Fine-tuned generator --[Retrieve]=yes--> Retriever --> chunks --[IsRel]--> keep relevant / drop irrelevant --> generate segment --[IsSup]--> supported? --[IsUse]--> useful? --> Answer; --[Retrieve]=no--> generate segment --> [IsSup] / [IsUse] checks; host enforces the reflection grammar and decoder ranks branches by [IsSup] and [IsUse]"
     },
     {
       "id": "streaming-feature-pipeline",
@@ -2627,7 +2738,14 @@
         "End-to-end stream latency — source change to vector upsert",
         "Stage failure isolation — DLQ events per stage",
         "Throughput — events processed per second under typical load"
-      ]
+      ],
+      "failure_modes": [
+        "Growing dead-letter queue — failed events land in the DLQ and nobody drains it, so those documents never reach the vector index.",
+        "Untyped shortcut — a new stage passes a plain dict instead of the stage model, and shape drift returns at that seam.",
+        "Missing backfill — the stream handles new changes, but the historical corpus is never replayed, so old documents are absent from retrieval.",
+        "Slow stage bottleneck — the embedding stage cannot keep up with the event rate, and index lag grows from seconds to hours."
+      ],
+      "structure": "Change events --> Stream consumer --> Stage 1: RawDocument -> CleanedDocument --> Stage 2: CleanedDocument -> ChunkedDocument --> Stage 3: ChunkedDocument -> EmbeddedDocument --upsert--> Vector index; any stage failure --> Dead-letter queue"
     },
     {
       "id": "vectorless-reasoning-retrieval",
@@ -2802,7 +2920,8 @@
         "mermaid": "flowchart TD\n  D[Long structured document] --> P[Parse into section tree with node summaries]\n  P --> T[Tree index - no vectors, no chunks]\n  Q[Query] --> NAV{Navigator reasons over node summaries}\n  T --> NAV\n  NAV -- choose branch --> NAV\n  NAV -- relevant leaves reached --> L[Read intact leaf sections]\n  L --> R[Return sections with page and section refs]\n  R --> G[Generator answers with citations]",
         "caption": "Index time builds a tree from the document's own structure; query time is a model-driven tree search, not a vector lookup."
       },
-      "last_updated": "2026-06-05"
+      "last_updated": "2026-06-05",
+      "structure": "Index: Long structured document --> Tree indexer (section hierarchy, summary per node, leaf text kept whole; no embeddings). Query: Query + table-of-contents tree --> Navigator LLM reads child summaries --choose branch--> descend --> repeat --relevant leaves reached--> Leaf reader --> Sections with page and section refs --> Generator answers with citations"
     },
     {
       "id": "repo-map-context",

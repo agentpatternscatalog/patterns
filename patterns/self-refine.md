@@ -23,6 +23,59 @@ Running the model in one shot leaves quality on the table, but simply asking the
 - Termination criterion is its own design.
 - Cost grows linearly with iterations.
 
+## Therefore
+
+Therefore: assign generate, feedback, and refine as three distinct roles on the same model with a fixed stop criterion, so that single-model self-correction stays bounded instead of looping indefinitely.
+
+## Solution
+
+Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.
+
+## Structure
+
+```
+Generate (initial output) -> Feedback (same model, against fixed target) --issues--> Refine (same model rewrites per feedback) -> Feedback ... --no more issues or max iterations--> final output
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]
+  FB --> Stop{No more issues?}
+  Stop -- no --> Ref[Refine: same model rewrites]
+  Ref --> FB
+  Stop -- yes --> Out[Final output]
+  FB -.cap.-> MaxIt[Max iterations]
+  MaxIt --> Out
+```
+
+## Example scenario
+
+A coding agent writes a function that compiles but uses an awkward API surface. Running through a Self-Refine loop where the same model produces concrete improvement points against a checklist (clarity, names, error handling), then refines, yields a noticeably cleaner function in the second pass. The team caps it at three iterations or a no-op feedback signal, accepting that self-critique catches surface issues only and not deep correctness bugs.
+
+## Consequences
+
+**Benefits**
+
+- Quality improvement on tasks with measurable targets.
+- Same-model loop is simple to deploy.
+
+**Liabilities**
+
+- Reinforces same-model blind spots (Reflexion replication studies).
+- Diminishing returns after 2-3 iterations.
+
+## Failure modes
+
+- Same-model blind spot — the feedback step shares the generator's gaps, so the error it most needed to catch is never named.
+- Premature all-clear — the model declares no more issues after one look, and the loop ends before any real improvement.
+- Feedback ignored — the refine step rewrites freely instead of addressing the latest feedback, and drift replaces refinement.
+- Diminishing loops — the cap is set high, and iterations past two or three only add cost.
+
+## What this pattern constrains
+
+Feedback must conform to the chosen target; revisions must address the most recent feedback.
 
 ## Applicability
 
@@ -38,61 +91,40 @@ Running the model in one shot leaves quality on the table, but simply asking the
 - The model's self-feedback is known to be unreliable on this task.
 - Latency budget forbids multiple refine passes.
 
-## Therefore
+## Components
 
-Therefore: assign generate, feedback, and refine as three distinct roles on the same model with a fixed stop criterion, so that single-model self-correction stays bounded instead of looping indefinitely.
+- Single LLM — plays three roles in sequence: generator, feedback-giver, reviser
+- Generate role-prompt — produces the initial output
+- Feedback role-prompt — emits concrete improvement points against a fixed target
+- Refine role-prompt — rewrites the previous output using the feedback
+- Stop-condition controller — terminates on no-more-issues signal or max-iteration cap
 
-## Solution
+## Tools
 
-Three roles, one model. (1) Generate: produce initial output. (2) Feedback: same model returns concrete improvement points against a fixed target. (3) Refine: same model rewrites using the feedback. Repeat until the model says 'no more issues' or max iterations.
+- LLM API — three prompted calls per refinement turn against the same model
+- Target or checklist file — fixed improvement criteria the feedback role references
 
-## Example scenario
+## Evaluation metrics
 
-A coding agent writes a function that compiles but uses an awkward API surface. Running through a Self-Refine loop where the same model produces concrete improvement points against a checklist (clarity, names, error handling), then refines, yields a noticeably cleaner function in the second pass. The team caps it at three iterations or a no-op feedback signal, accepting that self-critique catches surface issues only and not deep correctness bugs.
-
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Gen[Generate: initial output] --> FB[Feedback: same model, fixed target]
-  FB --> Stop{No more issues?}
-  Stop -- no --> Ref[Refine: same model rewrites]
-  Ref --> FB
-  Stop -- yes --> Out[Final output]
-  FB -.cap.-> MaxIt[Max iterations]
-  MaxIt --> Out
-```
-
-## Consequences
-
-**Benefits**
-
-- Quality improvement on tasks with measurable targets.
-- Same-model loop is simple to deploy.
-
-**Liabilities**
-
-- Reinforces same-model blind spots (Reflexion replication studies).
-- Diminishing returns after 2-3 iterations.
-
-## What this pattern constrains
-
-Feedback must conform to the chosen target; revisions must address the most recent feedback.
+- Quality lift at iteration 2 vs iteration 1 — primary same-model self-correction signal
+- Diminishing-returns elbow — iteration count beyond which no further lift accrues
+- Same-model blind-spot persistence — defect classes the self-feedback never surfaces
+- No-op feedback rate — share of feedback passes that say the draft is fine on first look
+- Per-task cost in iterations — average refine turns to reach the stop condition
 
 ## Known uses
 
-- **Self-Refine paper benchmarks (math, code, dialog)** — *Available*
+- **Self-Refine paper benchmarks (math, code, dialog)** _available_
 
 ## Related patterns
 
-- *specialises* → [reflection](reflection.md)
-- *alternative-to* → [evaluator-optimizer](evaluator-optimizer.md)
-- *conflicts-with* → [same-model-self-critique](same-model-self-critique.md) — Self-Refine is the well-engineered version of the failure mode same-model-self-critique describes.
+- _specialises_ **Reflection**
+- _alternative-to_ **Evaluator-Optimizer**
+- _conflicts-with_ **Same-Model Self-Critique** — Self-Refine is the well-engineered version of the failure mode same-model-self-critique describes.
+- _alternative-to_ **Agentic Context Engineering Playbook**
+- _alternative-to_ **Darwin-Gödel Self-Rewrite**
 
 ## References
 
-- (paper) Madaan, Tandon, Gupta, Hallinan, Gao, Wiegreffe, Alon, Dziri, Prabhumoye, Yang, Welleck, Majumder, Gupta, Yazdanbakhsh, Clark, *Self-Refine: Iterative Refinement with Self-Feedback*, 2023, <https://arxiv.org/abs/2303.17651>
-- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
-
-**Tags:** reflection, iterative, self-feedback
+- [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651) — Madaan, Tandon, Gupta, Hallinan, Gao, Wiegreffe, Alon, Dziri, Prabhumoye, Yang, Welleck, Majumder, Gupta, Yazdanbakhsh, Clark, 2023
+- [Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents](https://doi.org/10.1016/j.jss.2024.112278) — Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, 2025

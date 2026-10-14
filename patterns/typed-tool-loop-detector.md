@@ -2,7 +2,7 @@
 
 **Also known as:** Dispatch-Boundary Veto, Five-Mode Loop Guard, Tool-Call Pattern Detector
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** emerging
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: at the dispatch boundary classify every tool call against a small set
 
 A dispatcher pre-check function. On each tool call, append `(timestamp, tool_name, hash(args))` to a bounded rolling window. Evaluate five rules: (1) generic-repeat: same `(tool, arg-hash)` at least N times in window; (2) unknown-tool-repeat: call to unregistered tool at least M times; (3) poll-no-progress: same tool with no state change at least K times; (4) ping-pong: alternating between two tools at least J cycles; (5) global-circuit-breaker: total tool calls in window at least G. Each rule has per-tool overrides (for example a known-bursty tool capped lower than the default). On trip, the dispatcher returns `{error: 'tool_loop_detected', mode: <id>, observed: <stats>}` as the tool result. The model sees this in its next turn and must adjust.
 
-## Example scenario
+## Structure
 
-A long-running personal agent has a canvas-action tool that occasionally enters a thirty-call burst when an interaction goes wrong. The global step-budget catches it eventually but only after thousands of tokens. The team adds a Typed Tool-Loop Failure Detector with per-tool caps: canvas-action is capped at four calls in a sixty-second window. When the burst starts, the fifth call returns a typed refusal `{mode: 'generic_repeat', observed: {...}}`. The model sees the refusal in its next observation and shifts to a different approach instead of pounding the same tool.
+```
+Tool call --> append (timestamp, tool, arg-hash) to rolling window --> rules with per-tool caps (generic-repeat, unknown-tool-repeat, poll-no-progress, ping-pong, global breaker) --any trip--> {error: 'tool_loop_detected', mode, observed} as tool result --> next model turn | --no trip--> dispatch normally
+```
 
 ## Diagram
 
@@ -57,6 +59,10 @@ flowchart TD
 
 *Five typed modes run at the dispatch boundary; a trip returns a formatted refusal so the model adjusts in its next turn.*
 
+## Example scenario
+
+A long-running personal agent has a canvas-action tool that occasionally enters a thirty-call burst when an interaction goes wrong. The global step-budget catches it eventually but only after thousands of tokens. The team adds a Typed Tool-Loop Failure Detector with per-tool caps: canvas-action is capped at four calls in a sixty-second window. When the burst starts, the fifth call returns a typed refusal `{mode: 'generic_repeat', observed: {...}}`. The model sees the refusal in its next observation and shifts to a different approach instead of pounding the same tool.
+
 ## Consequences
 
 **Benefits**
@@ -70,6 +76,13 @@ flowchart TD
 - Per-tool caps must be calibrated or legit work trips.
 - Five modes is more state to maintain than a single breaker.
 - A determined model can still loop on tools that the cap missed.
+
+## Failure modes
+
+- Blocked legitimate burst — per-tool caps are set too tight, and a real batch of file reads trips the generic-repeat rule.
+- Missed loop — a loop varies its arguments slightly each call, so the arg-hash differs and generic-repeat never fires.
+- Ignored refusal — the model reads the typed refusal and retries a sibling tool with the same intent.
+- Bypass path — a tool route skips the dispatcher pre-check, and the loop runs unchecked there.
 
 ## What this pattern constrains
 
@@ -89,19 +102,37 @@ No tool call may bypass the dispatch-boundary loop check; a tripped detector blo
 - Per-tool caps cannot be calibrated without churning legit workflows.
 - A single global circuit-breaker already catches all observed failure shapes.
 
+## Components
+
+- Dispatcher Pre-Check — runs on every tool call before dispatch
+- Rolling Call Window — bounded list of timestamp, tool, arg-hash tuples
+- Five Typed Rules — generic-repeat, unknown-tool-repeat, poll-no-progress, ping-pong, global breaker
+- Per-Tool Cap Overrides — tighter limits on known-bursty tools
+- Typed Refusal — formatted tool-result the model consumes as the next observation
+
+## Tools
+
+- Tool-dispatcher hook — interception point at the dispatch boundary
+- Structured JSON store — rolling call window and per-tool cap config
+
+## Evaluation metrics
+
+- Loop-detection hit rate — trips per 1000 tool calls, broken down by mode
+- False-trip rate — trips on calls a retrospective audit considered legitimate
+- Per-mode distribution — share of trips by each of the five rules, surfacing tuning gaps
+- Post-refusal recovery rate — share of refusals followed by a productive shift rather than a retry
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — Tool-loop detection is mechanical at the dispatch boundary with five typed failure modes (repeat, unknown, poll, ping-pong, circuit-breaker) and per-tool caps, returning a structured refusal the model must consume rather than a prompt-level reminder. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — Tool-loop detection is mechanical at the dispatch boundary with five typed failure modes (repeat, unknown, poll, ping-pong, circuit-breaker) and per-tool caps, returning a structured refusal the model must consume rather than a prompt-level reminder. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *specialises* → [circuit-breaker](circuit-breaker.md)
-- *complements* → [step-budget](step-budget.md)
-- *complements* → [pre-generative-loop-gate](pre-generative-loop-gate.md)
+- _specialises_ **Circuit Breaker**
+- _complements_ **Step Budget**
+- _complements_ **Pre-Generative Loop Gate**
+- _alternative-to_ **Trajectory Anomaly Monitor** — Loop detection catches repetition by shape; the trajectory monitor catches task-misalignment across the sequence.
 
 ## References
 
-- (book) Michael T. Nygard, *Release It! Design and Deploy Production-Ready Software (circuit breaker chapter)*, 2018, <https://pragprog.com/titles/mnee2/release-it-second-edition/>
-- (paper) Shishir G. Patil, Tianjun Zhang, Xin Wang, Joseph E. Gonzalez, *Gorilla: Large Language Model Connected with Massive APIs*, 2023, <https://arxiv.org/abs/2305.15334>
-
-**Tags:** cognition, self-adjustment, tool-loop, dispatch
+- [Release It! Design and Deploy Production-Ready Software (circuit breaker chapter)](https://pragprog.com/titles/mnee2/release-it-second-edition/) — Michael T. Nygard, 2018

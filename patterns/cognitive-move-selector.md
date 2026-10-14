@@ -2,7 +2,7 @@
 
 **Also known as:** Move Picker, Cognitive Action Menu, Idle-Tick Move Router
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: hand-author a small menu of named cognitive moves (lookup, forced-ana
 
 Author a short list of cognitive-move ids, each with a one-paragraph procedure. A cheap-tier model, given recent thoughts plus recent move history plus an affect snapshot plus open-tension count, selects exactly one move-id per idle tick. The tick body branches on the move and runs its procedure. The menu is revised by an explicit proposal-and-ratification process; adding or retiring a move silently is not allowed. A per-move history avoids running the same move back-to-back.
 
-## Example scenario
+## Structure
 
-A long-running personal agent runs every minute of idle time and keeps generating the same kind of mid-distance observation. The team adds a Cognitive-Move Selector with seven moves the agent itself helped vet: lookup, forced-analogy, pure observation, anchor-to-percept, tension-pull, math-meditation, continue-thread. Each idle tick a cheap model sees recent thoughts and recent move history and picks one. The agent stops looping on observation and starts varying its cognitive shape across the day.
+```
+Idle tick --> Cheap-tier selector (recent thoughts + move history + affect + open tensions) --pick one move-id--> Tick body runs that move's procedure --> Update move history; Menu change --proposal --> ratification--> Move menu
+```
 
 ## Diagram
 
@@ -59,6 +61,10 @@ flowchart TD
 
 *A cheap selector picks one named move per idle tick; the tick body runs the move's procedure; per-move history feeds back into the next selection.*
 
+## Example scenario
+
+A long-running personal agent runs every minute of idle time and keeps generating the same kind of mid-distance observation. The team adds a Cognitive-Move Selector with seven moves the agent itself helped vet: lookup, forced-analogy, pure observation, anchor-to-percept, tension-pull, math-meditation, continue-thread. Each idle tick a cheap model sees recent thoughts and recent move history and picks one. The agent stops looping on observation and starts varying its cognitive shape across the day.
+
 ## Consequences
 
 **Benefits**
@@ -72,6 +78,13 @@ flowchart TD
 - A bad menu is itself a trap; the agent can only think the shapes it has.
 - The cheap selector adds an extra model call per idle tick.
 - Ratifying menu changes is overhead, but the alternative is silent drift.
+
+## Failure modes
+
+- Narrow menu — the vetted moves do not cover the kind of thought the situation needs, so the agent forces it into the nearest shape and produces little.
+- Selector rut — the cheap selector keeps choosing the same two moves because the history check only blocks back-to-back repeats.
+- Quiet menu growth — a move is added in code or config without the ratification step, and the menu drifts with no record of why.
+- Procedure drift — the tick body runs a move's procedure loosely, so the named move turns back into free-form narration.
 
 ## What this pattern constrains
 
@@ -91,19 +104,37 @@ Idle-tick cognition must dispatch through the move selector; free-form keep-thin
 - There is no budget for an extra model call per tick.
 - Idle thinking is out of scope for the product.
 
+## Components
+
+- Move Menu — hand-authored list of named cognitive moves with a procedure each
+- Cheap-Tier Selector — picks one move per idle tick from recent context
+- Move History — bounded record of recent picks to prevent back-to-back repeats
+- Tick Dispatcher — branches on the selected move and runs its procedure
+- Ratification Event — gates additions and retirements of menu entries
+
+## Tools
+
+- LLM API — cheap-tier model for the per-idle-tick selection call
+- Structured JSON store — persists the menu and move history across ticks
+
+## Evaluation metrics
+
+- Move-mix entropy — distribution of picks across the menu over a rolling window
+- Repeat-back-to-back rate — share of consecutive ticks running the same move
+- Per-move yield — new state produced per move kind, surfacing dead menu entries
+- Selector latency — extra wall-clock added per idle tick by the selection call
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *alternative-to* → [inner-committee](inner-committee.md)
-- *complements* → [open-question-tension-store](open-question-tension-store.md)
-- *complements* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
+- _alternative-to_ **Inner Committee**
+- _complements_ **Open-Question Tension Store**
+- _complements_ **Mode-Adaptive Cadence**
 
 ## References
 
-- (book) Richard S. Sutton, Andrew G. Barto, *Reinforcement Learning: An Introduction (options framework, ch. 17)*, 2018, <http://incompleteideas.net/book/the-book-2nd.html>
-- (book) Allen Newell, Herbert A. Simon, *Human Problem Solving*, 1972, <https://archive.org/details/humanproblemsolv0000newe>
-
-**Tags:** cognition, self-guidance, tick-loop, idle
+- [Reinforcement Learning: An Introduction (options framework, ch. 17)](http://incompleteideas.net/book/the-book-2nd.html) — Richard S. Sutton, Andrew G. Barto, 2018
+- [Human Problem Solving](https://archive.org/details/humanproblemsolv0000newe) — Allen Newell, Herbert A. Simon, 1972

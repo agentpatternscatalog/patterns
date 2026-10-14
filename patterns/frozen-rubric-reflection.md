@@ -31,6 +31,53 @@ Therefore: hand the reviewer a fixed rubric and a schema that rejects out-of-rub
 
 A fixed rubric file (or schema) lists exactly the categories the reviewer may flag. The reviewer prompt includes the rubric and a JSON Schema enforcing it. Temperature is zero. Output validates against the schema; new finding categories are rejected.
 
+## Structure
+
+```
+Draft -> Reviewer (temperature 0) + fixed rubric (read-only) + JSON Schema -> score draft per criterion -> validate output (new categories rejected) -> structured feedback per criterion -> Author
+```
+
+## Diagram
+
+```mermaid
+sequenceDiagram
+  participant Author
+  participant Reviewer
+  participant Rubric
+  Author->>Reviewer: draft
+  Rubric-->>Reviewer: fixed criteria (read-only)
+  Reviewer->>Reviewer: score draft against each criterion
+  Reviewer-->>Author: structured feedback per criterion
+```
+
+*Frozen Rubric Reflection makes the rubric read-only at the tool layer; the reviewer cannot invent new criteria mid-call.*
+
+## Example scenario
+
+A code-review agent reviews every pull request against a fixed checklist: tests added? naming consistent? error handling? security risk? Without the fixed list, the reviewer would invent new criteria each call and reviews would not be comparable across PRs. Reviewers can only score against the listed criteria — they cannot make new ones up mid-review.
+
+## Consequences
+
+**Benefits**
+
+- Consistent reviews across runs and users.
+- Rubric is the single load-bearing artefact; iteration is in one place.
+
+**Liabilities**
+
+- Hard ceiling on what the reviewer can catch.
+- Rubric authorship is its own engineering discipline.
+
+## Failure modes
+
+- Blind to the unlisted — a serious defect falls outside every rubric category, and the reviewer cannot flag it.
+- Stale rubric — the rubric was written for an older task shape and is never revised, so reviews measure things that no longer matter.
+- Forced fit — the reviewer files a real issue under the nearest allowed category, and the finding is misleading in reports.
+- Schema bypass — one call path skips schema validation, and invented categories slip back into the output.
+
+## What this pattern constrains
+
+The reviewer cannot output finding categories outside the rubric; the JSON schema rejects them.
 
 ## Applicability
 
@@ -46,52 +93,52 @@ A fixed rubric file (or schema) lists exactly the categories the reviewer may fl
 - The domain shifts faster than the rubric can be re-authored.
 - Exploratory critique is the goal; a rubric narrows it too much.
 
-## Example scenario
+## Components
 
-A code-review agent reviews every pull request against a fixed checklist: tests added? naming consistent? error handling? security risk? Without the fixed list, the reviewer would invent new criteria each call and reviews would not be comparable across PRs. Reviewers can only score against the listed criteria — they cannot make new ones up mid-review.
+- Reviewer — LLM constrained to score only against the fixed criteria
+- Rubric file — hand-authored, version-stable list of allowed finding categories
+- Schema validator — rejects any output containing out-of-rubric finding categories
+- Author or upstream producer — supplies the draft the reviewer judges
+- Audit trail — per-run record of which rubric version and which findings fired
 
-## Diagram
+## Tools
 
-```mermaid
-sequenceDiagram
-  participant Author
-  participant Reviewer
-  participant Rubric
-  Author->>Reviewer: draft
-  Rubric-->>Reviewer: fixed criteria (read-only)
-  Reviewer->>Reviewer: score draft against each criterion
-  Reviewer-->>Author: structured feedback per criterion
-```
+- LLM API — temperature-zero call configured with the rubric in the prompt
+- JSON Schema validator — enforces the closed set of finding categories
+- Versioned rubric store — keeps prior rubric revisions for trend analysis
 
-## Consequences
+## Evaluation metrics
 
-**Benefits**
-
-- Consistent reviews across runs and users.
-- Rubric is the single load-bearing artefact; iteration is in one place.
-
-**Liabilities**
-
-- Hard ceiling on what the reviewer can catch.
-- Rubric authorship is its own engineering discipline.
-
-## What this pattern constrains
-
-The reviewer cannot output finding categories outside the rubric; the JSON schema rejects them.
+- Across-run consistency — agreement on findings when the same draft is re-reviewed
+- Out-of-rubric attempt rate — share of reviewer outputs blocked by the schema
+- Defect-class coverage — fraction of real defects the current rubric is capable of catching
+- Rubric ceiling escapes — defects that bypassed because they fell outside every criterion
+- Author-reviewer cycle time — time from draft to structured feedback per criterion
 
 ## Known uses
 
-- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. Six-item rubric in scopedLlmReviewer.js: duplicate NOTEs, finishing order, construction voice, prose omissions, prose inventions, pattern name sanity.
+- **Knitting-DSL Pipeline (Stash2Go)** _available_ — Six-item rubric in scopedLlmReviewer.js: duplicate NOTEs, finishing order, construction voice, prose omissions, prose inventions, pattern name sanity.
 
 ## Related patterns
 
-- *specialises* → [reflection](reflection.md)
-- *uses* → [structured-output](structured-output.md)
-- *composes-with* → [deterministic-llm-sandwich](deterministic-llm-sandwich.md)
-- *complements* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
+- _specialises_ **Reflection**
+- _uses_ **Structured Output**
+- _composes-with_ **Deterministic-LLM Sandwich**
+- _used-by_ **Deterministic-LLM Sandwich**
+- _complements_ **Dream Consolidation Cycle**
+- _used-by_ **Planner-Generator-Evaluator Harness**
+- _complements_ **Blind Grader with Isolated Context**
+- _complements_ **Socratic Questioning Agent**
+- _complements_ **Cross-Reflection**
+- _complements_ **Generator-Critic Separation**
+- _complements_ **Human Reflection**
+- _used-by_ **evaluation-driven-development**
+- _complements_ **Dimensional Synthetic Eval Set**
+- _used-by_ **Prompt Variant Evaluation**
+- _complements_ **Checklist Partial-Credit Scoring** — A frozen rubric fixes the categories one reviewer may use across all outputs; here each task carries its own ordered checkpoint list and the output is a graded progress score, not a review.
+- _complements_ **Chance-Corrected Judge Validation** — A fixed rubric is what makes agreement re-measurable across runs, and editing the rubric is one of the changes that invalidates a measured number.
+- _alternative-to_ **Ratified Design Philosophy** — A frozen rubric stops the reviewer inventing criteria by never changing; this pattern lets criteria change but only through the owner.
 
 ## References
 
-- (paper) Bai et al., *Constitutional AI: Harmlessness from AI Feedback*, 2022, <https://arxiv.org/abs/2212.08073>
-
-**Tags:** reflection, rubric, structured-output
+- [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073) — Bai et al., 2022

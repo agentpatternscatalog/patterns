@@ -23,20 +23,6 @@ Short queries embed far from long-form passages in the dense vector space becaus
 - Adds an LLM call per query.
 - Often paired with reranking to recover from off-topic hallucinations.
 
-## Applicability
-
-**Use when**
-
-- Short user queries underperform on dense retrieval against long documents.
-- An LLM call to draft a hypothetical answer fits the latency and cost budget.
-- Recall on the first stage of RAG is the current bottleneck.
-
-**Do not use when**
-
-- Naive query embedding already retrieves the right chunks.
-- Drafting hypothetical answers introduces unacceptable latency.
-- The corpus or query distribution makes hallucinated drafts misleading anchors.
-
 ## Therefore
 
 Therefore: have the LLM draft a hypothetical answer first and retrieve against its embedding, so that retrieval matches answer-shape, not just question-shape.
@@ -45,11 +31,11 @@ Therefore: have the LLM draft a hypothetical answer first and retrieve against i
 
 On query: prompt the LLM to draft a hypothetical answer to the query. Embed the hypothetical answer. Retrieve top-k by similarity to that embedding (not the original query). Pass the retrieved chunks into normal RAG.
 
-## Variants
+## Structure
 
-- **Single-draft HyDE** — Generate one hypothetical answer and use its embedding as the query.
-- **Multi-draft HyDE** — Generate N hypothetical answers, embed each, and average or take the union of their top-k retrievals.
-- **Hybrid HyDE** — Average the hypothetical-answer embedding with the original query embedding to hedge against off-topic drafts.
+```
+User query --> LLM drafts hypothetical answer --> Embed hypothetical answer --> Vector index similarity search --top-k chunks--> (optional reranker) --> Normal RAG generation --> Answer
+```
 
 ## Diagram
 
@@ -78,21 +64,61 @@ A documentation-search agent for a developer platform keeps missing relevant pag
 - Off-topic hallucinations cause retrieval drift.
 - One extra LLM call per query.
 
+## Failure modes
+
+- Off-topic hypothesis — the LLM drafts an answer about the wrong sense of an ambiguous query, and retrieval returns passages for that wrong topic.
+- Confident false detail — the hypothetical answer invents a specific name or number, and retrieval favours passages that match the invention.
+- Lost exact terms — the query's rare identifier is paraphrased away in the hypothetical answer, and the passage that contains it ranks low.
+- Latency on easy queries — every query pays the extra drafting call, including long specific ones that would have retrieved well on their own.
+
 ## What this pattern constrains
 
 Retrieval queries the index with the hypothetical answer's embedding, not the user query's embedding.
 
+## Applicability
+
+**Use when**
+
+- Short user queries underperform on dense retrieval against long documents.
+- An LLM call to draft a hypothetical answer fits the latency and cost budget.
+- Recall on the first stage of RAG is the current bottleneck.
+
+**Do not use when**
+
+- Naive query embedding already retrieves the right chunks.
+- Drafting hypothetical answers introduces unacceptable latency.
+- The corpus or query distribution makes hallucinated drafts misleading anchors.
+
+## Components
+
+- Hypothetical-answer drafter — LLM that turns the short query into an answer-shaped paragraph
+- Embedding model — produces the dense vector for the hypothetical answer used as the retrieval query
+- Vector index — receives the hypothetical-answer embedding rather than the user-query embedding
+- Downstream RAG pipeline — consumes the retrieved chunks as in any naive RAG flow
+
+## Tools
+
+- LLM API — one extra call per query to draft the hypothetical answer
+- Embedding model — same encoder that indexed the corpus, applied to the drafted answer
+- Vector index — dense retrieval backend over the corpus
+
+## Evaluation metrics
+
+- Recall@k uplift on short queries vs query-embedding baseline — the metric this pattern targets
+- Off-topic drift rate — share of hypothetical drafts that pull retrieval away from the gold neighbourhood
+- Added latency per query — cost of the extra LLM call relative to direct query embedding
+- Hybrid-HyDE win rate — does averaging the draft and query embeddings beat single-draft on this corpus
+
 ## Known uses
 
-- **LangChain HyDE retriever** — *Available*
+- **LangChain HyDE retriever** _available_
 
 ## Related patterns
 
-- *specialises* → [naive-rag](naive-rag.md)
-- *composes-with* → [cross-encoder-reranking](cross-encoder-reranking.md)
+- _specialises_ **Naive RAG**
+- _composes-with_ **Cross-Encoder Reranking**
+- _alternative-to_ **Query Rewriting**
 
 ## References
 
-- (paper) Gao, Ma, Lin, Callan, *Precise Zero-Shot Dense Retrieval without Relevance Labels*, 2022, <https://arxiv.org/abs/2212.10496>
-
-**Tags:** rag, retrieval, embedding
+- [Precise Zero-Shot Dense Retrieval without Relevance Labels](https://arxiv.org/abs/2212.10496) — Gao, Ma, Lin, Callan, 2022

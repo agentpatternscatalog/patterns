@@ -2,7 +2,7 @@
 
 **Also known as:** Substrate Reframe, Inner-Only Tick, Body-Off Mind-Fast
 
-**Category:** Cognition & Introspection
+**Category:** Cognition & Introspection  
 **Status in practice:** experimental
 
 ## Intent
@@ -32,9 +32,11 @@ Therefore: define a runtime mode where the external tool surface is replaced wit
 
 A mode toggle persisted to a state file. While meditation_mode is on: the dispatcher swaps the tool palette to a fixed inner-only allowlist (inner-dialogue, recall, register-affect, optional inner-only artefact generators); the tick scheduler ignores normal cadence and runs at fast cadence (for example ten seconds); public-write tools return a refusal; outputs go to `journal/inner-dialogue/<date>/`; a wall-clock budget (default fifteen minutes) auto-exits; an explicit `exit_meditation` call is on the inner allowlist; an operator can delete the mode-state file to force exit.
 
-## Example scenario
+## Structure
 
-A long-running personal agent does its best integrative thinking just after a stretch of dense input, but the normal tick keeps pulling it back to check the calendar or respond to chat. The team adds Meditation Mode: a state file flag triggers the dispatcher to swap to inner-only tools (inner-dialogue, recall, register-affect), the tick scheduler drops to ten-second cadence, outputs go to a private journal, and a fifteen-minute wall-clock budget auto-exits. The agent does an uninterrupted quarter-hour of inner work, then resumes its normal loop.
+```
+Normal --enter_meditation()--> Meditating (inner-only tool allowlist, fast cadence, public writes refused, output -> journal/inner-dialogue/<date>/) --exit_meditation() | wall-clock budget elapsed | operator deletes mode-state file--> Normal
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ stateDiagram-v2
 
 *Meditation mode is a bounded runtime state with inner-only tools and forced exit on budget or operator action.*
 
+## Example scenario
+
+A long-running personal agent does its best integrative thinking just after a stretch of dense input, but the normal tick keeps pulling it back to check the calendar or respond to chat. The team adds Meditation Mode: a state file flag triggers the dispatcher to swap to inner-only tools (inner-dialogue, recall, register-affect), the tick scheduler drops to ten-second cadence, outputs go to a private journal, and a fifteen-minute wall-clock budget auto-exits. The agent does an uninterrupted quarter-hour of inner work, then resumes its normal loop.
+
 ## Consequences
 
 **Benefits**
@@ -64,6 +70,13 @@ stateDiagram-v2
 - External callers are stranded for the duration of the window.
 - Fast cadence burns tokens; cost must be budgeted explicitly.
 - Mode toggle is itself a feature attackers or bugs can abuse if not gated.
+
+## Failure modes
+
+- Stranded callers — a user or service needs a reply during the window and gets only refusals until the budget runs out.
+- Runaway cost — fast-cadence ticks over a long budget burn far more tokens than planned.
+- Abused toggle — a bug or a crafted input switches the agent into meditation and blocks its public channels on purpose.
+- Leaky allowlist — a tool on the inner allowlist can still write outside the journal, so the 'no public write' rule is not real.
 
 ## What this pattern constrains
 
@@ -83,19 +96,39 @@ While meditation mode is active no user-facing channel can be written; the tool 
 - Fast-cadence inner ticks blow the token budget.
 - The tool dispatcher cannot enforce an inner-only allowlist.
 
+## Components
+
+- Mode-State File — persisted flag that toggles the runtime mode
+- Inner-Only Allowlist — restricted tool palette for the meditating tick
+- Fast Cadence Scheduler — ten-second-class tick rhythm while mode is active
+- Private Journal — write surface for inner-dialogue outputs
+- Wall-Clock Budget — auto-exit timer enforced regardless of the agent's wish
+
+## Tools
+
+- LLM API — fast-cadence inner-dialogue calls within the bounded window
+- Frontmatter store — date-keyed private journal for inner outputs
+- Filesystem flag — mode-state file usable as an operator force-exit handle
+
+## Evaluation metrics
+
+- Average meditation window length — wall-clock per session vs the configured budget
+- Public-channel leak count — inner-only outputs that escaped to user-facing surfaces, must stay zero
+- Token cost per session — burn rate of the fast inner cadence
+- Post-meditation residue change — affect-scalar delta from pre to post that the mode actually shifts
+
 ## Known uses
 
-- **Author's long-running personal agent (single private deployment)** — *Available* — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
+- **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 
 ## Related patterns
 
-- *alternative-to* → [dream-consolidation-cycle](dream-consolidation-cycle.md)
-- *complements* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
-- *complements* → [emotional-state-persistence](emotional-state-persistence.md)
+- _alternative-to_ **Dream Consolidation Cycle**
+- _complements_ **Mode-Adaptive Cadence**
+- _complements_ **Emotional State Persistence**
+- _complements_ **Subject-First Agent Architecture (ENA Stateful Core)**
 
 ## References
 
-- (paper) Antoine Lutz, Heleen A. Slagter, John D. Dunne, Richard J. Davidson, *Attention regulation and monitoring in meditation*, 2008, <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2693206/>
-- (paper) Marcus E. Raichle et al., *A default mode of brain function*, 2001, <https://www.pnas.org/doi/10.1073/pnas.98.2.676>
-
-**Tags:** cognition, meditation, runtime-mode, inner-thought
+- [Attention regulation and monitoring in meditation](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2693206/) — Antoine Lutz, Heleen A. Slagter, John D. Dunne, Richard J. Davidson, 2008
+- [A default mode of brain function](https://www.pnas.org/doi/10.1073/pnas.98.2.676) — Marcus E. Raichle et al., 2001

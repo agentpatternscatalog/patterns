@@ -31,6 +31,12 @@ Therefore: decompose the problem into an ordered list of easier subproblems and 
 
 Two-stage prompt. Stage 1 (decomposition): prompt the model to list subproblems from easiest to hardest. Stage 2 (sequential solve): for each subproblem in order, prompt the model with the original question, prior subproblem answers, and the current subproblem.
 
+## Structure
+
+```
+Hard problem --stage 1--> ordered subproblems (easiest first) --stage 2--> solve subproblem 1 --> solve subproblem 2 with answer 1 --> ... --> subproblem N with all prior answers --> Final answer
+```
+
 ## Diagram
 
 ```mermaid
@@ -59,6 +65,13 @@ A maths-tutoring agent is asked a multi-step word problem that combines unit con
 
 - Decomposition prompt design is task-specific.
 - Two-stage pipeline; ambiguity in stage 1 propagates.
+
+## Failure modes
+
+- Bad decomposition — stage 1 lists subproblems that miss a needed step, and stage 2 solves the list faithfully but cannot reach the answer.
+- Misordered list — a subproblem appears before the one it depends on, so it is solved without the answer it needs.
+- Carried error — an early subproblem answer is wrong and feeds every later step.
+- Task-specific prompt — the decomposition prompt tuned for one task produces vague subproblems on another.
 
 ## What this pattern constrains
 
