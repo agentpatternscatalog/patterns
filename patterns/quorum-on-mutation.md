@@ -31,6 +31,12 @@ Therefore: hold each proposed mutation in escrow until K consecutive ticks re-en
 
 Mutation proposals are written to a holding area. A subsequent tick must confirm the proposal (still endorses it given fresh context). After K consecutive confirms, the mutation lands. Explicit user approval bypasses the wait.
 
+## Structure
+
+```
+Propose mutation --> Holding area --tick confirms (fresh context)--> ... --K consecutive confirms--> Write to durable state; any tick disagrees --> Dropped; explicit user approval --> Write immediately
+```
+
 ## Diagram
 
 ```mermaid
@@ -61,6 +67,12 @@ A long-running personal agent reads a frustrated user message and proposes a new
 
 - Latency on legitimate changes.
 - Implementation complexity in the agent's state machine.
+
+## Failure modes
+
+- Slow legitimate change — a real preference waits K ticks to land, and the agent keeps the old behaviour the user already corrected.
+- Echo confirmation — each later tick reads the pending proposal and endorses it from the same stale context, so the quorum adds no independent check.
+- Lost proposal — a state-machine bug drops pending proposals on restart, and neither the mutation nor its rejection is recorded.
 
 ## What this pattern constrains
 
@@ -104,7 +116,7 @@ A mutation cannot land on a single tick's say-so; it requires K consecutive endo
 
 - **Author's long-running personal agent (single private deployment)** _available_ — Single-source evidence: one private deployment by the catalog author; no independently documented use yet.
 - **[Safe (Safe Smart Account multisig)](https://docs.safe.global/advanced/smart-account-overview)** _available_ — Requires signatures from at least a threshold of owners before a transaction (mutation) executes.
-- **[Quorum (multi-agent wallet coordination)](https://quorumclaw.com/)** _available_ — Threshold approval (2-of-2, 2-of-3, 3-of-5) of agent signatures before an action executes.
+- **[Quorum (multi-agent wallet coordination; hosted service retired)](https://github.com/aetos53t/agent-multisig-api)** _deprecated_ — Threshold approval (2-of-2, 2-of-3, 3-of-5) of agent signatures before an action executes. The hosted service (quorumclaw.com) no longer resolves; the source repository remains the citable record.
 
 ## Related patterns
 
@@ -113,6 +125,7 @@ A mutation cannot land on a single tick's say-so; it requires K consecutive endo
 - _used-by_ **World-Model Separation**
 - _complements_ **Race Conditions on Shared Tool Resources**
 - _complements_ **Self-Edit Critic Gate**
+- _complements_ **Epistemic Fault-Domain Quorum** — Sets how many endorsements a mutation needs before it lands; this pattern asks how many distinct upstream roots those endorsements descend from.
 
 ## References
 

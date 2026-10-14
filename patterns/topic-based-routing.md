@@ -24,20 +24,6 @@ Direct agent-to-agent addressing, where a sender names each receiver explicitly,
 - Broadcast traffic on a busy topic can overwhelm slow subscribers without back-pressure.
 - Debugging is harder when nobody owns the addressing decision.
 
-## Applicability
-
-**Use when**
-
-- Sender should not know which agents care about a message.
-- Subscribers join and leave over time without sender-side changes.
-- Cross-cutting concerns (audit, observability) need to attach by adding a subscriber.
-
-**Do not use when**
-
-- The interaction is strictly point-to-point and decoupling is overkill (use handoff or direct send).
-- Ordering and exactly-once semantics are required and the chosen bus does not provide them.
-- Schema discipline is impossible in the team — pub/sub without schema control is a hard place to debug.
-
 ## Therefore
 
 Therefore: route inter-agent messages through named topics with explicit subscriptions, so that senders do not know who reads them and new subscribers can join without sender-side changes.
@@ -46,9 +32,11 @@ Therefore: route inter-agent messages through named topics with explicit subscri
 
 Define a small set of typed Topics (`telemetry.parsed`, `incident.opened`, `plan.proposed`). Agents publish to topics; agents that care subscribe to topics. The runtime fans messages out to all subscribers of a topic, applies back-pressure on slow consumers, and provides delivery guarantees appropriate to the topic class. Pair with actor-model-agents to keep each subscriber's processing isolated, and with event-driven-agent when the topic carries external events. Topic schemas are first-class artefacts; subscribers depend on the schema, not on the publisher.
 
-## Example scenario
+## Structure
 
-An incident-response platform has many agents. A monitor agent publishes to `telemetry.alert`; a triage agent subscribes to it and may publish to `incident.opened`; an audit agent subscribes to both topics; a paging agent subscribes only to `incident.opened`. Adding a new compliance-export agent that needs every incident is a one-line subscription on `incident.opened` — none of the existing publishers change. Topic schemas are versioned (`incident.opened.v1`) and subscribers declare which versions they accept.
+```
+Publisher agent --publish(typed message)--> Named topic (versioned schema) --fan out with back-pressure--> Subscriber agents 1..N; new subscriber added without changing any sender
+```
 
 ## Diagram
 
@@ -62,6 +50,10 @@ flowchart TD
   T2 --> S2
   T2 --> S4[Compliance export agent<br/>added later — no sender changes]
 ```
+
+## Example scenario
+
+An incident-response platform has many agents. A monitor agent publishes to `telemetry.alert`; a triage agent subscribes to it and may publish to `incident.opened`; an audit agent subscribes to both topics; a paging agent subscribes only to `incident.opened`. Adding a new compliance-export agent that needs every incident is a one-line subscription on `incident.opened` — none of the existing publishers change. Topic schemas are versioned (`incident.opened.v1`) and subscribers declare which versions they accept.
 
 ## Consequences
 
@@ -77,25 +69,69 @@ flowchart TD
 - Topic-schema drift can break subscribers silently.
 - Slow subscribers need explicit back-pressure rules or they degrade the topic for everyone.
 
+## Failure modes
+
+- Orphan topic — a message is published to a topic nobody subscribes to, and the event is silently dropped.
+- Schema drift — a publisher changes a topic's message shape without a new version, and subscribers break without an error at the sender.
+- Slow subscriber — one consumer falls behind without back-pressure rules, and delivery on the topic degrades for everyone.
+- Unclear ownership — an incident lands on a topic, and finding out which agent should handle it requires digging through runtime subscriptions.
+
 ## What this pattern constrains
 
 Senders do not address receivers by id; cross-agent messaging must go through named topics with explicit subscriptions, and topic schemas are not allowed to mutate without versioning.
 
+## Applicability
+
+**Use when**
+
+- Sender should not know which agents care about a message.
+- Subscribers join and leave over time without sender-side changes.
+- Cross-cutting concerns (audit, observability) need to attach by adding a subscriber.
+
+**Do not use when**
+
+- The interaction is strictly point-to-point and decoupling is overkill (use handoff or direct send).
+- Ordering and exactly-once semantics are required and the chosen bus does not provide them.
+- Schema discipline is impossible in the team — pub/sub without schema control is a hard place to debug.
+
+## Components
+
+- Publisher agent — emits messages to a named topic without knowing the subscribers
+- Subscriber agent — declares interest in one or more topics and reacts to published messages
+- Named topic — typed channel (telemetry.alert, incident.opened) with a versioned schema
+- Topic-schema registry — versioned envelope schemas subscribers depend on
+- Back-pressure policy — per-subscriber rule that handles slow consumers without degrading the topic
+
+## Tools
+
+- AutoGen Core Topic and Subscription — provides the pub/sub primitives in-process
+- NATS or Kafka — durable message bus backing topics in production deployments
+- Schema registry — stores versioned topic schemas and enforces compatibility
+- Subscription-introspection tool — runtime listing of which agents subscribe to which topic
+
+## Evaluation metrics
+
+- Subscriber-add velocity — engineer-hours to wire a new agent into existing topics
+- Schema-drift incidents — subscribers broken silently by topic-version changes
+- Slow-subscriber back-pressure events — topic degradation traced to one lagging consumer
+- Topic-fan-out distribution — number of subscribers per topic, used to find hot channels
+- End-to-end message latency — time from publish to last subscriber receipt
+
 ## Known uses
 
-- **AutoGen Core (Topic and Subscription)** — AutoGen Core exposes Topic and Subscription as core primitives, with documented example scenarios. *Available* — [link](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html)
-- **NATS / Kafka as agent buses** — Production multi-agent deployments often run topics on a message broker for durability and scale. *Available* — [link](https://nats.io/)
+- **[AutoGen Core (Topic and Subscription)](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html)** _available_ — AutoGen Core exposes Topic and Subscription as core primitives, with documented example scenarios.
+- **[NATS / Kafka as agent buses](https://nats.io/)** _available_ — Production multi-agent deployments often run topics on a message broker for durability and scale.
 
 ## Related patterns
 
-- *complements* → [actor-model-agents](actor-model-agents.md)
-- *complements* → [event-driven-agent](event-driven-agent.md)
-- *specialises* → [inter-agent-communication](inter-agent-communication.md)
-- *alternative-to* → [blackboard](blackboard.md)
-- *alternative-to* → [pipes-and-filters](pipes-and-filters.md)
+- _complements_ **Actor-Model Agents**
+- _complements_ **Event-Driven Agent**
+- _specialises_ **Inter-Agent Communication**
+- _alternative-to_ **Blackboard**
+- _alternative-to_ **Pipes and Filters**
+- _complements_ **Complexity-Based Routing**
+- _used-by_ **Hierarchical Retrieval**
 
 ## References
 
-- *doc*: [AutoGen Core — Topic and Subscription](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html) — Microsoft
-
-**Tags:** multi-agent, pub-sub, topic-routing, autogen
+- [AutoGen Core — Topic and Subscription](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/core-concepts/topic-and-subscription.html) — Microsoft

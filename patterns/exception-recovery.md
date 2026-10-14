@@ -31,9 +31,11 @@ Therefore: catalogue each predictable failure as a typed error with a defined re
 
 Catalogue failure modes. For each, define: detect (typed error), respond (retry / fall back / surface to user / replan), and log. The agent receives a structured error message and can react with a typed branch in its loop.
 
-## Example scenario
+## Structure
 
-A research agent calls a search tool that returns a rate-limit error. Without typed handling the error string flows back into the conversation as an opaque blob; the agent invents a plausible-sounding explanation and stalls. The team adds Exception Recovery: each tool wraps known failure modes (rate-limit, auth, validation, timeout) into typed error envelopes, and the agent's prompt has explicit recovery branches — back off and retry on rate-limit, switch tool on validation, escalate on auth. Failures stop becoming silent confusion.
+```
+Agent step --error?--> Typed error --> Recovery branch: transient -> retry with backoff | rate limit -> wait + retry | validation -> fall back / replan | unknown -> surface to user; every branch --> structured log
+```
 
 ## Diagram
 
@@ -52,6 +54,10 @@ flowchart TD
   Surface --> L[Log structured error]
 ```
 
+## Example scenario
+
+A research agent calls a search tool that returns a rate-limit error. Without typed handling the error string flows back into the conversation as an opaque blob; the agent invents a plausible-sounding explanation and stalls. The team adds Exception Recovery: each tool wraps known failure modes (rate-limit, auth, validation, timeout) into typed error envelopes, and the agent's prompt has explicit recovery branches — back off and retry on rate-limit, switch tool on validation, escalate on auth. Failures stop becoming silent confusion.
+
 ## Consequences
 
 **Benefits**
@@ -63,6 +69,12 @@ flowchart TD
 
 - Exception-handling code is its own surface to maintain.
 - Hidden retries can mask deeper issues.
+
+## Failure modes
+
+- Masking retry — a silent retry loop keeps succeeding on the third attempt, and a degrading dependency goes unnoticed until it fails for good.
+- Uncatalogued error — a new failure arrives that maps to no typed branch, falls into 'unknown', and the agent treats a recoverable case as fatal.
+- Wrong branch — a validation error is classed as transient, so the agent retries the same bad input with backoff instead of replanning.
 
 ## What this pattern constrains
 
@@ -82,21 +94,40 @@ Errors must arrive at the agent as typed events from the catalogue; untyped erro
 - Failure modes change faster than the catalogue can be maintained.
 - The agent has no loop to react in (single-shot pipelines).
 
+## Components
+
+- Failure-mode catalogue — enumerated typed errors the system knows how to react to
+- Tool wrapper — translator from raw tool exceptions into typed error envelopes
+- Recovery branch table — mapping from error type to retry, fallback, replan, or surface
+- Structured error log — record of typed events for later debugging and trend analysis
+
+## Tools
+
+- Exponential-backoff utility — paces retries on transient and rate-limit errors
+- Structured logging library — emits typed error events to the central log
+
+## Evaluation metrics
+
+- Recovery-success rate by error type — share of typed errors the right branch resolved
+- Untyped-error escape rate — failures that bypassed the catalogue and surfaced raw
+- Retry-storm incidents — back-off violations that overran a downstream quota
+- Mean steps to recovery — loop iterations between first failure and stable progress
+
 ## Known uses
 
-- **Production agent platforms** — *Available*
-- **Gulli Exception Handling pattern** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Tool errors and plan-step failures are typed; each type has a deterministic recovery path (retry-once, abort-step, escalate-to-human) rather than a generic try/except wrapper.
+- **Production agent platforms** _available_
+- **Gulli Exception Handling pattern** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — Tool errors and plan-step failures are typed; each type has a deterministic recovery path (retry-once, abort-step, escalate-to-human) rather than a generic try/except wrapper.
 
 ## Related patterns
 
-- *complements* → [fallback-chain](fallback-chain.md)
-- *complements* → [circuit-breaker](circuit-breaker.md)
-- *complements* → [replan-on-failure](replan-on-failure.md)
-- *generalises* → [graceful-degradation](graceful-degradation.md)
+- _complements_ **Fallback Chain**
+- _complements_ **Circuit Breaker**
+- _complements_ **Replan on Failure**
+- _generalises_ **Graceful Degradation**
+- _complements_ **Missing Idempotency on Agent Calls**
+- _complements_ **Machine-Checkable Tool Contract** — Recovery presupposes the failure is detectable; typed failure fields are what make it detectable.
 
 ## References
 
-- (book) *Agentic Design Patterns (Gulli)*, 2025
-
-**Tags:** safety, error, recovery
+- [Agentic Design Patterns (Gulli)](https://www.goodreads.com/book/show/237795815) — 2025

@@ -31,6 +31,12 @@ Therefore: pair scatter-gather with explicit saga semantics — each worker decl
 
 Each worker exposes (do_action, compensate_action). Coordinator dispatches all workers in parallel. On all-success, gather and return. On any failure, coordinator runs compensate_action for all workers that already committed. Reports outcome as atomic: either all committed (and gathered) or none. Pair with compensating-action, parallelization, map-reduce, supervisor-plus-gate.
 
+## Structure
+
+```
+Coordinator --dispatch in parallel--> Workers (each: do_action, compensate_action) --> [all succeed: gather and return | any fails: run compensate_action on every committed worker --> report none committed]
+```
+
 ## Diagram
 
 ```mermaid
@@ -64,6 +70,13 @@ A booking agent fans out to 'reserve flight', 'reserve hotel', 'reserve car'. Fl
 - Compensating actions must be defined per worker — engineering work.
 - Compensations themselves can fail; nested compensation logic is non-trivial.
 - Higher complexity than plain parallelization; harder to debug.
+
+## Failure modes
+
+- Failed compensation — the cancel action for a committed worker itself fails, and the system is left half-committed after all.
+- Missing compensator — a worker is added without a defined compensating action, and its commit cannot be undone on failure.
+- Report before rollback — the coordinator reports the failure before compensations finish, and callers act on state that is still changing.
+- Debugging tangle — a mix of parallel commits and compensations makes it hard to tell which worker did what in which order.
 
 ## What this pattern constrains
 

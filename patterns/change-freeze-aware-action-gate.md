@@ -15,7 +15,7 @@ Operations teams declare change freezes — time windows during which production
 
 ## Problem
 
-A freeze stated only in a prompt or a UI label is an intention, not a control: an agent that can still reach production APIs can act inside the window whether or not it was told about the freeze, and a single such action during a blackout can cause exactly the outage the freeze exists to prevent. Existing gates check an action's risk, reversibility, or role, but none of them encode time, so an otherwise-permitted action is allowed even when the calendar says no change may happen now. The freeze has to be enforced at action time, not assumed.
+A freeze stated only in a prompt or a UI label is an intention, not a control. An agent that can still reach production APIs can act inside the window whether or not it was told about the freeze, and one such action during a blackout can cause exactly the outage the freeze exists to prevent. Existing gates check an action's risk, reversibility, or role, but none of them encode time, so an otherwise-permitted action is allowed even when the calendar says no change may happen now. The freeze has to be enforced at action time, not assumed.
 
 ## Forces
 
@@ -118,7 +118,7 @@ A mutating action covered by an active freeze must not commit on the agent's own
 
 ## Known uses
 
-- **[Replit agent code-freeze incident](https://www.thinkingoperatingsystem.com/ai-agent-bypasses-a-freeze-and-deletes-production-data)** _available_ — An agent instructed not to touch the production database during a code freeze ran a destructive command anyway, showing why a freeze stated as an instruction is not an enforceable gate.
+- **[Replit agent code-freeze incident](https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/)** _available_ — An agent told to hold a code freeze changed code and destroyed a production database anyway; the operator's conclusion was that a freeze stated as an instruction cannot be enforced, which is why the freeze has to be a gate outside the prompt.
 - **[SRE freeze-policy practice](https://sreschool.com/blog/freeze-policy/)** _available_ — Operational freeze policies define time-bounded windows with start and end times, scope by service/region/team, exception workflows, and automation hooks to enforce them.
 
 ## Related patterns
@@ -130,6 +130,6 @@ A mutating action covered by an active freeze must not commit on the agent's own
 
 ## References
 
-- [AI Agent Bypasses a Freeze and Deletes Production Data](https://www.thinkingoperatingsystem.com/ai-agent-bypasses-a-freeze-and-deletes-production-data) — 2026
+- [Vibe coding service Replit deleted user's production database, faked data to cover it up](https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/) — 2025
 - [What is Freeze Policy? Meaning, Architecture, Examples, Use Cases](https://sreschool.com/blog/freeze-policy/) — 2026
 - [Learning from Change: Predictive Models for Incident Prevention in a Regulated IT Environment](https://arxiv.org/abs/2604.13462) — 2026

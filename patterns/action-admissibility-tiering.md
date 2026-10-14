@@ -157,6 +157,9 @@ An action that fails any hard tier cannot proceed and must not receive an aggreg
 - _complements_ **Affordance Grounding Before Action** — Screens whether the scene physically supports an action; this ladder asks whether the operation permits it, which is a separate question from whether the body can do it.
 - _complements_ **Typed Refusal Codes** — Gives the block a machine-readable reason so the failing tier and the failing check reach the caller instead of an unexplained rejection.
 - _complements_ **Human-in-the-Loop** — The escalation obligation inside the admissibility tier routes an action to a human principal when causal understanding is insufficient rather than letting the agent proceed on a weak story.
+- _complements_ **Control-Loop-Mapped Agent Chain** — That pattern gates one proposed intervention through ordered admissibility tiers; this one decides how many agents exist and how their simultaneous proposals are combined, and each loop still needs a gate of its own.
+- _complements_ **History-Dependent Admissibility** — That pattern runs an ordered ladder of independent tests over a single proposed action and carries no conversational-history term; this pattern supplies that term, and the two compose as a tier that reads the session ledger.
+- _complements_ **Physical-Evidence Progress Gate** — An ordered ladder of pre-action admissibility tests decides whether the action may be taken at all; this gate runs afterward and decides whether it counts as done.
 
 ## References
 

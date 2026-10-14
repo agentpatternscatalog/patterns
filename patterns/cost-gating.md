@@ -31,9 +31,11 @@ Therefore: forecast cost before each expensive call and block on explicit acknow
 
 Estimate cost before invoking the expensive action. If the estimate exceeds the threshold, surface it to the user (or operator) and require explicit approval. Track running totals against per-session and per-period budgets.
 
-## Example scenario
+## Structure
 
-An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up.
+```
+Action proposed --> Estimate cost --<= threshold--> Execute | --> threshold--> Surface to user or operator --approved--> Execute | --rejected--> Block; Execute --> Track running totals vs session and period budgets
+```
 
 ## Diagram
 
@@ -49,6 +51,10 @@ flowchart TD
   X --> T[Track running totals]
 ```
 
+## Example scenario
+
+An autonomous research agent is asked to 'thoroughly investigate' a niche market and quietly fans out into hundreds of web searches plus a few large-context summarisations, ringing up forty euros before producing a draft. The team adds Cost Gating: any step whose forecast cost (token volume × model rate) exceeds two euros prompts the user with the estimate, and any cumulative spend over twenty euros pauses the run for explicit acknowledgement. Surprise bills stop showing up.
+
 ## Consequences
 
 **Benefits**
@@ -60,6 +66,12 @@ flowchart TD
 
 - Estimation errors; actual cost can exceed estimate.
 - Friction at the wrong moment can sour UX.
+
+## Failure modes
+
+- Under-estimate — the forecast says the action is cheap, it passes the threshold silently, and the real bill is many times higher.
+- Click-through prompt — the threshold is set so low that users see the cost prompt constantly and approve without reading the number.
+- Badly timed gate — the approval prompt appears in the middle of a task the user expected to finish unattended, and the run stalls.
 
 ## What this pattern constrains
 
@@ -79,19 +91,47 @@ Actions exceeding the threshold cannot run without explicit acknowledgement.
 - Cost is unpredictable and pre-action estimates would be wildly wrong.
 - Approval latency is unacceptable for the action class (e.g. real-time response loops).
 
+## Components
+
+- Cost estimator — pre-flight forecaster of tokens, API charges, and retrieval spend
+- Budget thresholds — per-call, per-session, and per-period limits with their own caps
+- Approval surface — explicit acknowledgement channel shown to user or operator
+- Running-total tracker — accumulator that compares spend against the active budget
+
+## Tools
+
+- Token-counter library — sizes prompts before dispatch to bound the forecast
+- Pricing table — per-model and per-tool rates the estimator multiplies into euros
+
+## Evaluation metrics
+
+- Estimate-vs-actual cost delta — calibration error of the forecaster
+- Gate-trip rate by budget horizon — how often per-call, per-session, per-period caps fired
+- Approval-fatigue indicator — fraction of gated prompts users accepted without reading
+- Surprise-bill incidents — runs that exceeded budget without hitting the gate
+
 ## Known uses
 
-- **Knitting-DSL Pipeline (Stash2Go)** — *Available*. scopedLlmFixer.js runs only when user accepts the cost.
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Premium-model access is gated behind an explicit, time-boxed (≤10 min) written grant; without an active grant the router stays on cheap models, and grant + revoke + each routing decision land in the ledger.
+- **Knitting-DSL Pipeline (Stash2Go)** _available_ — scopedLlmFixer.js runs only when user accepts the cost.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — Premium-model access is gated behind an explicit, time-boxed (≤10 min) written grant; without an active grant the router stays on cheap models, and grant + revoke + each routing decision land in the ledger.
 
 ## Related patterns
 
-- *specialises* → [human-in-the-loop](human-in-the-loop.md)
-- *complements* → [step-budget](step-budget.md)
-- *complements* → [multi-model-routing](multi-model-routing.md)
-- *complements* → [prompt-caching](prompt-caching.md)
-- *complements* → [extended-thinking](extended-thinking.md)
-- *complements* → [cost-observability](cost-observability.md)
-- *complements* → [rate-limiting](rate-limiting.md)
+- _specialises_ **Human-in-the-Loop**
+- _complements_ **Step Budget**
+- _complements_ **Multi-Model Routing**
+- _complements_ **Prompt Caching**
+- _complements_ **Extended Thinking**
+- _complements_ **Cost Observability**
+- _complements_ **Rate Limiting**
+- _alternative-to_ **Unbounded Subagent Spawn**
+- _alternative-to_ **Token-Economy Blindness**
+- _complements_ **Realtime API When Batchable**
+- _complements_ **Missing max_tokens Cap**
+- _used-by_ **Composable Termination Conditions**
+- _complements_ **Agent-Initiated Payment** — Cost-gating thresholds bound what an agent's wallet may settle without escalation.
+- _complements_ **Velocity-and-Magnitude Governor** — Cost gating blocks a single action whose expected cost crosses a threshold; the governor adds the velocity dimension (cumulative magnitude per unit time) and a statistical-deviation trigger that gating alone does not have.
 
-**Tags:** safety, cost, budget
+## References
+
+- [Rate limits](https://docs.claude.com/en/api/rate-limits) — 2025

@@ -31,9 +31,11 @@ Therefore: assign different agents to argue opposing positions over bounded roun
 
 Two or more agents are given different positions. They exchange arguments over N rounds. A judge agent (or a tie-break rule) selects the answer or synthesises a position from both.
 
-## Example scenario
+## Structure
 
-A policy-analysis agent answers 'should the firm adopt this open-source library?' with a confident yes that turns out to ignore a license incompatibility. Single-shot answers hide the reasoning the model didn't do. The team uses Debate: two agents argue opposing positions — one for adoption, one against — exchanging structured arguments for a fixed number of rounds, and a third agent reads the transcript and rules. The license question surfaces in the second round and changes the verdict.
+```
+Question --assign positions--> Agent A (position 1) <--N rounds of argument / counter-argument--> Agent B (position 2) --final positions--> Judge (or tie-break rule) --select or synthesise--> Answer
+```
 
 ## Diagram
 
@@ -51,6 +53,10 @@ sequenceDiagram
   J-->>J: select or synthesise
 ```
 
+## Example scenario
+
+A policy-analysis agent answers 'should the firm adopt this open-source library?' with a confident yes that turns out to ignore a license incompatibility. Single-shot answers hide the reasoning the model didn't do. The team uses Debate: two agents argue opposing positions — one for adoption, one against — exchanging structured arguments for a fixed number of rounds, and a third agent reads the transcript and rules. The license question surfaces in the second round and changes the verdict.
+
 ## Consequences
 
 **Benefits**
@@ -62,6 +68,13 @@ sequenceDiagram
 
 - N-x cost over single-agent.
 - Position assignment is itself a prompt-engineering problem.
+
+## Failure modes
+
+- Shared priors — both debaters run on the same model with the same framing, so the counter-argument is weak and the debate confirms the first answer.
+- Bad position split — the assigned positions miss the real disagreement, and the rounds argue about the wrong question.
+- Weak judge — the judge picks the more fluent argument rather than the correct one.
+- Cost on easy questions — an uncontested question still pays for several agents over several rounds.
 
 ## What this pattern constrains
 
@@ -81,22 +94,42 @@ Each debater may only argue its assigned position until the judge step.
 - Agents collapse to agreement and the debate produces no new signal.
 - No judge or tie-break mechanism exists and debates do not terminate cleanly.
 
+## Components
+
+- Debater agent — argues an assigned position across bounded rounds and may not switch sides
+- Position assignment — prompt scaffolding that pins each debater to a stance
+- Judge agent — reads the transcript and selects or synthesises a final answer
+- Round budget — fixed N that caps debate length and forces a closing step
+
+## Tools
+
+- Heterogeneous LLM APIs — different models for debaters can increase position diversity
+- Transcript store — captures both sides for the judge and for user-visible counterargument display
+
+## Evaluation metrics
+
+- Accuracy lift over single-agent baseline — measured on contested benchmark questions
+- Position-collapse rate — debates where both sides converge before round N, signalling no real debate
+- Judge-bias indicators — sampled disagreement between judge verdicts and human review
+- Counterargument coverage — share of debates where the losing side surfaced a load-bearing concern
+- Cost multiplier vs single-agent — N×2 inference plus judge call per question
+
 ## Known uses
 
-- **Anthropic AI Safety via Debate research** — *Available*
-- **MIT CSAIL multi-agent debate work** — *Available*
+- **Anthropic AI Safety via Debate research** _available_
+- **MIT CSAIL multi-agent debate work** _available_
 
 ## Related patterns
 
-- *alternative-to* → [inner-committee](inner-committee.md)
-- *complements* → [self-consistency](self-consistency.md)
-- *generalises* → [swarm](swarm.md)
-- *alternative-to* → [infinite-debate](infinite-debate.md)
-- *alternative-to* → [communicative-dehallucination](communicative-dehallucination.md)
+- _alternative-to_ **Inner Committee**
+- _complements_ **Self-Consistency**
+- _generalises_ **Swarm**
+- _alternative-to_ **Infinite Debate**
+- _alternative-to_ **Communicative Dehallucination**
+- _alternative-to_ **Voting-Based Cooperation**
+- _alternative-to_ **Parallel-Voice Proposer**
 
 ## References
 
-- (paper) Du, Li, Torralba, Tenenbaum, Mordatch, *Improving Factuality and Reasoning in Language Models through Multiagent Debate*, 2023, <https://arxiv.org/abs/2305.14325>
-- (paper) Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, *Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents* (2025) — https://doi.org/10.1016/j.jss.2024.112278
-
-**Tags:** debate, multi-agent
+- [Improving Factuality and Reasoning in Language Models through Multiagent Debate](https://arxiv.org/abs/2305.14325) — Du, Li, Torralba, Tenenbaum, Mordatch, 2023
+- [Agent design pattern catalogue: A collection of architectural patterns for foundation model based agents](https://doi.org/10.1016/j.jss.2024.112278) — Yue Liu, Sin Kit Lo, Qinghua Lu, Liming Zhu, Dehai Zhao, Xiwei Xu, Stefan Harrer, Jon Whittle, 2025

@@ -2,7 +2,7 @@
 
 **Also known as:** Voice Overlay, Facet Voicing, Persona Overlay (identity-preserving)
 
-**Category:** Multi-Agent
+**Category:** Multi-Agent  
 **Status in practice:** experimental
 
 ## Intent
@@ -33,9 +33,11 @@ Therefore: define a finite set of named variants, each as an additive overlay th
 
 Maintain a small registry of named variants (e.g. 'teacher', 'operator', 'caring-coach', 'archivist'). Each variant is a short overlay block — a few sentences describing tone, pacing, vocabulary — that is concatenated onto the base system prompt at turn time, never replacing it. The agent (or an upstream selector) chooses a variant per turn. The chosen variant is visible in telemetry and may be visible to the user. Memory, tools, charter, and name are shared across all variants. Variant overlays must not contradict the base charter: the registry is curated, not user-supplied.
 
-## Example scenario
+## Structure
 
-A long-running personal agent normally answers in a neutral register. When the user asks for help understanding a paper, the selector activates the 'teacher' variant: the overlay appends a few sentences about pacing, scaffolding, and example-first explanation. When the user asks for incident triage, the 'operator' variant is selected: short imperative sentences, no scaffolding. Across both, the agent's name, charter, and memory are unchanged; the user sees a banner indicating which variant is active. The same memory of yesterday's conversation is available in both voices.
+```
+Turn --> Selector --pick variant--> Variant registry (curated overlays) --active overlay--> Concatenate(base prompt: name + charter + tools, overlay) --> Model --> reply; shared memory and tools, active variant logged
+```
 
 ## Diagram
 
@@ -54,6 +56,10 @@ flowchart TD
 
 *Variant overlay is appended onto the base prompt; selector picks one per turn, identity stays invariant.*
 
+## Example scenario
+
+A long-running personal agent normally answers in a neutral register. When the user asks for help understanding a paper, the selector activates the 'teacher' variant: the overlay appends a few sentences about pacing, scaffolding, and example-first explanation. When the user asks for incident triage, the 'operator' variant is selected: short imperative sentences, no scaffolding. Across both, the agent's name, charter, and memory are unchanged; the user sees a banner indicating which variant is active. The same memory of yesterday's conversation is available in both voices.
+
 ## Consequences
 
 **Benefits**
@@ -67,6 +73,13 @@ flowchart TD
 - Variants drift toward parody if the overlay is too thick.
 - Selection logic becomes another small policy to maintain.
 - Users may interpret a variant shift as inauthenticity if it isn't announced.
+
+## Failure modes
+
+- Parody voice — an overlay is written too thick, and the 'teacher' variant starts to sound like a caricature.
+- Charter conflict — an overlay contradicts the base charter, and the agent behaves against its own rules in that voice.
+- Unannounced shift — the voice changes mid-conversation without notice, and the user reads it as the agent being fake.
+- Selector misfire — the selector picks a cheerful coaching voice for a terse operational question.
 
 ## What this pattern constrains
 
@@ -86,20 +99,41 @@ Variant overlays cannot override the base charter or change the agent's name and
 - Variants would diverge enough to warrant separate agents with their own memories.
 - There is no shared charter for the overlays to leave untouched.
 
+## Components
+
+- Base system prompt — invariant charter, name, and core personality the variants may not override
+- Variant registry — finite curated set of labelled voice overlays (teacher, operator, coach, archivist)
+- Variant selector — chooses one overlay per turn from the registry
+- Concatenation step — appends the active overlay onto the base prompt at turn time
+- Visibility marker — telemetry or UI banner that surfaces which variant is currently active
+
+## Tools
+
+- LLM API — one call per turn with the concatenated base-plus-overlay prompt
+- Shared memory store — same memory backend across all variants so the agent does not forget itself
+- Shared tool palette — identical tools regardless of which voice is active
+
+## Evaluation metrics
+
+- Identity-continuity score — user-reported sense that the agent is still itself across variant shifts
+- Variant-appropriateness rate — sampled turns where the active variant matched the situation
+- Charter-override incidents — outputs where the overlay contradicted the base charter
+- Variant transparency — share of variant shifts that were visibly announced to the user
+- Selector accuracy — agreement between selector choice and human-rated ideal variant
+
 ## Known uses
 
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — Named variants overlay the base personality file; only one variant is active at a time; the base identity name is explicitly refused as a variant name; conflicts between variants are resolved into a journal entry rather than merged into the base.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — Named variants overlay the base personality file; only one variant is active at a time; the base identity name is explicitly refused as a variant name; conflicts between variants are resolved into a journal entry rather than merged into the base.
 
 ## Related patterns
 
-- *alternative-to* → [inner-committee](inner-committee.md)
-- *alternative-to* → [role-assignment](role-assignment.md)
-- *alternative-to* → [role-typed-subagents](role-typed-subagents.md)
-- *complements* → [constitutional-charter](constitutional-charter.md)
+- _alternative-to_ **Inner Committee** — Inner-committee runs several voices internally and emits one; variant-overlay emits one voice that is one of several labelled options.
+- _alternative-to_ **Role Assignment** — Role-assignment splits roles across agents; variant-overlay keeps roles inside one agent.
+- _alternative-to_ **Role-Typed Subagents** — Role-typed-subagents is the anti-pattern of splitting prematurely; variant-overlay is its identity-preserving inverse.
+- _complements_ **Constitutional Charter** — The charter is what variants must not overwrite.
+- _complements_ **Agent Persona Profile**
 
 ## References
 
-- (paper) *Personas as a Way to Model Truthfulness in Language Models*, 2024, <https://arxiv.org/abs/2310.18168>
-- (paper) *Role Play with Large Language Models*, 2023, <https://www.nature.com/articles/s41586-023-06647-8>
-
-**Tags:** multi-agent, persona, identity, voice
+- [Personas as a Way to Model Truthfulness in Language Models](https://arxiv.org/abs/2310.18168) — Joshi et al., 2024
+- [Role Play with Large Language Models](https://www.nature.com/articles/s41586-023-06647-8) — Murray Shanahan, Kyle McDonell, Laria Reynolds, 2023

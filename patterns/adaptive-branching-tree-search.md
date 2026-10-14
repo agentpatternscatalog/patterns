@@ -2,12 +2,12 @@
 
 **Also known as:** AB-MCTS, 適応的分岐モンテカルロ木探索, TreeQuest, Multi-LLM AB-MCTS
 
-**Category:** Planning & Control Flow
+**Category:** Planning & Control Flow  
 **Status in practice:** experimental
 
 ## Intent
 
-At each node of an inference-time search tree, use Thompson sampling to decide adaptively whether to deepen an existing answer or branch a fresh attempt, optionally choosing per-node which underlying LLM to invoke as a third search axis.
+At each node of an inference-time search tree, use Thompson sampling to decide whether to deepen an existing answer or branch a fresh attempt, optionally choosing per-node which underlying LLM to invoke.
 
 ## Context
 
@@ -82,6 +82,13 @@ A team tackles ARC-AGI-2 puzzles with three different LLMs. They drop the puzzle
 - Inference cost is still high; the pattern reduces waste but does not make search cheap.
 - Multi-LLM variant adds operational complexity (different APIs, latencies, pricing).
 
+## Failure modes
+
+- Noisy score posteriors — the score function is a weak judge, so the posteriors track noise and the tree deepens branches that only looked good by chance.
+- Budget burn on hard nodes — the controller keeps drawing samples on a difficult problem and spends the full budget without reaching the success threshold.
+- Bypassed sampler — a hand-coded shortcut picks a favoured branch directly, and the search loses its balance between deepening and branching.
+- Multi-model drift — the multi-LLM variant routes hard nodes to a model with different latency or pricing, and run cost and timing become hard to predict.
+
 ## What this pattern constrains
 
 The controller must update posteriors from observed rollout scores before drawing the next sample; node expansion must not exceed the declared budget; the agent itself cannot bypass the Thompson sample to pick a favoured branch directly.
@@ -100,22 +107,44 @@ The controller must update posteriors from observed rollout scores before drawin
 - Latency budgets forbid multi-rollout search.
 - A single best-of-N pass already saturates the score.
 
+## Components
+
+- Search tree — nodes hold partial candidates and per-action posteriors
+- Thompson sampler — draws an action (deepen, branch, choose-model) per visit
+- Rollout LLM(s) — generates the candidate refinement or fresh sibling
+- Score function — verifier, test suite, or oracle that returns a reward
+- Posterior updater — folds the score back into the node's per-action belief
+
+## Tools
+
+- LLM API (potentially several) — rollout policy invoked per chosen model per node
+- Verifier or test harness — produces the scalar reward that drives posteriors
+- Search-tree state store — persists nodes, posteriors, and visit counts across rollouts
+
+## Evaluation metrics
+
+- Pass rate at fixed compute budget — quality lift over flat best-of-N at the same cost
+- Compute concentration on payoff-rich branches — fraction of rollouts spent on the eventual best subtree
+- Per-model contribution share — how often each LLM wins the Thompson draw on hard nodes
+- Posterior collapse rate — fraction of runs where the score function is too noisy to discriminate actions
+- Wall-clock to first passing candidate — how quickly the tree finds a winner versus flat sampling
+
 ## Known uses
 
-- **[Sakana AI TreeQuest](https://sakana.ai/ab-mcts-jp/)** — *Available* — Open-source (Apache 2.0) framework implementing AB-MCTS and Multi-LLM AB-MCTS; benchmarked on ARC-AGI-2.
+- **[Sakana AI TreeQuest](https://sakana.ai/ab-mcts-jp/)** _available_ — Open-source (Apache 2.0) framework implementing AB-MCTS and Multi-LLM AB-MCTS; benchmarked on ARC-AGI-2.
 
 ## Related patterns
 
-- *specialises* → [lats](lats.md) — AB-MCTS replaces LATS's fixed-branching MCTS with adaptive Thompson-sampled width/depth.
-- *alternative-to* → [tree-of-thoughts](tree-of-thoughts.md) — ToT uses fixed branching; AB-MCTS adapts branching to payoffs.
-- *generalises* → [best-of-n](best-of-n.md) — Best-of-N is the flat zero-depth case of this pattern.
-- *specialises* → [test-time-compute-scaling](test-time-compute-scaling.md) — A specific scheme for spending inference-time compute.
-- *complements* → [self-consistency](self-consistency.md) — Self-consistency provides a voting score function that AB-MCTS can drive search against.
+- _specialises_ **Language Agent Tree Search** — AB-MCTS replaces LATS's fixed-branching MCTS with adaptive Thompson-sampled width/depth.
+- _alternative-to_ **Tree of Thoughts** — ToT uses fixed branching; AB-MCTS adapts branching to payoffs.
+- _generalises_ **Best-of-N Sampling** — Best-of-N is the flat zero-depth case of this pattern.
+- _specialises_ **Test-Time Compute Scaling** — A specific scheme for spending inference-time compute.
+- _complements_ **Self-Consistency** — Self-consistency provides a voting score function that AB-MCTS can drive search against.
+- _complements_ **Multi-Path Plan Generator**
+- _uses_ **Forkable Agent Sandbox** — Adaptive branching decides how wide to go at each node, which is only affordable when a branch costs a delta rather than a rebuilt environment.
 
 ## References
 
-- (blog) Sakana AI, *AB-MCTS: 推論時の試行錯誤を効率化する新たなAIアルゴリズム*, 2025, <https://sakana.ai/ab-mcts-jp/>
-- (blog) gihyo.jp, *Sakana AIが新アルゴリズムAB-MCTSを発表*, 2025, <https://gihyo.jp/article/2025/07/sakana-ai-ab-mcts-algorithm>
-- (blog) WIRED Japan, *Sakana AIの新アルゴリズム*, 2025, <https://wired.jp/article/sakana-ai-new-algorithm/>
-
-**Tags:** inference-time-search, mcts, thompson-sampling, multi-llm, test-time-compute
+- [AB-MCTS: 推論時の試行錯誤を効率化する新たなAIアルゴリズム](https://sakana.ai/ab-mcts-jp/) — Sakana AI, 2025
+- [Sakana AIが新アルゴリズムAB-MCTSを発表](https://gihyo.jp/article/2025/07/sakana-ai-ab-mcts-algorithm) — gihyo.jp, 2025
+- [Sakana AIの新アルゴリズム](https://wired.jp/article/sakana-ai-new-algorithm/) — WIRED Japan, 2025

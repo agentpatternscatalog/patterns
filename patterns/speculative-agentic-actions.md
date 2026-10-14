@@ -129,6 +129,7 @@ Only read-only, idempotent, side-effect-free tool calls may be executed speculat
 - _complements_ **LLMCompiler** — The compiler overlaps independent steps of a KNOWN plan DAG; speculation overlaps the next step of an UNKNOWN plan by guessing it, so a speculated hit can feed the compiler's next dispatch.
 - _complements_ **Sleep-Time Compute** — Both precompute likely-future work, but sleep-time-compute runs offline during idle periods against the standing context, while speculation runs in-loop on the live trajectory and is discarded the moment the prediction misses.
 - _complements_ **World Model as Tool** — A world model that rolls out hypothetical futures can supply the likely-next-action prediction that speculation acts on, turning a simulated rollout into a real preemptive call.
+- _complements_ **Forkable Agent Sandbox** — Speculation is safe to discard only if the environment it touched can be discarded with it.
 
 ## References
 

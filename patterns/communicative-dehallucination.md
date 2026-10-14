@@ -31,10 +31,6 @@ Therefore: when an instructed agent would have to invent a missing decisive fact
 
 Define an explicit role-reversal protocol: when the assistant detects that the instruction is missing a deciding piece of context, it pivots and emits a focused question back to the instructor ("the precise name of the dependency, please"). The instructor answers, and only then does the assistant produce its conclusion. Bound the depth (one or two reversals) to prevent infinite ping-pong.
 
-## Example scenario
-
-An orchestrator agent tells a coding sub-agent 'add the new field to the user model'. The sub-agent doesn't know whether 'field' means database column, API contract, or both, but it would normally just pick one and start editing. Under Communicative Dehallucination, the sub-agent reverses roles and asks back: 'do you mean the database schema, the GraphQL type, or both?' Only after the orchestrator answers does it act, so the wrong choice never propagates downstream where it would be expensive to detect.
-
 ## Structure
 
 ```
@@ -54,6 +50,10 @@ sequenceDiagram
   Asst-->>Instr: grounded answer
 ```
 
+## Example scenario
+
+An orchestrator agent tells a coding sub-agent 'add the new field to the user model'. The sub-agent doesn't know whether 'field' means database column, API contract, or both, but it would normally just pick one and start editing. Under Communicative Dehallucination, the sub-agent reverses roles and asks back: 'do you mean the database schema, the GraphQL type, or both?' Only after the orchestrator answers does it act, so the wrong choice never propagates downstream where it would be expensive to detect.
+
 ## Consequences
 
 **Benefits**
@@ -67,6 +67,13 @@ sequenceDiagram
 - Adds latency for every clarification round.
 - Detecting the gap is itself a model judgement and can fail.
 - Risk of infinite ping-pong without a depth bound.
+
+## Failure modes
+
+- Missed gap — the assistant does not notice the instruction is missing a deciding detail, invents a value, and carries on.
+- Ping-pong — without a depth bound, assistant and instructor keep asking each other questions and never reach an answer.
+- Over-asking — the assistant asks back on details it could have settled itself, and every hand-off pays an extra round of latency.
+- Vague question — the clarifying question is broad, the instructor answers loosely, and the assistant still has to guess.
 
 ## What this pattern constrains
 
@@ -86,20 +93,38 @@ The assistant may not produce a final answer when a designated context slot is u
 - The cost of an extra round-trip exceeds the cost of detecting and fixing fabrications later.
 - Instructions are always complete by construction and missing-context fabrication never arises.
 
+## Components
+
+- Instructor agent — issues the original instruction and answers clarifying questions
+- Assistant agent — detects context gaps and reverses roles to ask before answering
+- Gap detector — judgement step that decides whether a deciding fact is missing
+- Reversal-depth bound — hard cap on clarification rounds to prevent infinite ping-pong
+
+## Tools
+
+- LLM API — invoked on both sides of the reversal, often the same model
+- ChatDev or equivalent multi-agent harness — supplies the assistant-instructor channel
+
+## Evaluation metrics
+
+- Clarification-question rate — share of instructions that triggered a reversal
+- Fabrication-reduction rate — drop in invented details vs no-reversal baseline, sample-audited
+- Reversal precision — share of clarifying questions humans agree were genuinely needed
+- Added latency per task — extra wall-clock spent on clarification rounds
+- Ping-pong incidents — runs that hit the reversal-depth bound without resolution
+
 ## Known uses
 
-- **[ChatDev](https://github.com/OpenBMB/ChatDev)** — *Available*. Original demonstration; assistant reverses to instructor role to request missing detail before delivering a conclusive response.
+- **[ChatDev](https://github.com/OpenBMB/ChatDev)** _available_ — Original demonstration; assistant reverses to instructor role to request missing detail before delivering a conclusive response.
 
 ## Related patterns
 
-- *specialises* → [disambiguation](disambiguation.md) — Same shape, but agent-to-agent rather than agent-to-user.
-- *alternative-to* → [human-in-the-loop](human-in-the-loop.md)
-- *alternative-to* → [debate](debate.md)
-- *conflicts-with* → [infinite-debate](infinite-debate.md) — Requires a depth bound to avoid this anti-pattern.
-- *uses* → [inter-agent-communication](inter-agent-communication.md)
+- _specialises_ **Disambiguation** — Same shape, but agent-to-agent rather than agent-to-user.
+- _alternative-to_ **Human-in-the-Loop**
+- _alternative-to_ **Debate**
+- _conflicts-with_ **Infinite Debate** — Requires a depth bound to avoid this anti-pattern.
+- _uses_ **Inter-Agent Communication**
 
 ## References
 
-- (paper) Qian et al., *ChatDev: Communicative Agents for Software Development*, 2023, <https://arxiv.org/abs/2307.07924>
-
-**Tags:** multi-agent, verification, china-origin, chatdev
+- [ChatDev: Communicative Agents for Software Development](https://arxiv.org/abs/2307.07924) — Qian et al., 2023

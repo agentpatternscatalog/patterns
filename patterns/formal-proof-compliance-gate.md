@@ -127,6 +127,7 @@ An action may not execute unless it ships a machine-checked proof that the requi
 - _specialises_ **Stochastic-Deterministic Boundary (SDB)** — Specialises the proposer-verifier-commit-reject contract by fixing the verifier as a theorem prover and the admission test as a proof check, so the boundary's guarantee is mathematical rather than contract-shaped.
 - _complements_ **Simulate Before Actuate** — Simulation computes expected post-action deltas and invariants and asks a verifier to green-light them; a formal proof establishes the invariants hold for all inputs in the modelled domain rather than for the one simulated trajectory.
 - _complements_ **Compliance-Certified Launch Gate** — Launch certification gates whether a system may go live; this gate runs per action at runtime, so a certified system can still prove each individual action compliant before it executes.
+- _complements_ **Solver-Ready Formulation Handoff** — Both make a machine-checkable artefact the condition of acting; there a proof gates an action, here a solver certificate accompanies the plan.
 
 ## References
 

@@ -31,9 +31,11 @@ Therefore: let role-defined agents speak turn by turn under a manager that picks
 
 Define agents with system prompts and allowed actions. Implement a conversation manager that selects which agent speaks next (round-robin, condition-based, model-decided). Each agent reads the conversation and emits a turn. Continue until termination criterion (task complete, max turns, explicit handoff to user).
 
-## Example scenario
+## Structure
 
-A finance team wants an agent that drafts an internal memo, has a 'reviewer' poke holes in it, and revises until the reviewer signs off. A linear pipeline can't represent the back-and-forth, and a free-form group chat is too loose. They use an AutoGen-style conversational setup: a writer agent and a reviewer agent take turns until the reviewer emits an explicit approval token. Each turn drives the next; the loop ends when the role-defined criterion fires.
+```
+Task --> Conversation manager --select speaker--> Agent A (reads chat, emits turn) --> Manager --select speaker--> Agent B (reads chat, emits turn) --> Manager --check criterion--> [loop | done: task complete, max turns, or handoff to user]
+```
 
 ## Diagram
 
@@ -52,6 +54,10 @@ sequenceDiagram
   Mgr-->>A: done
 ```
 
+## Example scenario
+
+A finance team wants an agent that drafts an internal memo, has a 'reviewer' poke holes in it, and revises until the reviewer signs off. A linear pipeline can't represent the back-and-forth, and a free-form group chat is too loose. They use an AutoGen-style conversational setup: a writer agent and a reviewer agent take turns until the reviewer emits an explicit approval token. Each turn drives the next; the loop ends when the role-defined criterion fires.
+
 ## Consequences
 
 **Benefits**
@@ -63,6 +69,13 @@ sequenceDiagram
 
 - Conversation drift is real.
 - Hard to reason about correctness of the multi-agent flow.
+
+## Failure modes
+
+- Conversation drift — the agents wander onto a side topic, keep agreeing with each other, and spend turns without moving the task forward.
+- Termination never fires — the completion criterion is vague, so the chat runs until the max-turn cap and returns whatever the last message said.
+- Role leak — an agent starts acting outside its allowed actions, for example a reviewer rewriting the code, and the role split stops meaning anything.
+- Untraceable result — a wrong answer comes out of a long transcript, and nobody can say which turn introduced the error.
 
 ## What this pattern constrains
 
@@ -82,18 +95,39 @@ Each agent's outputs must conform to its role's allowed action set; agents may n
 - Strict orchestration (fixed step order) is required and conversational drift is unacceptable.
 - Termination is hard to detect, risking runaway turn counts.
 
+## Components
+
+- Conversation manager — picks the next speaker by round-robin, condition, or model decision
+- Role-defined agent — speaker bound to a system prompt and an allowed action set
+- Shared transcript — append-only record of turns that every selected speaker reads from
+- Termination predicate — completion check (task done, max turns, explicit user handoff)
+
+## Tools
+
+- LLM API — invoked once per turn for the selected speaker
+- AutoGen runtime — provides agent definitions and conversation-manager scaffolding
+- Turn-count tracker — guards against runaway dialogues by capping rounds
+
+## Evaluation metrics
+
+- Turns to termination — distribution of rounds before the completion predicate fires
+- Drift incidents per conversation — turns where an agent acts outside its declared action set
+- Task-completion rate vs single-agent baseline — does the dialogue actually help
+- Runaway-conversation rate — share of runs hitting the turn cap without completing
+- Per-conversation token cost — total spend across both agents and the manager
+
 ## Known uses
 
-- **[Microsoft AutoGen](https://microsoft.github.io/autogen/)** — *Available*
+- **[Microsoft AutoGen](https://microsoft.github.io/autogen/)** _available_
 
 ## Related patterns
 
-- *complements* → [role-assignment](role-assignment.md)
-- *alternative-to* → [supervisor](supervisor.md)
-- *alternative-to* → [camel-role-playing](camel-role-playing.md)
+- _complements_ **Role Assignment**
+- _alternative-to_ **Supervisor**
+- _alternative-to_ **CAMEL Role-Playing**
+- _alternative-to_ **Actor-Model Agents**
+- _complements_ **Group-Chat Manager**
 
 ## References
 
-- (paper) Wu, Bansal, Zhang, Wu, Zhang, Zhu, Li, Jiang, Zhang, Wang, *AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation*, 2023, <https://arxiv.org/abs/2308.08155>
-
-**Tags:** multi-agent, conversation, autogen
+- [AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation](https://arxiv.org/abs/2308.08155) — Wu, Bansal, Zhang, Wu, Zhang, Zhu, Li, Jiang, Zhang, Wang, 2023

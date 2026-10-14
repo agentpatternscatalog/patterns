@@ -127,6 +127,9 @@ The agent acts autonomously only when its calibrated prediction set is a singlet
 - _alternative-to_ **Confidence Reporting** — Confidence reporting surfaces an uncalibrated self-assessment; the help-gate replaces it with a calibrated prediction-set size.
 - _alternative-to_ **Confidence-Checking Workflow** — Both decide when a human should step in, but the help-gate uses calibrated set size rather than self-reported per-part confidence.
 - _uses_ **Human-in-the-Loop** — When the prediction set is not a singleton the gate invokes a human to choose the action.
+- _alternative-to_ **Deployment-Correlated Rollback Gate** — The conformal gate unlocks autonomy on a calibrated confidence set; this gate unlocks on a structural deploy-to-failure correlation, not on how sure the model is.
+- _alternative-to_ **Uncertainty Neglect Bias** — The conformal help-gate keeps the calibrated prediction set and acts only when it is a singleton; uncertainty neglect collapses that set to its mean and acts regardless.
+- _complements_ **Semantic Decision Node** — Conformal prediction gives a principled way to set the abstain band: ask for help whenever the calibrated prediction set is not a single option.
 
 ## References
 

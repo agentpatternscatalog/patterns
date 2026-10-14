@@ -32,10 +32,6 @@ Therefore: expose the sub-agent behind a function-shaped tool signature with its
 
 Define the sub-agent as `def sub_agent(task: str, ...) -> Result`. The parent calls it like any other tool. Inside the function: a fresh agent loop with its own model, tool palette, and step budget runs to completion or failure, returning a structured result. Parent context records only the call and the return value. Step budget and timeout are enforced by the wrapper, not by the sub-agent's prompt.
 
-## Example scenario
-
-A travel-planning agent needs to research hotel options, which itself takes ten or twenty turns of search and filtering. Putting all those turns into the parent's transcript bloats context and entangles the planner with hotel-search internals. The team wraps the hotel sub-agent behind a single function-shaped tool: the parent calls research_hotels(criteria) and gets back a structured shortlist. The sub-agent's internal turns stay sealed behind that signature.
-
 ## Structure
 
 ```
@@ -58,6 +54,10 @@ sequenceDiagram
   SubTool-->>Parent: function return value
 ```
 
+## Example scenario
+
+A travel-planning agent needs to research hotel options, which itself takes ten or twenty turns of search and filtering. Putting all those turns into the parent's transcript bloats context and entangles the planner with hotel-search internals. The team wraps the hotel sub-agent behind a single function-shaped tool: the parent calls research_hotels(criteria) and gets back a structured shortlist. The sub-agent's internal turns stay sealed behind that signature.
+
 ## Consequences
 
 **Benefits**
@@ -71,6 +71,13 @@ sequenceDiagram
 - Hidden costs: sub-agent failures or timeouts surprise the parent.
 - Debugging requires traceability across the boundary (parent sees only the return).
 - Recursive nesting can spiral cost if the sub-agent itself spawns more.
+
+## Failure modes
+
+- Surprise timeout — the sub-agent runs out of budget mid-task and returns a bare failure, and the parent has no plan for a tool that can fail this way.
+- Opaque bad result — the sub-agent returns a confident but wrong value, and because the parent sees only the return, nobody can tell which inner step went wrong.
+- Recursive cost spiral — the sub-agent itself wraps further sub-agents as tools, and one parent call fans out into a deep, expensive tree.
+- Budget in the prompt — the step limit lives in the sub-agent's instructions rather than the wrapper, and the sub-agent talks itself past it.
 
 ## What this pattern constrains
 
@@ -90,23 +97,48 @@ The parent may not access the sub-agent's intermediate turns; only the return va
 - Sub-agent failures need to be diagnosable from the parent context without a separate trace.
 - The sub-task is one or two model calls — function-style tool wrapping is cheaper than spawning an agent loop.
 
+## Components
+
+- Parent agent — composes the sub-agent like any other tool and never sees its intermediate turns
+- Tool-shaped wrapper — function signature that hides the sub-agent loop behind a single call
+- Sub-agent loop — independent agent with its own model, prompt, tool palette, and step budget
+- Budget enforcer — caps wall-clock, steps, and tokens at the wrapper boundary, not in the sub-prompt
+
+## Tools
+
+- LLM API — separate inference channels for parent and sub-agent, often different models
+- Tool catalogue — palette scoped to the sub-agent and invisible to the parent
+- Trace recorder — captures sub-agent steps for debugging the boundary on failure
+
+## Evaluation metrics
+
+- Parent context bloat avoided — tokens the parent would have absorbed without the boundary
+- Sub-agent success rate at the boundary — share of calls that return a usable Result inside budget
+- Boundary latency overhead — extra wall-clock from spawning a fresh loop versus inline tool use
+- Recursive nesting depth observed — how often a sub-agent spawns its own sub-agents, against the cap
+- Cost attribution accuracy — token spend correctly tagged to parent vs sub for billing
+
 ## Known uses
 
-- **[Hugging Face Transformers Agents (multi-agent)](https://huggingface.co/docs/transformers/v4.47.1/agents_advanced)** — *Available*. ReactCodeAgent embeds sub-agents as callable Python functions.
-- **smolagents** — *Available*. Same pattern; sub-agents exposed as ordinary tool functions to a CodeAgent.
-- **OpenAI Agents SDK / handoffs** — *Available*. Adjacent pattern with explicit handoff semantics rather than function-call nesting.
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The subagent runtime wraps each sub-agent as a single opaque tool call from the parent's point of view, so the parent reasons about 'invoke subagent X' rather than micromanaging its turns.
+- **[Hugging Face Transformers Agents (multi-agent)](https://huggingface.co/docs/transformers/v4.47.1/agents_advanced)** _available_ — ReactCodeAgent embeds sub-agents as callable Python functions.
+- **[smolagents](https://huggingface.co/docs/smolagents/)** _available_ — Same pattern; sub-agents exposed as ordinary tool functions to a CodeAgent.
+- **[OpenAI Agents SDK / handoffs](https://openai.github.io/openai-agents-python/)** _available_ — Adjacent pattern with explicit handoff semantics rather than function-call nesting.
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The subagent runtime wraps each sub-agent as a single opaque tool call from the parent's point of view, so the parent reasons about 'invoke subagent X' rather than micromanaging its turns.
 
 ## Related patterns
 
-- *specialises* → [orchestrator-workers](orchestrator-workers.md)
-- *complements* → [subagent-isolation](subagent-isolation.md)
-- *specialises* → [hierarchical-agents](hierarchical-agents.md)
-- *uses* → [tool-use](tool-use.md)
-- *complements* → [step-budget](step-budget.md)
+- _specialises_ **Orchestrator-Workers**
+- _complements_ **Subagent Isolation**
+- _specialises_ **Hierarchical Agents**
+- _uses_ **Tool Use**
+- _complements_ **Step Budget**
+- _complements_ **RL-Trained Conductor Orchestrator**
+- _complements_ **Visual Workflow Graph**
+- _complements_ **BPMN/DMN Deterministic Shell Around Agent**
+- _composes-with_ **Agentic Behavior Tree**
+- _complements_ **Context Folding** — Both hide a sub-computation's turns from the parent; embedding does it at a call boundary, folding does it mid-trajectory via branch/return.
+- _alternative-to_ **Advisor Consult** — Both expose a second model as a tool, but with opposite boundaries: an embedded sub-agent runs its own loop and tools and hides its turns from the parent, while an advisor has no loop or tools and reads the caller's full transcript. Embedding delegates work; the advisor lends judgement.
 
 ## References
 
-- (doc) *Hugging Face Transformers — Agents Advanced (Multi-Agents)*, <https://huggingface.co/docs/transformers/v4.47.1/agents_advanced>
-
-**Tags:** multi-agent, composition, france-origin, huggingface, smolagents
+- [Hugging Face Transformers — Agents Advanced (Multi-Agents)](https://huggingface.co/docs/transformers/v4.47.1/agents_advanced)

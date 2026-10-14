@@ -152,6 +152,12 @@
         "Per-model contribution share — how often each LLM wins the Thompson draw on hard nodes",
         "Posterior collapse rate — fraction of runs where the score function is too noisy to discriminate actions",
         "Wall-clock to first passing candidate — how quickly the tree finds a winner versus flat sampling"
+      ],
+      "failure_modes": [
+        "Noisy score posteriors — the score function is a weak judge, so the posteriors track noise and the tree deepens branches that only looked good by chance.",
+        "Budget burn on hard nodes — the controller keeps drawing samples on a difficult problem and spends the full budget without reaching the success threshold.",
+        "Bypassed sampler — a hand-coded shortcut picks a favoured branch directly, and the search loses its balance between deepening and branching.",
+        "Multi-model drift — the multi-LLM variant routes hard nodes to a model with different latency or pricing, and run cost and timing become hard to predict."
       ]
     },
     {
@@ -288,7 +294,14 @@
         "Per-node success rate — diagnostic on which leaves dominate failure",
         "Fallback-firing rate — share of selectors that fall through to later children",
         "Tree-shape changes per release — proxy for instability in design"
-      ]
+      ],
+      "failure_modes": [
+        "Decorator padding — authors wrap a flaky leaf in Retry and Timeout until the tree passes, and the real leaf defect stays hidden.",
+        "Tree bypass — an ad-hoc case is handled outside the tree, so the reviewed control flow no longer matches what the agent does.",
+        "Silent fallback chain — a Selector keeps falling through to its last child, such as the escalation leaf, and nobody notices the earlier leaves stopped succeeding.",
+        "Cost blind spot — LLM leaves sit next to cheap deterministic leaves, and one tick of the tree costs far more time and money than the authors expected."
+      ],
+      "structure": "Tick --> Root Sequence --> Selector (leaf A --fail--> leaf B --fail--> escalate leaf) --SUCCESS--> next Sequence child (tool or LLM leaf, wrapped in Retry/Timeout) --> status propagates up --> Root SUCCESS or FAILURE"
     },
     {
       "id": "behavior-tree-back-chaining",
@@ -405,7 +418,14 @@
         "Goal-achievement rate — share of runs that reach the root post-condition",
         "Missing-producer count — pre-conditions with no task producing them",
         "Tree depth and breadth — proxy for over-specification"
-      ]
+      ],
+      "failure_modes": [
+        "Fuzzy conditions — a task's pre-condition cannot be stated clearly, so back-chaining stops early and the node runs without the input it needs.",
+        "Unpruned breadth — mechanical back-chaining adds a child for every possible way to meet a condition, and the tree grows too wide to review or run.",
+        "Over-pruning — the designer cuts a branch judged unrealistic, and the agent fails on the first production case that needed it.",
+        "Forward drift — later edits add tasks by intuition, and children appear whose post-conditions no parent actually needs."
+      ],
+      "structure": "Goal condition (root) --which pre-conditions?--> child tasks whose post-conditions satisfy them --their pre-conditions?--> further children --> ... --> stop when pre-conditions hold in the starting state --> prune unrealistic branches --> behavior tree"
     },
     {
       "id": "clone-fan-out-research",
@@ -575,6 +595,12 @@
         "Aggregator quality vs single-agent baseline — quality lift from the fan-out after consolidation",
         "Cost per useful result — total spend divided by accepted aggregated outputs",
         "Spawn discipline — observed N versus declared N, catches unbounded recursion"
+      ],
+      "failure_modes": [
+        "Weak aggregator — hundreds of good clone results feed one poor consolidation pass, and the final answer is no better than a single run.",
+        "Spawn creep — the agent is allowed to start more clones on its own, and the run turns into unbounded subagent spawning.",
+        "Shared-state leak — clones share a sandbox or a mutable store, and one clone's writes corrupt another's slice.",
+        "Uneven slices — every clone gets the same capability, so the hard slices get the same effort as the easy ones and come back thin."
       ]
     },
     {
@@ -721,7 +747,14 @@
         "Question fatigue rate — how often users ignore or dismiss the clarifying prompt",
         "Latency penalty per resolved turn — extra wall-clock from the ask-wait round-trip",
         "Default-acceptance rate — share of clarifications where the proposed default was right"
-      ]
+      ],
+      "failure_modes": [
+        "Question fatigue — the threshold is set too low, the agent asks on routine requests, and the user starts answering without reading.",
+        "Confident wrong guess — the ambiguity detector rates a two-way request as clear, and the agent moves the wrong meeting.",
+        "Question flood — the agent asks several open questions at once instead of one focused one with a default, and the user abandons the task.",
+        "Lost resume — the user answers, but the agent does not return to the original action and the request is dropped."
+      ],
+      "structure": "User request --> Ambiguity detector --clear--> Act. Ambiguity detector --low confidence--> one focused question (with default interpretation) --> Wait for answer --> Resolver --> Act"
     },
     {
       "id": "distributed-constraint-optimization",
@@ -852,7 +885,14 @@
         "Solution quality vs centralised optimum (where measurable)",
         "Message count to convergence",
         "Wall-clock convergence time"
-      ]
+      ],
+      "failure_modes": [
+        "Message blow-up — an exact solver such as ADOPT meets a dense constraint graph, and message traffic grows until the run cannot finish in time.",
+        "Local-optimum stall — a heuristic solver settles on an assignment where no single agent can improve, while the global cost is still high.",
+        "Bad factorisation — constraints are split across agents in the wrong way, so the solver optimises a problem that does not match the real one.",
+        "Quiet centralisation — to get a result faster, agents send their full local state to one node, breaking the information boundary the pattern was meant to keep."
+      ],
+      "structure": "Each agent (own variables + local constraints) <--messages to constraint-neighbours only (ADOPT / DPOP / Max-Sum)--> neighbour agents --> termination detector --> consistent, low-cost global assignment"
     },
     {
       "id": "event-driven-agent",
@@ -1010,7 +1050,14 @@
         "Idle cost reduction vs polling baseline — tokens saved by not polling an empty endpoint",
         "Event-source liveness — silent-failure detection when no events arrive for a stale window",
         "Burst-handling survival — fraction of events processed during a declared storm test"
-      ]
+      ],
+      "failure_modes": [
+        "Silent source outage — the webhook or queue stops delivering, and the agent simply stops running with no error raised.",
+        "Duplicate side effects — a replayed delivery passes a weak deduplicator, and the agent sends the same email or payment twice.",
+        "Event storm — a burst of events gets past the rate limiter, and invocations drain the budget in minutes.",
+        "Early ack — the handler acknowledges before the agent finishes, so a crashed run is never redelivered."
+      ],
+      "structure": "Event source (webhook / queue / file watcher) --event--> Validator --> Deduplicator (event id) --> Rate limiter --> Agent invoker (payload) --result--> Ack to event source"
     },
     {
       "id": "exploration-exploitation",
@@ -1119,7 +1166,14 @@
         "Local-optimum escape rate — fraction of runs that find a better option than the initial favourite",
         "Exploration fraction over time — share of pulls spent on non-best options, should taper",
         "Reward-signal noise — variance of the per-option outcome that drives the posterior"
-      ]
+      ],
+      "failure_modes": [
+        "Missing reward — outcomes are not recorded per option, so the policy updates on nothing and picks at random.",
+        "Early lock-in — exploration is switched off or set too low, and the agent stays with the first template that worked.",
+        "Endless exploring — epsilon stays high after the best option is clear, and budget keeps going to options already known to be worse.",
+        "Manual override — someone hard-codes the current favourite, and the tracked outcomes stop affecting choices."
+      ],
+      "structure": "Decision point --> Exploration policy (epsilon-greedy / UCB / Thompson) --> chosen option (best-known or alternative) --> Outcome tracker (reward) --> Belief updater --> next decision point"
     },
     {
       "id": "goal-decomposition",
@@ -1244,7 +1298,14 @@
         "Leaf-action success rate — fraction of leaves that completed on first attempt",
         "End-to-end goal completion — long-horizon task success vs single-shot baseline",
         "Decomposition overhead — tokens spent on non-leaf splitting versus leaf execution"
-      ]
+      ],
+      "failure_modes": [
+        "Lost stuck branch — a leaf deep in the tree stalls, the progress monitor does not surface it, and the final report omits the gap.",
+        "Over-splitting — the decomposer keeps adding levels for simple goals, and building the tree costs more than doing the work.",
+        "Premature action — the agent acts on a non-leaf goal that is still too vague, and produces shallow work for that branch.",
+        "Sibling overlap — parallel sub-goals cover the same ground, and the leaves duplicate or contradict each other."
+      ],
+      "structure": "Root goal --Decomposer--> sub-goals --Decomposer--> ... --> actionable leaves --Leaf executor--> results --Progress monitor (per level)--> stuck branches surfaced --> root goal status"
     },
     {
       "id": "iteration-node",
@@ -1379,6 +1440,12 @@
         "Wall-clock at concurrency N versus sequential — parallelism speedup",
         "Variable-leak incidents — subgraph state escaping its iteration scope",
         "Iteration-count bound respected — actual iterations equal input array length, no model decisions"
+      ],
+      "failure_modes": [
+        "Linear cost surprise — a large input array runs the inner subgraph once per element, and token cost rises far past the estimate.",
+        "Nested blow-up — an Iteration node inside another runs without a cap, and step counts multiply out of control.",
+        "Scope leak — the inner subgraph writes to a shared variable, and one element's state bleeds into the next element's result.",
+        "Rate-limit wall — parallel elements hit an upstream API at once, and many fail together on throttling rather than on their own data."
       ]
     },
     {
@@ -1550,7 +1617,14 @@
         "Backtrack rate — fraction of runs that abandon a failing branch versus committing",
         "Value-function calibration — correlation between predicted value and final reward",
         "Branch-memory bleed — incidents of failed-branch context leaking into successful ones"
-      ]
+      ],
+      "failure_modes": [
+        "Token overrun — the tree search runs many rollouts, and one task costs several times a plain ReAct run without a matching gain.",
+        "Misleading value estimate — an untrained or heuristic value function scores a wrong partial trajectory high, and selection keeps expanding it.",
+        "Inconsistent expansion — an expansion samples an action that does not follow from the parent state, and the branch describes steps that never happened.",
+        "Shallow backtracking — the search backs out of a failing branch only after spending most of the budget inside it."
+      ],
+      "structure": "Root partial trajectory --> UCT selection --> Expansion (sample next thoughts/actions from LLM) --> Simulate --> Value estimate --> Backpropagate to ancestors --> UCT selection (failing branch: backtrack to another node)"
     },
     {
       "id": "llm-compiler",
@@ -1677,7 +1751,14 @@
         "Rate-limit-induced retries — concurrency hitting provider caps",
         "Planner DAG correctness — fraction of plans whose dependencies execute without rework",
         "Failure isolation rate — branch failures that did not cascade to siblings"
-      ]
+      ],
+      "failure_modes": [
+        "Missed dependency — the planner leaves out an edge in the DAG, and a step fires in parallel before the input it needs exists.",
+        "Amplified plan error — a wrong planner step is dispatched alongside many others, and several branches run on the same bad premise before anyone sees it.",
+        "Rate-limit burst — the concurrency bound is set too high, and the parallel steps hit provider limits and fail together.",
+        "Joiner gap — one branch errors, and the joiner assembles an answer from the rest without flagging the missing piece."
+      ],
+      "structure": "Task --> Planner (dependency DAG of tool calls) --> Task-Fetching Unit --dispatch when inputs resolve, bounded concurrency--> parallel steps --> Variable resolver feeds dependent steps --> Joiner --> Final answer"
     },
     {
       "id": "map-reduce",
@@ -1809,7 +1890,14 @@
         "Reduce-stage bottleneck share — wall-clock spent in reduce versus map",
         "Conflict resolution accuracy — sample-audited correctness of reconciled contradictory chunks",
         "Cost per resolved item — total spend divided by accepted aggregated outputs"
-      ]
+      ],
+      "failure_modes": [
+        "Split dependency — a fact that spans two chunks is seen by neither mapper, and the reduce step cannot rebuild it.",
+        "Reduce bottleneck — every chunk answer flows into one reduce call that is itself too large, and quality drops at the aggregation stage.",
+        "Unresolved conflict — two chunks give different answers about the same entity, and the reducer keeps both or picks one without calibration.",
+        "Entity double-count — the same entity appears in several chunks, and the reducer counts it once per chunk."
+      ],
+      "structure": "Oversize input --> Chunker --> Mapper per chunk (parallel, no cross-chunk view) --> Reducer (structured aggregation) --> Confidence calibration resolves conflicts --> Final answer"
     },
     {
       "id": "outer-inner-agent-loop",
@@ -1932,6 +2020,12 @@
         "Milestone-miss detection latency — turns between miss and outer noticing",
         "Subtask success rate — fraction of dispatched subtasks the inner completed",
         "Coordination overhead — outer-loop tokens as fraction of total run cost"
+      ],
+      "failure_modes": [
+        "Mid-step interrupt — the outer planner interrupts while the inner agent is halfway through a tool call, and partial state is left behind.",
+        "Scope creep in the inner loop — the inner agent widens its subtask on its own, and the outer plan no longer reflects what is being done.",
+        "Costly monitoring — the outer agent checks progress with an LLM call too often, and monitoring cost rivals the work itself.",
+        "Missed milestone signal — the inner result is reported in a shape the outer cannot read, so the outer never replans when it should."
       ]
     },
     {
@@ -2059,7 +2153,14 @@
         "Coordination gap — distance between local plans and the implied global plan",
         "Fragment-exchange volume — operational cost of coordination",
         "Revision-thrash rate — frequency of contradictory updates"
-      ]
+      ],
+      "failure_modes": [
+        "Fragment conflict — two agents send incompatible plan fragments, and with no resolution rule each keeps its own version.",
+        "Revision thrash — fragments change faster than they can be merged, and agents fall back to acting on local plans only.",
+        "Missing global structure — a constraint spans agents that never exchange fragments, so the partial plan cannot see it and the joint action breaks it.",
+        "Stale fragment — an agent acts on a neighbour's fragment that was already revised, and their actions collide."
+      ],
+      "structure": "Each agent: Local planner --> local actions + partial-global-plan fragment --exchange with neighbours--> Fragment merger --> updated shared view --> execute local actions --new observations--> revise fragment --> exchange again"
     },
     {
       "id": "passive-goal-creator",
@@ -2173,6 +2274,12 @@
         "Goal-misinterpretation rate — refined goals the user later corrects",
         "Latency cost of the refinement step — extra turn-time before planning begins",
         "Memory-retrieval hit rate — fraction of refinements that pulled relevant context"
+      ],
+      "failure_modes": [
+        "Wrong goal, clean plan — the goal creator misreads the prompt, and the planner builds a correct plan for the wrong task.",
+        "Forced refinement — the prompt is too ambiguous to refine, but the component still emits a precise-looking goal by filling gaps with guesses.",
+        "Raw-prompt bypass — a downstream component reads the user's raw prompt instead of the refined goal, and the two disagree.",
+        "Stale memory — retrieved past tasks or examples no longer match the current request, and they pull the goal toward an old intent."
       ]
     },
     {
@@ -2401,6 +2508,12 @@
         "Plan-step success rate — fraction of planned steps that executed without failure",
         "Plan inspectability lag — time between plan emission and first tool firing",
         "Brittleness rate — runs that completed the plan but produced wrong output"
+      ],
+      "failure_modes": [
+        "Plan-world mismatch — the plan assumes a file, field or tool state that does not exist, and early steps fail on facts the planner never checked.",
+        "Silent deviation — the executor skips or reorders steps without raising a replan request, and the plan no longer explains the run.",
+        "Replan loop — each surprise triggers a new plan, latency stacks up, and the trace is hard to debug across plan versions.",
+        "Weak executor — the cheaper model cannot carry out a step that needed more judgement, and returns a plausible but wrong result."
       ]
     },
     {
@@ -2519,7 +2632,14 @@
         "Replan-trigger precision — fraction of observer replans that were actually warranted",
         "False respond rate — observer declaring done when the plan was not satisfied",
         "End-to-end success vs unsupervised plan-and-execute — quality lift from the third role"
-      ]
+      ],
+      "failure_modes": [
+        "Lenient observer — the observer reads the cumulative result as on track when it is not, and the run finishes with a wrong answer.",
+        "Executor self-stop — the executor quits or replans on its own, bypassing the observer and the plan check.",
+        "Per-step latency — the observer runs after every step, and the loop becomes as slow as the ReAct loop it replaced.",
+        "Prompt drift — one of the three role prompts is updated and the others are not, so the observer judges against a plan format the planner no longer emits."
+      ],
+      "structure": "Goal --> Planner --plan--> Executor --step result--> Observer --loop--> Executor. Observer --replan--> Planner. Observer --respond--> Final answer"
     },
     {
       "id": "planner-generator-evaluator-harness",
@@ -2667,6 +2787,12 @@
         "Chunk-acceptance rate — fraction of generator chunks that pass evaluation first try",
         "Cross-run rubric stability — variance in evaluator scores on the same artefact",
         "Total wall-clock per accepted chunk — including evaluator retries"
+      ],
+      "failure_modes": [
+        "Trace leak — the evaluator is given the generator's scratch notes, and it grades the reasoning it was shown rather than the artefact.",
+        "Bad rubric — the fixed rubric checks the wrong things, and the evaluator passes broken chunks run after run.",
+        "Trusted bad plan — the planner lists a wrong or missing feature, and the generator builds every chunk on top of it.",
+        "Generator re-planning — the generator changes the feature list to make a chunk easier, and the plan and artefact drift apart."
       ]
     },
     {
@@ -2884,7 +3010,14 @@
       "tools": [
         "Observability — logs, traces, and metrics that surface the pattern in production",
         "Eval harness — runs that quantify the pattern's frequency or severity over time"
-      ]
+      ],
+      "failure_modes": [
+        "Rubber-stamp critique — the agent reads the spec and reports no gaps, and the team starts coding with false confidence.",
+        "Skipped under deadline — the spec step is dropped when time is short, and the loop runs on a bare prompt again.",
+        "Over-specified exploration — a five-pillar spec fixes a shape for work whose right shape is still unknown, and the loop builds the wrong thing precisely.",
+        "Spec drift — the code changes after the spec is stored, and later iterations read a target that no longer matches the code."
+      ],
+      "structure": "Human authors spec (context, requirements, constraints, examples, definition-of-done) --> Agent critiques for ambiguity and edge cases --gaps--> Human resolves --> re-critique --no gaps--> Persist spec in issue tracker --> Implementation loop reads spec"
     },
     {
       "id": "proactive-goal-creator",
@@ -3012,6 +3145,12 @@
         "Multimodal capture cost — bandwidth and compute overhead per refined goal",
         "Accessibility task completion lift — success rate for users who cannot articulate fully",
         "Disclosure compliance — fraction of captures with active user notification"
+      ],
+      "failure_modes": [
+        "False trigger — a gesture or screen change is read as intent, and the agent interrupts the user with an unwanted action.",
+        "Undisclosed capture — cameras or screen recording run without clear notice, and users lose trust once they find out.",
+        "Raw-stream overload — sensor data reaches the planner without being synthesised, and planning slows or fails on input it cannot use.",
+        "Capture cost creep — continuous multimodal processing runs all the time, and cost grows with no matching gain in goal quality."
       ]
     },
     {
@@ -3134,7 +3273,14 @@
         "Per-leaf success rate — quality of individual sub-answers",
         "Composition quality — judge score on the merged response",
         "Fan-out width distribution — number of leaves per query"
-      ]
+      ],
+      "failure_modes": [
+        "Dropped dimension — the decomposer leaves out one part of the question, and the final answer silently ignores it.",
+        "Leaf explosion — the decomposer splits a question into too many sub-queries, and cost and latency balloon.",
+        "Flattened aggregate — the aggregator merges leaf answers into a summary that loses caveats each leaf carried.",
+        "Hidden dependency — sub-queries treated as independent actually need each other's answers, and parallel leaves answer on wrong assumptions."
+      ],
+      "structure": "User query --> Decomposer (independent sub-queries, logged) --> leaf executors per sub-query (parallel or sequential: RAG, tool, answering agent) --> Aggregator --> Composed response"
     },
     {
       "id": "react",
@@ -3345,6 +3491,12 @@
         "Step-budget exhaustion rate — runs that hit the bound without answering",
         "Hallucinated-fact rate — answers asserting facts no observation supplied",
         "Per-step round-trip latency — wall-clock cost of one Thought-Action-Observation cycle"
+      ],
+      "failure_modes": [
+        "Wandering trace — with no global plan, the agent follows one interesting observation after another and drifts away from the question.",
+        "Budget exhaustion — the step budget runs out mid-investigation, and the agent stops with no answer or answers early to fit.",
+        "Slow long traces — every step waits on the last, so a task with many lookups takes far longer and costs far more than its parts.",
+        "Ignored observation — the thought step restates the prior belief instead of reading the tool result, and the agent repeats the same call."
       ]
     },
     {
@@ -3475,7 +3627,14 @@
         "Trigger-precision — fraction of replans that were warranted",
         "Partial-progress preservation — fraction of pre-failure work carried into the new plan",
         "End-to-end success vs no-replan baseline — quality lift from the recovery path"
-      ]
+      ],
+      "failure_modes": [
+        "Replan thrash — triggers fire on every minor error, and the agent keeps replacing plans without finishing any step.",
+        "Lost progress — the new plan is not checked against finished work, and completed steps are redone or undone.",
+        "Missing failure context — the planner reruns without the error details, and produces a plan with the same flaw.",
+        "Silent partial result — a failure never reaches a trigger, and the executor returns partial output that looks complete."
+      ],
+      "structure": "Plan v1 --> Executor --tool error / unexpected observation / observer dissent--> Replan trigger --> Failure-context capture --> Planner --> Plan v2 (compatible partial progress kept) --> Executor"
     },
     {
       "id": "rewoo",
@@ -3576,6 +3735,12 @@
         "Observation-dependent failure — runs where the static plan needed mid-run reshaping",
         "Solver context size — total tokens at the final synthesis call",
         "End-to-end accuracy versus ReAct — quality at lower cost"
+      ],
+      "failure_modes": [
+        "Fully paid bad plan — the planner emits a wrong DAG, and every tool call in it runs before the solver sees the mistake.",
+        "Blind to surprises — an early observation shows the task is different from what was planned, but the planner never sees it and later steps run anyway.",
+        "Broken variable reference — a step points to #t2 when it needed #t1, and the worker substitutes the wrong output.",
+        "Solver over-trust — the solver treats a failed or empty tool result as evidence and writes a confident answer from it."
       ]
     },
     {
@@ -3730,6 +3895,12 @@
         "Context-bloat resistance — token growth per cycle versus per tool call",
         "Verify-phase skip rate — incidents where revision happened without verification",
         "Budget-bound respect — fraction of runs terminating cleanly versus unbounded-loop drift"
+      ],
+      "failure_modes": [
+        "Endless rumination — termination criteria are loose, and the loop keeps revising hypotheses until the budget is gone.",
+        "Skipped verify — the agent revises its hypothesis straight from search results, and unchecked evidence steers the run.",
+        "Compaction loss — summaries replace raw search dumps, and a detail needed later for a revision is no longer available.",
+        "Self-agreement — the same model checks its own hypothesis, and it keeps confirming an early wrong frame."
       ]
     },
     {
@@ -3859,7 +4030,14 @@
         "State-continuity correctness — runs that correctly picked up from prior state",
         "Schedule-skew drift — variance between expected and actual cadence",
         "Idempotency-failure incidents — duplicate side effects from double-fired ticks"
-      ]
+      ],
+      "failure_modes": [
+        "Idle-run cost — the agent runs every tick even when nothing has changed, and most of the spend produces nothing new.",
+        "Cadence skew — runs fire late or overlap, and the output arrives after people needed it.",
+        "Double tick — the scheduler fires twice, the idempotency guard is missing, and the digest goes out twice.",
+        "Lost state — the state write fails at the end of a run, and the next run starts from zero and repeats old items."
+      ],
+      "structure": "Scheduler (cron) --tick--> Agent runtime --> read Durable state --> execute task --> Result writer (sink) --> write Durable state --> exit --> next tick"
     },
     {
       "id": "spec-driven-loop",
@@ -3991,7 +4169,14 @@
         "Test-gate pass rate — fraction of iterations that pass the gate",
         "fix_plan drift — incidents where the agent rewrote the plan in unexpected ways",
         "Resumption fidelity — ability to resume mid-loop after interruption with no rework"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong-shape burn — the prompt or spec is off, and the loop runs many iterations producing work nobody wanted.",
+        "Weak test gate — the tests pass without checking the spec, and the loop exits on unfinished work.",
+        "Fix-plan drift — the agent rewrites fix_plan.md in ways that drop tasks, and later iterations never return to them.",
+        "Disk-only memory — anything the agent did not write to disk is gone next iteration, and the same dead end is retried."
+      ],
+      "structure": "Outer shell loop --> read PROMPT.md + fix_plan.md --> agent works one task --> agent updates fix_plan.md --> test gate --spec not satisfied--> next iteration. Test gate --spec satisfied--> exit loop"
     },
     {
       "id": "spec-first-agent",
@@ -4121,7 +4306,14 @@
         "Reviewer round-trip time — turnaround on spec-change PRs",
         "Drift visibility — fraction of behaviour changes that surfaced as spec diffs",
         "Spec-quality gap — outcomes the spec failed to constrain that needed re-authoring"
-      ]
+      ],
+      "failure_modes": [
+        "Thin spec — the spec leaves out a requirement, and the agent declares done on work that misses it.",
+        "Uncontrolled spec edits — the agent rewrites the spec to match what it built, and the target quietly moves.",
+        "Out-of-scope work — the agent does work not named in the spec, and reviewers cannot trace why it happened.",
+        "Stale spec — the team changes direction in conversation but not in the file, and the agent keeps building the old target."
+      ],
+      "structure": "Human author --writes--> Spec file (PROMPT.md / fix_plan.md) --read each iteration--> Agent loop --work only on named goals--> controlled spec updates (reviewed as diffs) --> Spec defines done --> stop"
     },
     {
       "id": "todo-list-driven-agent",
@@ -4273,6 +4465,12 @@
         "Plan-mutation discipline — incidents of capricious rewrites unrelated to progress",
         "Tick-action correspondence — fraction of ticks that match an actual completed action",
         "End-to-end completion on long-horizon tasks — success rate versus an in-context-only baseline"
+      ],
+      "failure_modes": [
+        "Capricious rewrite — the agent rewrites todo.md mid-run and drops items it found hard, so they are never done.",
+        "Tick without work — an item is marked done before the action is recorded, and a resumed run skips it.",
+        "Re-injection cost — the unticked tail grows long, and re-injecting it every turn eats a large share of the token budget.",
+        "Stale follow-ups — dead-end items are never removed, and the agent keeps returning to work that no longer matters."
       ]
     },
     {
@@ -4435,6 +4633,12 @@
         "Artefact-diff review quality — reviewer ability to read the diff versus reconstructing intent",
         "Code escape-hatch share — fraction of nodes that bypass the typed vocabulary via Code nodes",
         "Subflow modularisation depth — at what graph size readability collapses without it"
+      ],
+      "failure_modes": [
+        "Code-node escape — bespoke logic moves into Code nodes, and the canvas shows a simple flow while the real behaviour hides inside them.",
+        "Unreadable canvas — a large graph is kept on one canvas without subflows, and reviewers can no longer follow its paths.",
+        "Diff blindness — changes are reviewed on the canvas only, and a moved edge goes unnoticed without an artefact-level diff.",
+        "Graph-runtime mismatch — the runtime executes a path that is not in the stored artefact, and the canvas stops describing what runs."
       ]
     },
     {
@@ -4544,7 +4748,14 @@
         "Steps per plan distribution",
         "Plan-adjustment rate (mid-plan revisions)",
         "Cost vs one-shot plan generation"
-      ]
+      ],
+      "failure_modes": [
+        "History bloat — each step's query carries all prior steps and outcomes, and late steps run on an overlong context.",
+        "Call multiplication — every step is a separate model call, and a long task costs many times a one-shot plan.",
+        "Lost direction — the model sees only the next step, and a run drifts with no plan to show it left the goal.",
+        "No parallelism — independent steps still wait for each other because none is planned until the previous one finishes."
+      ],
+      "structure": "Goal + history so far + current observation --> query model for next step --> execute step --> observe outcome --> history accumulator --goal not met and budget left--> query again. Termination check --goal met / budget exhausted--> done"
     },
     {
       "id": "single-path-plan-generator",
@@ -4652,7 +4863,14 @@
         "Plan completion rate",
         "Replan rate",
         "Cost per plan vs multi-path"
-      ]
+      ],
+      "failure_modes": [
+        "Wrong path committed — the generator picks a poor route early, and the run only finds out after several steps have executed.",
+        "Replan churn — steps keep failing on a task whose paths differ a lot in quality, and each failure forces a full new plan.",
+        "Missed better route — a cheaper or safer path existed, but the single path never considered it.",
+        "Used where search was needed — the team applies the linear generator to a hard task, and plan quality drops with no signal that alternatives were skipped."
+      ],
+      "structure": "Goal --> Single-path generator --> linear plan (step 1 -> step 2 -> ... -> step N) --> Sequential executor --step fails or goal mismatch--> replan-on-failure --> Single-path generator (from new state)"
     },
     {
       "id": "multi-path-plan-generator",
@@ -4770,7 +4988,14 @@
         "Branching factor K — actual vs declared",
         "Candidate-quality variance",
         "Search depth × candidate-count cost"
-      ]
+      ],
+      "failure_modes": [
+        "Near-duplicate candidates — the generator returns K versions of the same step, and the search policy has nothing real to choose between.",
+        "Cost per node — K candidates at every node multiply model calls, and a deep tree costs far more than planned.",
+        "Tree storage growth — the candidate tree is kept in full, and memory grows with depth times branching.",
+        "Generator picks — the generator ranks or filters its own candidates, and the separate search policy is quietly bypassed."
+      ],
+      "structure": "Current plan node (+ history, K) --> Multi-path generator --> candidates 1..K --> Candidate evaluator (scores) --> Search policy (tree-of-thoughts / LATS / beam / MCTS) --> expand chosen candidates --> new nodes in candidate tree"
     },
     {
       "id": "mental-model-in-the-loop-simulator",
@@ -4895,7 +5120,14 @@
         "Pre-commit reject rate (strategies rejected after sim)",
         "Simulator vs real outcome divergence",
         "Strategy-revision count per commit"
-      ]
+      ],
+      "failure_modes": [
+        "Low-fidelity simulator — the simulator models the environment badly, and a strategy that scores well fails in the real world.",
+        "Out-of-scope effects — the strategy depends on humans or external state the simulator cannot model, and the score ignores them.",
+        "Simulation delay — each candidate strategy waits on a slow simulation, and the decision arrives too late to matter.",
+        "Overclaimed scope — the simulator is treated as covering more of the environment than declared, and its pass is read as full safety."
+      ],
+      "structure": "Candidate multi-step strategy --> Strategy runner in internal simulator (world model / state machine / what-if engine) --> Outcome scorer --acceptable--> commit to real execution. Outcome scorer --risk--> revise strategy --> simulate again"
     },
     {
       "id": "deterministic-control-flow-not-prompt",
@@ -5030,7 +5262,14 @@
         "Branch distribution — coverage of each path",
         "Signal-outside-set rate — fallback fires",
         "Test coverage % of declared branches"
-      ]
+      ],
+      "failure_modes": [
+        "Off-schema signal — the LLM returns a label outside the enum, and with no fallback handler the code crashes or takes a default branch.",
+        "Branch logic creeps into prompts — a new case is handled by telling the model what to do next, and the untestable path returns.",
+        "Overly coarse signal — the enum has too few values for the real cases, and inputs are forced into the nearest wrong branch.",
+        "Missed branch enumeration — a real-world case has no code path, and it falls through to whatever branch handles unknowns."
+      ],
+      "structure": "Input --> Deterministic code --> LLM at branch point (classify or score) --> Structured signal (typed enum / number) --> Deterministic branch router --> Path A / Path B / Path C. Unexpected signal --> Fallback handler"
     },
     {
       "id": "stateless-reducer-agent",
@@ -5174,7 +5413,14 @@
         "Replay success rate",
         "Resume latency from log",
         "Event volume per agent run"
-      ]
+      ],
+      "failure_modes": [
+        "Hidden state — a closure or global keeps data outside the reducer, and replay produces a different result from the original run.",
+        "Executed side effect — the reducer calls an API directly instead of returning a descriptor, and replay repeats the real action.",
+        "Log dependency outage — the external event log is unavailable, and the agent cannot advance or resume.",
+        "Dispatch gap — the runtime crashes between logging a descriptor and executing it, and the side effect is lost or run twice."
+      ],
+      "structure": "(Current state, Event) --> Pure reducer --> (New state, side-effect descriptors) --> Event appended to durable log --> Runtime dispatches descriptors. Pause = stop dispatch; Resume / Replay / Time-travel = re-run reducer over a log slice"
     },
     {
       "id": "hybrid-htn-generative-agent",
@@ -5284,7 +5530,14 @@
         "Leaf invocation rate — share of nodes that call LLM",
         "HTN depth distribution",
         "Cost vs pure-LLM planning"
-      ]
+      ],
+      "failure_modes": [
+        "Leaf schema mismatch — an LLM leaf returns text in a shape the parent node does not expect, and assembly fails or drops content.",
+        "LLM in the backbone — an interior node starts calling the LLM for convenience, and the deterministic structure becomes inconsistent.",
+        "Rigid decomposition — the HTN has no method for a new task variant, and the agent cannot handle it at all.",
+        "Split maintenance — the HTN and the leaf prompts are changed separately, and they stop agreeing on what each leaf produces."
+      ],
+      "structure": "Root task --deterministic HTN decomposition--> sub-tasks --> ... --> leaves --Leaf invoker--> LLM (draft / classify / summarise, per leaf-output schema) --> Parent assembler combines leaf outputs --> Final output"
     },
     {
       "id": "strategic-preparation-phase",
@@ -5410,7 +5663,14 @@
         "Preparation-step coverage on complex tasks",
         "Premature-closure rate before/after preparation",
         "Artifact-citation rate in plans"
-      ]
+      ],
+      "failure_modes": [
+        "Ungated overhead — every request goes through preparation, and easy tasks pay latency for an artifact nobody needed.",
+        "Uncited artifact — the planner produces a plan without reading the problem-space artifact, and the preparation step is wasted.",
+        "Ill-fitting format — the artifact template is too rigid for the task, and key constraints end up left out or forced into the wrong field.",
+        "Missed constraint interaction — the artifact lists constraints one by one but not how they depend on each other, and the plan still breaks on their combination."
+      ],
+      "structure": "Request --> Complexity gate --trivial--> Planner. Complexity gate --complex--> Preparation step --> Problem-space artifact (constraints, dependency graph, success criteria, known unknowns) --> Planner reads and cites artifact --> Execute --> Verifier checks against artifact success criteria"
     },
     {
       "id": "decision-context-maps",
@@ -5523,7 +5783,14 @@
         "Per-decision-class schema coverage",
         "Context-gathering latency",
         "Held-decision rate by missing-entry cause"
-      ]
+      ],
+      "failure_modes": [
+        "Stale entry — a context source is read from a cache past its freshness limit, and the decision uses a machine status that changed.",
+        "Incomplete schema — the Context Map for a decision class omits an input, so the map is complete on paper but misses the contraindication.",
+        "Slow source — one data source responds slowly, and every decision in that class waits on it.",
+        "Silent proceed — a required entry is missing, but the agent decides anyway instead of holding and escalating."
+      ],
+      "structure": "Decision request --> Context Map schema for decision class --> Context gatherer (query sources, check freshness) --> Populated Context Map --complete--> Decide and cite map entries. Populated Context Map --missing entries--> Hold decision and escalate to human"
     },
     {
       "id": "local-to-cloud-handoff",
@@ -5659,7 +5926,14 @@
         "Notification latency — time between cloud-run completion or input-need and the developer being notified",
         "Unobserved-drift incidents — detached runs that drifted or overran budget before being caught"
       ],
-      "last_updated": "2026-06-04"
+      "last_updated": "2026-06-04",
+      "failure_modes": [
+        "Lossy snapshot — uncommitted files or local tool state are not captured, and the cloud agent resumes on a different working tree.",
+        "Unobserved drift — the detached run goes off course while the developer is away, and weak budget limits let it spend unchecked.",
+        "Silent block — the cloud agent needs input but does not notify, and the run waits for hours with nobody aware.",
+        "Double editing — the developer keeps editing locally after handoff, and reattaching produces conflicting changes."
+      ],
+      "structure": "Local interactive session (plan + history + working tree) --explicit handoff--> State snapshotter --> Cloud agent runtime (clone repo, restore context, own sandbox and credentials) --> detached autonomous run (developer disconnects) --done or needs input--> Async notifier --> reattach / review diff / pull back to local"
     },
     {
       "id": "two-rate-brain-controller-split",

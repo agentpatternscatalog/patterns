@@ -2,12 +2,12 @@
 
 **Also known as:** 指揮者モデル, Trained Conductor, Fugu Conductor, Self-Calling Orchestrator
 
-**Category:** Multi-Agent
-**Status in practice:** emerging
+**Category:** Multi-Agent  
+**Status in practice:** experimental
 
 ## Intent
 
-Train a small meta-model with reinforcement learning to dynamically dispatch sub-tasks across a pool of frontier LLM workers, learning the communication topology end-to-end rather than hard-coding routing, and allowing the conductor to recursively invoke itself as a worker.
+Train a small meta-model with reinforcement learning to dispatch sub-tasks across a pool of frontier LLM workers, learning the communication topology end-to-end and allowing the conductor to recursively invoke itself as a worker.
 
 ## Context
 
@@ -79,6 +79,13 @@ A product routes user tasks across four frontier models plus a code-execution to
 - Recursive self-dispatch needs strict depth and budget caps or it can fan out aggressively.
 - Worker drift (a vendor updates a model) silently changes the policy's effective action semantics.
 
+## Failure modes
+
+- Recursive fan-out — the conductor keeps dispatching sub-tasks back to itself, and without strict caps the task spreads across many calls.
+- Silent worker drift — a vendor updates a worker model, and the learned routing now sends sub-tasks to a worker that behaves differently.
+- Unauditable routing — a bad dispatch occurs, and nobody can read the learned policy to see why that worker was chosen.
+- Reward hacking — a weak final-task reward teaches the conductor routes that score well but do not solve the task.
+
 ## What this pattern constrains
 
 The conductor must respect a hard recursion-depth cap and a step budget on every task, must emit explicit sub-task instructions and worker selections rather than free-form thoughts, and must not invoke workers outside the registered pool — including its own untrained ancestor models.
@@ -97,21 +104,43 @@ The conductor must respect a hard recursion-depth cap and a step budget on every
 - Reward signal is not available or is too noisy to learn from.
 - Audit and explainability requirements demand human-readable routing rules.
 
+## Components
+
+- RL-trained conductor — small 7B-13B meta-model that emits sub-task instructions and picks a worker
+- Worker pool — heterogeneous frozen frontier LLMs and tools, plus the conductor invocable as a worker
+- Reward signal — end-of-task outcome score that updates the conductor's policy only
+- Recursion-depth cap — hard limit preventing infinite self-dispatch fan-out
+- Step budget — global cap on conductor steps per task
+
+## Tools
+
+- Multiple frontier LLM APIs — heterogeneous workers (one strong at long-context, one at code, one at vision)
+- RL training pipeline — off-policy or on-policy trainer that updates the conductor against task rewards
+- Tool catalogue — non-LLM tools (code execution, search) registered as worker actions
+- Trace logger — per-task record of dispatches, worker outputs, and rewards for training
+
+## Evaluation metrics
+
+- Average cost-per-task — drop after switching from rule-based router to trained conductor
+- Routing-accuracy lift — share of sub-tasks sent to the right worker versus the hand-coded baseline
+- Recursion-depth distribution — how often self-dispatch is used and against the cap
+- Reward improvement curve — policy improvement over training iterations
+- Worker-drift sensitivity — outcome degradation when an upstream vendor silently updates a worker model
+
 ## Known uses
 
-- **[Sakana AI Fugu](https://sakana.ai/fugu-beta/)** — *Available* — Commercial RL-trained conductor orchestrating across frontier LLM workers; beta announced April 2026.
-- **[Sakana AI Conductor + Trinity](https://sakana.ai/learning-to-orchestrate/)** — *Available* — Research line on learning to orchestrate, accepted at ICLR 2026.
+- **[Sakana AI Fugu](https://sakana.ai/fugu-beta/)** _available_ — Commercial RL-trained conductor orchestrating across frontier LLM workers; beta announced April 2026.
+- **[Sakana AI Conductor + Trinity](https://sakana.ai/learning-to-orchestrate/)** _available_ — Research line on learning to orchestrate, accepted at ICLR 2026.
 
 ## Related patterns
 
-- *specialises* → [orchestrator-workers](orchestrator-workers.md) — Specialises orchestrator-workers with an RL-trained meta-model instead of rule-based routing.
-- *alternative-to* → [multi-model-routing](multi-model-routing.md) — Multi-model-routing uses static cascades or heuristics; this pattern learns the routing policy.
-- *alternative-to* → [mixture-of-experts-routing](mixture-of-experts-routing.md) — MoE routing selects experts inside one model; this pattern routes across whole frontier models.
-- *complements* → [agent-as-tool-embedding](agent-as-tool-embedding.md) — Workers in the pool may themselves be agents wrapped as tools.
+- _specialises_ **Orchestrator-Workers** — Specialises orchestrator-workers with an RL-trained meta-model instead of rule-based routing.
+- _alternative-to_ **Multi-Model Routing** — Multi-model-routing uses static cascades or heuristics; this pattern learns the routing policy.
+- _alternative-to_ **Mixture of Experts Routing** — MoE routing selects experts inside one model; this pattern routes across whole frontier models.
+- _complements_ **Agent-as-Tool Embedding** — Workers in the pool may themselves be agents wrapped as tools.
+- _complements_ **Served-Policy Anchoring** — An orchestrator trained with reinforcement learning inherits exactly this seam, since its rollouts come from an inference engine and its gradients from a training engine.
 
 ## References
 
-- (blog) Sakana AI, *Learning to Orchestrate*, 2025, <https://sakana.ai/learning-to-orchestrate/>
-- (blog) Sakana AI, *Fugu beta*, 2026, <https://sakana.ai/fugu-beta/>
-
-**Tags:** multi-agent, orchestration, reinforcement-learning, routing, self-recursion
+- [Learning to Orchestrate](https://sakana.ai/learning-to-orchestrate/) — Sakana AI, 2025
+- [Fugu beta](https://sakana.ai/fugu-beta/) — Sakana AI, 2026

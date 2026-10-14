@@ -23,20 +23,6 @@ A single agent doing the research serially is bottlenecked on its own token gene
 - Synthesis quality bounded by lead agent's reasoning over fragmented results.
 - Information overlap across sub-agents is wasted compute.
 
-## Applicability
-
-**Use when**
-
-- Research-shaped tasks benefit from breadth-first parallel sub-agents.
-- A lead can plan, dispatch, and synthesise findings rather than execute serially.
-- Source diversity matters and a single agent's serial search would be a bottleneck.
-
-**Do not use when**
-
-- The query is narrow enough that a single agent answers it cheaply.
-- Generic orchestrator-workers fits the task without the research-specific structure.
-- Synthesis effort would dominate and erase the parallelism gains.
-
 ## Therefore
 
 Therefore: have a lead plan parallel research questions, fan out to independent sub-agents that return structured findings, and synthesise with optional follow-up spawns, so that breadth-first exploration replaces serial single-thread reasoning.
@@ -45,9 +31,11 @@ Therefore: have a lead plan parallel research questions, fan out to independent 
 
 Lead agent receives the user query, plans a set of parallel research questions, and dispatches each to a sub-agent. Each sub-agent searches independently and returns structured findings to the lead. The lead reads the returned findings and synthesises the answer; if synthesis reveals gaps, the lead spawns additional sub-agents.
 
-## Example scenario
+## Structure
 
-An investment research firm asks an agent to write a brief on a niche industrial-equipment market by Friday. A single agent takes hours and misses half the relevant sources. They restructure as lead-researcher: the lead reads the brief, plans five parallel research questions (market size, top vendors, regulatory landscape, recent M&A, customer reviews), and dispatches each to a sub-agent that searches independently. Findings come back as structured records; the lead synthesises them and dispatches a follow-up sub-agent for one gap it spots. Wall-clock time drops from hours to twenty minutes.
+```
+User query --> Lead (plan research questions) --dispatch in parallel--> Sub-agents (search independently) --structured findings--> Lead (synthesise) --gaps?--> [yes: spawn extra sub-agents | no: answer]
+```
 
 ## Diagram
 
@@ -66,6 +54,10 @@ flowchart TD
   Syn -- no --> Ans[Synthesised answer]
 ```
 
+## Example scenario
+
+An investment research firm asks an agent to write a brief on a niche industrial-equipment market by Friday. A single agent takes hours and misses half the relevant sources. They restructure as lead-researcher: the lead reads the brief, plans five parallel research questions (market size, top vendors, regulatory landscape, recent M&A, customer reviews), and dispatches each to a sub-agent that searches independently. Findings come back as structured records; the lead synthesises them and dispatches a follow-up sub-agent for one gap it spots. Wall-clock time drops from hours to twenty minutes.
+
 ## Consequences
 
 **Benefits**
@@ -78,23 +70,66 @@ flowchart TD
 - Sub-agent overlap and redundancy.
 - Synthesis is the new bottleneck.
 
+## Failure modes
+
+- Overlapping sub-agents — the plan splits the query into questions that overlap, and several sub-agents read the same sources.
+- Synthesis bottleneck — the lead receives more findings than it can read well and writes a shallow answer.
+- Gap loop — the lead keeps spawning extra sub-agents for every small gap and never settles on an answer.
+- Narrow plan — the lead's first plan misses a whole angle of the question, and no sub-agent ever looks there.
+
 ## What this pattern constrains
 
 Sub-agents return findings only to the lead; peer-to-peer communication is forbidden.
 
+## Applicability
+
+**Use when**
+
+- Research-shaped tasks benefit from breadth-first parallel sub-agents.
+- A lead can plan, dispatch, and synthesise findings rather than execute serially.
+- Source diversity matters and a single agent's serial search would be a bottleneck.
+
+**Do not use when**
+
+- The query is narrow enough that a single agent answers it cheaply.
+- Generic orchestrator-workers fits the task without the research-specific structure.
+- Synthesis effort would dominate and erase the parallelism gains.
+
+## Components
+
+- Lead researcher — plans parallel sub-questions, dispatches sub-agents, and synthesises findings
+- Research sub-agent — independent worker that searches for one sub-question and returns structured findings
+- Structured-findings schema — typed return shape sub-agents must conform to
+- Gap-detection step — synthesis check that decides whether to spawn follow-up sub-agents
+- Inspectable scratchpad — auditable record of plan, dispatches, and merged findings
+
+## Tools
+
+- Web-search and retrieval APIs — primary information-gathering tools inside each sub-agent
+- LLM API — one call for the lead's plan plus one per sub-agent per search turn
+- Parallel-dispatch runtime — concurrency primitives that fan out sub-agents simultaneously
+
+## Evaluation metrics
+
+- Wall-clock-time reduction — speedup versus a serial single-agent baseline
+- Source-coverage breadth — distinct sources cited across sub-agent findings
+- Sub-agent overlap rate — redundant work where two sub-agents fetched the same source
+- Synthesis-quality lift — human-rated answer quality versus a single-agent serial run
+- Cost per research task — total spend across lead and all sub-agents
+
 ## Known uses
 
-- **[Anthropic Multi-Agent Research](https://www.anthropic.com/engineering/multi-agent-research-system)** — *Available*
-- **OpenAI Deep Research** — *Available*
+- **[Anthropic Multi-Agent Research](https://www.anthropic.com/engineering/multi-agent-research-system)** _available_
+- **OpenAI Deep Research** _available_
 
 ## Related patterns
 
-- *specialises* → [orchestrator-workers](orchestrator-workers.md)
-- *uses* → [parallelization](parallelization.md)
-- *specialises* → [supervisor](supervisor.md)
+- _specialises_ **Orchestrator-Workers**
+- _uses_ **Parallelization**
+- _specialises_ **Supervisor**
+- _alternative-to_ **Clone Fan-Out Research**
+- _alternative-to_ **Rumination Agent**
 
 ## References
 
-- (blog) Anthropic, *How we built our multi-agent research system*, 2025, <https://www.anthropic.com/engineering/multi-agent-research-system>
-
-**Tags:** multi-agent, research, lead-subagent
+- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) — Anthropic, 2025

@@ -2,8 +2,8 @@
 
 **Also known as:** 通用副本扇出, Wide Research, Identical-Worker Fan-Out, Manus Wide Research
 
-**Category:** Planning & Control Flow
-**Status in practice:** emerging
+**Category:** Planning & Control Flow  
+**Status in practice:** experimental
 
 ## Intent
 
@@ -79,6 +79,13 @@ A user asks an agent to compare 200 candidate libraries against five evaluation 
 - Identical clones cannot specialise to harder slices.
 - Without strict spawn bounds this collapses into Unbounded Subagent Spawn.
 
+## Failure modes
+
+- Weak aggregator — hundreds of good clone results feed one poor consolidation pass, and the final answer is no better than a single run.
+- Spawn creep — the agent is allowed to start more clones on its own, and the run turns into unbounded subagent spawning.
+- Shared-state leak — clones share a sandbox or a mutable store, and one clone's writes corrupt another's slice.
+- Uneven slices — every clone gets the same capability, so the hard slices get the same effort as the easy ones and come back thin.
+
 ## What this pattern constrains
 
 The driver must declare N up front; the agent itself cannot decide to spawn more clones recursively; clones must run in isolated sandboxes with no shared mutable state; results must be aggregated in a single declared pass, not by inter-clone chatter.
@@ -97,24 +104,49 @@ The driver must declare N up front; the agent itself cannot decide to spawn more
 - No aggregation strategy exists; raw N outputs are not a deliverable.
 - Per-clone cost makes N infeasible at the needed coverage.
 
+## Components
+
+- Driver — partitions the input and declares the fan-out bound N
+- Identical agent clones — N full-capability instances seeded with the same system prompt
+- Isolated sandboxes — one per clone, preventing shared mutable state
+- Structured result bucket — collects per-clone outputs in a canonical schema
+- Aggregator — single one-shot vote, rank, dedup, or synthesis pass over the bucket
+
+## Tools
+
+- Sandbox provisioner — VMs or worktrees that give each clone an isolated runtime
+- LLM API — invoked independently by every clone for its slice
+- Job scheduler — bounds concurrency and enforces the declared N
+- Result store — shared collection bucket the aggregator reads from
+
+## Evaluation metrics
+
+- Coverage of the input partition — fraction of slices that produced a usable structured result
+- Per-clone failure rate — fraction of sandboxes whose run errored or timed out
+- Aggregator quality vs single-agent baseline — quality lift from the fan-out after consolidation
+- Cost per useful result — total spend divided by accepted aggregated outputs
+- Spawn discipline — observed N versus declared N, catches unbounded recursion
+
 ## Known uses
 
-- **[Manus Wide Research (Monica / Manus AI)](https://zhuanlan.zhihu.com/p/1934558071381812623)** — *Available* — Wide Research mode spawns 100+ identical full-capability agent instances in parallel VMs.
-- **[Manus Wide Research technical writeup (SegmentFault)](https://segmentfault.com/a/1190000047111276)** — *Available* — Coverage of the architecture and parallelism model.
-- **[Manus Wide Research announcement (OSCHINA)](https://www.oschina.net/news/363554/manus-wide-research)** — *Available* — Product-level introduction of the Wide Research feature.
+- **[Manus Wide Research (Monica / Manus AI)](https://zhuanlan.zhihu.com/p/1934558071381812623)** _available_ — Wide Research mode spawns 100+ identical full-capability agent instances in parallel VMs.
+- **[Manus Wide Research — official announcement (Manus blog)](https://manus.im/blog/introducing-wide-research)** _available_ — Coverage of the architecture and parallelism model.
+- **[Manus Wide Research announcement (OSCHINA)](https://www.oschina.net/news/363554/manus-wide-research)** _available_ — Product-level introduction of the Wide Research feature.
 
 ## Related patterns
 
-- *alternative-to* → [orchestrator-workers](orchestrator-workers.md) — Orchestrator-workers decomposes by role; clone fan-out replicates the same role.
-- *specialises* → [parallelization](parallelization.md) — A specific shape of sectioning where every section gets the same full agent.
-- *uses* → [subagent-isolation](subagent-isolation.md) — Each clone runs in its own isolated sandbox.
-- *conflicts-with* → [unbounded-subagent-spawn](unbounded-subagent-spawn.md) — This pattern is the bounded, aggregated counterpart of that anti-pattern.
-- *alternative-to* → [lead-researcher](lead-researcher.md) — Lead-researcher uses a small number of specialised subagents; clone fan-out uses many identical ones.
+- _alternative-to_ **Orchestrator-Workers** — Orchestrator-workers decomposes by role; clone fan-out replicates the same role.
+- _specialises_ **Parallelization** — A specific shape of sectioning where every section gets the same full agent.
+- _uses_ **Subagent Isolation** — Each clone runs in its own isolated sandbox.
+- _conflicts-with_ **Unbounded Subagent Spawn** — This pattern is the bounded, aggregated counterpart of that anti-pattern.
+- _alternative-to_ **Lead Researcher** — Lead-researcher uses a small number of specialised subagents; clone fan-out uses many identical ones.
+- _alternative-to_ **Role-Typed Subagents**
+- _complements_ **Query-Decomposition Agent**
+- _complements_ **Epistemic Fault-Domain Quorum** — Identical workers fanned out over one corpus multiply reports without multiplying evidence roots, which is the case this pattern is designed to price correctly.
+- _complements_ **Forkable Agent Sandbox** — Fan-out over identical workers assumes the starting environment is cheap to reproduce; forking one snapshot supplies that starting state when provisioning from scratch is expensive.
 
 ## References
 
-- (blog) *Manus大升级，100多个智能体并发给你做任务*, 2025, <https://zhuanlan.zhihu.com/p/1934558071381812623>
-- (blog) *Manus Wide Research：重新定义AI多智能体并发处理的技术革命*, 2025, <https://segmentfault.com/a/1190000047111276>
-- (blog) *Manus推出Wide Research功能*, 2025, <https://www.oschina.net/news/363554/manus-wide-research>
-
-**Tags:** fan-out, parallel, multi-agent, wide-research, isolation
+- [Manus大升级，100多个智能体并发给你做任务](https://zhuanlan.zhihu.com/p/1934558071381812623) — 2025
+- [Introducing Wide Research (Manus official blog)](https://manus.im/blog/introducing-wide-research) — 2025
+- [Manus推出Wide Research功能](https://www.oschina.net/news/363554/manus-wide-research) — 2025

@@ -144,6 +144,7 @@ A quorum cannot be credited with more resilience than its smallest root-fault cu
 - _complements_ **Consensus-Averaging Over Expertise** — There the cost of averaging is dilution of a known expert; here it is double-counting of a hidden shared ancestor.
 - _complements_ **Hidden Distributed Monolith (Multi-Agent)** — The same false decoupling found in the deployment topology; this pattern finds it in the evidence the members read.
 - _complements_ **Clone Fan-Out Research** — Identical workers fanned out over one corpus multiply reports without multiplying evidence roots, which is the case this pattern is designed to price correctly.
+- _complements_ **Modality-Conflict Arbitration** — Counts how many independent roots a coalition really rests on; a shared encoder or a transcript-conditioned acoustic branch is exactly the collapsed root that makes cross-channel agreement worthless.
 
 ## References
 

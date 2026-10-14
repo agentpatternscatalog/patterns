@@ -149,6 +149,7 @@ A child link must not authorize any tool, argument value, spend ceiling, depth o
 - _complements_ **Policy-Gated Agent Action (KRITIS)** — The gate decides whether an action is permitted by policy; the chain decides whether the caller holds the authority to ask. Facets the chain cannot express belong in the policy engine.
 - _complements_ **Provenance Ledger** — The append-only chain plus the signed receipt for each executed action is what the ledger records, so authorization evidence and audit evidence stay the same object.
 - _complements_ **Signed Agent Card** — The card binds an identity to a key; the chain binds authority to that identity and to every hop it passed through.
+- _complements_ **Monotonic Privilege Confinement** — Both make monotone narrowing the invariant, but that pattern carries it across hops of a signed, append-only delegation chain a verifier can check offline, while this one carries it across time inside a single run whose policy is task-derived and revised as untrusted content arrives.
 
 ## References
 

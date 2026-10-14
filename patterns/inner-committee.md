@@ -23,20 +23,6 @@ When one prompt is asked to plan, execute, and self-critique at the same time, t
 - The model has the same blind spots in each persona; true diversity is limited.
 - Persona drift in long conversations dilutes the role separation.
 
-## Applicability
-
-**Use when**
-
-- A single persona produces muddled outputs that are neither plan, critique, nor execution.
-- Distinct personas (planner, executor, critic) can be defined with non-overlapping inputs.
-- The agent loop can step through personas at fixed, deterministic points.
-
-**Do not use when**
-
-- Mono-persona prompts already produce clean role-separated outputs.
-- Multiple model calls per step are not affordable.
-- Personas would share so much context that role separation has no effect.
-
 ## Therefore
 
 Therefore: run the same model under explicit, role-scoped personas that step in a fixed order, each seeing only the inputs its role needs, so that planning, execution, and critique stay separated without spinning up multiple model instances.
@@ -45,9 +31,11 @@ Therefore: run the same model under explicit, role-scoped personas that step in 
 
 Define explicit personas (system prompts) for each role: planner, executor, critic. The agent loop steps through personas at fixed points. Each persona sees only the inputs its role needs, not the full context of the others.
 
-## Example scenario
+## Structure
 
-A coding agent that handles refactor requests keeps producing patches that compile but miss the actual intent, because one prompt is being asked to plan, write, and self-critique in the same breath. The team rebuilds it as an inner-committee: the same model is invoked as Planner (sees the request and codebase summary), Executor (sees only the plan and writes the diff), and Critic (sees only the diff and the acceptance criteria). The personas run in fixed order and each sees only what its role needs.
+```
+Task --> Planner persona --plan--> Executor persona --result--> Critic persona --critique--> Planner persona (revise if needed) --> [loop | done]; one model, each persona sees only its own inputs
+```
 
 ## Diagram
 
@@ -66,6 +54,10 @@ sequenceDiagram
   L->>Pl: revise plan if needed
 ```
 
+## Example scenario
+
+A coding agent that handles refactor requests keeps producing patches that compile but miss the actual intent, because one prompt is being asked to plan, write, and self-critique in the same breath. The team rebuilds it as an inner-committee: the same model is invoked as Planner (sees the request and codebase summary), Executor (sees only the plan and writes the diff), and Critic (sees only the diff and the acceptance criteria). The personas run in fixed order and each sees only what its role needs.
+
 ## Consequences
 
 **Benefits**
@@ -78,22 +70,66 @@ sequenceDiagram
 - Same model means correlated errors; reflexion suffers from this.
 - Persona prompts add up to a non-trivial token budget.
 
+## Failure modes
+
+- Correlated blind spot — the critic persona runs on the same model as the executor and misses exactly the mistakes the executor made.
+- Rubber-stamp critic — the critic persona mostly agrees with the result, and the plan is never revised.
+- Persona bleed — personas share too much context, and the executor starts planning while the planner starts executing.
+- Prompt overhead — the persona prompts together take a large part of the token budget on every loop.
+
 ## What this pattern constrains
 
 Each persona may only act within its declared role; cross-persona reasoning is forbidden in a single prompt.
 
+## Applicability
+
+**Use when**
+
+- A single persona produces muddled outputs that are neither plan, critique, nor execution.
+- Distinct personas (planner, executor, critic) can be defined with non-overlapping inputs.
+- The agent loop can step through personas at fixed, deterministic points.
+
+**Do not use when**
+
+- Mono-persona prompts already produce clean role-separated outputs.
+- Multiple model calls per step are not affordable.
+- Personas would share so much context that role separation has no effect.
+
+## Components
+
+- Persona registry — small set of role-scoped system prompts (planner, executor, critic)
+- Persona scheduler — agent loop that steps through personas in a fixed order
+- Persona-input filter — restricts each persona to the inputs its role requires
+- Shared single model — one underlying LLM instance reused across persona turns
+
+## Tools
+
+- LLM API — one model invoked per persona turn, often with different system prompts
+- Prompt templates — per-persona system blocks concatenated at turn time
+
+## Evaluation metrics
+
+- Role-separation cleanliness — sampled outputs where persona stayed in scope versus blurred roles
+- Self-critique catch rate — defects the critic persona surfaces before user-visible output
+- Persona drift incidents — turns where a persona acts outside its declared role
+- Token overhead vs single-persona — extra tokens spent on persona prompts per task
+- Correlated-error rate — failures where critic agreed with executor due to shared model priors
+
 ## Known uses
 
-- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** — *Available* — A committee of internal voices deliberates within a tick before a single decision is emitted. Single-source evidence: one private deployment by the catalog author.
+- **[Sparrot (author's long-running personal agent; single private deployment)](https://marco-nissen.com/sparrot/)** _available_ — A committee of internal voices deliberates within a tick before a single decision is emitted. Single-source evidence: one private deployment by the catalog author.
 
 ## Related patterns
 
-- *specialises* → [inner-critic](inner-critic.md)
-- *alternative-to* → [debate](debate.md)
-- *alternative-to* → [role-assignment](role-assignment.md)
+- _specialises_ **Self-Modification Diff Gate**
+- _alternative-to_ **Debate**
+- _alternative-to_ **Role Assignment**
+- _alternative-to_ **Cognitive-Move Selector**
+- _alternative-to_ **Parallel-Voice Proposer**
+- _alternative-to_ **Personality Variant Overlay**
+- _alternative-to_ **Heterogeneous-Model Council with Synthesis Judge**
+- _complements_ **Agent Persona Profile**
 
 ## References
 
-- (paper) Wang, Mao, Wu, Ge, Wei, Ji, *Unleashing the Emergent Cognitive Synergy in Large Language Models: A Task-Solving Agent through Multi-Persona Self-Collaboration*, 2024, <https://arxiv.org/abs/2307.05300>
-
-**Tags:** multi-persona, single-model
+- [Unleashing the Emergent Cognitive Synergy in Large Language Models: A Task-Solving Agent through Multi-Persona Self-Collaboration](https://arxiv.org/abs/2307.05300) — Wang, Mao, Wu, Ge, Wei, Ji, 2024

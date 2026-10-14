@@ -23,20 +23,6 @@ Request-driven agents only act when someone calls them; if no user prompts the d
 - Failure modes when the agent's run is missed.
 - Drift if the schedule is not authoritative.
 
-## Applicability
-
-**Use when**
-
-- A task should run periodically regardless of user prompting.
-- Agent state can be persisted in durable storage between runs.
-- A scheduler (cron, queue, scheduler service) is available.
-
-**Do not use when**
-
-- The task only matters in response to a specific user request.
-- Runs would frequently be wasted because no work is pending.
-- Persistent state cannot be carried across runs.
-
 ## Therefore
 
 Therefore: trigger the agent on a fixed schedule and persist its state to durable storage between runs, so that time-bounded tasks happen on the clock even when no human is around to ask.
@@ -45,9 +31,11 @@ Therefore: trigger the agent on a fixed schedule and persist its state to durabl
 
 Schedule the agent run at fixed cadence (cron, scheduler service). The agent reads its current state, executes its task, writes results, and exits. State persists across runs in durable storage.
 
-## Example scenario
+## Structure
 
-A product manager wants a daily competitive-intelligence digest in their inbox. Building it as a request-driven agent forces them to remember to ask each morning, which they don't. The team schedules the agent to run at 06:00 cron, read its persisted state (last-seen items), execute its task, write results to email and storage, and exit. The digest now arrives reliably even when no human is awake, and the agent's state survives across runs.
+```
+Scheduler (cron) --tick--> Agent runtime --> read Durable state --> execute task --> Result writer (sink) --> write Durable state --> exit --> next tick
+```
 
 ## Diagram
 
@@ -65,6 +53,10 @@ sequenceDiagram
   end
 ```
 
+## Example scenario
+
+A product manager wants a daily competitive-intelligence digest in their inbox. Building it as a request-driven agent forces them to remember to ask each morning, which they don't. The team schedules the agent to run at 06:00 cron, read its persisted state (last-seen items), execute its task, write results to email and storage, and exit. The digest now arrives reliably even when no human is awake, and the agent's state survives across runs.
+
 ## Consequences
 
 **Benefits**
@@ -77,20 +69,70 @@ sequenceDiagram
 - Cost per run regardless of need.
 - Skew between expected and actual cadence.
 
+## Failure modes
+
+- Idle-run cost — the agent runs every tick even when nothing has changed, and most of the spend produces nothing new.
+- Cadence skew — runs fire late or overlap, and the output arrives after people needed it.
+- Double tick — the scheduler fires twice, the idempotency guard is missing, and the digest goes out twice.
+- Lost state — the state write fails at the end of a run, and the next run starts from zero and repeats old items.
+
 ## What this pattern constrains
 
 The agent is not invoked by user requests; only the scheduler triggers runs.
 
+## Applicability
+
+**Use when**
+
+- A task should run periodically regardless of user prompting.
+- Agent state can be persisted in durable storage between runs.
+- A scheduler (cron, queue, scheduler service) is available.
+
+**Do not use when**
+
+- The task only matters in response to a specific user request.
+- Runs would frequently be wasted because no work is pending.
+- Persistent state cannot be carried across runs.
+
+## Components
+
+- Schedule trigger — cron expression or scheduler entry that fires runs
+- Agent runtime — invoked on each tick to do the work
+- Durable state store — persists context across runs so continuity is preserved
+- Result writer — emits the run's output to the chosen sink (email, dashboard, store)
+- Idempotency guard — keeps retries safe when a tick fires twice
+
+## Tools
+
+- Scheduler — cron, queue with delayed delivery, or managed scheduler service
+- LLM API — invoked per run for the actual task
+- Durable state store — database, object store, or file system carrying state between runs
+- Notification or output channel — email, webhook, or dashboard for results
+
+## Evaluation metrics
+
+- Missed-tick rate — scheduled runs that failed to fire
+- Per-run cost on empty days — spend when no work was actually pending
+- State-continuity correctness — runs that correctly picked up from prior state
+- Schedule-skew drift — variance between expected and actual cadence
+- Idempotency-failure incidents — duplicate side effects from double-fired ticks
+
 ## Known uses
 
-- **Claude Code scheduled agents** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — The agent wakes on an internal schedule rather than waiting for a user message; chat is one wake source among several, not the only trigger.
+- **Claude Code scheduled agents** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — The agent wakes on an internal schedule rather than waiting for a user message; chat is one wake source among several, not the only trigger.
 
 ## Related patterns
 
-- *alternative-to* → [event-driven-agent](event-driven-agent.md)
-- *alternative-to* → [spec-driven-loop](spec-driven-loop.md)
-- *complements* → [agent-resumption](agent-resumption.md)
-- *alternative-to* → [mode-adaptive-cadence](mode-adaptive-cadence.md)
+- _alternative-to_ **Event-Driven Agent**
+- _alternative-to_ **Spec-Driven Loop**
+- _complements_ **Agent Resumption**
+- _complements_ **Now-Anchoring**
+- _generalises_ **Intra-Agent Memo Scheduling**
+- _alternative-to_ **Mode-Adaptive Cadence**
+- _complements_ **Durable Workflow Snapshot**
+- _complements_ **Local-to-Cloud Handoff**
 
-**Tags:** schedule, cron, periodic
+## References
+
+- [Message Batches](https://docs.claude.com/en/docs/build-with-claude/batch-processing) — 2025

@@ -24,20 +24,6 @@ Per-step oversight by an LLM judge adds latency and cost that production cannot 
 - A trained sequence model is fast and sequence-aware but must be built, supervised, and maintained.
 - The monitor must run out-of-band so it does not add the agent's own latency to every step.
 
-## Applicability
-
-**Use when**
-
-- An agent takes consequential actions in sequence where a misaligned trajectory can cause damage.
-- Per-step LLM-judge oversight is too slow or costly for the production hot path.
-- Enough labelled trajectory data exists to train and maintain a verifier.
-
-**Do not use when**
-
-- Actions are low-stakes and reversible, so real-time gating is not warranted.
-- There is no labelled trajectory data and none can be produced to train a verifier.
-- An output-quality check after the fact is sufficient because nothing is irreversible mid-trajectory.
-
 ## Therefore
 
 Therefore: train a lightweight non-LLM verifier over the agent's action sequence and run it out-of-band at runtime, so task-misaligned plans and malformed step sequences are flagged in milliseconds and can be gated before the next action lands.
@@ -45,6 +31,12 @@ Therefore: train a lightweight non-LLM verifier over the agent's action sequence
 ## Solution
 
 Train a dedicated verifier — a sequence model or a process-supervised classifier, not an LLM judge — on agent trajectories labelled for task alignment and structural validity. At runtime it consumes the agent's action sequence out-of-band and emits an anomaly signal at millisecond latency, fast enough to gate or pause the agent before the next action executes. Reported results put such a verifier at tens of milliseconds per check, well over an order of magnitude faster than an LLM-judge baseline, with process supervision over the trajectory outperforming output-only checks. Compose with a policy gate that halts or escalates on a flagged trajectory, and reserve LLM-judge review for the flagged cases rather than every step. Distinct from scoring final outputs and from loop-shape heuristics: the unit is the whole action sequence, and the timing is pre-damage.
+
+## Structure
+
+```
+Agent emits next action --> Action trajectory stream --> Trained sequence verifier (out of band) --no anomaly--> Execute action | --anomaly--> Policy gate (halt / escalate) --> Human or LLM-judge review of flagged case
+```
 
 ## Diagram
 
@@ -76,9 +68,29 @@ An agent with shell and database access executes multi-step tasks for users. Run
 - It detects anomalies it was trained to recognise; novel misalignment outside the training distribution can slip through.
 - A miscalibrated monitor either gates good trajectories (false positives) or misses bad ones (false negatives).
 
+## Failure modes
+
+- Novel misalignment — the agent drifts in a way the verifier never saw in training, and the trajectory passes unflagged.
+- Miscalibrated gate — the threshold is set too tight, good trajectories are paused constantly, and operators turn the gate off.
+- Stale verifier — the agent's tools or prompts change, the trained monitor is not retrained, and its signals stop matching real behaviour.
+
 ## What this pattern constrains
 
 The agent may not advance to its next action while a flagged trajectory is unresolved; a step sequence the monitor judges task-misaligned or malformed is gated before execution rather than scored after the fact.
+
+## Applicability
+
+**Use when**
+
+- An agent takes consequential actions in sequence where a misaligned trajectory can cause damage.
+- Per-step LLM-judge oversight is too slow or costly for the production hot path.
+- Enough labelled trajectory data exists to train and maintain a verifier.
+
+**Do not use when**
+
+- Actions are low-stakes and reversible, so real-time gating is not warranted.
+- There is no labelled trajectory data and none can be produced to train a verifier.
+- An output-quality check after the fact is sufficient because nothing is irreversible mid-trajectory.
 
 ## Components
 
@@ -102,18 +114,19 @@ The agent may not advance to its next action while a flagged trajectory is unres
 
 ## Known uses
 
-- **[Trajectory Guard](https://arxiv.org/abs/2601.00516)** — *Pure-future* — Lightweight sequence-aware model reporting tens-of-milliseconds inference, 17-27x faster than LLM-judge baselines, for real-time anomaly detection in agentic systems.
-- **[TrajAD](https://arxiv.org/abs/2602.06443)** — *Pure-future* — Trajectory anomaly detector trained with fine-grained process supervision, outperforming output-only baselines.
+- **[Trajectory Guard](https://arxiv.org/abs/2601.00516)** _pure-future_ — Lightweight sequence-aware model reporting tens-of-milliseconds inference, 17-27x faster than LLM-judge baselines, for real-time anomaly detection in agentic systems.
+- **[TrajAD](https://arxiv.org/abs/2602.06443)** _pure-future_ — Trajectory anomaly detector trained with fine-grained process supervision, outperforming output-only baselines.
 
 ## Related patterns
 
-- *alternative-to* → [scorer-live-monitoring](scorer-live-monitoring.md)
-- *alternative-to* → [llm-as-judge](llm-as-judge.md)
-- *alternative-to* → [typed-tool-loop-detector](typed-tool-loop-detector.md)
+- _alternative-to_ **Scorer Live Monitoring** — Scorer live monitoring scores final outputs asynchronously and informs; this verifies the action trajectory in real time as a pre-damage safety gate.
+- _alternative-to_ **LLM-as-Judge** — An LLM judge is more flexible but far slower; the trajectory monitor is a trained lightweight model for the hot path.
+- _alternative-to_ **Typed Tool-Loop Failure Detector** — Loop detection catches repetition by shape; the trajectory monitor catches subtler task-misalignment across the whole sequence.
+- _alternative-to_ **Verifier-Aware Reward Hacking** — A trajectory monitor catches the inspect-the-grader-first move at runtime — a step that opens the test harness or reward function before any task work is the anomaly to flag and discard the run on.
+- _complements_ **Agent-Speed Incident-Response Gap** — The monitor is the fast runtime detector this gap is missing; without an automated halt wired to it, its millisecond signal still feeds a human-paced response and fires too late.
+- _complements_ **Adversary-Indistinguishability Blind Spot** — Trajectory-anomaly-monitor watches your own agent's trajectory for misalignment; this anti-pattern is the blind spot where the adversary is an agent and looks non-anomalous to human-calibrated detectors.
 
 ## References
 
-- (paper) *Trajectory Guard — A Lightweight, Sequence-Aware Model for Real-Time Anomaly Detection in Agentic AI* 2026,, <https://arxiv.org/abs/2601.00516>
-- (paper) *TrajAD: Trajectory Anomaly Detection for Trustworthy LLM Agents* 2026,, <https://arxiv.org/abs/2602.06443>
-
-**Tags:** safety, monitoring, trajectory, anomaly-detection, runtime-guard
+- [Trajectory Guard — A Lightweight, Sequence-Aware Model for Real-Time Anomaly Detection in Agentic AI](https://arxiv.org/abs/2601.00516) — 2026
+- [TrajAD: Trajectory Anomaly Detection for Trustworthy LLM Agents](https://arxiv.org/abs/2602.06443) — 2026

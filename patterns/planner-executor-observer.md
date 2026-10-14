@@ -23,6 +23,58 @@ Two existing shapes both fail this requirement. Letting the executor run blind m
 - Triggering replans too eagerly thrashes; too lazily wastes effort.
 - The Observer needs visibility into plan and tool results both.
 
+## Therefore
+
+Therefore: insert a third Observer role that reads cumulative execution against the plan and is the only one allowed to call loop, respond, or replan, so that mid-run drift is caught early without rebuilding ReAct's monolithic step.
+
+## Solution
+
+Three roles: Planner produces a plan; Executor runs steps; Observer reads the cumulative result and decides loop / respond / replan. Each role has its own prompt and (optionally) its own model.
+
+## Structure
+
+```
+Goal --> Planner --plan--> Executor --step result--> Observer --loop--> Executor. Observer --replan--> Planner. Observer --respond--> Final answer
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  G[Goal] --> P[Planner]
+  P -->|plan| E[Executor]
+  E -->|step result| O[Observer]
+  O -->|loop| E
+  O -->|replan| P
+  O -->|respond| R[Final answer]
+```
+
+## Example scenario
+
+A research agent that uses a Planner and Executor loop produces fluent reports that quietly drift from the plan: the executor swaps in adjacent topics and the planner never notices because no one is checking. The team adds an Observer role: after each executor step the observer reads the cumulative output against the plan and emits loop, respond, or replan. When the executor wanders into 'related-but-off-plan' territory the observer triggers a replan instead of letting the drift compound.
+
+## Consequences
+
+**Benefits**
+
+- Catches plan failure earlier than end-of-run.
+- Cleaner separation of concerns than ReAct's monolithic step.
+
+**Liabilities**
+
+- Three coordinated prompts to maintain.
+- Latency adds up if Observer runs every step.
+
+## Failure modes
+
+- Lenient observer — the observer reads the cumulative result as on track when it is not, and the run finishes with a wrong answer.
+- Executor self-stop — the executor quits or replans on its own, bypassing the observer and the plan check.
+- Per-step latency — the observer runs after every step, and the loop becomes as slow as the ReAct loop it replaced.
+- Prompt drift — one of the three role prompts is updated and the others are not, so the observer judges against a plan format the planner no longer emits.
+
+## What this pattern constrains
+
+The Executor cannot decide to stop or replan; only the Observer can.
 
 ## Applicability
 
@@ -38,60 +90,42 @@ Two existing shapes both fail this requirement. Letting the executor run blind m
 - Observer cost dominates and there is no payoff in catching mid-run drift.
 - Roles cannot be cleanly separated without overlapping prompts.
 
-## Therefore
+## Components
 
-Therefore: insert a third Observer role that reads cumulative execution against the plan and is the only one allowed to call loop, respond, or replan, so that mid-run drift is caught early without rebuilding ReAct's monolithic step.
+- Planner — emits an ordered plan once from the goal
+- Executor — walks plan steps and accumulates results
+- Observer — reads cumulative output against the plan and decides next action
+- Decision channel — loop, respond, or replan signal emitted by the observer
+- Replan path — return to the planner when the observer triggers it
 
-## Solution
+## Tools
 
-Three roles: Planner produces a plan; Executor runs steps; Observer reads the cumulative result and decides loop / respond / replan. Each role has its own prompt and (optionally) its own model.
+- LLM API — usually three roles, each potentially backed by a different model
+- Tool catalogue — what the executor calls per step
+- Plan-and-result store — observer reads cumulative state from here
 
-## Example scenario
+## Evaluation metrics
 
-A research agent that uses a Planner and Executor loop produces fluent reports that quietly drift from the plan: the executor swaps in adjacent topics and the planner never notices because no one is checking. The team adds an Observer role: after each executor step the observer reads the cumulative output against the plan and emits loop, respond, or replan. When the executor wanders into 'related-but-off-plan' territory the observer triggers a replan instead of letting the drift compound.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  G[Goal] --> P[Planner]
-  P -->|plan| E[Executor]
-  E -->|step result| O[Observer]
-  O -->|loop| E
-  O -->|replan| P
-  O -->|respond| R[Final answer]
-```
-
-## Consequences
-
-**Benefits**
-
-- Catches plan failure earlier than end-of-run.
-- Cleaner separation of concerns than ReAct's monolithic step.
-
-**Liabilities**
-
-- Three coordinated prompts to maintain.
-- Latency adds up if Observer runs every step.
-
-## What this pattern constrains
-
-The Executor cannot decide to stop or replan; only the Observer can.
+- Drift-catch latency — turns between off-plan execution and observer signalling replan
+- Observer overhead — observer tokens as fraction of total run cost
+- Replan-trigger precision — fraction of observer replans that were actually warranted
+- False respond rate — observer declaring done when the plan was not satisfied
+- End-to-end success vs unsupervised plan-and-execute — quality lift from the third role
 
 ## Known uses
 
-- **Bobbin (Stash2Go)** — *Available*. planner / screen_executor / observe with route_after_observe edge.
+- **Bobbin (Stash2Go)** _available_ — planner / screen_executor / observe with route_after_observe edge.
 
 ## Related patterns
 
-- *specialises* → [plan-and-execute](plan-and-execute.md)
-- *composes-with* → [evaluator-optimizer](evaluator-optimizer.md)
-- *alternative-to* → [react](react.md)
-- *used-by* → [replan-on-failure](replan-on-failure.md)
-- *generalises* → [outer-inner-agent-loop](outer-inner-agent-loop.md)
+- _specialises_ **Plan-and-Execute**
+- _composes-with_ **Evaluator-Optimizer**
+- _alternative-to_ **ReAct**
+- _used-by_ **Replan on Failure**
+- _generalises_ **Outer-Inner Agent Loop**
+- _alternative-to_ **Planner-Generator-Evaluator Harness**
+- _alternative-to_ **Planner-Executor-Verifier (PEV)**
 
 ## References
 
-- (paper) Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models*, 2022, <https://arxiv.org/abs/2210.03629>
-
-**Tags:** planning, three-role
+- [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) — Yao et al., 2022

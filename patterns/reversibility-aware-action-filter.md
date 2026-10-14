@@ -126,6 +126,7 @@ An action estimated as irreversible cannot execute by default; the filter must r
 - _complements_ **Compensating Action** — Compensating actions undo a step after it executes; this filter prevents the genuinely irreversible step from being taken in the first place, so the two cover the reversible and irreversible halves of the action surface.
 - _complements_ **Risk-Tiered Action Autonomy** — Risk tiers gate actions by financial materiality and release the material ones to a human; this filter gates by reversibility and re-samples automatically, so a deployment can combine a materiality axis with a reversibility axis.
 - _uses_ **Policy-as-Code Gate** — The per-tool reversibility class lives in a manifest or policy declared outside the agent's reach, which is exactly the externally compiled, agent-immutable rule that a policy-as-code gate enforces.
+- _complements_ **Action-Admissibility Tiering** — That treats reversibility as the single dimension and re-samples the policy until a reversible action is found; here reversibility is one clause of the admissibility tier alongside authority, procedure and preconditions.
 
 ## References
 

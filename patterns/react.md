@@ -37,25 +37,6 @@ On each step the agent emits Thought (private reasoning), Action (one tool call)
 [Thought_i, Action_i, Observation_i] for i in 1..N, then Answer.
 ```
 
-
-## Applicability
-
-**Use when**
-
-- The next action depends on what was learned from the previous action.
-- The agent needs tool access during a multi-step task.
-- Outputs from tools are short and inspectable so the model can react to them.
-
-**Do not use when**
-
-- The full plan is known up front; Plan-and-Execute commits earlier.
-- Latency is critical; each iteration adds a model round-trip.
-- Tool results are large; they will dominate the context window.
-
-## Example scenario
-
-A travel-planning chatbot is asked, 'Find me a flight from Oslo to Tokyo next Tuesday under €800.' It thinks: 'I should check flights.' It calls a flight-search tool. The result shows three options. It thinks again: 'The cheapest is on a Tuesday morning — that fits.' Each step it sees what the previous tool call returned, then decides what to do next.
-
 ## Diagram
 
 ```mermaid
@@ -71,6 +52,12 @@ sequenceDiagram
   Model->>User: Answer
 ```
 
+*ReAct alternates Thought, Action, Observation until the model decides it has an answer or a budget halts the loop.*
+
+## Example scenario
+
+A travel-planning chatbot is asked, 'Find me a flight from Oslo to Tokyo next Tuesday under €800.' It thinks: 'I should check flights.' It calls a flight-search tool. The result shows three options. It thinks again: 'The cheapest is on a Tuesday morning — that fits.' Each step it sees what the previous tool call returned, then decides what to do next.
+
 ## Consequences
 
 **Benefits**
@@ -83,34 +70,82 @@ sequenceDiagram
 - Sequential by nature; long traces are slow and expensive.
 - No global plan; the agent can wander.
 
+## Failure modes
+
+- Wandering trace — with no global plan, the agent follows one interesting observation after another and drifts away from the question.
+- Budget exhaustion — the step budget runs out mid-investigation, and the agent stops with no answer or answers early to fit.
+- Slow long traces — every step waits on the last, so a task with many lookups takes far longer and costs far more than its parts.
+- Ignored observation — the thought step restates the prior belief instead of reading the tool result, and the agent repeats the same call.
+
 ## What this pattern constrains
 
 Each step the model may call exactly one tool; reasoning between calls is not actuated.
 
+## Applicability
+
+**Use when**
+
+- The next action depends on what was learned from the previous action.
+- The agent needs tool access during a multi-step task.
+- Outputs from tools are short and inspectable so the model can react to them.
+
+**Do not use when**
+
+- The full plan is known up front; Plan-and-Execute commits earlier.
+- Latency is critical; each iteration adds a model round-trip.
+- Tool results are large; they will dominate the context window.
+
+## Components
+
+- Thought slot — private reasoning emitted by the model per step
+- Action slot — exactly one tool call per step
+- Observation slot — the tool's result fed back to the model
+- Step-budget guard — bounds the loop so it terminates
+- Termination check — model decides when to emit the final answer
+
+## Tools
+
+- LLM API — invoked once per Thought-Action step
+- Tool catalogue — the actions available per step (search, code exec, retrieval, etc.)
+- Step-budget counter — enforces the loop bound
+
+## Evaluation metrics
+
+- Steps to answer — average loop length on representative tasks
+- Tool-call necessity rate — fraction of actions that genuinely advanced the answer
+- Step-budget exhaustion rate — runs that hit the bound without answering
+- Hallucinated-fact rate — answers asserting facts no observation supplied
+- Per-step round-trip latency — wall-clock cost of one Thought-Action-Observation cycle
+
 ## Known uses
 
-- **Bobbin (Stash2Go)** — *Available*. observe node + route_after_observe edge in LangGraph.
-- **LangChain AgentExecutor (default)** — *Available*
-- **Claude Code** — *Available*
-- **Cursor** — *Available*
-- **GitHub Copilot agent** — *Available*
-- **Devin** — *Available*
+- **Bobbin (Stash2Go)** _available_ — observe node + route_after_observe edge in LangGraph.
+- **[LangChain AgentExecutor (default)](https://python.langchain.com/docs/how_to/agent_executor/)** _available_
+- **[Claude Code](https://docs.claude.com/en/docs/claude-code/overview)** _available_
+- **[Cursor](https://cursor.com/)** _available_
+- **GitHub Copilot agent** _available_
+- **[Devin](https://docs.devin.ai/get-started/devin-intro)** _available_
 
 ## Related patterns
 
-- *alternative-to* → [plan-and-execute](plan-and-execute.md)
-- *uses* → [tool-use](tool-use.md)
-- *used-by* → [agentic-rag](agentic-rag.md)
-- *alternative-to* → [planner-executor-observer](planner-executor-observer.md)
-- *used-by* → [lats](lats.md)
-- *used-by* → [computer-use](computer-use.md)
-- *specialises* → [self-ask](self-ask.md)
-- *composes-with* → [code-execution](code-execution.md)
-- *generalises* → [code-as-action](code-as-action.md)
+- _alternative-to_ **Plan-and-Execute**
+- _uses_ **Tool Use**
+- _used-by_ **Agentic RAG**
+- _alternative-to_ **Planner-Executor-Observer**
+- _used-by_ **Language Agent Tree Search**
+- _used-by_ **Computer Use**
+- _specialises_ **Self-Ask**
+- _composes-with_ **Code Execution**
+- _generalises_ **Code-as-Action Agent**
+- _generalises_ **Augmented LLM**
+- _specialises_ **Rumination Agent**
+- _complements_ **Incremental Model Querying**
+- _alternative-to_ **Agentic Behavior Tree**
+- _used-by_ **Managed Agent Runtime**
+- _composes-with_ **Attentive Reasoning Queries** — An ARQ blueprint can structure the reasoning step inside a ReAct loop.
+- _complements_ **Deliberation Over Observation** — The failure happens inside a working reason-and-act loop with native function calling; adopting the loop does not resolve it, because the model still chooses to extend the chain rather than emit the call.
 
 ## References
 
-- (paper) Yao, Zhao, Yu, Du, Shafran, Narasimhan, Cao, *ReAct: Synergizing Reasoning and Acting in Language Models*, 2022, <https://arxiv.org/abs/2210.03629>
-- (blog) Anthropic, *Building Effective Agents* (2024) — https://www.anthropic.com/research/building-effective-agents
-
-**Tags:** react, loop, tool-use
+- [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) — Yao, Zhao, Yu, Du, Shafran, Narasimhan, Cao, 2022
+- [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — Anthropic, 2024

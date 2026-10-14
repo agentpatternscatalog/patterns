@@ -31,9 +31,11 @@ Therefore: subscribe to a validated event stream and invoke the agent only on de
 
 Subscribe to event source (webhook, queue, watcher). On event, validate, deduplicate, and invoke the agent with event payload as input. Apply rate limiting and idempotency. Acknowledge after successful processing.
 
-## Example scenario
+## Structure
 
-A monitoring agent polls a status endpoint every thirty seconds to see whether a build has finished. Most polls find nothing, burning tokens. The team flips to Event-Driven Agent: the build system fires a webhook on completion, and the agent wakes up only when an event arrives. Latency to react drops from up to thirty seconds to roughly the webhook round-trip, and idle cost drops to near zero.
+```
+Event source (webhook / queue / file watcher) --event--> Validator --> Deduplicator (event id) --> Rate limiter --> Agent invoker (payload) --result--> Ack to event source
+```
 
 ## Diagram
 
@@ -50,6 +52,10 @@ sequenceDiagram
   H->>Src: ack
 ```
 
+## Example scenario
+
+A monitoring agent polls a status endpoint every thirty seconds to see whether a build has finished. Most polls find nothing, burning tokens. The team flips to Event-Driven Agent: the build system fires a webhook on completion, and the agent wakes up only when an event arrives. Latency to react drops from up to thirty seconds to roughly the webhook round-trip, and idle cost drops to near zero.
+
 ## Consequences
 
 **Benefits**
@@ -61,6 +67,13 @@ sequenceDiagram
 
 - Event-source failures stop the agent silently.
 - Idempotency is its own engineering.
+
+## Failure modes
+
+- Silent source outage — the webhook or queue stops delivering, and the agent simply stops running with no error raised.
+- Duplicate side effects — a replayed delivery passes a weak deduplicator, and the agent sends the same email or payment twice.
+- Event storm — a burst of events gets past the rate limiter, and invocations drain the budget in minutes.
+- Early ack — the handler acknowledges before the agent finishes, so a crashed run is never redelivered.
 
 ## What this pattern constrains
 
@@ -80,16 +93,52 @@ The agent runs only on validated events; spurious or duplicate events are filter
 - Event volume is so low that a daily cron is simpler than a subscription.
 - Idempotency cannot be guaranteed and duplicate events would cause harm.
 
+## Components
+
+- Event source — webhook, message queue, or file watcher that fires triggers
+- Validator — rejects malformed or unauthenticated events
+- Deduplicator — drops replayed or duplicate deliveries by event id
+- Rate limiter — bounds invocation frequency under event storms
+- Agent invoker — runs the agent with the event payload and acknowledges on success
+
+## Tools
+
+- Event bus or queue — pub/sub, webhook receiver, or file watcher
+- Idempotency store — records processed event ids for dedup
+- LLM API — invoked per validated event for the agent's reasoning
+- Acknowledgement channel — return path back to the event source
+
+## Evaluation metrics
+
+- Event-to-action latency — wall-clock from event arrival to agent completion
+- Duplicate-suppression rate — fraction of replayed events caught by the dedup store
+- Idle cost reduction vs polling baseline — tokens saved by not polling an empty endpoint
+- Event-source liveness — silent-failure detection when no events arrive for a stale window
+- Burst-handling survival — fraction of events processed during a declared storm test
+
 ## Known uses
 
-- **GitHub Actions agent triggers** — *Available*
-- **Pub/Sub-driven agent platforms** — *Available*
+- **[GitHub Actions agent triggers](https://docs.github.com/en/actions)** _available_
+- **Pub/Sub-driven agent platforms** _available_
 
 ## Related patterns
 
-- *alternative-to* → [scheduled-agent](scheduled-agent.md)
-- *complements* → [rate-limiting](rate-limiting.md)
-- *complements* → [agent-resumption](agent-resumption.md)
-- *complements* → [salience-triggered-output](salience-triggered-output.md)
+- _alternative-to_ **Scheduled Agent**
+- _complements_ **Rate Limiting**
+- _complements_ **Agent Resumption**
+- _complements_ **Salience-Triggered Output**
+- _complements_ **Actor-Model Agents**
+- _complements_ **Topic-Based Routing**
+- _complements_ **Visual Workflow Graph**
+- _used-by_ **LLM as Periphery**
+- _alternative-to_ **Blocking Sync Calls in Agent Loop**
+- _alternative-to_ **Orchestrator as Bottleneck**
+- _complements_ **Stateless Reducer Agent**
+- _complements_ **Stigmergic Coordination**
+- _complements_ **CDC-Driven Vector Sync**
+- _complements_ **Streaming Feature Pipeline**
+- _complements_ **Channel-Decoupled Agent Core** — Unattended and background surfaces are event-driven; an event or webhook source is simply another inbound adapter feeding the channel-agnostic core.
 
-**Tags:** events, reactive, webhook
+## References
+
+- [AutoGen](https://microsoft.github.io/autogen/stable/) — Microsoft, 2025

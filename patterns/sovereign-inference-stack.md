@@ -24,21 +24,6 @@ A hosted-API agent sends every prompt, every tool input, and every output to a t
 - Self-hosting demands GPU capex and MLOps competence the operator may lack.
 - Sovereign deployments must still reach acceptable model quality to be useful.
 
-
-## Applicability
-
-**Use when**
-
-- Regulated workload forbids data egress to a foreign-cloud LLM provider.
-- Permissively licensed or sovereign-licensed models meet quality requirements.
-- The operator can run inference on-prem or in a controlled jurisdiction.
-
-**Do not use when**
-
-- Data egress to a hosted API is allowed and frontier capability matters more.
-- Self-hosted operations cost or complexity exceeds the regulatory benefit.
-- Available open-weight models cannot meet quality targets for the workload.
-
 ## Therefore
 
 Therefore: place every load-bearing component (weights, inference, tools, memory, logs, eval) inside one operator-controlled jurisdictional boundary and forbid any agent path that crosses it, so that no prompt or output ever reaches a third-party API.
@@ -47,16 +32,11 @@ Therefore: place every load-bearing component (weights, inference, tools, memory
 
 Choose models with permissive weights or commercial sovereign licensing. Run inference on-prem or in a jurisdictionally controlled cloud region with the operator holding the keys. Place all auxiliary services (vector store, tool gateway, audit log, evaluation harness) inside the same boundary. Document the boundary as part of the system's compliance posture (model card, data-flow diagram). Treat the boundary as load-bearing: any new tool or model call has to be reviewed for boundary impact before merge.
 
-## Example scenario
-
-A bank wants an internal coding assistant but legal flatly forbids any source-code or prompt leaving the bank's controlled boundary, regardless of vendor contractual language. The team picks a permissively-licensed open-weights model, runs inference in their own datacentre, places the vector store and trace logs inside the same boundary, and holds the keys themselves. No request, prompt, or output ever crosses to a third-party API; the assistant ships under regulator review.
-
 ## Structure
 
 ```
 Boundary { Inference + Tools + Memory + Logs + Eval } -- only public artefacts (UI responses) leave.
 ```
-
 
 ## Diagram
 
@@ -77,6 +57,10 @@ flowchart TB
   Inf --> U
 ```
 
+## Example scenario
+
+A bank wants an internal coding assistant but legal flatly forbids any source-code or prompt leaving the bank's controlled boundary, regardless of vendor contractual language. The team picks a permissively-licensed open-weights model, runs inference in their own datacentre, places the vector store and trace logs inside the same boundary, and holds the keys themselves. No request, prompt, or output ever crosses to a third-party API; the assistant ships under regulator review.
+
 ## Consequences
 
 **Benefits**
@@ -91,28 +75,69 @@ flowchart TB
 - Capability gap vs. frontier hosted models is real and ongoing.
 - Each new model upgrade is a procurement project, not an API key swap.
 
+## Failure modes
+
+- Boundary leak — a new tool or eval step calls a hosted API, is merged without boundary review, and prompts leave the jurisdiction.
+- Capability gap — the self-hosted model cannot handle tasks the hosted frontier model handled, and teams quietly route hard cases outside the boundary.
+- Stalled upgrade — each model upgrade becomes a procurement project, so the stack runs an old model long after better weights exist.
+
 ## What this pattern constrains
 
 No prompt, tool input, tool output, or memory entry may leave the operator-controlled boundary; agent components that require a third-party hosted call are forbidden by construction.
 
+## Applicability
+
+**Use when**
+
+- Regulated workload forbids data egress to a foreign-cloud LLM provider.
+- Permissively licensed or sovereign-licensed models meet quality requirements.
+- The operator can run inference on-prem or in a controlled jurisdiction.
+
+**Do not use when**
+
+- Data egress to a hosted API is allowed and frontier capability matters more.
+- Self-hosted operations cost or complexity exceeds the regulatory benefit.
+- Available open-weight models cannot meet quality targets for the workload.
+
+## Components
+
+- On-prem inference server — model runtime inside the jurisdictional boundary
+- Operator-held weights — permissively licensed or sovereign-licensed model files
+- In-boundary tool gateway — proxy for any external call so egress is reviewable
+- In-boundary vector store and audit log — auxiliary services hosted under operator keys
+- Boundary-impact review — pre-merge gate ensuring new tools or models do not break sovereignty
+
+## Tools
+
+- GPU fleet — capex hardware running the inference workload locally
+- Key management service — operator-owned KMS holding all encryption keys
+- Data-flow diagram — compliance artefact documenting the boundary for auditors
+
+## Evaluation metrics
+
+- Cross-boundary egress incidents — requests or outputs detected leaving the controlled zone
+- Capability gap versus frontier hosted models — task-level quality delta on reference evals
+- On-prem inference cost per token — operator economics versus hosted API pricing
+- Audit-readiness score — completeness of data-flow documentation against regulator checklist
+
 ## Known uses
 
-- **[Aleph Alpha PhariaAI](https://docs.aleph-alpha.com/phariaai-home/latest/index.html)** — *Available*. End-to-end stack (Pharia models, PhariaEngine WebAssembly skill runtime, on-prem deployable) marketed for sovereign / explainable enterprise and government use.
-- **Mistral on-prem ("Le Chat Enterprise" / private deployment)** — *Available*. Self-hostable European model option used for similar sovereignty requirements.
-- **SAP Joule with private grounding** — *Available*. Tenant-isolated agent stack with customer data residency commitments.
+- **[Aleph Alpha PhariaAI](https://docs.aleph-alpha.com/phariaai-home/latest/index.html)** _available_ — End-to-end stack (Pharia models, PhariaEngine WebAssembly skill runtime, on-prem deployable) marketed for sovereign / explainable enterprise and government use.
+- **Mistral on-prem ("Le Chat Enterprise" / private deployment)** _available_ — Self-hostable European model option used for similar sovereignty requirements.
+- **SAP Joule with private grounding** _available_ — Tenant-isolated agent stack with customer data residency commitments.
 
 ## Related patterns
 
-- *complements* → [session-isolation](session-isolation.md)
-- *complements* → [model-card](model-card.md)
-- *uses* → [lineage-tracking](lineage-tracking.md)
-- *complements* → [secrets-handling](secrets-handling.md)
-- *complements* → [constitutional-charter](constitutional-charter.md)
-- *complements* → [open-weight-cascade](open-weight-cascade.md)
+- _complements_ **Session Isolation**
+- _uses_ **Lineage Tracking**
+- _complements_ **Secrets Handling**
+- _complements_ **Constitutional Charter**
+- _complements_ **Open-Weight Cascade**
+- _complements_ **Vendor Lock-In**
+- _alternative-to_ **Shadow AI**
+- _complements_ **Compliance-Certified Launch Gate** — Both are jurisdiction-driven; the sovereign stack keeps data inside a controlled boundary, while this gate certifies the service's content safety to the same jurisdiction's regulator before launch.
 
 ## References
 
-- (doc) *PhariaAI Documentation*, <https://docs.aleph-alpha.com/phariaai-home/latest/index.html>
-- (doc) *Aleph Alpha — Sovereign AI Solutions*, <https://aleph-alpha.com/>
-
-**Tags:** safety, compliance, germany-origin, sovereignty, eu-ai-act
+- [PhariaAI Documentation](https://docs.aleph-alpha.com/phariaai-home/latest/index.html)
+- [Aleph Alpha — Sovereign AI Solutions](https://aleph-alpha.com/)

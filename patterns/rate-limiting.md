@@ -23,6 +23,58 @@ Without per-identity limits, a single caller can drain the month's token budget 
 - Per-tier limits add complexity.
 - Distributed counters need coordination.
 
+## Therefore
+
+Therefore: enforce per-identity token-bucket counters at multiple horizons in both the gateway and the agent loop, so that no single caller can starve the system or run up an unbounded bill.
+
+## Solution
+
+Define limits per identity at multiple horizons (per minute, per hour, per day). Use token-bucket or sliding-window counters. Apply at API gateway and at agent loop level. Surface limit hits to the user clearly.
+
+## Structure
+
+```
+Request --> Identify caller --> Token bucket / sliding window (per minute, hour, day) --over limit--> 429 + clear message | --under limit--> Agent loop --> Inner limit on tool calls and tokens
+```
+
+## Diagram
+
+```mermaid
+flowchart TD
+  Req[Request] --> ID[Identify caller]
+  ID --> B[Token bucket /<br/>sliding window]
+  B -->|under limit| Allow[Allow]
+  B -->|over limit| Deny[429 + clear message]
+  Allow --> Agent[Agent loop]
+  Agent --> B2[Inner limit:<br/>tool calls / tokens]
+```
+
+## Example scenario
+
+A coding assistant ships a free tier and within a week one signed-up account opens 400 concurrent agent loops, draining the month's token budget in two hours. The team adds per-identity token-bucket counters at three horizons (per minute, per hour, per day) at the API gateway and inside the agent loop itself. Over-budget callers get a clear 429 naming which window tripped and when it resets. Cost stops being a single hostile user away from blowing up.
+
+## Consequences
+
+**Benefits**
+
+- Cost predictability.
+- Abuse becomes detectable as limit hits.
+
+**Liabilities**
+
+- Legitimate burst usage is throttled.
+- Tier definitions ossify.
+
+## Failure modes
+
+- Throttled burst — a legitimate user with a short spike of real work hits the per-minute limit and is blocked mid-task.
+- Ossified tiers — limits set at launch never change, and they no longer match how people use the product.
+- Outer-only limit — the gateway caps requests, but one request starts an agent loop that makes unbounded tool calls inside it.
+
+## What this pattern constrains
+
+Requests beyond the limit are rejected or queued; no code path may bypass the limiter.
+
 ## Applicability
 
 **Use when**
@@ -37,56 +89,46 @@ Without per-identity limits, a single caller can drain the month's token budget 
 - Existing infrastructure already rate-limits effectively at the boundary.
 - False rate-limit denials would block more legitimate work than they protect.
 
-## Therefore
+## Components
 
-Therefore: enforce per-identity token-bucket counters at multiple horizons in both the gateway and the agent loop, so that no single caller can starve the system or run up an unbounded bill.
+- Identity resolver — extracts the caller id used to key per-tenant counters
+- Token-bucket counter — per-identity bucket refilled at the configured rate
+- Multi-horizon limit table — per-minute, per-hour, per-day caps applied in parallel
+- Gateway enforcer — outer limiter at the API boundary
+- Inner loop enforcer — secondary limit on tool calls and tokens inside the agent loop
 
-## Solution
+## Tools
 
-Define limits per identity at multiple horizons (per minute, per hour, per day). Use token-bucket or sliding-window counters. Apply at API gateway and at agent loop level. Surface limit hits to the user clearly.
+- Distributed counter store — Redis or equivalent backing the buckets across instances
+- Sliding-window timer — reference clock for window resets and bucket refills
 
-## Example scenario
+## Evaluation metrics
 
-A coding assistant ships a free tier and within a week one signed-up account opens 400 concurrent agent loops, draining the month's token budget in two hours. The team adds per-identity token-bucket counters at three horizons (per minute, per hour, per day) at the API gateway and inside the agent loop itself. Over-budget callers get a clear 429 naming which window tripped and when it resets. Cost stops being a single hostile user away from blowing up.
-
-## Diagram
-
-```mermaid
-flowchart TD
-  Req[Request] --> ID[Identify caller]
-  ID --> B[Token bucket /<br/>sliding window]
-  B -->|under limit| Allow[Allow]
-  B -->|over limit| Deny[429 + clear message]
-  Allow --> Agent[Agent loop]
-  Agent --> B2[Inner limit:<br/>tool calls / tokens]
-```
-
-## Consequences
-
-**Benefits**
-
-- Cost predictability.
-- Abuse becomes detectable as limit hits.
-
-**Liabilities**
-
-- Legitimate burst usage is throttled.
-- Tier definitions ossify.
-
-## What this pattern constrains
-
-Requests beyond the limit are rejected or queued; no code path may bypass the limiter.
+- 429 response rate by tenant — distribution of limit hits across the user base
+- Token-budget burn-rate per tenant — early warning of runaway accounts
+- False-limit denials — legitimate burst traffic blocked by an over-tight cap
+- Gateway-vs-loop-limit hit ratio — which layer fired and how often
 
 ## Known uses
 
-- **Most production agent APIs** — *Available*
-- **[Sparrot](https://marco-nissen.com/sparrot/)** — *Available* — A sliding-window token cap is enforced per minute per provider so a chatty stretch cannot exhaust the budget for a calmer one.
+- **Most production agent APIs** _available_
+- **[Sparrot](https://marco-nissen.com/sparrot/)** _available_ — A sliding-window token cap is enforced per minute per provider so a chatty stretch cannot exhaust the budget for a calmer one.
 
 ## Related patterns
 
-- *complements* → [circuit-breaker](circuit-breaker.md)
-- *complements* → [cost-gating](cost-gating.md)
-- *complements* → [event-driven-agent](event-driven-agent.md)
-- *complements* → [kill-switch](kill-switch.md)
+- _complements_ **Circuit Breaker**
+- _complements_ **Cost Gating**
+- _complements_ **Event-Driven Agent**
+- _complements_ **Kill Switch**
+- _complements_ **Infrastructure Burst Bottleneck (Agent Scale-Out)**
+- _complements_ **Naive Retry Without Backoff**
+- _used-by_ **Agent Middleware Chain**
+- _used-by_ **Business + LLM Microservice Split**
+- _complements_ **Crawler Dispatcher**
+- _alternative-to_ **Velocity-and-Magnitude Governor** — Rate limiting caps requests, tokens, or calls per window; the governor caps committed financial magnitude per window instead — same throttle shape, a different governed quantity (dollars-per-second, not calls-per-second).
+- _alternative-to_ **Cumulative Disclosure Accounting** — Both are session-scoped counters, but a rate limiter counts requests in a time window and says nothing about what those requests revealed.
+- _complements_ **History-Dependent Admissibility** — Rate limits count requests per window; this counts what the requests meant to each other, so a slow, polite, in-quota sequence is still refused.
 
-**Tags:** safety, throttle, quota
+## References
+
+- [Rate limits](https://docs.claude.com/en/api/rate-limits) — 2025

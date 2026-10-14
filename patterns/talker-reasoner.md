@@ -32,6 +32,12 @@ Therefore: run a Talker agent on the live conversational loop for fast intuitive
 
 Stand up two sub-agents that share memory. The Talker (System 1) handles every user turn with low-latency intuitive replies grounded in the current shared state — including 'let me think about this' acknowledgements when the Reasoner is mid-flight. The Reasoner (System 2) runs asynchronously, invoked when the Talker recognises a query requires deliberation, and writes its conclusions (plans, tool-call results, evidence) back to shared memory for the Talker to consume on the next turn. The Talker decides what to surface and when; the Reasoner is non-blocking.
 
+## Structure
+
+```
+User <-> Talker (fast, answers from shared memory) --invoke async when deliberation needed--> Reasoner (slow: plans, calls tools) --write conclusions--> Shared memory --read next turn--> Talker; Reasoner never speaks to the user
+```
+
 ## Diagram
 
 ```mermaid
@@ -64,6 +70,13 @@ A sleep-coaching agent gets the message 'I've been waking up at 3am for two week
 - Shared-memory protocol becomes load-bearing; staleness or write conflicts cause incoherence.
 - Talker may speak before the Reasoner has confirmed; commits before deliberation create rework.
 - User confusion if the Talker promises results the Reasoner has not yet produced.
+
+## Failure modes
+
+- Premature commit — the Talker tells the user an answer before the Reasoner has confirmed it, and the Reasoner later disagrees.
+- Empty promise — the Talker says results are coming, and the Reasoner never produces them or produces something else.
+- Stale memory read — the Talker answers from shared memory the Reasoner is in the middle of updating, and the reply mixes old and new state.
+- Double operations cost — the team runs two agents but only monitors one, and Reasoner failures go unnoticed.
 
 ## What this pattern constrains
 
